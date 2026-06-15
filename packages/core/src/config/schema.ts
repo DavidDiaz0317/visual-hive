@@ -157,6 +157,40 @@ export const WaitForSchema = z.object({
   timeoutMs: z.number().int().positive().default(5000)
 });
 
+export const FlowStepSchema = z
+  .object({
+    action: z.enum(["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"]),
+    description: z.string().optional(),
+    selector: z.string().optional(),
+    route: z.string().optional(),
+    value: z.string().optional(),
+    key: z.string().optional(),
+    text: z.string().optional(),
+    state: z.enum(["visible", "attached", "hidden"]).optional().default("visible"),
+    timeoutMs: z.number().int().positive().optional().default(5000)
+  })
+  .superRefine((step, context) => {
+    const needsSelector = ["click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText"].includes(step.action);
+    if (needsSelector && !step.selector) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `${step.action} steps require selector`, path: ["selector"] });
+    }
+    if (step.action === "goto" && !step.route) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "goto steps require route", path: ["route"] });
+    }
+    if (step.action === "fill" && step.value === undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "fill steps require value", path: ["value"] });
+    }
+    if (step.action === "press" && !step.key) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "press steps require key", path: ["key"] });
+    }
+    if (step.action === "assertText" && !step.text) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "assertText steps require text", path: ["text"] });
+    }
+    if (step.action === "assertUrl" && !step.value) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "assertUrl steps require value", path: ["value"] });
+    }
+  });
+
 export const SelectorContractSchema = z
   .object({
     mustExist: z.array(z.string()).optional().default([]),
@@ -175,6 +209,7 @@ export const ContractSchema = z.object({
   runOn: RunOnSchema,
   timeoutMs: z.number().int().positive().optional(),
   waitFor: z.array(WaitForSchema).optional().default([]),
+  steps: z.array(FlowStepSchema).optional().default([]),
   failOnConsoleError: z.boolean().optional().default(false),
   expectedConsoleErrors: z.array(z.string()).optional().default([]),
   selectors: SelectorContractSchema,

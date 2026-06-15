@@ -47,6 +47,7 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     `- Visual diffs: ${report?.summary?.visualDiffs ?? visualDiffs.length}`,
     `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
+    `- Flow steps: ${report?.summary?.flowStepsPassed ?? 0} passed, ${report?.summary?.flowStepsFailed ?? 0} failed`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
     `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
     ""

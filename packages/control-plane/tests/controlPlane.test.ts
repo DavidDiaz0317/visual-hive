@@ -289,6 +289,7 @@ viewports:
             id: "app-shell-visual-stability",
             targetId: "localPreview",
             selectors: ["[data-testid='dashboard-page']"],
+            steps: [{ action: "assertVisible", selector: "[data-testid='dashboard-page']" }],
             screenshots: [{ name: "app-shell-desktop", route: "/", viewport: "desktop" }],
             reasons: ["Detected stable project-owned selector."]
           }

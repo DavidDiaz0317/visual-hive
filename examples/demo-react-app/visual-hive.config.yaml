@@ -36,6 +36,17 @@ contracts:
         timeoutMs: 5000
     failOnConsoleError: true
     expectedConsoleErrors: []
+    steps:
+      - action: assertVisible
+        selector: "[data-testid='dashboard-page']"
+        description: "Dashboard shell is visible before interaction."
+      - action: click
+        selector: "[data-testid='critical-action-button']"
+        description: "Critical action control remains interactable in demo mode."
+      - action: assertText
+        selector: ".data-status"
+        text: "Demo metrics loaded"
+        description: "Dashboard data status remains visible after interaction."
     selectors:
       mustExist:
         - "[data-testid='dashboard-page']"

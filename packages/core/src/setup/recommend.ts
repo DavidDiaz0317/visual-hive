@@ -55,6 +55,7 @@ export interface SetupRecommendedContract {
   id: string;
   targetId: string;
   selectors: string[];
+  steps: Array<{ action: string; selector?: string; route?: string; value?: string }>;
   screenshots: Array<{ name: string; route: string; viewport: string }>;
   reasons: string[];
 }
@@ -145,6 +146,12 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
         id: contract.config.id,
         targetId: contract.config.target,
         selectors: contract.config.selectors.mustExist,
+        steps: contract.config.steps.map((step) => ({
+          action: step.action,
+          selector: step.selector,
+          route: step.route,
+          value: step.action === "fill" ? "[configured]" : (step.value ?? step.key ?? step.text)
+        })),
         screenshots: contract.config.screenshots.map((screenshot) => ({
           name: screenshot.name,
           route: screenshot.route,
@@ -299,6 +306,10 @@ function buildContract(
       severity: "high",
       runOn: { pullRequest: true, schedule: true },
       waitFor,
+      steps:
+        selector === "body"
+          ? [{ action: "assertVisible", selector: "body", description: "Starter page shell is visible.", state: "visible", timeoutMs: 5000 }]
+          : [{ action: "assertVisible", selector, description: "Starter page shell is visible.", state: "visible", timeoutMs: 5000 }],
       failOnConsoleError: false,
       expectedConsoleErrors: [],
       selectors: { mustExist: [selector], mustNotExist: [], textMustExist: [], textMustNotExist: [] },

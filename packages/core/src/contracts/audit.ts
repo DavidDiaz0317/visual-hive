@@ -45,6 +45,7 @@ export interface ContractAuditEntry {
     textMustNotExist: string[];
     total: number;
   };
+  flowStepCount: number;
   screenshots: Array<{ name: string; route: string; viewport: string; fullPage: boolean; masks: string[] }>;
   routes: string[];
   viewports: string[];
@@ -113,6 +114,7 @@ export function auditContracts(config: VisualHiveConfig, options: AuditContracts
         contract.selectors.mustNotExist.length +
         contract.selectors.textMustExist.length +
         contract.selectors.textMustNotExist.length;
+      const flowStepCount = contract.steps.length;
       const routes = unique(contract.screenshots.map((shot) => shot.route)).sort();
       const viewports = unique(contract.screenshots.map((shot) => shot.viewport)).sort();
       const gaps = collectGaps({
@@ -121,6 +123,7 @@ export function auditContracts(config: VisualHiveConfig, options: AuditContracts
         selected: selectedContracts.has(contract.id),
         latestStatus: latest?.status,
         selectorTotal,
+        flowStepCount,
         mutationMappings: mappedMutations,
         changedFileRules: rules,
         planProvided: Boolean(options.plan || options.report)
@@ -146,6 +149,7 @@ export function auditContracts(config: VisualHiveConfig, options: AuditContracts
           textMustNotExist: [...contract.selectors.textMustNotExist],
           total: selectorTotal
         },
+        flowStepCount,
         screenshots: contract.screenshots.map((shot) => ({
           name: shot.name,
           route: shot.route,
@@ -181,7 +185,7 @@ export function auditContracts(config: VisualHiveConfig, options: AuditContracts
       selectedContracts: contracts.filter((contract) => contract.selected).length,
       notRunContracts: contracts.filter((contract) => contract.latestStatus === "not_run").length,
       failedContracts: contracts.filter((contract) => contract.latestStatus === "failed").length,
-      assertionFreeContracts: contracts.filter((contract) => contract.selectors.total + contract.screenshots.length === 0).length,
+      assertionFreeContracts: contracts.filter((contract) => contract.selectors.total + contract.flowStepCount + contract.screenshots.length === 0).length,
       screenshotlessContracts: contracts.filter((contract) => contract.screenshots.length === 0).length,
       contractsWithoutWaitFor: contracts.filter((contract) => contract.waitFor.length === 0).length,
       contractsWithoutChangedFileRules: contracts.filter((contract) => contract.changedFileRules.length === 0).length,
@@ -228,16 +232,17 @@ function collectGaps(input: {
   selected: boolean;
   latestStatus?: string;
   selectorTotal: number;
+  flowStepCount: number;
   mutationMappings: ContractMutationMapping[];
   changedFileRules: Array<{ pattern: string; risk: string }>;
   planProvided: boolean;
 }): ContractAuditGap[] {
   const gaps: ContractAuditGap[] = [];
-  if (input.selectorTotal + input.contract.screenshots.length === 0) {
+  if (input.selectorTotal + input.flowStepCount + input.contract.screenshots.length === 0) {
     gaps.push({
       kind: "no_assertions",
       severity: input.contract.severity === "critical" ? "high" : "medium",
-      message: "Contract has no selector, text, or screenshot assertions."
+      message: "Contract has no selector, text, flow, or screenshot assertions."
     });
   }
   if (input.contract.screenshots.length === 0) {
@@ -247,7 +252,7 @@ function collectGaps(input: {
       message: "Contract has no screenshot assertions."
     });
   }
-  if (input.contract.waitFor.length === 0 && input.selectorTotal + input.contract.screenshots.length > 0) {
+  if (input.contract.waitFor.length === 0 && input.selectorTotal + input.flowStepCount + input.contract.screenshots.length > 0) {
     gaps.push({
       kind: "no_wait_for",
       severity: "low",
@@ -296,7 +301,7 @@ function recommendationsFor(contract: ContractConfig, gaps: ContractAuditGap[]):
   const recommendations: string[] = [];
   for (const gap of gaps) {
     if (gap.kind === "no_assertions") {
-      recommendations.push(`Add mustExist/mustNotExist selectors or a screenshot for "${contract.id}".`);
+      recommendations.push(`Add selectors, flow steps, or a screenshot for "${contract.id}".`);
     } else if (gap.kind === "no_screenshots") {
       recommendations.push(`Add at least one deterministic screenshot route/viewport for "${contract.id}" if layout drift matters.`);
     } else if (gap.kind === "no_wait_for") {

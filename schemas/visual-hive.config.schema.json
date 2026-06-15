@@ -254,6 +254,7 @@
             }
           }
         },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/flowStep" } },
         "failOnConsoleError": { "type": "boolean", "default": false },
         "expectedConsoleErrors": { "type": "array", "items": { "type": "string" } },
         "selectors": {
@@ -279,6 +280,48 @@
         "viewport": { "type": "string", "minLength": 1 },
         "fullPage": { "type": "boolean", "default": true },
         "mask": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "flowStep": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "goto" } } },
+          "then": { "required": ["route"] }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText"] } } },
+          "then": { "required": ["selector"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "fill" } } },
+          "then": { "required": ["value"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "press" } } },
+          "then": { "required": ["key"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "assertText" } } },
+          "then": { "required": ["text"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "assertUrl" } } },
+          "then": { "required": ["value"] }
+        }
+      ],
+      "properties": {
+        "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
+        "description": { "type": "string" },
+        "selector": { "type": "string" },
+        "route": { "type": "string" },
+        "value": { "type": "string" },
+        "key": { "type": "string" },
+        "text": { "type": "string" },
+        "state": { "enum": ["visible", "attached", "hidden"], "default": "visible" },
+        "timeoutMs": { "type": "integer", "minimum": 1, "default": 5000 }
       }
     },
     "changedFileRule": {

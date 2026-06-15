@@ -302,6 +302,7 @@ function buildSummary(results: ContractResult[]): Report["summary"] {
   const screenshotsPassed = screenshots.filter((screenshot) => screenshot.status === "passed" || screenshot.status === "created").length;
   const screenshotsFailed = screenshots.filter((screenshot) => screenshot.status === "failed" || screenshot.status === "missing_baseline").length;
   const baselinesCreated = screenshots.filter((screenshot) => screenshot.status === "created").length;
+  const flowSteps = results.flatMap((result) => result.flowSteps ?? []);
   return {
     passed: results.filter((result) => result.status === "passed" || result.status === "created").length,
     failed: results.filter((result) => result.status === "failed").length,
@@ -312,7 +313,9 @@ function buildSummary(results: ContractResult[]): Report["summary"] {
     missingBaselines,
     visualDiffs: screenshots.filter((screenshot) => screenshot.status === "failed").length,
     consoleErrors: results.reduce((sum, result) => sum + (result.consoleErrors?.length ?? 0), 0),
-    pageErrors: results.reduce((sum, result) => sum + (result.pageErrors?.length ?? 0), 0)
+    pageErrors: results.reduce((sum, result) => sum + (result.pageErrors?.length ?? 0), 0),
+    flowStepsPassed: flowSteps.filter((step) => step.status === "passed").length,
+    flowStepsFailed: flowSteps.filter((step) => step.status === "failed").length
   };
 }
 
@@ -370,6 +373,14 @@ function sanitizeContractResult(result: ContractResult): ContractResult {
       ...assertion,
       value: sanitizeText(assertion.value),
       message: assertion.message ? sanitizeText(assertion.message) : undefined
+    })),
+    flowSteps: result.flowSteps?.map((step) => ({
+      ...step,
+      description: step.description ? sanitizeText(step.description) : undefined,
+      selector: step.selector ? sanitizeText(step.selector) : undefined,
+      route: step.route ? sanitizeText(step.route) : undefined,
+      value: step.value ? sanitizeText(step.value) : undefined,
+      message: step.message ? sanitizeText(step.message) : undefined
     })),
     screenshotAssertions: result.screenshotAssertions?.map((assertion) => ({
       ...assertion,

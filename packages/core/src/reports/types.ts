@@ -30,6 +30,17 @@ export interface SelectorAssertionResult {
   message?: string;
 }
 
+export interface FlowStepResult {
+  action: "goto" | "click" | "fill" | "press" | "waitFor" | "assertVisible" | "assertHidden" | "assertText" | "assertUrl";
+  description?: string;
+  selector?: string;
+  route?: string;
+  value?: string;
+  status: "passed" | "failed";
+  durationMs: number;
+  message?: string;
+}
+
 export interface ScreenshotAssertionResult {
   contractId: string;
   screenshotName: string;
@@ -112,6 +123,8 @@ export interface ReportSummary {
   visualDiffs: number;
   consoleErrors: number;
   pageErrors: number;
+  flowStepsPassed?: number;
+  flowStepsFailed?: number;
 }
 
 export interface ContractResult {
@@ -123,6 +136,7 @@ export interface ContractResult {
   artifacts: string[];
   reproductionCommand?: string;
   selectorAssertions?: SelectorAssertionResult[];
+  flowSteps?: FlowStepResult[];
   screenshotAssertions?: ScreenshotAssertionResult[];
   consoleErrors?: RuntimeErrorResult[];
   pageErrors?: RuntimeErrorResult[];

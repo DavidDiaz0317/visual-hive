@@ -82,6 +82,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
       const target = targets[contract.target];
       const startedAt = Date.now();
       const selectorAssertions = [];
+      const flowSteps = [];
       const screenshotAssertions = [];
       const consoleErrors = [];
       const pageErrors = [];
@@ -122,6 +123,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
         await applyDomMutation(page);
         await applyWaits(page, contract, selectorAssertions);
         await assertSelectors(page, contract.selectors, selectorAssertions);
+        await runFlowSteps(page, target, contract, flowSteps);
 
         for (const shot of contract.screenshots) {
           const viewport = viewports[shot.viewport];
@@ -166,6 +168,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
               errors,
               artifacts,
               selectorAssertions,
+              flowSteps,
               screenshotAssertions,
               consoleErrors,
               pageErrors,
@@ -181,6 +184,80 @@ test.describe("visual-hive generated deterministic contracts", () => {
     });
   }
 });
+
+async function runFlowSteps(page, target, contract, flowSteps) {
+  for (const step of contract.steps ?? []) {
+    const startedAt = Date.now();
+    const result = {
+      action: step.action,
+      description: step.description,
+      selector: step.selector,
+      route: step.route,
+      value: visibleStepValue(step),
+      status: "passed",
+      durationMs: 0
+    };
+    try {
+      await executeFlowStep(page, target, step);
+      result.durationMs = Date.now() - startedAt;
+      flowSteps.push(result);
+    } catch (error) {
+      result.status = "failed";
+      result.durationMs = Date.now() - startedAt;
+      result.message = sanitizeText(error instanceof Error ? error.message : String(error));
+      flowSteps.push(result);
+      throw error;
+    }
+  }
+}
+
+async function executeFlowStep(page, target, step) {
+  const timeout = step.timeoutMs ?? 5000;
+  if (step.action === "goto") {
+    await page.goto(joinUrl(target.url, step.route), { waitUntil: "domcontentloaded" });
+    await disableAnimations(page);
+    await applyDomMutation(page);
+    return;
+  }
+  if (step.action === "click") {
+    await page.locator(step.selector).first().click({ timeout });
+    return;
+  }
+  if (step.action === "fill") {
+    await page.locator(step.selector).first().fill(step.value ?? "", { timeout });
+    return;
+  }
+  if (step.action === "press") {
+    await page.locator(step.selector).first().press(step.key, { timeout });
+    return;
+  }
+  if (step.action === "waitFor") {
+    await page.locator(step.selector).first().waitFor({ state: step.state ?? "visible", timeout });
+    return;
+  }
+  if (step.action === "assertVisible") {
+    await expect(page.locator(step.selector).first(), \`Expected flow selector to be visible: \${step.selector}\`).toBeVisible({ timeout });
+    return;
+  }
+  if (step.action === "assertHidden") {
+    await expect(page.locator(step.selector).first(), \`Expected flow selector to be hidden: \${step.selector}\`).toBeHidden({ timeout });
+    return;
+  }
+  if (step.action === "assertText") {
+    await expect(page.locator(step.selector).first(), \`Expected flow selector text: \${step.selector}\`).toContainText(step.text ?? "", { timeout });
+    return;
+  }
+  if (step.action === "assertUrl") {
+    await expect(page, \`Expected URL to contain: \${step.value}\`).toHaveURL(new RegExp(escapeRegExp(step.value ?? "")), { timeout });
+    return;
+  }
+  throw new Error(\`Unsupported Visual Hive flow step action: \${step.action}\`);
+}
+
+function visibleStepValue(step) {
+  if (step.action === "fill") return step.value ? "[configured]" : undefined;
+  return step.value ?? step.key ?? step.text;
+}
 
 async function applyWaits(page, contract, assertions) {
   for (const wait of contract.waitFor ?? []) {
@@ -489,6 +566,10 @@ function joinUrl(base, route) {
 
 function safeName(value) {
   return String(value).replace(/[^a-z0-9_.-]+/gi, "-");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, "\\\\$&");
 }
 `;
 }

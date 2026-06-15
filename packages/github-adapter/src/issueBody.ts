@@ -47,6 +47,11 @@ export function buildIssueBody(input: IssueBodyInput): string {
   } else {
     for (const failure of failed) {
       lines.push(`- ${failure.contractId} on ${failure.targetId}: ${failure.errors.join("; ") || "no error details"}`);
+      for (const step of failure.flowSteps ?? []) {
+        if (step.status === "failed") {
+          lines.push(`  - flow ${step.action}: ${step.selector ?? step.route ?? step.value ?? "step"} failed${step.message ? ` - ${step.message}` : ""}`);
+        }
+      }
       for (const screenshot of failure.screenshotAssertions ?? []) {
         if (screenshot.status === "failed" || screenshot.status === "missing_baseline") {
           lines.push(

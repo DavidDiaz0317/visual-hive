@@ -137,6 +137,34 @@ describe("config validation", () => {
     });
   });
 
+  it("validates contract flow steps", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      contracts: [
+        {
+          id: "flow-contract",
+          description: "Flow contract",
+          target: "safe",
+          runOn: { pullRequest: true },
+          steps: [
+            { action: "goto", route: "/" },
+            { action: "click", selector: "[data-testid='critical-action-button']" },
+            { action: "assertText", selector: ".data-status", text: "Demo metrics loaded" }
+          ]
+        }
+      ]
+    });
+
+    expect(config.contracts[0]?.steps.map((step) => step.action)).toEqual(["goto", "click", "assertText"]);
+    expect(config.contracts[0]?.steps[0]?.timeoutMs).toBe(5000);
+    expect(() =>
+      VisualHiveConfigSchema.parse({
+        ...sampleConfig(),
+        contracts: [{ id: "broken-flow", description: "Broken", target: "safe", steps: [{ action: "click" }] }]
+      })
+    ).toThrow(/click steps require selector/);
+  });
+
   it("applies AI governance defaults", () => {
     expect(sampleConfig().ai).toMatchObject({
       enabled: false,
@@ -1113,7 +1141,9 @@ describe("setup recommendations", () => {
     expect(recommendation.recommendedTarget.kind).toBe("command");
     expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
     expect(recommendation.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
+    expect(recommendation.recommendedContracts[0]?.steps[0]).toMatchObject({ action: "assertVisible", selector: "[data-testid='dashboard-page']" });
     expect(parsedYaml.contracts[0]?.id).toBe("app-shell-visual-stability");
+    expect(parsedYaml.contracts[0]?.steps[0]?.action).toBe("assertVisible");
     expect(parsedYaml.targets.localPreview.kind).toBe("command");
   });
 });

@@ -156,7 +156,7 @@ function setup() {
     metric("Selectors", recommendation.detectedSelectors.length, recommendation.detectedSelectors.length ? "ok" : "warn") +
     '</div>' +
     card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
-    card("Recommended contracts", table(["Contract", "Target", "Selectors", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
+    card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
     card("Next commands", list(recommendation.recommendedCommands)) +
     card("Findings", recommendation.findings.length ? table(["Severity", "Message", "Evidence"], recommendation.findings.map(f => [f.severity, f.message, f.evidence || ""])) : "No findings.") +
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
@@ -178,7 +178,8 @@ function runs() {
   return '<div class="section">' +
     card("Run metadata", '<table><tr><th>Project</th><td>' + esc(report.project) + '</td></tr><tr><th>Repository</th><td>' + esc(report.repository?.repository || "unknown") + '</td></tr><tr><th>Branch</th><td>' + esc(report.repository?.branch || "unknown") + '</td></tr><tr><th>Commit</th><td>' + esc(report.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown") + '</td></tr><tr><th>Run context</th><td>' + esc(report.repository?.provider || "unknown") + '</td></tr><tr><th>Mode</th><td>' + esc(report.mode) + '</td></tr><tr><th>Status</th><td>' + esc(report.status) + '</td></tr><tr><th>Generated</th><td>' + esc(report.generatedAt) + '</td></tr><tr><th>Spec</th><td>' + link(rel(report.generatedSpecPath), "generated spec") + '</td></tr></table>') +
     historyBlock +
-    card("Contract results", table(["Contract", "Target", "Status", "Duration", "Reproduce"], report.results.map(r => [r.contractId, r.targetId, r.status, r.durationMs + "ms", r.reproductionCommand || ""]))) +
+    card("Contract results", table(["Contract", "Target", "Status", "Duration", "Flow", "Reproduce"], report.results.map(r => [r.contractId, r.targetId, r.status, r.durationMs + "ms", ((r.flowSteps || []).filter(s => s.status === "passed").length + "/" + (r.flowSteps || []).length), r.reproductionCommand || ""]))) +
+    card("Flow steps", report.results.some(r => (r.flowSteps || []).length) ? table(["Contract", "Action", "Selector/route", "Status", "Duration", "Message"], report.results.flatMap(r => (r.flowSteps || []).map(s => [r.contractId, s.action, s.selector || s.route || s.value || "", s.status, s.durationMs + "ms", s.message || ""]))) : '<p class="muted">No user-flow steps were reported.</p>') +
     card("Lifecycle", table(["Target", "Phase", "Status", "Duration", "Message"], report.targetLifecycle.map(e => [e.targetId, e.phase, e.status, e.durationMs + "ms", e.message || e.url || ""]))) +
     providerResultsCard(report.providerResults) +
     card("Raw JSON", '<pre>' + esc(JSON.stringify(report, null, 2)) + '</pre>') +
@@ -274,7 +275,7 @@ function contracts() {
     metric("No waitFor", s.contractsWithoutWaitFor, "") +
     metric("Mutation mapped", s.mutationMappedContracts, "") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Contract audit", table(["ID", "Target", "Severity", "Selected", "Latest", "Routes", "Viewports", "Mutations", "Gaps"], audit.contracts.map(c => [c.id, c.targetId, c.severity, c.selected ? "yes" : "no", c.latestStatus, c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
+    card("Contract audit", table(["ID", "Target", "Severity", "Selected", "Latest", "Flow", "Routes", "Viewports", "Mutations", "Gaps"], audit.contracts.map(c => [c.id, c.targetId, c.severity, c.selected ? "yes" : "no", c.latestStatus, String(c.flowStepCount ?? 0), c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
     card("Recommendations", audit.contracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r)).length ? list(audit.contracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r))) : "No contract recommendations from the current audit.") +
     card("Console rules", table(["ID", "Fail on console", "Expected errors"], audit.contracts.map(c => [c.id, c.consoleRules.failOnConsoleError ? "yes" : "no", c.consoleRules.expectedConsoleErrors.join(", ") || "none"]))) +
     '</div>';

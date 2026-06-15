@@ -122,7 +122,9 @@
         "missingBaselines": { "type": "number" },
         "visualDiffs": { "type": "number" },
         "consoleErrors": { "type": "number" },
-        "pageErrors": { "type": "number" }
+        "pageErrors": { "type": "number" },
+        "flowStepsPassed": { "type": "number" },
+        "flowStepsFailed": { "type": "number" }
       }
     },
     "selectorAssertion": {
@@ -132,6 +134,20 @@
         "kind": { "enum": ["mustExist", "mustNotExist", "textMustExist", "textMustNotExist", "waitFor"] },
         "value": { "type": "string" },
         "status": { "enum": ["passed", "failed"] },
+        "message": { "type": "string" }
+      }
+    },
+    "flowStep": {
+      "type": "object",
+      "required": ["action", "status", "durationMs"],
+      "properties": {
+        "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
+        "description": { "type": "string" },
+        "selector": { "type": "string" },
+        "route": { "type": "string" },
+        "value": { "type": "string" },
+        "status": { "enum": ["passed", "failed"] },
+        "durationMs": { "type": "number", "minimum": 0 },
         "message": { "type": "string" }
       }
     },
@@ -180,6 +196,7 @@
         "artifacts": { "type": "array", "items": { "type": "string" } },
         "reproductionCommand": { "type": "string" },
         "selectorAssertions": { "type": "array", "items": { "$ref": "#/$defs/selectorAssertion" } },
+        "flowSteps": { "type": "array", "items": { "$ref": "#/$defs/flowStep" } },
         "screenshotAssertions": { "type": "array", "items": { "$ref": "#/$defs/screenshotAssertion" } },
         "consoleErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
         "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },

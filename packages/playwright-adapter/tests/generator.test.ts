@@ -39,6 +39,10 @@ describe("buildSpecContent", () => {
           severity: "high",
           runOn: { pullRequest: true },
           waitFor: [{ selector: "[data-testid='dashboard-page']", state: "visible", timeoutMs: 5000 }],
+          steps: [
+            { action: "click", selector: "[data-testid='critical-action-button']", description: "Critical action is clickable." },
+            { action: "assertText", selector: ".data-status", text: "Demo metrics loaded" }
+          ],
           failOnConsoleError: true,
           expectedConsoleErrors: ["Known harmless"],
           selectors: {
@@ -77,6 +81,11 @@ describe("buildSpecContent", () => {
     expect(content).not.toContain("networkidle");
     expect(content).toContain("visualHiveCi === \"false\" ? false");
     expect(content).toContain("applyWaits");
+    expect(content).toContain("runFlowSteps");
+    expect(content).toContain("executeFlowStep");
+    expect(content).toContain("flowSteps");
+    expect(content).toContain("Critical action is clickable.");
+    expect(content).toContain("visibleStepValue");
     expect(content).toContain("page.on(\"pageerror\"");
     expect(content).toContain("page.on(\"response\"");
     expect(content).toContain("consoleErrors.push({ type: \"console\", message: sanitizeText");

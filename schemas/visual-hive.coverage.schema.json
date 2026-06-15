@@ -81,6 +81,7 @@
           "excludedReasons",
           "selectorCount",
           "textAssertionCount",
+          "flowStepCount",
           "screenshotCount",
           "routes",
           "viewports",

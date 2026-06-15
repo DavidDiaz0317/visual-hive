@@ -34,6 +34,7 @@ Target kinds:
 Contracts support:
 
 - `waitFor[]`
+- `steps[]` for deterministic user-flow actions and assertions
 - `timeoutMs`
 - `failOnConsoleError`
 - `expectedConsoleErrors`
@@ -45,6 +46,34 @@ Contracts support:
 - `screenshots[].viewport`
 - `screenshots[].fullPage`
 - `screenshots[].mask`
+
+`steps[]` supports these actions:
+
+- `goto` with `route`
+- `click` with `selector`
+- `fill` with `selector` and `value` (reports store `[configured]` instead of the raw fill value)
+- `press` with `selector` and `key`
+- `waitFor` with `selector`, optional `state`, and optional `timeoutMs`
+- `assertVisible` / `assertHidden` with `selector`
+- `assertText` with `selector` and `text`
+- `assertUrl` with `value` as a URL substring/escaped pattern
+
+Example:
+
+```yaml
+contracts:
+  - id: public-demo-flow
+    description: Public demo shell remains visible after critical action interaction.
+    target: localPreview
+    steps:
+      - action: assertVisible
+        selector: "[data-testid='dashboard-page']"
+      - action: click
+        selector: "[data-testid='critical-action-button']"
+      - action: assertText
+        selector: ".data-status"
+        text: "Demo metrics loaded"
+```
 
 Visual defaults:
 
