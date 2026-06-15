@@ -14,11 +14,13 @@ targets:
     cost: cheap
 
   unsafeHosted:
-    kind: url
+    kind: protected
     url: "https://example.com"
     prSafe: false
     schedule: "0 */4 * * *"
     cost: cheap
+    requiresSecrets:
+      - DEMO_PROTECTED_TOKEN
 
 contracts:
   - id: hosted-demo-never-login
@@ -28,6 +30,12 @@ contracts:
     runOn:
       pullRequest: true
       schedule: true
+    waitFor:
+      - selector: "[data-testid='dashboard-page']"
+        state: visible
+        timeoutMs: 5000
+    failOnConsoleError: true
+    expectedConsoleErrors: []
     selectors:
       mustExist:
         - "[data-testid='dashboard-page']"
@@ -52,6 +60,10 @@ contracts:
     runOn:
       pullRequest: true
       schedule: true
+    waitFor:
+      - selector: "[data-testid='dashboard-card']"
+        state: visible
+        timeoutMs: 5000
     selectors:
       mustExist:
         - "[data-testid='dashboard-page']"
@@ -86,6 +98,13 @@ viewports:
     width: 390
     height: 844
 
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
+
 selection:
   changedFiles:
     - pattern: "src/components/auth/**"
@@ -103,12 +122,24 @@ mutation:
     schedule: true
   minScore: 0.7
   operators:
-    - hide-critical-button
-    - force-login-on-demo
-    - remove-demo-badge
-    - api-500
-    - empty-data
-    - mobile-overflow
+    - id: hide-critical-button
+      contracts:
+        - hosted-demo-never-login
+    - id: force-login-on-demo
+      contracts:
+        - hosted-demo-never-login
+    - id: remove-demo-badge
+      contracts:
+        - hosted-demo-never-login
+    - id: api-500
+      contracts:
+        - hosted-demo-never-login
+    - id: empty-data
+      contracts:
+        - dashboard-visual-stability
+    - id: mobile-overflow
+      contracts:
+        - dashboard-visual-stability
 
 ai:
   enabled: false

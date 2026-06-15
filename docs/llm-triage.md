@@ -1,6 +1,6 @@
 # LLM Triage
 
-LLM support is prompt-only in the MVP. No API key is required and no network call is made.
+LLM support is prompt-only by default. No API key is required and no network call is made.
 
 The LLM adapter builds prompts for:
 

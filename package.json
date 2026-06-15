@@ -1,6 +1,6 @@
 {
   "name": "visual-hive",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Deterministic-first visual QA and testing orchestration for web projects.",
@@ -24,16 +24,21 @@
     "demo:build": "npm run build -w demo-react-app",
     "demo:doctor": "node packages/cli/dist/index.js doctor --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:plan": "node packages/cli/dist/index.js plan --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt",
-    "demo:run": "node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml",
-    "demo:mutate": "node packages/cli/dist/index.js mutate --config examples/demo-react-app/visual-hive.config.yaml",
+    "demo:run": "node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
+    "demo:mutate": "node packages/cli/dist/index.js mutate --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
     "demo:triage": "node packages/cli/dist/index.js triage --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:report": "node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml",
-    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:triage && npm run demo:report"
+    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:triage && npm run demo:report",
+    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:triage && npm run demo:report",
+    "smoke:cli": "node scripts/smoke-cli.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.2",
+    "@types/pngjs": "^6.0.5",
     "eslint": "^9.17.0",
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0",
     "typescript-eslint": "^8.18.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

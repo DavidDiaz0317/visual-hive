@@ -4,5 +4,6 @@ export * from "./planner/createPlan.js";
 export * from "./planner/types.js";
 export * from "./reports/types.js";
 export * from "./mutations/score.js";
+export * from "./mutations/operators.js";
 export * from "./utils/files.js";
 export * from "./utils/sanitize.js";

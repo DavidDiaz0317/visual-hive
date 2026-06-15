@@ -18,8 +18,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm run typecheck
       - run: npm test
       - run: npm run lint
+      - run: npx playwright install --with-deps chromium
       - run: npm run demo:build
       - run: npm run demo:doctor
       - run: npm run demo:plan
+      - run: npm run demo:run
+      - run: npm run demo:triage
+        if: always()
+      - run: npm run demo:report
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-hive-demo
+          path: examples/demo-react-app/.visual-hive

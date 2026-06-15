@@ -74,4 +74,15 @@ export function validateReferences(config: VisualHiveConfig): void {
       }
     }
   }
+
+  for (const operator of config.mutation.operators) {
+    if (typeof operator === "string") {
+      continue;
+    }
+    for (const contractId of operator.contracts) {
+      if (!contractIds.has(contractId)) {
+        throw new Error(`Invalid Visual Hive config: mutation operator "${operator.id}" references unknown contract "${contractId}"`);
+      }
+    }
+  }
 }

@@ -6,6 +6,7 @@ import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/sch
 import { createPlan } from "../src/planner/createPlan.js";
 import { calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig } from "../src/config/load.js";
+import { selectContractsForMutation } from "../src/mutations/operators.js";
 
 const tempDirs: string[] = [];
 
@@ -101,6 +102,43 @@ describe("config validation", () => {
     expect(sampleConfig().project.name).toBe("sample");
   });
 
+  it("applies visual config defaults", () => {
+    expect(sampleConfig().visual).toMatchObject({
+      maxDiffPixelRatio: 0.01,
+      updateSnapshots: false,
+      failOnMissingBaselineInCI: true,
+      snapshotDir: ".visual-hive/snapshots",
+      artifactDir: ".visual-hive/artifacts"
+    });
+  });
+
+  it("defaults protected target cost to expensive", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "protected-default" },
+      targets: {
+        live: {
+          kind: "protected",
+          url: "https://example.com"
+        }
+      },
+      contracts: [{ id: "live", description: "Live", target: "live" }]
+    });
+
+    expect(config.targets.live.cost).toBe("expensive");
+    expect(config.targets.live.prSafe).toBe(false);
+  });
+
+  it("rejects unsafe visual artifact paths", () => {
+    expect(() =>
+      VisualHiveConfigSchema.parse({
+        project: { name: "bad-paths" },
+        targets: { local: { kind: "url", url: "http://127.0.0.1:4173" } },
+        contracts: [{ id: "home", description: "Home", target: "local" }],
+        visual: { snapshotDir: "../snapshots" }
+      })
+    ).toThrow(/repo-relative/);
+  });
+
   it("rejects an invalid config", () => {
     expect(() =>
       VisualHiveConfigSchema.parse({
@@ -136,6 +174,30 @@ contracts:
     );
 
     await expect(loadConfig(configPath)).rejects.toThrow(/Invalid target reference/);
+  });
+
+  it("validates the KubeStellar example config", async () => {
+    const loaded = await loadConfig("examples/kubestellar-console/visual-hive.config.yaml", process.cwd());
+    expect(loaded.config.targets.liveCluster.kind).toBe("protected");
+    expect(loaded.config.targets.fakeOAuthFullstack.kind).toBe("commandGroup");
+  });
+
+  it("selects expected KubeStellar contracts from sample changed files", async () => {
+    const loaded = await loadConfig("examples/kubestellar-console/visual-hive.config.yaml", process.cwd());
+    const authPlan = createPlan(loaded.config, {
+      mode: "pr",
+      changedFiles: ["web/src/features/auth/LoginPage.tsx"]
+    });
+    expect(authPlan.items.map((item) => item.contractId)).toEqual(
+      expect.arrayContaining(["fake-oauth-login-dashboard", "hosted-demo-never-login", "local-login-visible-when-oauth-enabled"])
+    );
+    expect(authPlan.items.map((item) => item.contractId)).not.toContain("live-cluster-picker-renders");
+
+    const docsPlan = createPlan(loaded.config, {
+      mode: "pr",
+      changedFiles: ["docs/getting-started.md"]
+    });
+    expect(docsPlan.items.every((item) => item.cost !== "expensive")).toBe(true);
   });
 });
 
@@ -177,5 +239,28 @@ describe("mutation score", () => {
 
   it("returns zero for empty mutation sets", () => {
     expect(calculateMutationScore([])).toEqual({ killed: 0, total: 0, score: 0 });
+  });
+
+  it("excludes non-applicable mutations from score", () => {
+    expect(calculateMutationScore([{ killed: false, applicable: false }, { killed: true, applicable: true }])).toEqual({
+      killed: 1,
+      total: 1,
+      score: 1
+    });
+  });
+
+  it("maps mutation operators to contracts explicitly and heuristically", () => {
+    const config = sampleConfig();
+    const explicit = selectContractsForMutation({ id: "hide-critical-button", contracts: ["safe-contract"] }, config.contracts);
+    expect(explicit.contractIds).toEqual(["safe-contract"]);
+
+    const heuristic = selectContractsForMutation("force-login-on-demo", [
+      {
+        ...config.contracts[0],
+        id: "login-guard",
+        selectors: { mustExist: [], mustNotExist: ["[data-testid='login-page']"], textMustExist: [], textMustNotExist: [] }
+      }
+    ]);
+    expect(heuristic.contractIds).toEqual(["login-guard"]);
   });
 });

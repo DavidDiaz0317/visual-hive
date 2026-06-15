@@ -6,44 +6,67 @@ project:
 targets:
   hostedDemo:
     kind: url
-    url: "https://demo.kubestellar.example"
+    url: "https://console.kubestellar.io"
     prSafe: true
-    schedule: "0 */4 * * *"
     cost: cheap
+    schedule: "0 */4 * * *"
 
   localPreview:
     kind: command
-    install: "npm ci"
-    build: "npm run build"
-    serve: "npm run preview -- --port 4173"
+    install: "cd web && npm ci"
+    build: "cd web && npm run build"
+    serve: "cd web && npm run preview -- --port 4173"
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap
 
   fakeOAuthFullstack:
-    kind: command
-    install: "npm ci"
-    build: "npm run build"
-    serve: "npm run preview:fake-oauth -- --port 4174"
-    url: "http://127.0.0.1:4174"
+    kind: commandGroup
+    setup:
+      - "cd test/fake-oauth && npm ci"
+      - "cd backend && npm ci && npm run build"
+      - "cd web && npm ci && npm run build"
+    services:
+      - name: fake-oauth
+        command: "cd test/fake-oauth && npm run start -- --port 9090"
+        url: "http://127.0.0.1:9090/healthz"
+        readinessTimeoutMs: 30000
+      - name: backend
+        command: "cd backend && FAKE_OAUTH_URL=http://127.0.0.1:9090 npm run start:test -- --port 8080"
+        url: "http://127.0.0.1:8080/healthz"
+        readinessTimeoutMs: 45000
+      - name: frontend
+        command: "cd web && VITE_API_URL=http://127.0.0.1:8080 npm run preview -- --port 4173"
+        url: "http://127.0.0.1:4173"
+        readinessTimeoutMs: 45000
+    teardown:
+      - "node scripts/cleanup-test-fixtures.js"
+    url: "http://127.0.0.1:4173"
     prSafe: true
     cost: medium
 
-  liveClusterProtected:
-    kind: url
-    url: "https://console.kubestellar.example"
+  liveCluster:
+    kind: protected
+    url: "https://console.kubestellar.io"
     prSafe: false
     schedule: "0 6 * * *"
     cost: expensive
+    requiresSecrets:
+      - KUBECONFIG
+      - KC_AGENT_TOKEN
 
 contracts:
   - id: hosted-demo-never-login
-    description: Hosted public demo must not expose login controls.
+    description: Hosted public demo should never expose login controls.
     target: hostedDemo
     severity: critical
     runOn:
       pullRequest: true
       schedule: true
+    waitFor:
+      - selector: "[data-testid='dashboard-page']"
+        state: visible
+        timeoutMs: 10000
     selectors:
       mustExist:
         - "[data-testid='dashboard-page']"
@@ -51,12 +74,50 @@ contracts:
         - "[data-testid='login-page']"
         - "[data-testid='github-login-button']"
     screenshots:
-      - name: hosted-demo-dashboard
+      - name: hosted-dashboard
         route: "/"
         viewport: desktop
 
-  - id: local-preview-dashboard-visuals
-    description: Local preview dashboard layout should remain stable.
+  - id: local-login-visible-when-oauth-enabled
+    description: Local OAuth-enabled preview should show login controls.
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+    screenshots:
+      - name: local-login
+        route: "/login"
+        viewport: desktop
+
+  - id: fake-oauth-login-dashboard
+    description: Fake OAuth flow should complete and render the dashboard without real credentials.
+    target: fakeOAuthFullstack
+    severity: critical
+    runOn:
+      pullRequest: true
+      schedule: true
+    waitFor:
+      - selector: "[data-testid='dashboard-page']"
+        state: visible
+        timeoutMs: 15000
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+        - "[data-testid='user-menu']"
+      mustNotExist:
+        - "[data-testid='github-login-button']"
+    screenshots:
+      - name: fake-oauth-dashboard
+        route: "/auth/fake/callback"
+        viewport: desktop
+
+  - id: dashboard-visual-stability
+    description: Main dashboard layout should remain stable.
     target: localPreview
     severity: high
     runOn:
@@ -65,7 +126,6 @@ contracts:
     selectors:
       mustExist:
         - "[data-testid='dashboard-page']"
-        - "[data-testid='dashboard-card']"
     screenshots:
       - name: dashboard-desktop
         route: "/"
@@ -74,38 +134,91 @@ contracts:
         route: "/"
         viewport: mobile
 
-  - id: fake-oauth-fullstack-auth-flow
-    description: Fake OAuth flow should protect private routes without live secrets.
+  - id: clusters-page-visual-stability
+    description: Cluster page should render stable cards and tables.
     target: fakeOAuthFullstack
-    severity: critical
+    severity: high
     runOn:
       pullRequest: true
       schedule: true
     selectors:
       mustExist:
-        - "[data-testid='login-page']"
-        - "[data-testid='github-login-button']"
-      textMustExist:
-        - "Continue with GitHub"
+        - "[data-testid='clusters-page']"
+        - "[data-testid='cluster-card']"
     screenshots:
-      - name: fake-oauth-login
-        route: "/login"
+      - name: clusters-desktop
+        route: "/clusters"
         viewport: desktop
 
-  - id: live-cluster-protected-scheduled-lane
-    description: Protected live cluster lane runs only from trusted scheduled workflows.
-    target: liveClusterProtected
+  - id: settings-page-visual-stability
+    description: Settings page should render stable navigation and forms.
+    target: localPreview
+    severity: medium
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='settings-page']"
+    screenshots:
+      - name: settings-desktop
+        route: "/settings"
+        viewport: desktop
+
+  - id: card-demo-badge-contract
+    description: Demo cards should remain clearly marked.
+    target: hostedDemo
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='demo-badge']"
+
+  - id: mobile-no-horizontal-overflow
+    description: Mobile dashboard should not introduce horizontal overflow.
+    target: localPreview
+    severity: medium
+    runOn:
+      pullRequest: true
+      schedule: true
+    screenshots:
+      - name: dashboard-mobile-overflow
+        route: "/"
+        viewport: mobile
+
+  - id: live-cluster-picker-renders
+    description: Protected live cluster picker should render in scheduled runs.
+    target: liveCluster
     severity: critical
     runOn:
       pullRequest: false
       schedule: true
     selectors:
       mustExist:
-        - "[data-testid='cluster-overview']"
-        - "[data-testid='workspace-list']"
+        - "[data-testid='cluster-picker']"
     screenshots:
-      - name: live-cluster-overview
+      - name: live-cluster-picker
         route: "/clusters"
+        viewport: desktop
+        mask:
+          - "[data-testid='cluster-secret']"
+
+  - id: live-workloads-renders
+    description: Protected live workloads page should render in scheduled runs.
+    target: liveCluster
+    severity: critical
+    runOn:
+      pullRequest: false
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='workloads-page']"
+        - "[data-testid='workload-row']"
+    screenshots:
+      - name: live-workloads
+        route: "/workloads"
         viewport: desktop
         mask:
           - "[data-testid='cluster-secret']"
@@ -121,21 +234,44 @@ viewports:
     width: 390
     height: 844
 
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
+
 selection:
   changedFiles:
-    - pattern: "src/components/auth/**"
+    - pattern: "docs/**"
+      contracts: []
+      risk: low
+    - pattern: "web/src/**/auth/**"
       contracts:
         - hosted-demo-never-login
-        - fake-oauth-fullstack-auth-flow
+        - fake-oauth-login-dashboard
+        - local-login-visible-when-oauth-enabled
       risk: critical
-    - pattern: "src/pages/clusters/**"
+    - pattern: "web/src/**/dashboard/**"
       contracts:
-        - local-preview-dashboard-visuals
+        - dashboard-visual-stability
+        - mobile-no-horizontal-overflow
       risk: high
-    - pattern: "src/**"
+    - pattern: "web/src/**/cards/**"
       contracts:
-        - local-preview-dashboard-visuals
-      risk: medium
+        - card-demo-badge-contract
+        - dashboard-visual-stability
+      risk: high
+    - pattern: "backend/**"
+      contracts:
+        - clusters-page-visual-stability
+        - fake-oauth-login-dashboard
+      risk: high
+    - pattern: "pkg/kc-agent/**"
+      contracts:
+        - live-cluster-picker-renders
+        - live-workloads-renders
+      risk: critical
 
 mutation:
   enabled: true
@@ -143,12 +279,17 @@ mutation:
     schedule: true
   minScore: 0.75
   operators:
-    - hide-critical-button
-    - force-login-on-demo
-    - remove-demo-badge
+    - id: force-login-on-demo
+      contracts:
+        - hosted-demo-never-login
+    - id: remove-demo-badge
+      contracts:
+        - card-demo-badge-contract
+    - id: mobile-overflow
+      contracts:
+        - mobile-no-horizontal-overflow
     - api-500
     - empty-data
-    - mobile-overflow
 
 ai:
   enabled: false

@@ -43,6 +43,13 @@ viewports:
     width: 390
     height: 844
 
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
+
 selection:
   changedFiles:
     - pattern: "src/**"
@@ -103,11 +110,75 @@ jobs:
         if: always()
       - run: npx visual-hive report --github-step-summary
         if: always()
+      # Do not create issues from untrusted PR execution. Upload artifacts and let
+      # a trusted workflow_run workflow consume them if issue creation is needed.
+      # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: visual-hive
           path: .visual-hive
+`;
+
+export const failureIssueWorkflowTemplate = `name: Visual Hive Failure Issue
+
+on:
+  workflow_run:
+    workflows:
+      - Visual Hive PR
+      - Visual Hive Scheduled
+    types:
+      - completed
+
+permissions:
+  actions: read
+  issues: write
+  contents: read
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    steps:
+      # This trusted workflow does not checkout or execute PR code. For stricter
+      # supply-chain hardening, pin third-party actions by SHA instead of tags.
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-hive
+          path: visual-hive-artifacts
+          run-id: \${{ github.event.workflow_run.id }}
+          github-token: \${{ github.token }}
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = "visual-hive-artifacts/issue.md";
+            const body = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "Visual Hive failed, but no issue.md artifact was found.";
+            const marker = "<!-- visual-hive-dedupe:" + context.payload.workflow_run.id + " -->";
+            const title = "Visual Hive failure: " + context.payload.workflow_run.name;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "visual-hive"
+            });
+            const existing = issues.find((issue) => issue.body && issue.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: marker + "\\n" + body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ["visual-hive", "test-failure"],
+                body: marker + "\\n" + body
+              });
+            }
 `;
 
 export const scheduledWorkflowTemplate = `name: Visual Hive Scheduled
@@ -138,7 +209,9 @@ jobs:
         if: always()
       - run: npx visual-hive report --github-step-summary
         if: always()
-      # A trusted follow-up workflow can create issues from .visual-hive/issue.md.
+      # This scheduled workflow may use protected secrets. A separate trusted
+      # workflow_run workflow can create issues from .visual-hive/issue.md.
+      # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()
         with:

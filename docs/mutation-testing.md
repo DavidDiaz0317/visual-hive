@@ -2,7 +2,7 @@
 
 Visual Hive mutations intentionally break UI, auth, API, or responsive behavior. A mutation is killed when deterministic Playwright contracts fail.
 
-MVP operators:
+Built-in v0.2 operators:
 
 - `hide-critical-button`: hides `[data-testid='critical-action-button']`.
 - `force-login-on-demo`: injects a login page surface into the public demo route.

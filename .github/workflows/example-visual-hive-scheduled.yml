@@ -26,7 +26,8 @@ jobs:
         if: always()
       - run: npx visual-hive report --github-step-summary
         if: always()
-      # A trusted issue workflow can create an issue from .visual-hive/issue.md.
+      # A trusted workflow_run workflow can create an issue from .visual-hive/issue.md.
+      # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()
         with:

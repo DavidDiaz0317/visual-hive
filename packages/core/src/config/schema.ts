@@ -12,6 +12,23 @@ export const MutationOperatorSchema = z.enum([
   "mobile-overflow"
 ]);
 
+export const VisualConfigSchema = z
+  .object({
+    maxDiffPixelRatio: z.number().min(0).max(1).default(0.01),
+    maxDiffPixels: z.number().int().nonnegative().optional(),
+    updateSnapshots: z.boolean().default(false),
+    failOnMissingBaselineInCI: z.boolean().default(true),
+    snapshotDir: relativeArtifactPathSchema(".visual-hive/snapshots"),
+    artifactDir: relativeArtifactPathSchema(".visual-hive/artifacts")
+  })
+  .default({
+    maxDiffPixelRatio: 0.01,
+    updateSnapshots: false,
+    failOnMissingBaselineInCI: true,
+    snapshotDir: ".visual-hive/snapshots",
+    artifactDir: ".visual-hive/artifacts"
+  });
+
 const RunOnSchema = z
   .object({
     pullRequest: z.boolean().optional().default(false),
@@ -19,11 +36,15 @@ const RunOnSchema = z
   })
   .default({});
 
-const BaseTargetSchema = z.object({
-  url: z.string().url(),
+const BaseTargetFields = {
   prSafe: z.boolean().optional().default(false),
   schedule: z.string().optional(),
   cost: CostSchema.optional().default("medium")
+};
+
+const BaseTargetSchema = z.object({
+  ...BaseTargetFields,
+  url: z.string().url()
 });
 
 const CommandTargetSchema = BaseTargetSchema.extend({
@@ -37,7 +58,39 @@ const UrlTargetSchema = BaseTargetSchema.extend({
   kind: z.literal("url")
 });
 
-export const TargetSchema = z.discriminatedUnion("kind", [CommandTargetSchema, UrlTargetSchema]);
+const CommandGroupServiceSchema = z.object({
+  name: z.string().min(1),
+  command: z.string().min(1),
+  url: z.string().url(),
+  healthPath: z.string().optional(),
+  readinessTimeoutMs: z.number().int().positive().optional()
+});
+
+const CommandGroupTargetSchema = BaseTargetSchema.extend({
+  kind: z.literal("commandGroup"),
+  setup: z.array(z.string().min(1)).optional().default([]),
+  services: z.array(CommandGroupServiceSchema).min(1),
+  teardown: z.array(z.string().min(1)).optional().default([])
+});
+
+const ProtectedTargetSchema = z
+  .object({
+    ...BaseTargetFields,
+    kind: z.literal("protected"),
+    url: z.string().url().optional(),
+    prSafe: z.boolean().optional().default(false),
+    cost: CostSchema.optional().default("expensive"),
+    setup: z.array(z.string().min(1)).optional().default([]),
+    services: z.array(CommandGroupServiceSchema).optional().default([]),
+    teardown: z.array(z.string().min(1)).optional().default([]),
+    requiresSecrets: z.array(z.string().min(1)).optional().default([])
+  })
+  .refine((target) => Boolean(target.url) || target.services.length > 0, {
+    message: "Protected targets require url unless at least one service is configured",
+    path: ["url"]
+  });
+
+export const TargetSchema = z.union([CommandTargetSchema, UrlTargetSchema, CommandGroupTargetSchema, ProtectedTargetSchema]);
 
 export const ViewportSchema = z.object({
   width: z.number().int().positive(),
@@ -50,6 +103,12 @@ export const ScreenshotSchema = z.object({
   viewport: z.string().min(1),
   fullPage: z.boolean().optional().default(true),
   mask: z.array(z.string()).optional().default([])
+});
+
+export const WaitForSchema = z.object({
+  selector: z.string().min(1),
+  state: z.enum(["visible", "attached", "hidden"]).default("visible"),
+  timeoutMs: z.number().int().positive().default(5000)
 });
 
 export const SelectorContractSchema = z
@@ -68,6 +127,10 @@ export const ContractSchema = z.object({
   target: z.string().min(1),
   severity: SeveritySchema.default("medium"),
   runOn: RunOnSchema,
+  timeoutMs: z.number().int().positive().optional(),
+  waitFor: z.array(WaitForSchema).optional().default([]),
+  failOnConsoleError: z.boolean().optional().default(false),
+  expectedConsoleErrors: z.array(z.string()).optional().default([]),
   selectors: SelectorContractSchema,
   screenshots: z.array(ScreenshotSchema).optional().default([])
 });
@@ -93,6 +156,7 @@ export const VisualHiveConfigSchema = z.object({
     tablet: { width: 768, height: 1024 },
     mobile: { width: 390, height: 844 }
   }),
+  visual: VisualConfigSchema,
   selection: z
     .object({
       changedFiles: z.array(SelectionRuleSchema).optional().default([])
@@ -104,7 +168,17 @@ export const VisualHiveConfigSchema = z.object({
       enabled: z.boolean().default(false),
       runOn: RunOnSchema,
       minScore: z.number().min(0).max(1).default(0.7),
-      operators: z.array(MutationOperatorSchema).default([])
+      operators: z
+        .array(
+          z.union([
+            MutationOperatorSchema,
+            z.object({
+              id: MutationOperatorSchema,
+              contracts: z.array(z.string().min(1)).optional().default([])
+            })
+          ])
+        )
+        .default([])
     })
     .optional()
     .default({ enabled: false, runOn: { pullRequest: false, schedule: false }, minScore: 0.7, operators: [] }),
@@ -142,3 +216,28 @@ export type VisualHiveConfig = z.infer<typeof VisualHiveConfigSchema>;
 export type TargetConfig = z.infer<typeof TargetSchema>;
 export type ContractConfig = z.infer<typeof ContractSchema>;
 export type MutationOperator = z.infer<typeof MutationOperatorSchema>;
+export type MutationOperatorConfig = VisualHiveConfig["mutation"]["operators"][number];
+
+function relativeArtifactPathSchema(defaultValue: string): z.ZodDefault<z.ZodEffects<z.ZodString, string, string>> {
+  return z
+    .string()
+    .min(1)
+    .refine((value) => isSafeRepoRelativePath(value), {
+      message: "Path must be repo-relative and must not contain parent-directory traversal"
+    })
+    .default(defaultValue);
+}
+
+function isSafeRepoRelativePath(value: string): boolean {
+  if (!value.trim()) {
+    return false;
+  }
+  if (/^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\")) {
+    return false;
+  }
+  return value
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter(Boolean)
+    .every((segment) => segment !== "..");
+}

@@ -43,7 +43,7 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     selected.set(contract.id, {
       contractId: contract.id,
       targetId: contract.target,
-      targetUrl: target.url,
+      targetUrl: targetPrimaryUrl(target),
       severity: contract.severity,
       cost: target.cost,
       reasons: unique(reasons),
@@ -66,9 +66,10 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
         return {
           id: targetId,
           kind: target.kind,
-          url: target.url,
+          url: targetPrimaryUrl(target),
           prSafe: target.prSafe,
-          cost: target.cost
+          cost: target.cost,
+          requiresSecrets: target.kind === "protected" ? target.requiresSecrets : undefined
         };
       }),
     items,
@@ -127,4 +128,14 @@ function unique<T>(values: T[]): T[] {
 
 function normalizePath(value: string): string {
   return value.replaceAll("\\", "/");
+}
+
+function targetPrimaryUrl(target: VisualHiveConfig["targets"][string]): string {
+  if (target.url) {
+    return target.url;
+  }
+  if ((target.kind === "commandGroup" || target.kind === "protected") && target.services.length > 0) {
+    return target.services[0].url;
+  }
+  throw new Error(`Target ${target.kind} is missing a primary URL`);
 }

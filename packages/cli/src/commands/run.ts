@@ -7,6 +7,8 @@ export interface RunCommandOptions {
   cwd?: string;
   ci?: boolean;
   plan?: string;
+  skipInstall?: boolean;
+  skipBuild?: boolean;
 }
 
 export async function runDeterministicCommand(options: RunCommandOptions = {}): Promise<number> {
@@ -21,7 +23,9 @@ export async function runDeterministicCommand(options: RunCommandOptions = {}): 
     config: loaded.config,
     plan,
     rootDir: loaded.rootDir,
-    ci: options.ci
+    ci: options.ci,
+    skipInstall: options.skipInstall,
+    skipBuild: options.skipBuild
   });
   await writeJson(path.join(loaded.rootDir, ".visual-hive", "report.json"), report);
   return exitCode || (report.status === "failed" ? 1 : 0);

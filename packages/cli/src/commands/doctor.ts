@@ -41,16 +41,50 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<{ ok: bool
 
   if (loaded) {
     for (const [targetId, target] of Object.entries(loaded.config.targets)) {
+      const primaryUrl = target.url ?? ((target.kind === "commandGroup" || target.kind === "protected") ? target.services[0]?.url : undefined);
       diagnostics.push({
         check: `target:${targetId}:url`,
-        ok: Boolean(target.url),
-        detail: target.url ? target.url : "Target URL is missing"
+        ok: Boolean(primaryUrl),
+        detail: primaryUrl ? primaryUrl : "Target URL is missing"
       });
       if (target.kind === "command") {
         diagnostics.push({
           check: `target:${targetId}:serve`,
           ok: Boolean(target.serve),
           detail: target.serve ? target.serve : "Command target serve command is missing"
+        });
+      }
+      if (target.kind === "commandGroup" || target.kind === "protected") {
+        diagnostics.push({
+          check: `target:${targetId}:services`,
+          ok: target.kind === "protected" || target.services.length > 0,
+          detail:
+            target.kind === "protected" && target.services.length === 0
+              ? "Protected URL target has no local services to start"
+              : `${target.services.length} service(s) configured`
+        });
+        for (const service of target.services) {
+          diagnostics.push({
+            check: `target:${targetId}:service:${service.name}`,
+            ok: Boolean(service.command && service.url),
+            detail: `${service.command} -> ${service.url}${service.readinessTimeoutMs ? ` (${service.readinessTimeoutMs}ms timeout)` : ""}`
+          });
+        }
+      }
+      if (target.kind === "protected") {
+        const missing = target.requiresSecrets.filter((name) => !process.env[name]);
+        diagnostics.push({
+          check: `target:${targetId}:protected`,
+          ok: !target.prSafe,
+          detail: target.prSafe ? "Protected targets should not be prSafe" : "Protected target is not PR safe"
+        });
+        diagnostics.push({
+          check: `target:${targetId}:secrets`,
+          ok: true,
+          detail:
+            missing.length === 0
+              ? "All required secret environment variables are present"
+              : `Missing env vars for protected runs only: ${missing.join(", ")}`
         });
       }
     }

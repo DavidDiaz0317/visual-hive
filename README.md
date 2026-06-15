@@ -1,8 +1,8 @@
 # Visual Hive
 
-Visual Hive is a deterministic-first visual QA and testing orchestration tool for web projects. It turns screenshot checks into a layered, project-aware quality system that can plan test depth, run Playwright contracts, measure mutation adequacy, produce machine-readable reports, and generate sanitized GitHub-ready failure context.
+Visual Hive is a deterministic-first visual QA and testing orchestration tool for web projects. It turns screenshot checks into a layered, project-aware quality system that can plan test depth, run Playwright contracts, compare screenshots with tolerances, measure mutation adequacy, produce machine-readable reports, and generate sanitized GitHub-ready failure context.
 
-The MVP works without paid services. Playwright is the default oracle. External providers such as Percy, Chromatic, Argos, and Applitools are modeled as optional future adapters, not required runtime dependencies.
+The default v0.2 path works without paid services. Playwright is the deterministic oracle. External providers such as Percy, Chromatic, Argos, and Applitools are modeled as optional future adapters, not required runtime dependencies.
 
 ## Why deterministic-first and AI-amplified
 
@@ -16,13 +16,12 @@ LLM output is never the sole pass/fail oracle.
 npm install
 npm run build
 npm test
-npm run demo:doctor
-npm run demo:plan
-npm run demo:run
-npm run demo:mutate
-npm run demo:triage
-npm run demo:report
+npm run demo:all
+npm run demo:ci
+npm run smoke:cli
 ```
+
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode.
 
 Initialize Visual Hive in another repo:
 
@@ -49,6 +48,13 @@ targets:
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap
+
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
 
 contracts:
   - id: dashboard-visual-stability
@@ -92,13 +98,15 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive triage`: builds offline findings, `.visual-hive/triage-prompt.md`, and `.visual-hive/issue.md`.
 - `visual-hive report`: prints markdown or JSON and can append to `GITHUB_STEP_SUMMARY`.
 
+Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
+
 ## GitHub Actions
 
 Use the templates in `templates/github-actions/` or run `visual-hive init`. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
 ## Mutation testing
 
-The MVP includes six mutation operators:
+The v0.2 release includes six mutation operators:
 
 - `hide-critical-button`
 - `force-login-on-demo`
@@ -112,6 +120,13 @@ A mutation is killed when deterministic contracts fail under the injected breaka
 ## Adapting to KubeStellar Console
 
 Use a safe PR lane for local preview screenshots and public hosted demo canaries. Put fake OAuth and live cluster checks into scheduled or protected workflows, with secrets available only outside untrusted PR execution. See `docs/kubestellar-console-example.md`.
+
+See also:
+
+- `docs/troubleshooting.md`
+- `docs/comparison.md`
+- `docs/install.md`
+- `docs/roadmap.md`
 
 ## Security model
 

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { createPlan, loadConfig, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
+import { createPlan, loadConfig, mutationOperatorId, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
 import { readFile } from "node:fs/promises";
 
 export interface PlanCommandOptions {
@@ -39,7 +39,7 @@ export function formatPlanSummary(plan: Plan): string {
     `Mode: ${plan.mode}`,
     `Contracts selected: ${plan.items.length}`,
     `Targets selected: ${plan.targets.map((target) => target.id).join(", ") || "none"}`,
-    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.join(", ")})` : "disabled"}`
+    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.map((operator) => mutationOperatorId(operator)).join(", ")})` : "disabled"}`
   ];
   for (const item of plan.items) {
     lines.push(`- ${item.contractId} on ${item.targetId} [${item.cost}] because ${item.reasons.join("; ")}`);

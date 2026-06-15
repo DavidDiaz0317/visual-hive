@@ -27,6 +27,11 @@ export function buildIssueBody(input: IssueBodyInput): string {
     `- Project: ${report?.project ?? mutationReport?.project ?? "unknown"}`,
     `- Deterministic status: ${report?.status ?? "not available"}`,
     `- Failed contracts: ${failed.length}`,
+    `- Created baselines: ${report?.summary?.createdBaselines ?? 0}`,
+    `- Missing baselines: ${report?.summary?.missingBaselines ?? 0}`,
+    `- Visual diffs: ${report?.summary?.visualDiffs ?? 0}`,
+    `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
+    `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
     `- Mutation score: ${formatMutationScore(mutationReport)}`,
     "",
     "## Failed contracts"
@@ -37,13 +42,26 @@ export function buildIssueBody(input: IssueBodyInput): string {
   } else {
     for (const failure of failed) {
       lines.push(`- ${failure.contractId} on ${failure.targetId}: ${failure.errors.join("; ") || "no error details"}`);
+      for (const screenshot of failure.screenshotAssertions ?? []) {
+        if (screenshot.status === "failed" || screenshot.status === "missing_baseline") {
+          lines.push(
+            `  - screenshot ${screenshot.name}: diffRatio=${screenshot.actualDiffPixelRatio}, actual=${screenshot.actualPath}${
+              screenshot.diffPath ? `, diff=${screenshot.diffPath}` : ""
+            }`
+          );
+        }
+      }
+      for (const network of failure.networkErrors ?? []) {
+        lines.push(`  - network ${network.status}: ${network.url}`);
+      }
     }
   }
 
   lines.push("", "## Target context");
-  if (report?.results.length) {
-    for (const result of report.results) {
-      lines.push(`- ${result.contractId}: target=${result.targetId}, status=${result.status}, durationMs=${result.durationMs}`);
+  if (report?.selectedTargets.length) {
+    for (const target of report.selectedTargets) {
+      const missing = target.missingSecrets?.length ? `, missingSecrets=${target.missingSecrets.join(",")}` : "";
+      lines.push(`- ${target.id}: kind=${target.kind}, url=${target.url}, prSafe=${target.prSafe}, cost=${target.cost}${missing}`);
     }
   } else {
     lines.push("- No deterministic target context available.");
@@ -59,7 +77,7 @@ export function buildIssueBody(input: IssueBodyInput): string {
   }
 
   lines.push("", "## Artifacts");
-  const artifacts = input.artifacts ?? [...new Set(report?.results.flatMap((result) => result.artifacts) ?? [])];
+  const artifacts = input.artifacts ?? [...new Set([...(report?.artifacts ?? []), ...(report?.results.flatMap((result) => result.artifacts) ?? [])])];
   if (artifacts.length === 0) {
     lines.push("- No artifacts were reported.");
   } else {
@@ -69,8 +87,21 @@ export function buildIssueBody(input: IssueBodyInput): string {
   }
 
   lines.push("", "## Reproduction commands");
-  for (const command of commands) {
+  for (const command of report?.reproductionCommands.length ? report.reproductionCommands : commands) {
     lines.push(`- \`${command}\``);
+  }
+
+  lines.push("", "## Mutation details");
+  if (!mutationReport || mutationReport.results.length === 0) {
+    lines.push("- No mutation report available.");
+  } else {
+    for (const result of mutationReport.results) {
+      lines.push(
+        `- ${result.operator}: ${result.status}, applicable=${result.applicable}, contracts=${result.contractIds.join(",") || "none"}${
+          result.failureKind ? `, failureKind=${result.failureKind}` : ""
+        }`
+      );
+    }
   }
 
   lines.push("", "## Likely cause classification");
@@ -79,6 +110,16 @@ export function buildIssueBody(input: IssueBodyInput): string {
   } else {
     for (const finding of findings) {
       lines.push(`- ${finding.classification}: ${finding.title}`);
+    }
+  }
+
+  lines.push("", "## Suggested files to inspect");
+  const filesToInspect = [...new Set([...(report?.changedFiles ?? []), ...failed.map((failure) => `contracts:${failure.contractId}`)])];
+  if (filesToInspect.length === 0) {
+    lines.push("- No changed-file context available.");
+  } else {
+    for (const file of filesToInspect) {
+      lines.push(`- ${file}`);
     }
   }
 

@@ -21,7 +21,11 @@ export function buildPrComment(input: PrCommentInput): string {
     `- Status: ${report?.status ?? "not available"}`,
     `- Contracts: ${report?.results.length ?? 0}`,
     `- Failed contracts: ${failed.length}`,
+    `- Visual diffs: ${report?.summary?.visualDiffs ?? 0}`,
+    `- Created baselines: ${report?.summary?.createdBaselines ?? 0}`,
+    `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
+    `- Artifacts: ${report?.artifacts.length ?? 0}`,
     "",
     "### Failed contracts"
   ];

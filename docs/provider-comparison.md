@@ -22,4 +22,4 @@ Percy, Chromatic, Argos, and Applitools are valuable visual testing products. Vi
 
 Visual Hive can run first to decide which targets/contracts deserve attention. A future adapter can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
 
-The MVP does not require paid accounts or external visual providers.
+The default Visual Hive workflow does not require paid accounts or external visual providers.

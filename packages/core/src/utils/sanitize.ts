@@ -3,11 +3,13 @@ const SECRET_KEYS = [
   "id_token",
   "refresh_token",
   "authorization",
+  "client_secret",
   "password",
   "secret",
   "token",
   "bearer",
   "cookie",
+  "set-cookie",
   "code",
   "key"
 ];
@@ -19,6 +21,7 @@ export function sanitizeText(input: string): string {
   for (const key of SECRET_KEYS) {
     const keyPattern = escapeRegExp(key);
     value = value.replace(new RegExp(`(${keyPattern})(\\s*[:=]\\s*)([^\\s,&;\\]\\)}]+)`, "gi"), `$1$2${REDACTION}`);
+    value = value.replace(new RegExp(`(["']${keyPattern}["']\\s*:\\s*["'])([^"']+)(["'])`, "gi"), `$1${REDACTION}$3`);
     value = value.replace(new RegExp(`([?&]${keyPattern}=)([^&#\\s]+)`, "gi"), `$1${REDACTION}`);
   }
   value = value.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTION}`);

@@ -1,12 +1,13 @@
 import type { MutationReport, MutationResult } from "../reports/types.js";
 
-export function calculateMutationScore(results: Pick<MutationResult, "killed">[]): {
+export function calculateMutationScore(results: Array<Pick<MutationResult, "killed"> & Partial<Pick<MutationResult, "applicable">>>): {
   killed: number;
   total: number;
   score: number;
 } {
-  const total = results.length;
-  const killed = results.filter((result) => result.killed).length;
+  const applicable = results.filter((result) => result.applicable !== false);
+  const total = applicable.length;
+  const killed = applicable.filter((result) => result.killed).length;
   return {
     killed,
     total,
@@ -22,7 +23,7 @@ export function buildMutationReport(input: {
 }): MutationReport {
   const score = calculateMutationScore(input.results);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     project: input.project,
     generatedAt: (input.now ?? new Date()).toISOString(),
     minScore: input.minScore,

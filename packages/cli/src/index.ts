@@ -11,7 +11,7 @@ import { runReportCommand } from "./commands/report.js";
 
 const program = new Command();
 
-program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.1.0");
+program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.0");
 
 program
   .command("init")
@@ -68,9 +68,17 @@ program
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--plan <path>", "plan path", ".visual-hive/plan.json")
   .option("--ci", "fail on missing baselines")
+  .option("--skip-install", "skip configured install commands")
+  .option("--skip-build", "skip configured build commands")
   .action(async (options) => {
     try {
-      process.exitCode = await runDeterministicCommand({ config: options.config, plan: options.plan, ci: options.ci });
+      process.exitCode = await runDeterministicCommand({
+        config: options.config,
+        plan: options.plan,
+        ci: options.ci,
+        skipInstall: options.skipInstall,
+        skipBuild: options.skipBuild
+      });
     } catch (error) {
       fail(error);
     }
@@ -82,12 +90,16 @@ program
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--plan <path>", "plan path", ".visual-hive/plan.json")
   .option("--enforce-min-score", "exit nonzero when mutation score is below configured minScore")
+  .option("--skip-install", "skip configured install commands")
+  .option("--skip-build", "skip configured build commands")
   .action(async (options) => {
     try {
       const result = await runMutateCommand({
         config: options.config,
         plan: options.plan,
-        enforceMinScore: options.enforceMinScore
+        enforceMinScore: options.enforceMinScore,
+        skipInstall: options.skipInstall,
+        skipBuild: options.skipBuild
       });
       console.log(formatMutationSummary(result.report, result.reportPath));
       process.exitCode = result.exitCode;

@@ -1,4 +1,4 @@
-import type { CostSchema, MutationOperator, SeveritySchema } from "../config/schema.js";
+import type { CostSchema, MutationOperatorConfig, SeveritySchema, TargetConfig } from "../config/schema.js";
 import type { z } from "zod";
 
 export type PlanMode = "pr" | "schedule" | "manual";
@@ -7,10 +7,11 @@ export type Severity = z.infer<typeof SeveritySchema>;
 
 export interface PlanTarget {
   id: string;
-  kind: "command" | "url";
+  kind: TargetConfig["kind"];
   url: string;
   prSafe: boolean;
   cost: CostClass;
+  requiresSecrets?: string[];
 }
 
 export interface PlanItem {
@@ -31,7 +32,7 @@ export interface ExcludedPlanItem {
 
 export interface MutationPlan {
   enabled: boolean;
-  operators: MutationOperator[];
+  operators: MutationOperatorConfig[];
   minScore: number;
   reasons: string[];
 }

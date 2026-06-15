@@ -1,51 +1,78 @@
 # KubeStellar Console Example
 
-A realistic KubeStellar Console setup can use layered Visual Hive lanes.
+The example config at `examples/kubestellar-console/visual-hive.config.yaml` models a realistic layered setup for KubeStellar Console.
 
-## Hosted demo no-login canary
+## What Runs On PR
 
-Run on PRs and schedules against a public hosted demo. Assert:
+PR runs should use `pull_request`, read-only permissions, and no secrets.
 
-- dashboard shell exists
-- login page does not exist
-- GitHub login button does not exist
-- demo badges remain visible
+Safe PR targets:
 
-## Local preview visual screenshots
+- `hostedDemo`: public demo canary at `https://console.kubestellar.io`.
+- `localPreview`: frontend preview built from PR code.
+- `fakeOAuthFullstack`: fake OAuth provider, backend, and frontend with no real GitHub credentials.
 
-Run on PRs with no secrets:
+PR contracts include hosted demo no-login checks, fake OAuth flow checks, dashboard/card screenshots, cluster fixture screenshots, and mobile overflow screenshots.
 
-```yaml
-targets:
-  localPreview:
-    kind: command
-    build: "npm run build"
-    serve: "npm run preview -- --port 4173"
-    url: "http://127.0.0.1:4173"
-    prSafe: true
-    cost: cheap
+Sample local planning commands:
+
+```bash
+node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt
+node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-docs-changed-files.txt
+node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
 ```
 
-Capture dashboard desktop and mobile routes. Use changed-file selection for `src/components/**`, `src/routes/**`, and styling directories.
+## What Runs On Schedule
 
-## Fake OAuth fullstack auth flow
+Scheduled workflows may use protected secrets. They can include:
 
-Keep fake OAuth deterministic and secret-free in PR mode. Assert callback, session banner, logout state, and protected route behavior using local fixtures.
+- all PR-safe lanes
+- `liveCluster` protected target
+- mutation adequacy checks
 
-## Live cluster protected scheduled lane
+`liveCluster` requires environment variables such as `KUBECONFIG` and `KC_AGENT_TOKEN`. Doctor/report output names missing variables but never prints their values.
 
-Use scheduled or manually dispatched workflows for live cluster checks. These jobs may use secrets because they do not execute untrusted PR code.
+## Manual Protected Runs
 
-## Mutation testing
+Manual runs are useful before releases or when debugging a protected environment. Use a trusted workflow or local shell with explicit secrets.
 
-Use scheduled mutation runs to verify that contracts catch:
+## Fake OAuth
 
-- login unexpectedly appearing in demo mode
-- removed demo badges
-- API failures
-- empty cluster lists
-- mobile layout overflow
+The `fakeOAuthFullstack` target starts a local fake OAuth provider. This proves auth routing, callback handling, and dashboard rendering without real GitHub credentials. It is PR-safe because it uses deterministic local fixtures.
 
-## LLM triage
+## Why Hosted Demo Must Never Expose Login
 
-Generate `.visual-hive/triage-prompt.md` and `.visual-hive/issue.md` after deterministic reports are written. Use a trusted workflow to create issues from sanitized artifacts.
+The hosted demo is public. If it exposes login controls, users can be sent into a broken or unsafe auth flow. The `hosted-demo-never-login` contract asserts dashboard visibility and forbids login selectors.
+
+## Sample Failure Issue
+
+```md
+# Visual Hive failure report
+
+## Summary
+- Project: kubestellar-console
+- Deterministic status: failed
+- Failed contracts: 1
+
+## Failed contracts
+- hosted-demo-never-login on hostedDemo: Expected selector to be absent: [data-testid='github-login-button']
+
+## Likely cause classification
+- login_regression: Login state regression in hosted-demo-never-login
+
+## Suggested next tests
+- Add a contract that asserts demo mode feature flags hide every OAuth entry point.
+```
+
+## Sample Mutation Report
+
+```json
+{
+  "operator": "force-login-on-demo",
+  "status": "killed",
+  "killed": true,
+  "applicable": true,
+  "contractIds": ["hosted-demo-never-login"],
+  "failureKind": "login_regression"
+}
+```

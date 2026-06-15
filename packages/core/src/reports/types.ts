@@ -1,16 +1,85 @@
 import type { PlanMode } from "../planner/types.js";
 
 export type ContractStatus = "passed" | "failed" | "created" | "skipped";
-export type MutationStatus = "killed" | "survived" | "error";
+export type MutationStatus = "killed" | "survived" | "not_applicable" | "error";
 export type TriageClassification =
   | "visual_diff"
+  | "created_baseline"
   | "missing_element"
+  | "unexpected_element"
   | "login_regression"
   | "api_contract_regression"
+  | "console_error"
+  | "page_error"
+  | "target_startup_failure"
+  | "missing_baseline"
+  | "no_contracts_selected"
   | "possible_flake"
   | "environment_failure"
   | "coverage_gap"
   | "mutation_survivor";
+
+export interface SelectorAssertionResult {
+  kind: "mustExist" | "mustNotExist" | "textMustExist" | "textMustNotExist" | "waitFor";
+  value: string;
+  status: "passed" | "failed";
+  message?: string;
+}
+
+export interface ScreenshotAssertionResult {
+  contractId: string;
+  screenshotName: string;
+  name: string;
+  route: string;
+  viewport: string;
+  status: "passed" | "failed" | "created" | "missing_baseline";
+  baselinePath: string;
+  actualPath: string;
+  diffPath?: string;
+  maxDiffPixelRatio: number;
+  maxDiffPixels?: number;
+  actualDiffPixelRatio?: number;
+  actualDiffPixels?: number;
+  diffPixels?: number;
+  totalPixels: number;
+  message?: string;
+}
+
+export interface RuntimeErrorResult {
+  type: "console" | "page";
+  message: string;
+}
+
+export interface NetworkErrorResult {
+  type: "network";
+  url: string;
+  status: number;
+  statusText: string;
+}
+
+export interface TargetLifecycleEvent {
+  targetId: string;
+  serviceName?: string;
+  phase: "install" | "build" | "setup" | "serve" | "service" | "teardown";
+  status: "started" | "passed" | "failed" | "stopped";
+  durationMs: number;
+  command?: string;
+  url?: string;
+  message?: string;
+}
+
+export interface ReportSummary {
+  passed: number;
+  failed: number;
+  screenshotsPassed: number;
+  screenshotsFailed: number;
+  baselinesCreated: number;
+  createdBaselines: number;
+  missingBaselines: number;
+  visualDiffs: number;
+  consoleErrors: number;
+  pageErrors: number;
+}
 
 export interface ContractResult {
   contractId: string;
@@ -19,17 +88,32 @@ export interface ContractResult {
   durationMs: number;
   errors: string[];
   artifacts: string[];
+  reproductionCommand?: string;
+  selectorAssertions?: SelectorAssertionResult[];
+  screenshotAssertions?: ScreenshotAssertionResult[];
+  consoleErrors?: RuntimeErrorResult[];
+  pageErrors?: RuntimeErrorResult[];
+  networkErrors?: NetworkErrorResult[];
 }
 
 export interface Report {
-  schemaVersion: 1;
+  schemaVersion: 2;
   project: string;
   mode: PlanMode;
   generatedAt: string;
   status: "passed" | "failed";
   changedFiles: string[];
+  selectedTargets: Array<{ id: string; kind: string; url: string; prSafe: boolean; cost: string; missingSecrets?: string[] }>;
+  selectedContracts: string[];
+  excludedContracts: Array<{ contractId: string; targetId: string; reasons: string[] }>;
+  targetLifecycle: TargetLifecycleEvent[];
+  generatedSpecPath: string;
   results: ContractResult[];
+  summary: ReportSummary;
   consoleErrors: string[];
+  pageErrors: RuntimeErrorResult[];
+  artifacts: string[];
+  reproductionCommands: string[];
 }
 
 export interface MutationResult {
@@ -37,12 +121,17 @@ export interface MutationResult {
   status: MutationStatus;
   killed: boolean;
   contractIds: string[];
+  applicable: boolean;
+  expectedFailureKinds?: string[];
+  failureKind?: string;
+  failedAssertion?: string;
   durationMs: number;
   errors: string[];
+  artifacts?: string[];
 }
 
 export interface MutationReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   project: string;
   generatedAt: string;
   minScore: number;

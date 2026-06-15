@@ -1,6 +1,6 @@
 # GitHub Integration
 
-Visual Hive emits GitHub-ready markdown instead of requiring privileged API calls in the default MVP.
+Visual Hive emits GitHub-ready markdown instead of requiring privileged API calls in the default workflow.
 
 Generated artifacts:
 

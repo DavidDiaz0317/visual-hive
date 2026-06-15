@@ -31,6 +31,7 @@ export async function runReportCommand(options: ReportCommandOptions = {}): Prom
 
 export function renderMarkdownReport(report?: Report, mutationReport?: MutationReport): string {
   const failed = report?.results.filter((result) => result.status === "failed") ?? [];
+  const visualDiffs = report?.results.flatMap((result) => result.screenshotAssertions ?? []).filter((screenshot) => screenshot.status === "failed") ?? [];
   const lines = [
     "## Visual Hive Summary",
     "",
@@ -38,6 +39,10 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     `- Deterministic status: ${report?.status ?? "not available"}`,
     `- Contracts: ${report?.results.length ?? 0}`,
     `- Failed contracts: ${failed.length}`,
+    `- Created baselines: ${report?.summary?.createdBaselines ?? 0}`,
+    `- Visual diffs: ${report?.summary?.visualDiffs ?? visualDiffs.length}`,
+    `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
+    `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
     ""
   ];
@@ -46,6 +51,14 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     lines.push("### Failed Contracts", "");
     for (const result of failed) {
       lines.push(`- ${result.contractId} on ${result.targetId}: ${result.errors.join("; ") || "failed"}`);
+    }
+    lines.push("");
+  }
+
+  if (visualDiffs.length > 0) {
+    lines.push("### Visual Diffs", "");
+    for (const screenshot of visualDiffs) {
+      lines.push(`- ${screenshot.name} (${screenshot.viewport} ${screenshot.route}): diffRatio=${screenshot.actualDiffPixelRatio}`);
     }
     lines.push("");
   }

@@ -1,6 +1,14 @@
 import { spawn } from "node:child_process";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { sanitizeText, type ContractResult, type Plan, type Report, type VisualHiveConfig } from "@visual-hive/core";
+import {
+  sanitizeText,
+  type ContractResult,
+  type Plan,
+  type Report,
+  type TargetLifecycleEvent,
+  type VisualHiveConfig
+} from "@visual-hive/core";
 import { generatePlaywrightSpec } from "./generator.js";
 import { collectArtifacts } from "./artifactCollector.js";
 import { startManagedServer, type ManagedServer } from "./serverManager.js";
@@ -12,34 +20,65 @@ export interface RunPlaywrightOptions {
   ci?: boolean;
   mutationOperator?: string;
   runTargetCommands?: boolean;
+  skipInstall?: boolean;
+  skipBuild?: boolean;
 }
 
 export async function runPlaywrightContracts(options: RunPlaywrightOptions): Promise<{ report: Report; exitCode: number }> {
-  const startedServers: ManagedServer[] = [];
+  const startedServers: Array<{ targetId: string; serviceName?: string; server: ManagedServer }> = [];
+  const teardownCommands: Array<{ targetId: string; command: string; cwd: string }> = [];
+  const targetLifecycle: TargetLifecycleEvent[] = [];
   const startedAt = Date.now();
   const spec = await generatePlaywrightSpec(options);
+  await rm(path.join(options.rootDir, options.config.visual.artifactDir, "results"), { recursive: true, force: true });
+  let playwrightResult: { stdout: string; stderr: string; exitCode: number } | undefined;
 
   try {
     if (options.runTargetCommands ?? true) {
       for (const targetId of options.plan.targets.map((target) => target.id)) {
         const target = options.config.targets[targetId];
         if (target.kind === "command") {
-          if (target.build) {
-            await runShell(target.build, options.rootDir, {});
+          if (target.install && !options.skipInstall) {
+            await runLifecycleCommand(targetLifecycle, targetId, "install", target.install, options.rootDir);
           }
-          const server = await startManagedServer({
+          if (target.build && !options.skipBuild) {
+            await runLifecycleCommand(targetLifecycle, targetId, "build", target.build, options.rootDir);
+          }
+          const server = await startLifecycleServer(targetLifecycle, {
+            targetId,
+            serviceName: "serve",
             command: target.serve,
             cwd: options.rootDir,
             url: target.url
           });
-          startedServers.push(server);
+          startedServers.push({ targetId, serviceName: "serve", server });
+        }
+        if (target.kind === "commandGroup" || target.kind === "protected") {
+          for (const setupCommand of target.setup ?? []) {
+            await runLifecycleCommand(targetLifecycle, targetId, "setup", setupCommand, options.rootDir);
+          }
+          for (const service of target.services ?? []) {
+            const serviceUrl = service.healthPath ? new URL(service.healthPath, service.url).toString() : service.url;
+            const server = await startLifecycleServer(targetLifecycle, {
+              targetId,
+              serviceName: service.name,
+              command: service.command,
+              cwd: options.rootDir,
+              url: serviceUrl,
+              timeoutMs: service.readinessTimeoutMs
+            });
+            startedServers.push({ targetId, serviceName: service.name, server });
+          }
+          for (const teardownCommand of target.teardown ?? []) {
+            teardownCommands.push({ targetId, command: teardownCommand, cwd: options.rootDir });
+          }
         }
       }
     }
 
     const specArg = toPlaywrightPath(path.relative(options.rootDir, spec.path));
     const outputArg = toPlaywrightPath(path.join(".visual-hive", "playwright-results"));
-    const result = await runShell(
+    playwrightResult = await runShell(
       `npx playwright test "${specArg}" --reporter=json --output="${outputArg}"`,
       options.rootDir,
       {
@@ -48,22 +87,37 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
       },
       true
     );
-
-    const report = await buildReportFromPlaywrightOutput({
-      config: options.config,
-      plan: options.plan,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-      rootDir: options.rootDir,
-      durationMs: Date.now() - startedAt
-    });
-    return { report, exitCode: result.exitCode };
   } finally {
-    for (const server of startedServers.reverse()) {
-      await server.stop();
+    for (const started of startedServers.reverse()) {
+      const stoppedAt = Date.now();
+      await started.server.stop();
+      targetLifecycle.push({
+        targetId: started.targetId,
+        serviceName: started.serviceName,
+        phase: started.serviceName === "serve" ? "serve" : "service",
+        status: "stopped",
+        durationMs: Date.now() - stoppedAt,
+        command: started.server.command,
+        url: started.server.url
+      });
+    }
+    for (const teardown of teardownCommands.reverse()) {
+      await runLifecycleCommand(targetLifecycle, teardown.targetId, "teardown", teardown.command, teardown.cwd, true);
     }
   }
+
+  const report = await buildReportFromPlaywrightOutput({
+    config: options.config,
+    plan: options.plan,
+    stdout: playwrightResult?.stdout ?? "",
+    stderr: playwrightResult?.stderr ?? "",
+    exitCode: playwrightResult?.exitCode ?? 1,
+    rootDir: options.rootDir,
+    durationMs: Date.now() - startedAt,
+    targetLifecycle,
+    generatedSpecPath: spec.path
+  });
+  return { report, exitCode: playwrightResult?.exitCode ?? 1 };
 }
 
 async function buildReportFromPlaywrightOutput(input: {
@@ -74,8 +128,11 @@ async function buildReportFromPlaywrightOutput(input: {
   exitCode: number;
   rootDir: string;
   durationMs: number;
+  targetLifecycle: TargetLifecycleEvent[];
+  generatedSpecPath: string;
 }): Promise<Report> {
-  const artifacts = await collectArtifacts(input.rootDir);
+  const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
+  const structuredResults = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
   const parsed = parsePlaywrightJson(input.stdout);
   const resultByContract = new Map<string, { status: "passed" | "failed"; errors: string[]; durationMs: number }>();
 
@@ -94,6 +151,15 @@ async function buildReportFromPlaywrightOutput(input: {
   }
 
   const results: ContractResult[] = input.plan.items.map((item) => {
+    const structured = structuredResults.get(item.contractId);
+    if (structured) {
+      return {
+        ...structured,
+        errors: structured.errors.map((error) => sanitizeText(error)),
+        artifacts: [...new Set([...(structured.artifacts ?? []), ...artifacts])],
+        reproductionCommand: structured.reproductionCommand ?? `visual-hive run --ci`
+      };
+    }
     const parsedResult = resultByContract.get(item.contractId);
     const failed = input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed");
     return {
@@ -106,20 +172,59 @@ async function buildReportFromPlaywrightOutput(input: {
         : failed
           ? [sanitizeText(input.stderr || "Playwright reported a failure without structured error details.")]
           : [],
-      artifacts
+      artifacts,
+      reproductionCommand: "visual-hive run --ci"
     };
   });
+  const summary = buildSummary(results);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     project: input.config.project.name,
     mode: input.plan.mode,
     generatedAt: new Date().toISOString(),
     status: results.some((result) => result.status === "failed") ? "failed" : "passed",
     changedFiles: input.plan.changedFiles,
+    selectedTargets: input.plan.targets.map((target) => {
+      const configTarget = input.config.targets[target.id];
+      const missingSecrets = configTarget.kind === "protected" ? configTarget.requiresSecrets.filter((name) => !process.env[name]) : [];
+      return { ...target, missingSecrets };
+    }),
+    selectedContracts: input.plan.items.map((item) => item.contractId),
+    excludedContracts: input.plan.excluded,
+    targetLifecycle: input.targetLifecycle,
+    generatedSpecPath: input.generatedSpecPath,
     results,
-    consoleErrors: []
+    summary,
+    consoleErrors: results.flatMap((result) => result.consoleErrors?.map((error) => error.message) ?? []),
+    pageErrors: results.flatMap((result) => result.pageErrors ?? []),
+    artifacts,
+    reproductionCommands: [
+      `visual-hive plan --mode ${input.plan.mode}`,
+      "visual-hive run",
+      "visual-hive triage",
+      "visual-hive report"
+    ]
   };
+}
+
+async function readStructuredContractResults(rootDir: string, artifactDir: string): Promise<Map<string, ContractResult>> {
+  const resultDir = path.join(rootDir, artifactDir, "results");
+  const results = new Map<string, ContractResult>();
+  try {
+    const entries = await readdir(resultDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue;
+      }
+      const raw = await readFile(path.join(resultDir, entry.name), "utf8");
+      const parsed = JSON.parse(raw) as ContractResult;
+      results.set(parsed.contractId, parsed);
+    }
+  } catch {
+    return results;
+  }
+  return results;
 }
 
 function parsePlaywrightJson(stdout: string): unknown | undefined {
@@ -172,6 +277,108 @@ function extractContractId(title: string): string | undefined {
 
 function toPlaywrightPath(value: string): string {
   return value.replaceAll("\\", "/");
+}
+
+function buildSummary(results: ContractResult[]): Report["summary"] {
+  const screenshots = results.flatMap((result) => result.screenshotAssertions ?? []);
+  const missingBaselines = screenshots.filter(
+    (screenshot) => screenshot.status === "missing_baseline" || screenshot.message?.toLowerCase().includes("missing screenshot baseline")
+  ).length;
+  const screenshotsPassed = screenshots.filter((screenshot) => screenshot.status === "passed" || screenshot.status === "created").length;
+  const screenshotsFailed = screenshots.filter((screenshot) => screenshot.status === "failed" || screenshot.status === "missing_baseline").length;
+  const baselinesCreated = screenshots.filter((screenshot) => screenshot.status === "created").length;
+  return {
+    passed: results.filter((result) => result.status === "passed" || result.status === "created").length,
+    failed: results.filter((result) => result.status === "failed").length,
+    screenshotsPassed,
+    screenshotsFailed,
+    baselinesCreated,
+    createdBaselines: baselinesCreated,
+    missingBaselines,
+    visualDiffs: screenshots.filter((screenshot) => screenshot.status === "failed").length,
+    consoleErrors: results.reduce((sum, result) => sum + (result.consoleErrors?.length ?? 0), 0),
+    pageErrors: results.reduce((sum, result) => sum + (result.pageErrors?.length ?? 0), 0)
+  };
+}
+
+async function runLifecycleCommand(
+  events: TargetLifecycleEvent[],
+  targetId: string,
+  phase: TargetLifecycleEvent["phase"],
+  command: string,
+  cwd: string,
+  allowFailure = false
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const startedAt = Date.now();
+  try {
+    const result = await runShell(command, cwd, {}, allowFailure);
+    events.push({
+      targetId,
+      phase,
+      status: result.exitCode === 0 ? "passed" : "failed",
+      durationMs: Date.now() - startedAt,
+      command,
+      message: result.exitCode === 0 ? undefined : sanitizeText(result.stderr || `Command exited with code ${result.exitCode}`)
+    });
+    return result;
+  } catch (error) {
+    events.push({
+      targetId,
+      phase,
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      command,
+      message: sanitizeText(error instanceof Error ? error.message : String(error))
+    });
+    throw error;
+  }
+}
+
+async function startLifecycleServer(
+  events: TargetLifecycleEvent[],
+  input: { targetId: string; serviceName?: string; command: string; cwd: string; url: string; timeoutMs?: number }
+): Promise<ManagedServer> {
+  const startedAt = Date.now();
+  const phase: TargetLifecycleEvent["phase"] = input.serviceName === "serve" ? "serve" : "service";
+  events.push({
+    targetId: input.targetId,
+    serviceName: input.serviceName,
+    phase,
+    status: "started",
+    durationMs: 0,
+    command: input.command,
+    url: input.url
+  });
+  try {
+    const server = await startManagedServer({
+      command: input.command,
+      cwd: input.cwd,
+      url: input.url,
+      timeoutMs: input.timeoutMs
+    });
+    events.push({
+      targetId: input.targetId,
+      serviceName: input.serviceName,
+      phase,
+      status: "passed",
+      durationMs: Date.now() - startedAt,
+      command: input.command,
+      url: input.url
+    });
+    return server;
+  } catch (error) {
+    events.push({
+      targetId: input.targetId,
+      serviceName: input.serviceName,
+      phase,
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      command: input.command,
+      url: input.url,
+      message: sanitizeText(error instanceof Error ? error.message : String(error))
+    });
+    throw error;
+  }
 }
 
 function runShell(command: string, cwd: string, env: NodeJS.ProcessEnv, allowFailure = false): Promise<{ stdout: string; stderr: string; exitCode: number }> {
