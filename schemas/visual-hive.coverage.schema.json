@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.coverage.schema.json",
+  "title": "Visual Hive Coverage Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "summary",
+    "targets",
+    "contracts",
+    "routes",
+    "viewports",
+    "changedFileCoverage",
+    "unmatchedChangedFiles",
+    "uncoveredAreas"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "mode": { "enum": ["pr", "schedule", "manual"] },
+    "summary": {
+      "type": "object",
+      "required": [
+        "targetCount",
+        "contractCount",
+        "selectedContracts",
+        "unselectedContracts",
+        "prSafeContracts",
+        "protectedContracts",
+        "scheduleOnlyContracts",
+        "routesCovered",
+        "viewportsCovered",
+        "uncoveredTargets",
+        "uncoveredContracts",
+        "changedFileRules",
+        "matchedChangedFileRules",
+        "unmatchedChangedFiles"
+      ],
+      "properties": {
+        "targetCount": { "type": "number" },
+        "contractCount": { "type": "number" },
+        "selectedContracts": { "type": "number" },
+        "unselectedContracts": { "type": "number" },
+        "prSafeContracts": { "type": "number" },
+        "protectedContracts": { "type": "number" },
+        "scheduleOnlyContracts": { "type": "number" },
+        "routesCovered": { "type": "number" },
+        "viewportsCovered": { "type": "number" },
+        "uncoveredTargets": { "type": "number" },
+        "uncoveredContracts": { "type": "number" },
+        "changedFileRules": { "type": "number" },
+        "matchedChangedFileRules": { "type": "number" },
+        "unmatchedChangedFiles": { "type": "number" }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "prSafe", "protected", "cost", "contractIds", "selectedContractIds", "uncovered"]
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "targetId",
+          "severity",
+          "prSafeTarget",
+          "protectedTarget",
+          "runOnPullRequest",
+          "runOnSchedule",
+          "scheduleOnly",
+          "selected",
+          "excludedReasons",
+          "selectorCount",
+          "textAssertionCount",
+          "screenshotCount",
+          "routes",
+          "viewports",
+          "changedFileRules"
+        ]
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route", "contracts", "targets", "viewports", "selectedContracts"]
+      }
+    },
+    "viewports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["viewport", "width", "height", "routes", "contracts", "selectedContracts"]
+      }
+    },
+    "changedFileCoverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pattern", "risk", "contracts", "matchedFiles", "selectedContracts", "unselectedContracts", "excludedContracts"]
+      }
+    },
+    "unmatchedChangedFiles": { "type": "array", "items": { "type": "string" } },
+    "uncoveredAreas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "severity", "message"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "target_without_contracts",
+              "contract_without_assertions",
+              "contract_unselected",
+              "route_without_pr_safe_coverage",
+              "viewport_without_screenshots",
+              "changed_file_without_rule"
+            ]
+          },
+          "severity": { "enum": ["low", "medium", "high"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

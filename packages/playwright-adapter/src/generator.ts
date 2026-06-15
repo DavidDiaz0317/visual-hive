@@ -363,6 +363,11 @@ async function applyRouteMutation(page) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], message: "" }) });
     });
   }
+  if (mutationOperator === "broken-image") {
+    await page.route(/.*\\.(png|jpg|jpeg|gif|webp|svg)(\\?.*)?$/i, async (route) => {
+      await route.fulfill({ status: 404, contentType: "text/plain", body: "visual-hive broken-image mutation" });
+    });
+  }
 }
 
 function isExpectedConsoleError(contract, message) {
@@ -401,6 +406,79 @@ async function applyDomMutation(page) {
       forced.setAttribute("data-testid", "login-page");
       forced.innerHTML = '<button data-testid="github-login-button">Continue with GitHub</button>';
       document.body.prepend(forced);
+    });
+  }
+  if (mutationOperator === "route-guard-bypass") {
+    await page.evaluate(() => {
+      const protectedSurface = document.createElement("section");
+      protectedSurface.setAttribute("data-testid", "protected-route");
+      protectedSurface.setAttribute("role", "region");
+      protectedSurface.setAttribute("aria-label", "Protected route bypass");
+      protectedSurface.innerHTML = "<h2>Protected route bypass</h2><p>Cluster administration controls are visible without the expected guard.</p>";
+      document.body.prepend(protectedSurface);
+    });
+  }
+  if (mutationOperator === "hidden-error-banner") {
+    await page.addStyleTag({
+      content: "[data-testid='error-banner'], [role='alert'], .error-banner, .alert-error { display: none !important; visibility: hidden !important; }"
+    });
+  }
+  if (mutationOperator === "broken-image") {
+    await page.evaluate(() => {
+      const images = Array.from(document.querySelectorAll("img"));
+      for (const image of images) {
+        image.setAttribute("data-visual-hive-original-src", image.getAttribute("src") || "");
+        image.setAttribute("src", "/visual-hive-broken-image.png");
+      }
+      if (images.length === 0) {
+        const broken = document.createElement("img");
+        broken.setAttribute("data-testid", "visual-hive-broken-image");
+        broken.setAttribute("alt", "Broken visual asset");
+        broken.setAttribute("src", "/visual-hive-broken-image.png");
+        broken.style.width = "96px";
+        broken.style.height = "64px";
+        broken.style.objectFit = "contain";
+        document.body.prepend(broken);
+      }
+    });
+  }
+  if (mutationOperator === "removed-accessible-name") {
+    await page.evaluate(() => {
+      for (const element of Array.from(document.querySelectorAll("[aria-label], [alt], [title]"))) {
+        element.removeAttribute("aria-label");
+        element.removeAttribute("alt");
+        element.removeAttribute("title");
+      }
+      for (const element of Array.from(document.querySelectorAll("button, [role='button'], a"))) {
+        const text = element.textContent?.trim();
+        if (text) {
+          element.setAttribute("data-visual-hive-original-label", text);
+          element.textContent = "";
+        }
+      }
+    });
+  }
+  if (mutationOperator === "theme-token-drift") {
+    await page.addStyleTag({
+      content: ":root { --visual-hive-theme-drift: 1; } body { background: #fff7ed !important; color: #1f2937 !important; } button, [role='button'] { background: #b91c1c !important; color: #fff !important; } [class*='card'], article { border-color: #f97316 !important; box-shadow: inset 0 0 0 3px rgba(249, 115, 22, 0.25) !important; }"
+    });
+  }
+  if (mutationOperator === "stale-loading-state") {
+    await page.evaluate(() => {
+      const loading = document.createElement("section");
+      loading.setAttribute("data-testid", "loading-state");
+      loading.setAttribute("aria-busy", "true");
+      loading.setAttribute("role", "status");
+      loading.textContent = "Loading dashboard data";
+      loading.style.position = "fixed";
+      loading.style.inset = "0";
+      loading.style.zIndex = "2147483647";
+      loading.style.display = "grid";
+      loading.style.placeItems = "center";
+      loading.style.background = "rgba(255, 255, 255, 0.92)";
+      loading.style.color = "#111827";
+      loading.style.font = "700 20px system-ui, sans-serif";
+      document.body.append(loading);
     });
   }
 }

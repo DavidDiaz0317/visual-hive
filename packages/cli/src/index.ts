@@ -8,6 +8,27 @@ import { runDeterministicCommand } from "./commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "./commands/mutate.js";
 import { runTriageCommand } from "./commands/triage.js";
 import { runReportCommand } from "./commands/report.js";
+import { runUiCommand } from "./commands/ui.js";
+import {
+  formatBaselineApproval,
+  formatBaselineList,
+  runBaselineApproveCommand,
+  runBaselineListCommand
+} from "./commands/baselines.js";
+import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "./commands/providers.js";
+import { formatCoverageSummary, runCoverageCommand } from "./commands/coverage.js";
+import { formatContractsAudit, runContractsCommand } from "./commands/contracts.js";
+import { formatTargetsAudit, runTargetsCommand } from "./commands/targets.js";
+import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.js";
+import { formatWorkflowsAudit, runWorkflowsCommand } from "./commands/workflows.js";
+import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
+import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
+import {
+  formatConnectionsIndex,
+  runConnectionsAddCommand,
+  runConnectionsListCommand,
+  runConnectionsRemoveCommand
+} from "./commands/connections.js";
 
 const program = new Command();
 
@@ -116,7 +137,11 @@ program
     try {
       const result = await runTriageCommand({ config: options.config });
       console.log(`Wrote ${result.promptPath}`);
+      console.log(`Wrote ${result.repairPromptPath}`);
+      console.log(`Wrote ${result.missingTestsPath}`);
       console.log(`Wrote ${result.issuePath}`);
+      console.log(`Wrote ${result.prCommentPath}`);
+      console.log(`Wrote ${result.llmUsagePath}`);
       console.log(`Offline findings: ${result.findingCount}`);
     } catch (error) {
       fail(error);
@@ -142,9 +167,338 @@ program
     }
   });
 
+program
+  .command("providers")
+  .description("Inspect optional provider adapters and credential-name readiness")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--mock-results", "write .visual-hive/provider-results.json using mock/no-network adapter operations")
+  .option("--report <path>", "deterministic report path for --mock-results", ".visual-hive/report.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      if (options.mockResults) {
+        const result = await runProvidersMockCommand({ config: options.config, report: options.report, format: options.format });
+        console.log(formatProvidersMockSummary(result.report, result.reportPath, options.format));
+        return;
+      }
+      const providers = await runProvidersCommand({ config: options.config });
+      console.log(options.format === "json" ? JSON.stringify(providers, null, 2) : formatProvidersSummary(providers));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("coverage")
+  .description("Analyze configured visual coverage and write .visual-hive/coverage.json")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan path override")
+  .option("--mode <mode>", "plan mode to use when no plan exists: pr, schedule, or manual", "pr")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for changed-file coverage")
+  .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode coverage selection")
+  .action(async (options) => {
+    try {
+      const result = await runCoverageCommand({
+        config: options.config,
+        plan: options.plan,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        allowUnsafeTargets: options.allowUnsafeTargets
+      });
+      console.log(formatCoverageSummary(result.report, result.reportPath));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("contracts")
+  .description("Audit configured contracts, mappings, latest results, and actionable gaps")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan path override")
+  .option("--report <path>", "report path override")
+  .option("--mutation-report <path>", "mutation report path override")
+  .option("--mode <mode>", "plan mode to use when no plan exists: pr, schedule, or manual", "pr")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for changed-file selection")
+  .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode selection")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runContractsCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mutationReport: options.mutationReport,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        allowUnsafeTargets: options.allowUnsafeTargets,
+        format: options.format
+      });
+      console.log(formatContractsAudit(result.audit, result.auditPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("targets")
+  .description("Audit configured targets, safety, services, secrets, lifecycle evidence, and gaps")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan path override")
+  .option("--report <path>", "report path override")
+  .option("--mode <mode>", "plan mode to use when no plan exists: pr, schedule, or manual", "pr")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for changed-file selection")
+  .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode selection")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runTargetsCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        allowUnsafeTargets: options.allowUnsafeTargets,
+        format: options.format
+      });
+      console.log(formatTargetsAudit(result.audit, result.auditPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("schedules")
+  .alias("schedule")
+  .description("Audit PR, scheduled, protected, mutation, and trusted issue workflow lanes")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for changed-file selection")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runSchedulesCommand({
+        config: options.config,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        format: options.format
+      });
+      console.log(formatSchedulesAudit(result.audit, result.auditPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("workflows")
+  .alias("workflow")
+  .description("Audit GitHub Actions workflow YAML for Visual Hive safety invariants")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--workflow-dir <path>", "workflow directory to scan", ".github/workflows")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runWorkflowsCommand({
+        config: options.config,
+        workflowDir: options.workflowDir,
+        format: options.format
+      });
+      console.log(formatWorkflowsAudit(result.audit, result.auditPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("history")
+  .description("Inspect or record run history from the latest Visual Hive artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--record", "archive latest artifacts into .visual-hive/history and update .visual-hive/history.json")
+  .option("--max-entries <count>", "maximum history entries to keep", (value) => Number.parseInt(value, 10))
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHistoryCommand({
+        config: options.config,
+        record: options.record,
+        maxEntries: options.maxEntries,
+        format: options.format
+      });
+      console.log(formatHistorySummary(result.history, result.historyPath, options.format, result.recorded));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("artifacts")
+  .description("Index .visual-hive artifacts with safe classifications and sanitized previews")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--max-artifacts <count>", "maximum artifact entries to index", (value) => Number.parseInt(value, 10))
+  .option("--max-preview-bytes <count>", "maximum bytes to preview for text-like artifacts", (value) => Number.parseInt(value, 10))
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runArtifactsCommand({
+        config: options.config,
+        maxArtifacts: options.maxArtifacts,
+        maxPreviewBytes: options.maxPreviewBytes,
+        format: options.format
+      });
+      console.log(formatArtifactsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const connections = program.command("connections").alias("connection").description("Manage local Visual Hive repository connections");
+
+connections
+  .command("list")
+  .description("List connected local repositories")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runConnectionsListCommand({ config: options.config, format: options.format });
+      console.log(formatConnectionsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+connections
+  .command("add")
+  .description("Add or update a connected local repository")
+  .requiredOption("--repo <path>", "repository path to connect")
+  .option("--connection-config <path>", "config path inside the connected repo", "visual-hive.config.yaml")
+  .option("--id <id>", "stable connection id")
+  .option("--label <label>", "display label")
+  .option("--tag <tag...>", "connection tags")
+  .option("--config <path>", "config path for the managing repo", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runConnectionsAddCommand({
+        config: options.config,
+        repo: options.repo,
+        connectionConfig: options.connectionConfig,
+        id: options.id,
+        label: options.label,
+        tags: options.tag,
+        format: options.format
+      });
+      console.log(formatConnectionsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+connections
+  .command("remove")
+  .description("Remove a connected local repository")
+  .requiredOption("--id <id>", "connection id")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runConnectionsRemoveCommand({ config: options.config, id: options.id, format: options.format });
+      console.log(formatConnectionsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const baselines = program.command("baselines").alias("baseline").description("Inspect and approve screenshot baselines");
+
+baselines
+  .command("list")
+  .description("List screenshot baselines from the latest report")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--report <path>", "report path override")
+  .action(async (options) => {
+    try {
+      const list = await runBaselineListCommand({ config: options.config, report: options.report });
+      console.log(formatBaselineList(list));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+baselines
+  .command("approve")
+  .description("Approve one screenshot by copying its actual image to the baseline path")
+  .requiredOption("--contract <id>", "contract ID")
+  .requiredOption("--screenshot <name>", "screenshot name")
+  .option("--viewport <name>", "viewport name when contract/screenshot is ambiguous")
+  .option("--route <route>", "route when contract/screenshot is ambiguous")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--report <path>", "report path override")
+  .action(async (options) => {
+    try {
+      const approval = await runBaselineApproveCommand({
+        config: options.config,
+        report: options.report,
+        contractId: options.contract,
+        screenshotName: options.screenshot,
+        viewport: options.viewport,
+        route: options.route
+      });
+      console.log(formatBaselineApproval(approval));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("ui")
+  .description("Start the local-first Visual Hive Control Plane UI")
+  .option("--repo <path>", "target repository path")
+  .option("--config <path>", "config path")
+  .option("--port <port>", "port to listen on", "4317")
+  .option("--open", "open the Control Plane in your browser")
+  .option("--read-only", "disable file mutation actions in the UI")
+  .option("--demo", "use examples/demo-react-app when no repo/config is provided")
+  .action(async (options) => {
+    try {
+      const server = await runUiCommand({
+        repo: options.repo,
+        config: options.config,
+        port: options.port,
+        open: options.open,
+        readOnly: options.readOnly,
+        demo: options.demo
+      });
+      console.log(`Visual Hive Control Plane running at ${server.url}`);
+      console.log("Press Ctrl+C to stop.");
+      await waitForShutdown(server.close);
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 program.parseAsync(process.argv);
 
 function fail(error: unknown): void {
   console.error(sanitizeText(error instanceof Error ? error.message : String(error)));
   process.exitCode = 1;
+}
+
+async function waitForShutdown(close: () => Promise<void>): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const shutdown = () => {
+      process.off("SIGINT", shutdown);
+      process.off("SIGTERM", shutdown);
+      resolve();
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  });
+  await close();
 }

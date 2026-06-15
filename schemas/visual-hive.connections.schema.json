@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.connections.schema.json",
+  "title": "Visual Hive Local Repository Connection Store",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "connections"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "repoRoot", "configPath", "tags", "addedAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "repoRoot": { "type": "string", "minLength": 1 },
+          "configPath": { "type": "string", "minLength": 1 },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "addedAt": { "type": "string" },
+          "updatedAt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

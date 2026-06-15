@@ -16,6 +16,8 @@ npm run demo:ci
 npm run smoke:cli
 ```
 
+The demo flow writes plan, report, mutation, coverage, workflow-safety, triage, issue, PR-comment, and summary artifacts under `examples/demo-react-app/.visual-hive`.
+
 ## Future npm Package Path
 
 The root workspace stays private. Publishable packages are prepared under `packages/`, with `@visual-hive/cli` exposing the `visual-hive` binary.

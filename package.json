@@ -10,6 +10,7 @@
   },
   "workspaces": [
     "packages/core",
+    "packages/control-plane",
     "packages/cli",
     "packages/playwright-adapter",
     "packages/github-adapter",
@@ -17,8 +18,8 @@
     "examples/demo-react-app"
   ],
   "scripts": {
-    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli",
-    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app",
+    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/control-plane && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli",
+    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/control-plane && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app",
     "lint": "eslint .",
     "test": "vitest run",
     "demo:build": "npm run build -w demo-react-app",
@@ -26,11 +27,15 @@
     "demo:plan": "node packages/cli/dist/index.js plan --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt",
     "demo:run": "node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
     "demo:mutate": "node packages/cli/dist/index.js mutate --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
+    "demo:coverage": "node packages/cli/dist/index.js coverage --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt",
     "demo:triage": "node packages/cli/dist/index.js triage --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:report": "node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml",
-    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:triage && npm run demo:report",
-    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:triage && npm run demo:report",
-    "smoke:cli": "node scripts/smoke-cli.mjs"
+    "demo:workflows": "node packages/cli/dist/index.js workflows --config examples/demo-react-app/visual-hive.config.yaml --workflow-dir ../../.github/workflows",
+    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
+    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
+    "ui:build": "npm run build -w @visual-hive/control-plane",
+    "smoke:ui": "node scripts/smoke-ui.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

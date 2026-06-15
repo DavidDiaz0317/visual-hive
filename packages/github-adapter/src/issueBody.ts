@@ -1,9 +1,10 @@
-import type { MutationReport, Report, TriageFinding } from "@visual-hive/core";
+import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface IssueBodyInput {
   report?: Report;
   mutationReport?: MutationReport;
+  workflowAudit?: WorkflowAuditReport;
   findings?: TriageFinding[];
   reproductionCommands?: string[];
   artifacts?: string[];
@@ -25,6 +26,10 @@ export function buildIssueBody(input: IssueBodyInput): string {
     "",
     "## Summary",
     `- Project: ${report?.project ?? mutationReport?.project ?? "unknown"}`,
+    `- Repository: ${report?.repository?.repository ?? "unknown"}`,
+    `- Branch: ${report?.repository?.branch ?? "unknown"}`,
+    `- Commit: ${report?.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown"}`,
+    `- Run context: ${report?.repository?.provider ?? "unknown"}`,
     `- Deterministic status: ${report?.status ?? "not available"}`,
     `- Failed contracts: ${failed.length}`,
     `- Created baselines: ${report?.summary?.createdBaselines ?? 0}`,
@@ -86,6 +91,19 @@ export function buildIssueBody(input: IssueBodyInput): string {
     }
   }
 
+  lines.push("", "## Provider results");
+  if (!report?.providerResults?.length) {
+    lines.push("- No provider results were reported.");
+  } else {
+    for (const provider of report.providerResults) {
+      const missing = provider.missingEnv.length ? `, missingEnv=${provider.missingEnv.join(",")}` : "";
+      lines.push(`- ${provider.label}: status=${provider.status}, role=${provider.deterministicRole}, artifacts=${provider.artifactCount}${missing}`);
+    }
+  }
+
+  lines.push("", "## Workflow safety");
+  appendWorkflowSafety(lines, input.workflowAudit);
+
   lines.push("", "## Reproduction commands");
   for (const command of report?.reproductionCommands.length ? report.reproductionCommands : commands) {
     lines.push(`- \`${command}\``);
@@ -141,4 +159,33 @@ function formatMutationScore(report?: MutationReport): string {
     return "not available";
   }
   return `${Math.round(report.score * 100)}% (${report.killed}/${report.total})`;
+}
+
+function appendWorkflowSafety(lines: string[], workflowAudit?: WorkflowAuditReport): void {
+  if (!workflowAudit) {
+    lines.push("- No workflow safety audit was reported.");
+    lines.push("- Run `visual-hive workflows` before `visual-hive triage` to include CI safety evidence.");
+    return;
+  }
+
+  lines.push(`- Workflows audited: ${workflowAudit.summary.workflowCount}`);
+  lines.push(`- Critical findings: ${workflowAudit.summary.criticalFindings}`);
+  lines.push(`- High findings: ${workflowAudit.summary.highFindings}`);
+  lines.push(`- pull_request_target workflows: ${workflowAudit.summary.workflowsUsingPullRequestTarget}`);
+  lines.push(`- PR workflows using secrets: ${workflowAudit.summary.prWorkflowsUsingSecrets}`);
+  lines.push(`- PR workflows with write permissions: ${workflowAudit.summary.prWorkflowsWithWritePermissions}`);
+  lines.push(`- Workflows missing hidden artifact upload: ${workflowAudit.summary.workflowsMissingHiddenArtifactUpload}`);
+
+  if (workflowAudit.findings.length === 0) {
+    lines.push("- No workflow safety findings were recorded.");
+    return;
+  }
+
+  lines.push("- Findings:");
+  for (const finding of workflowAudit.findings.slice(0, 8)) {
+    lines.push(`  - ${finding.severity}/${finding.kind} in ${finding.workflowPath}: ${finding.message}`);
+  }
+  if (workflowAudit.findings.length > 8) {
+    lines.push(`  - ${workflowAudit.findings.length - 8} additional findings omitted from issue summary.`);
+  }
 }

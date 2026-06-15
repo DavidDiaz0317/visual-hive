@@ -4,6 +4,16 @@
 
 In local non-CI mode, Visual Hive creates missing baselines in `visual.snapshotDir`, which defaults to `.visual-hive/snapshots`. Review the image before relying on it. In CI, missing baselines fail by default unless `visual.updateSnapshots` is true.
 
+After reviewing a created or changed screenshot, approve it explicitly:
+
+```bash
+visual-hive baselines list --config visual-hive.config.yaml
+visual-hive baselines approve --config visual-hive.config.yaml --contract <contract-id> --screenshot <screenshot-name> --viewport <viewport>
+visual-hive run --ci
+```
+
+The Control Plane Baselines page exposes the same action unless it was started with `--read-only`. Approvals are recorded in `.visual-hive/baseline-approvals.json`.
+
 ## Target Server Failed To Start
 
 Check the target command, working directory, port, and health URL. Visual Hive reports the command and a sanitized log tail. Secret-looking values are redacted.

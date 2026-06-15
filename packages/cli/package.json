@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@visual-hive/core": "*",
+    "@visual-hive/control-plane": "*",
     "@visual-hive/github-adapter": "*",
     "@visual-hive/llm-adapter": "*",
     "@visual-hive/playwright-adapter": "*",

@@ -44,10 +44,15 @@ contracts:
       mustNotExist:
         - "[data-testid='login-page']"
         - "[data-testid='github-login-button']"
+        - "[data-testid='protected-route']"
+        - "[data-testid='loading-state']"
       textMustExist:
         - "Demo metrics loaded"
+        - "Run protected check"
       textMustNotExist:
         - "Continue with GitHub"
+        - "Protected route bypass"
+        - "Loading dashboard data"
     screenshots:
       - name: dashboard
         route: "/"
@@ -140,13 +145,30 @@ mutation:
     - id: mobile-overflow
       contracts:
         - dashboard-visual-stability
+    - id: route-guard-bypass
+      contracts:
+        - hosted-demo-never-login
+    - hidden-error-banner
+    - broken-image
+    - id: removed-accessible-name
+      contracts:
+        - hosted-demo-never-login
+    - id: theme-token-drift
+      contracts:
+        - dashboard-visual-stability
+    - id: stale-loading-state
+      contracts:
+        - hosted-demo-never-login
 
 ai:
   enabled: false
   provider: none
+  model: offline-heuristics
   neverSoleOracle: true
   createIssuePrompt: true
   maxDailyRuns: 5
+  maxPromptTokens: 50000
+  maxEstimatedCostUsd: 0
 
 github:
   enabled: true

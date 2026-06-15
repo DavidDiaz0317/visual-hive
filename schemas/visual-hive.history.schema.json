@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.history.schema.json",
+  "title": "Visual Hive Run History",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "entries"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "runCount",
+        "passedRuns",
+        "failedRuns",
+        "totalVisualDiffs",
+        "totalMissingBaselines",
+        "totalCreatedBaselines"
+      ],
+      "properties": {
+        "latestStatus": { "enum": ["passed", "failed"] },
+        "averageMutationScore": { "type": "number" },
+        "latestMutationScore": { "type": "number" }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "recordedAt",
+          "failedContracts",
+          "createdBaselines",
+          "missingBaselines",
+          "visualDiffs",
+          "consoleErrors",
+          "pageErrors",
+          "selectedTargets",
+          "selectedContracts",
+          "changedFiles",
+          "providerStatuses",
+          "files",
+          "artifacts"
+        ],
+        "properties": {
+          "deterministicStatus": { "enum": ["passed", "failed"] },
+          "repository": {
+            "type": "object",
+            "properties": {
+              "provider": { "enum": ["local", "github-actions"] },
+              "repository": { "type": "string" },
+              "branch": { "type": "string" },
+              "baseBranch": { "type": "string" },
+              "commitSha": { "type": "string" },
+              "pullRequestNumber": { "type": "number" },
+              "runId": { "type": "string" }
+            }
+          },
+          "mode": { "enum": ["pr", "schedule", "manual"] },
+          "mutationScore": { "type": "number" },
+          "files": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "plan": { "type": "string" },
+              "report": { "type": "string" },
+              "mutationReport": { "type": "string" },
+              "issue": { "type": "string" },
+              "prComment": { "type": "string" },
+              "triagePrompt": { "type": "string" },
+              "repairPrompt": { "type": "string" },
+              "missingTests": { "type": "string" },
+              "llmUsage": { "type": "string" },
+              "coverage": { "type": "string" },
+              "contracts": { "type": "string" },
+              "targets": { "type": "string" },
+              "schedules": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

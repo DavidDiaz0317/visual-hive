@@ -57,6 +57,54 @@ export const MUTATION_OPERATOR_METADATA: Record<MutationOperator, MutationOperat
     recommendedContracts: ["contracts with mobile screenshots"],
     expectedFailureKinds: ["visual_diff"],
     defaultHeuristic: "Select contracts that capture a mobile viewport screenshot."
+  },
+  "route-guard-bypass": {
+    id: "route-guard-bypass",
+    description: "Expose protected-route UI inside a public or unauthenticated surface.",
+    relevantSelectors: ["[data-testid='protected-route']", "[data-testid='admin-page']", "auth", "guard"],
+    recommendedContracts: ["contracts that forbid protected routes or validate auth boundaries"],
+    expectedFailureKinds: ["unexpected_element", "login_regression", "visual_diff"],
+    defaultHeuristic: "Select contracts that mention auth/route guards or forbid protected-route/admin selectors."
+  },
+  "hidden-error-banner": {
+    id: "hidden-error-banner",
+    description: "Hide visible error banners and alert regions.",
+    relevantSelectors: ["[data-testid='error-banner']", "[role='alert']", ".error-banner"],
+    recommendedContracts: ["contracts that require visible error states"],
+    expectedFailureKinds: ["missing_element", "api_contract_regression", "visual_diff"],
+    defaultHeuristic: "Select contracts that mention error banners, alerts, API failures, or error-state coverage."
+  },
+  "broken-image": {
+    id: "broken-image",
+    description: "Break image rendering so visual contracts catch missing assets.",
+    relevantSelectors: ["img", "[data-testid*='image']", "[data-testid*='logo']", "[data-testid*='avatar']"],
+    recommendedContracts: ["visual contracts that cover image, logo, avatar, or media surfaces"],
+    expectedFailureKinds: ["visual_diff", "missing_element"],
+    defaultHeuristic: "Select contracts with image/logo/avatar selectors or screenshot coverage."
+  },
+  "removed-accessible-name": {
+    id: "removed-accessible-name",
+    description: "Remove accessible names and visible labels from important controls.",
+    relevantSelectors: ["button", "[aria-label]", "[alt]", "[title]"],
+    recommendedContracts: ["contracts with button/control text or accessibility-name assertions"],
+    expectedFailureKinds: ["missing_element", "visual_diff"],
+    defaultHeuristic: "Select contracts that mention buttons, accessible names, aria labels, alt text, or text assertions."
+  },
+  "theme-token-drift": {
+    id: "theme-token-drift",
+    description: "Change theme tokens and key colors to simulate design-system drift.",
+    relevantSelectors: [":root", "body", "[data-theme]"],
+    recommendedContracts: ["visual contracts that cover themed layouts"],
+    expectedFailureKinds: ["visual_diff"],
+    defaultHeuristic: "Select contracts with screenshots or theme/design-token selectors."
+  },
+  "stale-loading-state": {
+    id: "stale-loading-state",
+    description: "Leave a persistent loading state over the page.",
+    relevantSelectors: ["[data-testid='loading-state']", "[data-testid='spinner']", "[aria-busy='true']"],
+    recommendedContracts: ["contracts that forbid stale loading indicators or verify loaded data"],
+    expectedFailureKinds: ["unexpected_element", "missing_element", "visual_diff"],
+    defaultHeuristic: "Select contracts that mention loading/spinner/skeleton states or capture screenshots after load."
   }
 };
 
@@ -117,6 +165,39 @@ function matchesHeuristic(operator: MutationOperator, contract: ContractConfig):
   }
   if (operator === "mobile-overflow") {
     return contract.screenshots.some((shot) => shot.viewport.toLowerCase().includes("mobile"));
+  }
+  if (operator === "route-guard-bypass") {
+    return (
+      lower.includes("protected-route") ||
+      lower.includes("admin-page") ||
+      lower.includes("route guard") ||
+      lower.includes("route-guard") ||
+      lower.includes("auth") ||
+      lower.includes("login")
+    );
+  }
+  if (operator === "hidden-error-banner") {
+    return lower.includes("error-banner") || lower.includes("role='alert'") || lower.includes('role="alert"') || lower.includes("alert") || lower.includes("error");
+  }
+  if (operator === "broken-image") {
+    return lower.includes("img") || lower.includes("image") || lower.includes("logo") || lower.includes("avatar") || contract.screenshots.length > 0;
+  }
+  if (operator === "removed-accessible-name") {
+    return (
+      lower.includes("aria-label") ||
+      lower.includes("accessible") ||
+      lower.includes("alt") ||
+      lower.includes("button") ||
+      lower.includes("critical-action-button") ||
+      contract.selectors.textMustExist.length > 0 ||
+      contract.selectors.textMustNotExist.length > 0
+    );
+  }
+  if (operator === "theme-token-drift") {
+    return lower.includes("theme") || lower.includes("token") || lower.includes("color") || contract.screenshots.length > 0;
+  }
+  if (operator === "stale-loading-state") {
+    return lower.includes("loading") || lower.includes("spinner") || lower.includes("skeleton") || lower.includes("aria-busy") || contract.screenshots.length > 0;
   }
   return false;
 }

@@ -36,6 +36,10 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     "## Visual Hive Summary",
     "",
     `- Project: ${report?.project ?? mutationReport?.project ?? "unknown"}`,
+    `- Repository: ${report?.repository?.repository ?? "unknown"}`,
+    `- Branch: ${report?.repository?.branch ?? "unknown"}`,
+    `- Commit: ${report?.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown"}`,
+    `- Run context: ${report?.repository?.provider ?? "unknown"}`,
     `- Deterministic status: ${report?.status ?? "not available"}`,
     `- Contracts: ${report?.results.length ?? 0}`,
     `- Failed contracts: ${failed.length}`,
@@ -44,6 +48,7 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
+    `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
     ""
   ];
 
@@ -59,6 +64,14 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     lines.push("### Visual Diffs", "");
     for (const screenshot of visualDiffs) {
       lines.push(`- ${screenshot.name} (${screenshot.viewport} ${screenshot.route}): diffRatio=${screenshot.actualDiffPixelRatio}`);
+    }
+    lines.push("");
+  }
+
+  if ((report?.providerResults?.length ?? 0) > 0) {
+    lines.push("### Provider Results", "");
+    for (const provider of report?.providerResults ?? []) {
+      lines.push(`- ${provider.label}: ${provider.status} (${provider.deterministicRole}) - ${provider.message}`);
     }
     lines.push("");
   }

@@ -22,6 +22,8 @@ jobs:
       - run: npx visual-hive plan --mode schedule --ci
       - run: npx visual-hive run --ci
       - run: npx visual-hive mutate --enforce-min-score
+      - run: npx visual-hive workflows
+        if: always()
       - run: npx visual-hive triage
         if: always()
       - run: npx visual-hive report --github-step-summary

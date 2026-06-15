@@ -25,6 +25,8 @@ jobs:
       - run: npx visual-hive plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule --ci
       - run: npx visual-hive run --config examples/kubestellar-console/visual-hive.config.yaml --ci
       - run: npx visual-hive mutate --config examples/kubestellar-console/visual-hive.config.yaml --enforce-min-score
+      - run: npx visual-hive workflows --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
       - run: npx visual-hive triage --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
       - run: npx visual-hive report --config examples/kubestellar-console/visual-hive.config.yaml --github-step-summary

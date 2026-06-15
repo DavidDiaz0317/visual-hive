@@ -1,10 +1,11 @@
-import type { MutationReport, Report, TriageFinding } from "@visual-hive/core";
+import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface PrCommentInput {
   marker?: string;
   report?: Report;
   mutationReport?: MutationReport;
+  workflowAudit?: WorkflowAuditReport;
   findings?: TriageFinding[];
 }
 
@@ -18,6 +19,9 @@ export function buildPrComment(input: PrCommentInput): string {
     marker,
     "## Visual Hive report",
     "",
+    `- Repository: ${report?.repository?.repository ?? "unknown"}`,
+    `- Branch: ${report?.repository?.branch ?? "unknown"}`,
+    `- Commit: ${report?.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown"}`,
     `- Status: ${report?.status ?? "not available"}`,
     `- Contracts: ${report?.results.length ?? 0}`,
     `- Failed contracts: ${failed.length}`,
@@ -25,6 +29,8 @@ export function buildPrComment(input: PrCommentInput): string {
     `- Created baselines: ${report?.summary?.createdBaselines ?? 0}`,
     `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
+    `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
+    `- Workflow safety findings: ${input.workflowAudit ? input.workflowAudit.findings.length : "not available"}`,
     `- Artifacts: ${report?.artifacts.length ?? 0}`,
     "",
     "### Failed contracts"

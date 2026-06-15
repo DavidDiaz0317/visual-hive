@@ -45,6 +45,78 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
     });
   }
 
+  const flakyBaselineCandidates =
+    input.report?.results
+      .flatMap((result) => result.screenshotAssertions ?? [])
+      .filter((screenshot) => screenshot.status === "failed" && isSmallVisualDiff(screenshot.actualDiffPixelRatio, screenshot.maxDiffPixelRatio)) ?? [];
+  for (const screenshot of flakyBaselineCandidates) {
+    findings.push({
+      classification: "flaky_baseline",
+      severity: "medium",
+      title: `Small visual diff near threshold: ${screenshot.contractId}/${screenshot.screenshotName}`,
+      evidence: [
+        `Diff ratio: ${screenshot.actualDiffPixelRatio ?? "unknown"}`,
+        `Threshold: ${screenshot.maxDiffPixelRatio}`,
+        `Actual path: ${screenshot.actualPath}`,
+        screenshot.diffPath ? `Diff path: ${screenshot.diffPath}` : "No diff artifact path was reported."
+      ],
+      suggestedNextTests: [
+        "Review the diff image before changing thresholds.",
+        "Mask dynamic regions or stabilize fixture data if the diff is nondeterministic."
+      ]
+    });
+  }
+
+  const providerFailures =
+    input.report?.providerResults?.filter((provider) => provider.status === "failed" || provider.status === "missing_credentials") ?? [];
+  for (const provider of providerFailures) {
+    findings.push({
+      classification: "provider_failure",
+      severity: provider.status === "failed" ? "high" : "medium",
+      title: `Provider ${provider.label} reported ${provider.status}`,
+      evidence: [
+        provider.message,
+        provider.missingEnv.length ? `Missing env names: ${provider.missingEnv.join(", ")}` : "No missing env names reported.",
+        `Deterministic role: ${provider.deterministicRole}`
+      ],
+      suggestedNextTests: [
+        "Keep Playwright deterministic contracts as the pass/fail oracle.",
+        "Configure optional provider credentials only in trusted workflows if this provider is required."
+      ]
+    });
+  }
+
+  const protectedTargets = input.report?.selectedTargets.filter((target) => target.missingSecrets?.length) ?? [];
+  for (const target of protectedTargets) {
+    findings.push({
+      classification: "protected_target_missing_secret",
+      severity: "high",
+      title: `Protected target ${target.id} is missing required secret names`,
+      evidence: [`Missing env names: ${target.missingSecrets?.join(", ")}`],
+      suggestedNextTests: [
+        "Run protected target checks only from scheduled or manual trusted workflows.",
+        "Configure the missing environment variables without exposing their values in PR logs."
+      ]
+    });
+  }
+
+  const coverageGaps = input.coverageReport?.uncoveredAreas ?? [];
+  for (const gap of coverageGaps.slice(0, 8)) {
+    findings.push({
+      classification: "insufficient_coverage",
+      severity: gap.severity,
+      title: `Coverage gap: ${gap.kind}`,
+      evidence: [
+        gap.message,
+        gap.targetId ? `Target: ${gap.targetId}` : "",
+        gap.contractId ? `Contract: ${gap.contractId}` : "",
+        gap.route ? `Route: ${gap.route}` : "",
+        gap.changedFile ? `Changed file: ${gap.changedFile}` : ""
+      ].filter(Boolean),
+      suggestedNextTests: coverageSuggestionFor(gap.kind)
+    });
+  }
+
   const survived = input.mutationReport?.results.filter((result) => result.status === "survived") ?? [];
   for (const result of survived) {
     findings.push({
@@ -67,6 +139,30 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
   }
 
   return findings;
+}
+
+function isSmallVisualDiff(actual: number | undefined, threshold: number): boolean {
+  if (actual === undefined || threshold <= 0) return false;
+  return actual > threshold && actual <= threshold * 1.5;
+}
+
+function coverageSuggestionFor(kind: string): string[] {
+  if (kind === "target_without_contracts") {
+    return ["Add at least one selector contract and one screenshot contract for this target."];
+  }
+  if (kind === "contract_without_assertions") {
+    return ["Add mustExist/mustNotExist selectors or route screenshots to make the contract enforce a user-visible state."];
+  }
+  if (kind === "route_without_pr_safe_coverage") {
+    return ["Add a PR-safe screenshot contract for this route or explain why it must remain schedule-only."];
+  }
+  if (kind === "viewport_without_screenshots") {
+    return ["Add a screenshot for this viewport, especially mobile routes likely to regress visually."];
+  }
+  if (kind === "changed_file_without_rule") {
+    return ["Add a changed-file selection rule so this code path selects the right deterministic contracts."];
+  }
+  return ["Review coverage and add the smallest deterministic contract that protects the uncovered user-visible behavior."];
 }
 
 function finding(

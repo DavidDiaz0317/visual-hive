@@ -19,6 +19,8 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run demo:ci
+      - run: npm run demo:workflows
+        if: always()
       - run: node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml --github-step-summary
         if: always()
       # Do not create issues from untrusted PR execution. Upload artifacts and let

@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import type { MutationReport, Report, TriageFinding } from "@visual-hive/core";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { buildIssueBody } from "../src/issueBody.js";
+import { buildPrComment } from "../src/prComment.js";
 import { sanitizeText } from "../src/sanitize.js";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const sampleRepository = {
+  provider: "github-actions" as const,
+  repository: "DavidDiaz0317/visual-hive",
+  branch: "feature",
+  baseBranch: "main",
+  commitSha: "abcdef1234567890",
+  pullRequestNumber: 1,
+  runId: "123"
+};
 
 describe("sanitizeText", () => {
   it("redacts secret-like values in URLs, headers, cookies, and logs", () => {
@@ -38,7 +52,7 @@ describe("sanitizeText", () => {
 
 describe("buildIssueBody", () => {
   it("documents required v2 report fields in the JSON schema", () => {
-    const schema = JSON.parse(readFileSync("schemas/visual-hive.report.schema.json", "utf8"));
+    const schema = JSON.parse(readFileSync(path.join(repoRoot, "schemas/visual-hive.report.schema.json"), "utf8"));
 
     expect(schema.properties.schemaVersion.const).toBe(2);
     expect(schema.required).toEqual(expect.arrayContaining(["summary", "targetLifecycle", "generatedSpecPath"]));
@@ -48,6 +62,7 @@ describe("buildIssueBody", () => {
     const report: Report = {
       schemaVersion: 2,
       project: "sample",
+      repository: sampleRepository,
       mode: "pr",
       generatedAt: "2026-01-01T00:00:00.000Z",
       status: "failed",
@@ -72,6 +87,19 @@ describe("buildIssueBody", () => {
       consoleErrors: [],
       pageErrors: [],
       artifacts: [".visual-hive/artifacts/screenshot.png"],
+      providerResults: [
+        {
+          providerId: "playwright",
+          label: "Playwright built-in",
+          status: "failed",
+          deterministicRole: "oracle",
+          message: "Built-in Playwright deterministic run failed.",
+          requiredEnv: [],
+          missingEnv: [],
+          artifactCount: 1,
+          normalizedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ],
       reproductionCommands: ["visual-hive run --ci"],
       results: [
         {
@@ -121,13 +149,139 @@ describe("buildIssueBody", () => {
       suggestedNextTests: ["Add a selector contract"]
     };
 
-    const body = buildIssueBody({ report, mutationReport, findings: [finding], reproductionCommands: ["visual-hive run --ci"] });
+    const workflowAudit: WorkflowAuditReport = {
+      schemaVersion: 1,
+      project: "sample",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      workflowRoot: ".github/workflows",
+      summary: {
+        workflowCount: 2,
+        pullRequestWorkflows: 1,
+        scheduledWorkflows: 0,
+        trustedIssueWorkflows: 1,
+        unknownWorkflows: 0,
+        criticalFindings: 1,
+        highFindings: 0,
+        workflowsUsingPullRequestTarget: 1,
+        prWorkflowsUsingSecrets: 1,
+        prWorkflowsWithWritePermissions: 1,
+        workflowsUploadingArtifacts: 1,
+        workflowsMissingHiddenArtifactUpload: 1,
+        trustedIssueWorkflowsCheckingOutCode: 0
+      },
+      workflows: [],
+      findings: [
+        {
+          workflowPath: ".github/workflows/pr.yml?token=secret-token",
+          kind: "pull_request_target",
+          severity: "critical",
+          message: "Workflow uses pull_request_target with Authorization: Bearer secret-value",
+          evidence: "pull_request_target"
+        }
+      ],
+      recommendations: ["Keep PR workflows read-only and secret-free."]
+    };
+
+    const body = buildIssueBody({
+      report,
+      mutationReport,
+      workflowAudit,
+      findings: [finding],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
 
     expect(body).toContain("dashboard-visual-stability");
+    expect(body).toContain("DavidDiaz0317/visual-hive");
+    expect(body).toContain("abcdef123456");
     expect(body).toContain("visual-hive run --ci");
     expect(body).toContain("50% (1/2)");
     expect(body).toContain("Missing dashboard element");
     expect(body).toContain("Visual diffs");
     expect(body).toContain("Suggested files to inspect");
+    expect(body).toContain("Provider results");
+    expect(body).toContain("Playwright built-in");
+    expect(body).toContain("Workflow safety");
+    expect(body).toContain("pull_request_target workflows: 1");
+    expect(body).toContain("critical/pull_request_target");
+    expect(body).toContain("token=[REDACTED]");
+    expect(body).not.toContain("secret-token");
+    expect(body).not.toContain("secret-value");
+  });
+});
+
+describe("buildPrComment", () => {
+  it("builds a sanitized PR comment with workflow safety summary", () => {
+    const body = buildPrComment({
+      marker: "<!-- visual-hive-report -->",
+      report: {
+        schemaVersion: 2,
+        project: "sample",
+        repository: { ...sampleRepository, branch: "feature?token=secret-token" },
+        mode: "pr",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        status: "passed",
+        changedFiles: [],
+        selectedTargets: [],
+        selectedContracts: [],
+        excludedContracts: [],
+        targetLifecycle: [],
+        generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+        summary: {
+          passed: 1,
+          failed: 0,
+          screenshotsPassed: 1,
+          screenshotsFailed: 0,
+          baselinesCreated: 0,
+          createdBaselines: 0,
+          missingBaselines: 0,
+          visualDiffs: 0,
+          consoleErrors: 0,
+          pageErrors: 0
+        },
+        consoleErrors: [],
+        pageErrors: [],
+        artifacts: [],
+        providerResults: [],
+        reproductionCommands: [],
+        results: []
+      },
+      workflowAudit: {
+        schemaVersion: 1,
+        project: "sample",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        workflowRoot: ".github/workflows",
+        summary: {
+          workflowCount: 1,
+          pullRequestWorkflows: 1,
+          scheduledWorkflows: 0,
+          trustedIssueWorkflows: 0,
+          unknownWorkflows: 0,
+          criticalFindings: 0,
+          highFindings: 1,
+          workflowsUsingPullRequestTarget: 0,
+          prWorkflowsUsingSecrets: 1,
+          prWorkflowsWithWritePermissions: 0,
+          workflowsUploadingArtifacts: 1,
+          workflowsMissingHiddenArtifactUpload: 0,
+          trustedIssueWorkflowsCheckingOutCode: 0
+        },
+        workflows: [],
+        findings: [
+          {
+            workflowPath: ".github/workflows/pr.yml",
+            kind: "pr_secrets",
+            severity: "high",
+            message: "PR workflow uses secret",
+            evidence: "secrets"
+          }
+        ],
+        recommendations: []
+      }
+    });
+
+    expect(body).toContain("<!-- visual-hive-report -->");
+    expect(body).toContain("Workflow safety findings: 1");
+    expect(body).toContain("token=[REDACTED]");
+    expect(body).not.toContain("secret-token");
   });
 });

@@ -3,13 +3,21 @@ import { z } from "zod";
 export const CostSchema = z.enum(["cheap", "medium", "expensive"]);
 export const SeveritySchema = z.enum(["low", "medium", "high", "critical"]);
 export const ProjectTypeSchema = z.enum(["react-vite", "nextjs", "static", "dashboard", "custom"]);
+export const ProviderIdSchema = z.enum(["playwright", "argos", "percy", "chromatic", "applitools", "storybook", "github-checks"]);
+export const ProviderModeSchema = z.enum(["mock", "external"]);
 export const MutationOperatorSchema = z.enum([
   "hide-critical-button",
   "force-login-on-demo",
   "remove-demo-badge",
   "api-500",
   "empty-data",
-  "mobile-overflow"
+  "mobile-overflow",
+  "route-guard-bypass",
+  "hidden-error-banner",
+  "broken-image",
+  "removed-accessible-name",
+  "theme-token-drift",
+  "stale-loading-state"
 ]);
 
 export const VisualConfigSchema = z
@@ -27,6 +35,44 @@ export const VisualConfigSchema = z
     failOnMissingBaselineInCI: true,
     snapshotDir: ".visual-hive/snapshots",
     artifactDir: ".visual-hive/artifacts"
+  });
+
+function providerConfig(defaults: { enabled: boolean; mode?: z.infer<typeof ProviderModeSchema>; requiredEnv?: string[] }) {
+  return z
+    .object({
+      enabled: z.boolean().default(defaults.enabled),
+      mode: ProviderModeSchema.default(defaults.mode ?? "external"),
+      requiredEnv: z.array(z.string().min(1)).default(defaults.requiredEnv ?? []),
+      projectId: z.string().min(1).optional(),
+      failOnProviderFailure: z.boolean().default(false)
+    })
+    .default({
+      enabled: defaults.enabled,
+      mode: defaults.mode ?? "external",
+      requiredEnv: defaults.requiredEnv ?? [],
+      failOnProviderFailure: false
+    });
+}
+
+export const ProvidersConfigSchema = z
+  .object({
+    playwright: providerConfig({ enabled: true, requiredEnv: [] }),
+    argos: providerConfig({ enabled: false, requiredEnv: ["ARGOS_TOKEN"] }),
+    percy: providerConfig({ enabled: false, requiredEnv: ["PERCY_TOKEN"] }),
+    chromatic: providerConfig({ enabled: false, requiredEnv: ["CHROMATIC_PROJECT_TOKEN"] }),
+    applitools: providerConfig({ enabled: false, requiredEnv: ["APPLITOOLS_API_KEY"] }),
+    storybook: providerConfig({ enabled: false, mode: "mock", requiredEnv: [] }),
+    "github-checks": providerConfig({ enabled: false, requiredEnv: ["GITHUB_TOKEN"] })
+  })
+  .optional()
+  .default({
+    playwright: { enabled: true, mode: "external", requiredEnv: [], failOnProviderFailure: false },
+    argos: { enabled: false, mode: "external", requiredEnv: ["ARGOS_TOKEN"], failOnProviderFailure: false },
+    percy: { enabled: false, mode: "external", requiredEnv: ["PERCY_TOKEN"], failOnProviderFailure: false },
+    chromatic: { enabled: false, mode: "external", requiredEnv: ["CHROMATIC_PROJECT_TOKEN"], failOnProviderFailure: false },
+    applitools: { enabled: false, mode: "external", requiredEnv: ["APPLITOOLS_API_KEY"], failOnProviderFailure: false },
+    storybook: { enabled: false, mode: "mock", requiredEnv: [], failOnProviderFailure: false },
+    "github-checks": { enabled: false, mode: "external", requiredEnv: ["GITHUB_TOKEN"], failOnProviderFailure: false }
   });
 
 const RunOnSchema = z
@@ -186,18 +232,25 @@ export const VisualHiveConfigSchema = z.object({
     .object({
       enabled: z.boolean().default(false),
       provider: z.string().default("none"),
-      neverSoleOracle: z.boolean().default(true),
+      model: z.string().default("offline-heuristics"),
+      neverSoleOracle: z.literal(true).default(true),
       createIssuePrompt: z.boolean().default(true),
-      maxDailyRuns: z.number().int().positive().default(5)
+      maxDailyRuns: z.number().int().positive().default(5),
+      maxPromptTokens: z.number().int().positive().default(50000),
+      maxEstimatedCostUsd: z.number().nonnegative().default(0)
     })
     .optional()
     .default({
       enabled: false,
       provider: "none",
+      model: "offline-heuristics",
       neverSoleOracle: true,
       createIssuePrompt: true,
-      maxDailyRuns: 5
+      maxDailyRuns: 5,
+      maxPromptTokens: 50000,
+      maxEstimatedCostUsd: 0
     }),
+  providers: ProvidersConfigSchema,
   github: z
     .object({
       enabled: z.boolean().default(false),
@@ -217,6 +270,8 @@ export type TargetConfig = z.infer<typeof TargetSchema>;
 export type ContractConfig = z.infer<typeof ContractSchema>;
 export type MutationOperator = z.infer<typeof MutationOperatorSchema>;
 export type MutationOperatorConfig = VisualHiveConfig["mutation"]["operators"][number];
+export type ProviderId = z.infer<typeof ProviderIdSchema>;
+export type ProviderConfig = VisualHiveConfig["providers"][ProviderId];
 
 function relativeArtifactPathSchema(defaultValue: string): z.ZodDefault<z.ZodEffects<z.ZodString, string, string>> {
   return z

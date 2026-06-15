@@ -19,9 +19,11 @@ npm test
 npm run demo:all
 npm run demo:ci
 npm run smoke:cli
+npm run ui:build
+npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It also writes coverage, workflow-safety, triage, PR-comment, and report artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode.
 
 Initialize Visual Hive in another repo:
 
@@ -95,18 +97,48 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, and cost.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
-- `visual-hive triage`: builds offline findings, `.visual-hive/triage-prompt.md`, and `.visual-hive/issue.md`.
+- `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.
+- `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.
+- `visual-hive targets`: audits target safety, commands, services, secrets, lifecycle evidence, and gaps in `.visual-hive/targets.json`.
+- `visual-hive schedules`: audits PR, scheduled, protected, mutation, and trusted issue lanes in `.visual-hive/schedules.json`.
+- `visual-hive workflows`: audits GitHub Actions YAML for PR secret safety, `pull_request_target`, artifact upload, and trusted issue patterns in `.visual-hive/workflows.json`.
+- `visual-hive history`: records or summarizes run history and trends in `.visual-hive/history.json`.
+- `visual-hive artifacts`: indexes `.visual-hive` files with classifications and sanitized previews in `.visual-hive/artifacts-index.json`.
+- `visual-hive connections`: manages local repository connections for the Control Plane in `.visual-hive/connections.json`.
+- `visual-hive triage`: builds offline findings, prompts, missing-test suggestions, issue markdown, and `.visual-hive/llm-usage.json` governance records.
 - `visual-hive report`: prints markdown or JSON and can append to `GITHUB_STEP_SUMMARY`.
+- `visual-hive baselines list|approve`: inspect screenshot baselines and explicitly approve an actual screenshot as the new baseline with an audit record.
+- `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
+- `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence and provider-specific normalized metadata.
+- `visual-hive ui`: starts the local-first Control Plane over config, reports, baselines, coverage, mutation, failures, and raw artifacts.
 
 Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
+
+## Control Plane UI
+
+Start the local UI for a repository:
+
+```bash
+visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
+```
+
+Local development without publishing:
+
+```bash
+node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only
+```
+
+The UI reads `.visual-hive` artifacts and shows overview health, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can explicitly approve reviewed baselines and save validated config edits after a diff review; `--read-only` disables those actions.
 
 ## GitHub Actions
 
 Use the templates in `templates/github-actions/` or run `visual-hive init`. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
+Generated Visual Hive workflows also run `visual-hive workflows` before artifact upload so `.visual-hive/workflows.json` captures workflow safety evidence.
+
 ## Mutation testing
 
-The v0.2 release includes six mutation operators:
+The v0.2 release includes twelve mutation operators:
 
 - `hide-critical-button`
 - `force-login-on-demo`
@@ -114,6 +146,12 @@ The v0.2 release includes six mutation operators:
 - `api-500`
 - `empty-data`
 - `mobile-overflow`
+- `route-guard-bypass`
+- `hidden-error-banner`
+- `broken-image`
+- `removed-accessible-name`
+- `theme-token-drift`
+- `stale-loading-state`
 
 A mutation is killed when deterministic contracts fail under the injected breakage. The score is `killed / total`.
 
@@ -125,6 +163,10 @@ See also:
 
 - `docs/troubleshooting.md`
 - `docs/comparison.md`
+- `docs/control-plane.md`
+- `docs/run-history.md`
+- `docs/raw-artifacts.md`
+- `docs/connections.md`
 - `docs/install.md`
 - `docs/roadmap.md`
 
@@ -136,6 +178,7 @@ See also:
 - Issue creation should happen from trusted artifacts, not by executing untrusted PR code.
 - Tokens, cookies, passwords, authorization headers, and code-like query params are redacted from generated issue/comment bodies.
 - External provider adapters are optional.
+- Provider inspection reports credential names only, never credential values.
 
 ## Roadmap
 

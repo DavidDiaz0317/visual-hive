@@ -23,26 +23,31 @@ export async function loadConfig(configPath = "visual-hive.config.yaml", cwd = p
     );
   }
 
+  const config = parseConfigText(raw, resolvedPath);
+  return {
+    config,
+    configPath: resolvedPath,
+    rootDir: path.dirname(resolvedPath)
+  };
+}
+
+export function parseConfigText(raw: string, configPath = "visual-hive.config.yaml"): VisualHiveConfig {
   let parsed: unknown;
   try {
     parsed = YAML.parse(raw);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Unable to parse YAML config at ${resolvedPath}: ${sanitizeText(message)}`);
+    throw new Error(`Unable to parse YAML config at ${configPath}: ${sanitizeText(message)}`);
   }
 
   try {
     const config = VisualHiveConfigSchema.parse(parsed);
     validateReferences(config);
-    return {
-      config,
-      configPath: resolvedPath,
-      rootDir: path.dirname(resolvedPath)
-    };
+    return config;
   } catch (error) {
     if (error instanceof ZodError) {
       const details = error.issues.map((issue) => `${issue.path.join(".") || "config"}: ${issue.message}`).join("; ");
-      throw new Error(`Invalid Visual Hive config at ${resolvedPath}: ${sanitizeText(details)}`);
+      throw new Error(`Invalid Visual Hive config at ${configPath}: ${sanitizeText(details)}`);
     }
     throw error;
   }

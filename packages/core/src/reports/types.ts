@@ -17,7 +17,11 @@ export type TriageClassification =
   | "possible_flake"
   | "environment_failure"
   | "coverage_gap"
-  | "mutation_survivor";
+  | "mutation_survivor"
+  | "provider_failure"
+  | "flaky_baseline"
+  | "protected_target_missing_secret"
+  | "insufficient_coverage";
 
 export interface SelectorAssertionResult {
   kind: "mustExist" | "mustNotExist" | "textMustExist" | "textMustNotExist" | "waitFor";
@@ -68,6 +72,35 @@ export interface TargetLifecycleEvent {
   message?: string;
 }
 
+export interface ProviderResult {
+  providerId: string;
+  label: string;
+  status: "passed" | "failed" | "skipped" | "missing_credentials" | "mock";
+  deterministicRole: "oracle" | "supplemental";
+  message: string;
+  requiredEnv: string[];
+  missingEnv: string[];
+  artifactCount: number;
+  externalUrl?: string;
+  normalizedAt: string;
+}
+
+export interface RepositoryMetadata {
+  provider: "local" | "github-actions";
+  repository: string;
+  owner?: string;
+  repo?: string;
+  remoteUrl?: string;
+  branch?: string;
+  baseBranch?: string;
+  commitSha?: string;
+  pullRequestNumber?: number;
+  runId?: string;
+  runAttempt?: string;
+  workflow?: string;
+  actor?: string;
+}
+
 export interface ReportSummary {
   passed: number;
   failed: number;
@@ -99,6 +132,7 @@ export interface ContractResult {
 export interface Report {
   schemaVersion: 2;
   project: string;
+  repository: RepositoryMetadata;
   mode: PlanMode;
   generatedAt: string;
   status: "passed" | "failed";
@@ -113,6 +147,7 @@ export interface Report {
   consoleErrors: string[];
   pageErrors: RuntimeErrorResult[];
   artifacts: string[];
+  providerResults?: ProviderResult[];
   reproductionCommands: string[];
 }
 

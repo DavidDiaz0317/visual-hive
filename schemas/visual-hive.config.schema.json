@@ -81,9 +81,25 @@
       "properties": {
         "enabled": { "type": "boolean", "default": false },
         "provider": { "type": "string", "default": "none" },
+        "model": { "type": "string", "default": "offline-heuristics" },
         "neverSoleOracle": { "type": "boolean", "const": true },
         "createIssuePrompt": { "type": "boolean", "default": true },
-        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 }
+        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 },
+        "maxPromptTokens": { "type": "integer", "minimum": 1, "default": 50000 },
+        "maxEstimatedCostUsd": { "type": "number", "minimum": 0, "default": 0 }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playwright": { "$ref": "#/$defs/providerConfig" },
+        "argos": { "$ref": "#/$defs/providerConfig" },
+        "percy": { "$ref": "#/$defs/providerConfig" },
+        "chromatic": { "$ref": "#/$defs/providerConfig" },
+        "applitools": { "$ref": "#/$defs/providerConfig" },
+        "storybook": { "$ref": "#/$defs/providerConfig" },
+        "github-checks": { "$ref": "#/$defs/providerConfig" }
       }
     },
     "github": {
@@ -276,7 +292,31 @@
       }
     },
     "mutationOperator": {
-      "enum": ["hide-critical-button", "force-login-on-demo", "remove-demo-badge", "api-500", "empty-data", "mobile-overflow"]
+      "enum": [
+        "hide-critical-button",
+        "force-login-on-demo",
+        "remove-demo-badge",
+        "api-500",
+        "empty-data",
+        "mobile-overflow",
+        "route-guard-bypass",
+        "hidden-error-banner",
+        "broken-image",
+        "removed-accessible-name",
+        "theme-token-drift",
+        "stale-loading-state"
+      ]
+    },
+    "providerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "mode": { "enum": ["mock", "external"], "default": "external" },
+        "requiredEnv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "projectId": { "type": "string", "minLength": 1 },
+        "failOnProviderFailure": { "type": "boolean", "default": false }
+      }
     }
   }
 }

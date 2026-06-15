@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.schedules.schema.json",
+  "title": "Visual Hive Schedule Audit",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "changedFiles", "summary", "lanes", "targetSchedules", "gaps", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "summary": {
+      "type": "object",
+      "required": [
+        "contractCount",
+        "pullRequestContracts",
+        "scheduledContracts",
+        "protectedContracts",
+        "protectedScheduledContracts",
+        "targetsWithCronSchedules",
+        "mutationEnabled",
+        "mutationScheduled",
+        "missingSecretNames",
+        "highSeverityGaps"
+      ]
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "trigger",
+          "command",
+          "safeForPullRequest",
+          "usesSecrets",
+          "targetIds",
+          "contractIds",
+          "excludedContractIds",
+          "costs",
+          "requiresSecrets",
+          "missingSecrets",
+          "warnings",
+          "recommendations"
+        ],
+        "properties": {
+          "id": { "enum": ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] },
+          "mode": { "enum": ["pr", "schedule", "manual"] }
+        }
+      }
+    },
+    "targetSchedules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["targetId", "kind", "prSafe", "cost", "contractIds", "scheduledContractIds", "requiresSecrets", "missingSecrets"],
+        "properties": {
+          "kind": { "enum": ["url", "command", "commandGroup", "protected"] },
+          "cost": { "enum": ["cheap", "medium", "expensive"] }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "severity", "message"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "pr_lane_unsafe_target",
+              "protected_target_pr_safe",
+              "protected_target_without_schedule",
+              "protected_contract_not_scheduled",
+              "schedule_contract_on_pr_only_target",
+              "mutation_not_scheduled",
+              "missing_protected_secret",
+              "target_schedule_without_contracts"
+            ]
+          },
+          "severity": { "enum": ["low", "medium", "high"] },
+          "laneId": { "enum": ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] }
+        }
+      }
+    },
+    "recommendations": { "type": "array", "items": { "type": "string" } }
+  }
+}

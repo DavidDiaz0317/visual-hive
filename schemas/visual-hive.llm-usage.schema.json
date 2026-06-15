@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.llm-usage.schema.json",
+  "title": "Visual Hive LLM Usage",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "governance", "summary", "records", "warnings", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "governance": {
+      "type": "object",
+      "required": ["enabled", "provider", "model", "neverSoleOracle", "maxDailyRuns", "maxPromptTokens", "maxEstimatedCostUsd", "callsMade"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "neverSoleOracle": { "const": true },
+        "maxDailyRuns": { "type": "integer" },
+        "maxPromptTokens": { "type": "integer" },
+        "maxEstimatedCostUsd": { "type": "number" },
+        "callsMade": { "const": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["promptCount", "totalEstimatedTokens", "totalEstimatedCostUsd", "blockedPrompts", "promptOnly", "advisoryOnly", "callsMade"],
+      "properties": {
+        "promptOnly": { "const": true },
+        "advisoryOnly": { "const": true },
+        "callsMade": { "const": 0 }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task",
+          "path",
+          "provider",
+          "model",
+          "enabled",
+          "promptOnly",
+          "advisoryOnly",
+          "callsMade",
+          "status",
+          "promptChars",
+          "estimatedTokens",
+          "estimatedCostUsd",
+          "budget",
+          "notes"
+        ],
+        "properties": {
+          "task": {
+            "enum": [
+              "visual_failure_triage",
+              "mutation_survivor_review",
+              "missing_coverage_review",
+              "repair_prompt",
+              "missing_tests",
+              "issue_draft"
+            ]
+          },
+          "promptOnly": { "const": true },
+          "advisoryOnly": { "const": true },
+          "callsMade": { "const": 0 },
+          "status": {
+            "enum": ["prompt_only", "disabled", "blocked_by_token_budget", "blocked_by_cost_budget", "policy_violation"]
+          }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "recommendations": { "type": "array", "items": { "type": "string" } }
+  }
+}

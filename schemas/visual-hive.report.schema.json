@@ -6,6 +6,7 @@
   "required": [
     "schemaVersion",
     "project",
+    "repository",
     "mode",
     "generatedAt",
     "status",
@@ -26,6 +27,7 @@
   "properties": {
     "schemaVersion": { "const": 2 },
     "project": { "type": "string" },
+    "repository": { "$ref": "#/$defs/repositoryMetadata" },
     "mode": { "enum": ["pr", "schedule", "manual"] },
     "generatedAt": { "type": "string" },
     "status": { "enum": ["passed", "failed"] },
@@ -40,6 +42,7 @@
     "consoleErrors": { "type": "array", "items": { "type": "string" } },
     "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
     "artifacts": { "type": "array", "items": { "type": "string" } },
+    "providerResults": { "type": "array", "items": { "$ref": "#/$defs/providerResult" } },
     "reproductionCommands": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {
@@ -49,6 +52,26 @@
       "properties": {
         "type": { "enum": ["console", "page"] },
         "message": { "type": "string" }
+      }
+    },
+    "repositoryMetadata": {
+      "type": "object",
+      "required": ["provider", "repository"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "enum": ["local", "github-actions"] },
+        "repository": { "type": "string" },
+        "owner": { "type": "string" },
+        "repo": { "type": "string" },
+        "remoteUrl": { "type": "string" },
+        "branch": { "type": "string" },
+        "baseBranch": { "type": "string" },
+        "commitSha": { "type": "string" },
+        "pullRequestNumber": { "type": "number" },
+        "runId": { "type": "string" },
+        "runAttempt": { "type": "string" },
+        "workflow": { "type": "string" },
+        "actor": { "type": "string" }
       }
     },
     "networkError": {
@@ -161,6 +184,32 @@
         "consoleErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
         "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
         "networkErrors": { "type": "array", "items": { "$ref": "#/$defs/networkError" } }
+      }
+    },
+    "providerResult": {
+      "type": "object",
+      "required": [
+        "providerId",
+        "label",
+        "status",
+        "deterministicRole",
+        "message",
+        "requiredEnv",
+        "missingEnv",
+        "artifactCount",
+        "normalizedAt"
+      ],
+      "properties": {
+        "providerId": { "type": "string" },
+        "label": { "type": "string" },
+        "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
+        "deterministicRole": { "enum": ["oracle", "supplemental"] },
+        "message": { "type": "string" },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "missingEnv": { "type": "array", "items": { "type": "string" } },
+        "artifactCount": { "type": "number", "minimum": 0 },
+        "externalUrl": { "type": "string" },
+        "normalizedAt": { "type": "string" }
       }
     }
   }

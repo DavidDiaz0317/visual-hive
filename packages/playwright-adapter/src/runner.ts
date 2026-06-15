@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import {
+  collectRepositoryMetadata,
   sanitizeText,
+  normalizeProviderResults,
   type ContractResult,
   type Plan,
   type Report,
@@ -138,6 +140,7 @@ async function buildReportFromPlaywrightOutput(input: {
 }): Promise<Report> {
   const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
   const structuredResults = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
+  const repository = await collectRepositoryMetadata({ repoRoot: input.rootDir });
   const parsed = parsePlaywrightJson(input.stdout);
   const resultByContract = new Map<string, { status: "passed" | "failed"; errors: string[]; durationMs: number }>();
 
@@ -184,12 +187,14 @@ async function buildReportFromPlaywrightOutput(input: {
   });
   const summary = buildSummary(results);
 
+  const status = results.some((result) => result.status === "failed") ? "failed" : "passed";
   return sanitizeReport({
     schemaVersion: 2,
     project: input.config.project.name,
+    repository,
     mode: input.plan.mode,
     generatedAt: new Date().toISOString(),
-    status: results.some((result) => result.status === "failed") ? "failed" : "passed",
+    status,
     changedFiles: input.plan.changedFiles,
     selectedTargets: input.plan.targets.map((target) => {
       const configTarget = input.config.targets[target.id];
@@ -205,6 +210,10 @@ async function buildReportFromPlaywrightOutput(input: {
     consoleErrors: results.flatMap((result) => result.consoleErrors?.map((error) => error.message) ?? []),
     pageErrors: results.flatMap((result) => result.pageErrors ?? []),
     artifacts,
+    providerResults: normalizeProviderResults(input.config, {
+      deterministicStatus: status,
+      artifactCount: artifacts.length
+    }),
     reproductionCommands: [
       `visual-hive plan --mode ${input.plan.mode}`,
       "visual-hive run",
@@ -310,6 +319,20 @@ function buildSummary(results: ContractResult[]): Report["summary"] {
 function sanitizeReport(report: Report): Report {
   return {
     ...report,
+    repository: {
+      ...report.repository,
+      repository: sanitizeText(report.repository.repository),
+      owner: report.repository.owner ? sanitizeText(report.repository.owner) : undefined,
+      repo: report.repository.repo ? sanitizeText(report.repository.repo) : undefined,
+      remoteUrl: report.repository.remoteUrl ? sanitizeText(report.repository.remoteUrl) : undefined,
+      branch: report.repository.branch ? sanitizeText(report.repository.branch) : undefined,
+      baseBranch: report.repository.baseBranch ? sanitizeText(report.repository.baseBranch) : undefined,
+      commitSha: report.repository.commitSha ? sanitizeText(report.repository.commitSha) : undefined,
+      runId: report.repository.runId ? sanitizeText(report.repository.runId) : undefined,
+      runAttempt: report.repository.runAttempt ? sanitizeText(report.repository.runAttempt) : undefined,
+      workflow: report.repository.workflow ? sanitizeText(report.repository.workflow) : undefined,
+      actor: report.repository.actor ? sanitizeText(report.repository.actor) : undefined
+    },
     selectedTargets: report.selectedTargets.map((target) => ({
       ...target,
       url: sanitizeText(target.url),
@@ -326,6 +349,13 @@ function sanitizeReport(report: Report): Report {
     consoleErrors: report.consoleErrors.map((error) => sanitizeText(error)),
     pageErrors: report.pageErrors.map((error) => ({ ...error, message: sanitizeText(error.message) })),
     artifacts: report.artifacts.map((artifact) => sanitizeText(artifact)),
+    providerResults: report.providerResults?.map((provider) => ({
+      ...provider,
+      message: sanitizeText(provider.message),
+      requiredEnv: provider.requiredEnv.map((name) => sanitizeText(name)),
+      missingEnv: provider.missingEnv.map((name) => sanitizeText(name)),
+      externalUrl: provider.externalUrl ? sanitizeText(provider.externalUrl) : undefined
+    })),
     reproductionCommands: report.reproductionCommands.map((command) => sanitizeText(command))
   };
 }

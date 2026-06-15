@@ -290,13 +290,35 @@ mutation:
         - mobile-no-horizontal-overflow
     - api-500
     - empty-data
+    - id: route-guard-bypass
+      contracts:
+        - hosted-demo-never-login
+        - fake-oauth-login-dashboard
+    - hidden-error-banner
+    - broken-image
+    - id: removed-accessible-name
+      contracts:
+        - local-login-visible-when-oauth-enabled
+        - fake-oauth-login-dashboard
+    - id: theme-token-drift
+      contracts:
+        - dashboard-visual-stability
+        - clusters-page-visual-stability
+        - settings-page-visual-stability
+    - id: stale-loading-state
+      contracts:
+        - dashboard-visual-stability
+        - live-workloads-renders
 
 ai:
   enabled: false
   provider: none
+  model: offline-heuristics
   neverSoleOracle: true
   createIssuePrompt: true
   maxDailyRuns: 5
+  maxPromptTokens: 50000
+  maxEstimatedCostUsd: 0
 
 github:
   enabled: true

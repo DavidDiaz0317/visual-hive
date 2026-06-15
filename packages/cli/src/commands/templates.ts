@@ -69,13 +69,22 @@ mutation:
     - api-500
     - empty-data
     - mobile-overflow
+    - route-guard-bypass
+    - hidden-error-banner
+    - broken-image
+    - removed-accessible-name
+    - theme-token-drift
+    - stale-loading-state
 
 ai:
   enabled: false
   provider: none
+  model: offline-heuristics
   neverSoleOracle: true
   createIssuePrompt: true
   maxDailyRuns: 5
+  maxPromptTokens: 50000
+  maxEstimatedCostUsd: 0
 
 github:
   enabled: true
@@ -106,6 +115,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx visual-hive plan --mode pr --base origin/main --ci
       - run: npx visual-hive run --ci
+      - run: npx visual-hive workflows
+        if: always()
       - run: npx visual-hive triage
         if: always()
       - run: npx visual-hive report --github-step-summary
@@ -206,6 +217,8 @@ jobs:
       - run: npx visual-hive plan --mode schedule --ci
       - run: npx visual-hive run --ci
       - run: npx visual-hive mutate --enforce-min-score
+      - run: npx visual-hive workflows
+        if: always()
       - run: npx visual-hive triage
         if: always()
       - run: npx visual-hive report --github-step-summary
