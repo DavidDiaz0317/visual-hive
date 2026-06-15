@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.visual-hive/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+examples/demo-react-app/dist/
+examples/demo-react-app/.visual-hive/
+examples/demo-react-app/node_modules/
+.env
+.env.*
+!.env.example

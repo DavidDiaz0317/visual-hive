@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.plan.schema.json",
+  "title": "Visual Hive Plan",
+  "type": "object",
+  "required": ["schemaVersion", "project", "mode", "generatedAt", "changedFiles", "targets", "items", "excluded", "mutation"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "mode": { "enum": ["pr", "schedule", "manual"] },
+    "generatedAt": { "type": "string" },
+    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "targets": { "type": "array" },
+    "items": { "type": "array" },
+    "excluded": { "type": "array" },
+    "mutation": {
+      "type": "object",
+      "required": ["enabled", "operators", "minScore", "reasons"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "operators": { "type": "array", "items": { "type": "string" } },
+        "minScore": { "type": "number" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

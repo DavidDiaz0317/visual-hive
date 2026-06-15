@@ -1,0 +1,125 @@
+project:
+  name: demo-react-app
+  type: react-vite
+  defaultBranch: main
+
+targets:
+  localPreview:
+    kind: command
+    install: "npm ci"
+    build: "npm run build"
+    serve: "npm run preview -- --port 4173"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+
+  unsafeHosted:
+    kind: url
+    url: "https://example.com"
+    prSafe: false
+    schedule: "0 */4 * * *"
+    cost: cheap
+
+contracts:
+  - id: hosted-demo-never-login
+    description: Public/demo target should never expose login controls.
+    target: localPreview
+    severity: critical
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+        - "[data-testid='critical-action-button']"
+        - "[data-testid='demo-badge']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+      textMustExist:
+        - "Demo metrics loaded"
+      textMustNotExist:
+        - "Continue with GitHub"
+    screenshots:
+      - name: dashboard
+        route: "/"
+        viewport: desktop
+
+  - id: dashboard-visual-stability
+    description: Dashboard should render stable visual layout.
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+        - "[data-testid='dashboard-card']"
+    screenshots:
+      - name: dashboard-desktop
+        route: "/"
+        viewport: desktop
+      - name: dashboard-mobile
+        route: "/"
+        viewport: mobile
+
+  - id: live-cluster-protected-lane
+    description: Protected scheduled target illustrates unsafe target filtering.
+    target: unsafeHosted
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "body"
+
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+  tablet:
+    width: 768
+    height: 1024
+  mobile:
+    width: 390
+    height: 844
+
+selection:
+  changedFiles:
+    - pattern: "src/components/auth/**"
+      contracts:
+        - hosted-demo-never-login
+      risk: critical
+    - pattern: "src/**"
+      contracts:
+        - dashboard-visual-stability
+      risk: medium
+
+mutation:
+  enabled: true
+  runOn:
+    schedule: true
+  minScore: 0.7
+  operators:
+    - hide-critical-button
+    - force-login-on-demo
+    - remove-demo-badge
+    - api-500
+    - empty-data
+    - mobile-overflow
+
+ai:
+  enabled: false
+  provider: none
+  neverSoleOracle: true
+  createIssuePrompt: true
+  maxDailyRuns: 5
+
+github:
+  enabled: true
+  issueLabels:
+    - visual-hive
+    - test-failure
+  commentMarker: "<!-- visual-hive-report -->"

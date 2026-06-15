@@ -1,0 +1,166 @@
+project:
+  name: kubestellar-console
+  type: dashboard
+  defaultBranch: main
+
+targets:
+  hostedDemo:
+    kind: url
+    url: "https://demo.kubestellar.example"
+    prSafe: true
+    schedule: "0 */4 * * *"
+    cost: cheap
+
+  localPreview:
+    kind: command
+    install: "npm ci"
+    build: "npm run build"
+    serve: "npm run preview -- --port 4173"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+
+  fakeOAuthFullstack:
+    kind: command
+    install: "npm ci"
+    build: "npm run build"
+    serve: "npm run preview:fake-oauth -- --port 4174"
+    url: "http://127.0.0.1:4174"
+    prSafe: true
+    cost: medium
+
+  liveClusterProtected:
+    kind: url
+    url: "https://console.kubestellar.example"
+    prSafe: false
+    schedule: "0 6 * * *"
+    cost: expensive
+
+contracts:
+  - id: hosted-demo-never-login
+    description: Hosted public demo must not expose login controls.
+    target: hostedDemo
+    severity: critical
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+    screenshots:
+      - name: hosted-demo-dashboard
+        route: "/"
+        viewport: desktop
+
+  - id: local-preview-dashboard-visuals
+    description: Local preview dashboard layout should remain stable.
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+        - "[data-testid='dashboard-card']"
+    screenshots:
+      - name: dashboard-desktop
+        route: "/"
+        viewport: desktop
+      - name: dashboard-mobile
+        route: "/"
+        viewport: mobile
+
+  - id: fake-oauth-fullstack-auth-flow
+    description: Fake OAuth flow should protect private routes without live secrets.
+    target: fakeOAuthFullstack
+    severity: critical
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+      textMustExist:
+        - "Continue with GitHub"
+    screenshots:
+      - name: fake-oauth-login
+        route: "/login"
+        viewport: desktop
+
+  - id: live-cluster-protected-scheduled-lane
+    description: Protected live cluster lane runs only from trusted scheduled workflows.
+    target: liveClusterProtected
+    severity: critical
+    runOn:
+      pullRequest: false
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='cluster-overview']"
+        - "[data-testid='workspace-list']"
+    screenshots:
+      - name: live-cluster-overview
+        route: "/clusters"
+        viewport: desktop
+        mask:
+          - "[data-testid='cluster-secret']"
+
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+  tablet:
+    width: 768
+    height: 1024
+  mobile:
+    width: 390
+    height: 844
+
+selection:
+  changedFiles:
+    - pattern: "src/components/auth/**"
+      contracts:
+        - hosted-demo-never-login
+        - fake-oauth-fullstack-auth-flow
+      risk: critical
+    - pattern: "src/pages/clusters/**"
+      contracts:
+        - local-preview-dashboard-visuals
+      risk: high
+    - pattern: "src/**"
+      contracts:
+        - local-preview-dashboard-visuals
+      risk: medium
+
+mutation:
+  enabled: true
+  runOn:
+    schedule: true
+  minScore: 0.75
+  operators:
+    - hide-critical-button
+    - force-login-on-demo
+    - remove-demo-badge
+    - api-500
+    - empty-data
+    - mobile-overflow
+
+ai:
+  enabled: false
+  provider: none
+  neverSoleOracle: true
+  createIssuePrompt: true
+  maxDailyRuns: 5
+
+github:
+  enabled: true
+  issueLabels:
+    - visual-hive
+    - kubestellar-console
+    - test-failure
+  commentMarker: "<!-- visual-hive-report -->"

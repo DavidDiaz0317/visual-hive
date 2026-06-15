@@ -1,0 +1,8 @@
+{
+  "message": "Demo metrics loaded",
+  "items": [
+    { "label": "Contracts", "value": "18", "trend": "+4" },
+    { "label": "Routes", "value": "7", "trend": "+2" },
+    { "label": "Mutation score", "value": "83%", "trend": "+9" }
+  ]
+}

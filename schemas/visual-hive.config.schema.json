@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.config.schema.json",
+  "title": "Visual Hive Config",
+  "type": "object",
+  "required": ["project", "targets", "contracts"],
+  "additionalProperties": false,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"], "default": "custom" },
+        "defaultBranch": { "type": "string", "default": "main" }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/commandTarget" },
+          { "$ref": "#/$defs/urlTarget" }
+        ]
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/contract" }
+    },
+    "viewports": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/viewport" }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changedFiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/changedFileRule" }
+        }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "runOn": { "$ref": "#/$defs/runOn" },
+        "minScore": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
+        "operators": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mutationOperator" }
+        }
+      }
+    },
+    "ai": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "provider": { "type": "string", "default": "none" },
+        "neverSoleOracle": { "type": "boolean", "const": true },
+        "createIssuePrompt": { "type": "boolean", "default": true },
+        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 }
+      }
+    },
+    "github": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "issueLabels": { "type": "array", "items": { "type": "string" } },
+        "commentMarker": { "type": "string", "default": "<!-- visual-hive-report -->" }
+      }
+    }
+  },
+  "$defs": {
+    "cost": { "enum": ["cheap", "medium", "expensive"] },
+    "severity": { "enum": ["low", "medium", "high", "critical"] },
+    "runOn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pullRequest": { "type": "boolean", "default": false },
+        "schedule": { "type": "boolean", "default": false }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "commandTarget": {
+      "type": "object",
+      "required": ["kind", "serve", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "command" },
+        "install": { "type": "string" },
+        "build": { "type": "string" },
+        "serve": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": false },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "urlTarget": {
+      "type": "object",
+      "required": ["kind", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "url" },
+        "url": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": false },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["id", "description", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "severity": { "$ref": "#/$defs/severity" },
+        "runOn": { "$ref": "#/$defs/runOn" },
+        "selectors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mustExist": { "type": "array", "items": { "type": "string" } },
+            "mustNotExist": { "type": "array", "items": { "type": "string" } },
+            "textMustExist": { "type": "array", "items": { "type": "string" } },
+            "textMustNotExist": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "screenshots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/screenshot" }
+        }
+      }
+    },
+    "screenshot": {
+      "type": "object",
+      "required": ["name", "route", "viewport"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "route": { "type": "string", "default": "/" },
+        "viewport": { "type": "string", "minLength": 1 },
+        "fullPage": { "type": "boolean", "default": true },
+        "mask": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "changedFileRule": {
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": { "type": "string", "minLength": 1 },
+        "contracts": { "type": "array", "items": { "type": "string" } },
+        "risk": { "$ref": "#/$defs/severity" }
+      }
+    },
+    "mutationOperator": {
+      "enum": [
+        "hide-critical-button",
+        "force-login-on-demo",
+        "remove-demo-badge",
+        "api-500",
+        "empty-data",
+        "mobile-overflow"
+      ]
+    }
+  }
+}

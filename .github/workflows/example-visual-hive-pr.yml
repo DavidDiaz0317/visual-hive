@@ -1,0 +1,30 @@
+name: Example Visual Hive PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-hive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx visual-hive plan --mode pr --base origin/main --ci
+      - run: npx visual-hive run --ci
+      - run: npx visual-hive triage
+        if: always()
+      - run: npx visual-hive report --github-step-summary
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-hive
+          path: .visual-hive
