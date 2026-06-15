@@ -118,6 +118,7 @@ jobs:
         with:
           name: visual-hive
           path: .visual-hive
+          include-hidden-files: true
 `;
 
 export const failureIssueWorkflowTemplate = `name: Visual Hive Failure Issue
@@ -217,4 +218,5 @@ jobs:
         with:
           name: visual-hive
           path: .visual-hive
+          include-hidden-files: true
 `;

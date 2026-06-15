@@ -8,6 +8,7 @@ import { buildSpecContent } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
+import { runPlaywrightContracts } from "../src/runner.js";
 import { PNG } from "pngjs";
 
 const tempDirs: string[] = [];
@@ -68,9 +69,13 @@ describe("buildSpecContent", () => {
     expect(content).toContain("Missing screenshot baseline in CI mode");
     expect(content).toContain("domcontentloaded");
     expect(content).not.toContain("networkidle");
+    expect(content).toContain("visualHiveCi === \"false\" ? false");
     expect(content).toContain("applyWaits");
     expect(content).toContain("page.on(\"pageerror\"");
     expect(content).toContain("page.on(\"response\"");
+    expect(content).toContain("consoleErrors.push({ type: \"console\", message: sanitizeText");
+    expect(content).toContain("pageErrors.push({ type: \"page\", message: sanitizeText");
+    expect(content).toContain("url: sanitizeText(response.url())");
     expect(content).toContain("actualDiffPixelRatio");
     expect(content).toContain("pixelmatch");
     expect(content).toContain("message.includes(pattern)");
@@ -259,6 +264,62 @@ describe("buildSpecContent", () => {
         logTail: () => "secret=abc"
       })
     ).rejects.toThrow(/token=\[REDACTED\]/);
+  });
+
+  it("returns a failed report with sanitized lifecycle evidence when a target cannot start", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-startup-report-"));
+    tempDirs.push(tempRoot);
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "startup-report" },
+      targets: {
+        local: {
+          kind: "command",
+          serve: "node -e \"console.error('secret=abc'); process.exit(1)\"",
+          url: "http://127.0.0.1:9?token=abc",
+          prSafe: true
+        }
+      },
+      contracts: [
+        {
+          id: "home",
+          description: "Home",
+          target: "local",
+          runOn: { pullRequest: true },
+          selectors: { mustExist: ["main"] }
+        }
+      ]
+    });
+    const plan = {
+      schemaVersion: 1 as const,
+      project: "startup-report",
+      mode: "pr" as const,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      changedFiles: [],
+      targets: [{ id: "local", kind: "command", url: "http://127.0.0.1:9?token=abc", prSafe: true, cost: "medium" }],
+      items: [
+        {
+          contractId: "home",
+          targetId: "local",
+          targetUrl: "http://127.0.0.1:9?token=abc",
+          severity: "medium" as const,
+          cost: "medium" as const,
+          reasons: ["test"],
+          screenshots: []
+        }
+      ],
+      excluded: [],
+      mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] }
+    };
+
+    const { report, exitCode } = await runPlaywrightContracts({ config, plan, rootDir: tempRoot, skipInstall: true, skipBuild: true });
+
+    expect(exitCode).toBe(1);
+    expect(report.status).toBe("failed");
+    expect(report.generatedSpecPath).toContain("visual-hive.generated.spec.ts");
+    expect(report.targetLifecycle.some((event) => event.phase === "serve" && event.status === "failed")).toBe(true);
+    expect(report.results[0]?.errors.join("\n")).toContain("Target server failed to start");
+    expect(JSON.stringify(report)).toContain("token=[REDACTED]");
+    expect(JSON.stringify(report)).not.toContain("secret=abc");
   });
 });
 

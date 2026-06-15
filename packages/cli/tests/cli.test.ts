@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -105,6 +105,10 @@ contracts:
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "generated"))).resolves.toBeUndefined();
+    const prWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8");
+    const scheduledWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8");
+    expect(prWorkflow).toContain("include-hidden-files: true");
+    expect(scheduledWorkflow).toContain("include-hidden-files: true");
   });
 
   it("integration: plans demo config and verifies fake mutation score output", async () => {

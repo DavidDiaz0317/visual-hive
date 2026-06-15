@@ -45,7 +45,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
     });
   }
 
-  const survived = input.mutationReport?.results.filter((result) => !result.killed) ?? [];
+  const survived = input.mutationReport?.results.filter((result) => result.status === "survived") ?? [];
   for (const result of survived) {
     findings.push({
       classification: "mutation_survivor",

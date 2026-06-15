@@ -32,6 +32,7 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
   const spec = await generatePlaywrightSpec(options);
   await rm(path.join(options.rootDir, options.config.visual.artifactDir, "results"), { recursive: true, force: true });
   let playwrightResult: { stdout: string; stderr: string; exitCode: number } | undefined;
+  let executionError: unknown;
 
   try {
     if (options.runTargetCommands ?? true) {
@@ -87,6 +88,8 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
       },
       true
     );
+  } catch (error) {
+    executionError = error;
   } finally {
     for (const started of startedServers.reverse()) {
       const stoppedAt = Date.now();
@@ -111,13 +114,14 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     plan: options.plan,
     stdout: playwrightResult?.stdout ?? "",
     stderr: playwrightResult?.stderr ?? "",
-    exitCode: playwrightResult?.exitCode ?? 1,
+    exitCode: playwrightResult?.exitCode ?? (executionError ? 1 : 0),
     rootDir: options.rootDir,
     durationMs: Date.now() - startedAt,
     targetLifecycle,
-    generatedSpecPath: spec.path
+    generatedSpecPath: spec.path,
+    executionError
   });
-  return { report, exitCode: playwrightResult?.exitCode ?? 1 };
+  return { report, exitCode: playwrightResult?.exitCode ?? (executionError ? 1 : 0) };
 }
 
 async function buildReportFromPlaywrightOutput(input: {
@@ -130,6 +134,7 @@ async function buildReportFromPlaywrightOutput(input: {
   durationMs: number;
   targetLifecycle: TargetLifecycleEvent[];
   generatedSpecPath: string;
+  executionError?: unknown;
 }): Promise<Report> {
   const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
   const structuredResults = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
@@ -162,6 +167,7 @@ async function buildReportFromPlaywrightOutput(input: {
     }
     const parsedResult = resultByContract.get(item.contractId);
     const failed = input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed");
+    const executionErrorMessage = input.executionError instanceof Error ? input.executionError.message : input.executionError ? String(input.executionError) : "";
     return {
       contractId: item.contractId,
       targetId: item.targetId,
@@ -170,7 +176,7 @@ async function buildReportFromPlaywrightOutput(input: {
       errors: parsedResult?.errors.length
         ? parsedResult.errors.map((error) => sanitizeText(error))
         : failed
-          ? [sanitizeText(input.stderr || "Playwright reported a failure without structured error details.")]
+          ? [sanitizeText(executionErrorMessage || input.stderr || "Playwright reported a failure without structured error details.")]
           : [],
       artifacts,
       reproductionCommand: "visual-hive run --ci"
@@ -178,7 +184,7 @@ async function buildReportFromPlaywrightOutput(input: {
   });
   const summary = buildSummary(results);
 
-  return {
+  return sanitizeReport({
     schemaVersion: 2,
     project: input.config.project.name,
     mode: input.plan.mode,
@@ -205,7 +211,7 @@ async function buildReportFromPlaywrightOutput(input: {
       "visual-hive triage",
       "visual-hive report"
     ]
-  };
+  });
 }
 
 async function readStructuredContractResults(rootDir: string, artifactDir: string): Promise<Map<string, ContractResult>> {
@@ -298,6 +304,57 @@ function buildSummary(results: ContractResult[]): Report["summary"] {
     visualDiffs: screenshots.filter((screenshot) => screenshot.status === "failed").length,
     consoleErrors: results.reduce((sum, result) => sum + (result.consoleErrors?.length ?? 0), 0),
     pageErrors: results.reduce((sum, result) => sum + (result.pageErrors?.length ?? 0), 0)
+  };
+}
+
+function sanitizeReport(report: Report): Report {
+  return {
+    ...report,
+    selectedTargets: report.selectedTargets.map((target) => ({
+      ...target,
+      url: sanitizeText(target.url),
+      missingSecrets: target.missingSecrets?.map((name) => sanitizeText(name))
+    })),
+    targetLifecycle: report.targetLifecycle.map((event) => ({
+      ...event,
+      command: event.command ? sanitizeText(event.command) : undefined,
+      url: event.url ? sanitizeText(event.url) : undefined,
+      message: event.message ? sanitizeText(event.message) : undefined
+    })),
+    generatedSpecPath: sanitizeText(report.generatedSpecPath),
+    results: report.results.map(sanitizeContractResult),
+    consoleErrors: report.consoleErrors.map((error) => sanitizeText(error)),
+    pageErrors: report.pageErrors.map((error) => ({ ...error, message: sanitizeText(error.message) })),
+    artifacts: report.artifacts.map((artifact) => sanitizeText(artifact)),
+    reproductionCommands: report.reproductionCommands.map((command) => sanitizeText(command))
+  };
+}
+
+function sanitizeContractResult(result: ContractResult): ContractResult {
+  return {
+    ...result,
+    errors: result.errors.map((error) => sanitizeText(error)),
+    artifacts: result.artifacts.map((artifact) => sanitizeText(artifact)),
+    reproductionCommand: result.reproductionCommand ? sanitizeText(result.reproductionCommand) : undefined,
+    selectorAssertions: result.selectorAssertions?.map((assertion) => ({
+      ...assertion,
+      value: sanitizeText(assertion.value),
+      message: assertion.message ? sanitizeText(assertion.message) : undefined
+    })),
+    screenshotAssertions: result.screenshotAssertions?.map((assertion) => ({
+      ...assertion,
+      baselinePath: sanitizeText(assertion.baselinePath),
+      actualPath: sanitizeText(assertion.actualPath),
+      diffPath: assertion.diffPath ? sanitizeText(assertion.diffPath) : undefined,
+      message: assertion.message ? sanitizeText(assertion.message) : undefined
+    })),
+    consoleErrors: result.consoleErrors?.map((error) => ({ ...error, message: sanitizeText(error.message) })),
+    pageErrors: result.pageErrors?.map((error) => ({ ...error, message: sanitizeText(error.message) })),
+    networkErrors: result.networkErrors?.map((error) => ({
+      ...error,
+      url: sanitizeText(error.url),
+      statusText: sanitizeText(error.statusText)
+    }))
   };
 }
 

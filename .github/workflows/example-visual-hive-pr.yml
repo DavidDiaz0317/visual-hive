@@ -31,3 +31,4 @@ jobs:
         with:
           name: visual-hive
           path: .visual-hive
+          include-hidden-files: true

@@ -70,7 +70,8 @@ const viewports = ${JSON.stringify(input.viewports, null, 2)};
 const visual = ${JSON.stringify(input.visual, null, 2)};
 const snapshotDir = path.resolve(rootDir, visual.snapshotDir ?? ".visual-hive/snapshots");
 const artifactDir = path.resolve(rootDir, visual.artifactDir ?? ".visual-hive/artifacts");
-const ciMode = process.env.VISUAL_HIVE_CI === "true" || process.env.CI === "true";
+const visualHiveCi = process.env.VISUAL_HIVE_CI;
+const ciMode = visualHiveCi === "true" ? true : visualHiveCi === "false" ? false : process.env.CI === "true";
 const mutationOperator = process.env.VISUAL_HIVE_MUTATION_OPERATOR || "";
 
 // ---- Contract execution ----
@@ -91,19 +92,19 @@ test.describe("visual-hive generated deterministic contracts", () => {
 
       page.on("console", (message) => {
         if (message.type() === "error" && !isExpectedConsoleError(contract, message.text())) {
-          consoleErrors.push({ type: "console", message: message.text() });
+          consoleErrors.push({ type: "console", message: sanitizeText(message.text()) });
         }
       });
       page.on("pageerror", (error) => {
-        pageErrors.push({ type: "page", message: error.message });
+        pageErrors.push({ type: "page", message: sanitizeText(error.message) });
       });
       page.on("response", (response) => {
         if (response.status() >= 400) {
           networkErrors.push({
             type: "network",
-            url: response.url(),
+            url: sanitizeText(response.url()),
             status: response.status(),
-            statusText: response.statusText()
+            statusText: sanitizeText(response.statusText())
           });
         }
       });
@@ -148,7 +149,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
         }
       } catch (error) {
         contractStatus = "failed";
-        errors.push(error instanceof Error ? error.message : String(error));
+        errors.push(sanitizeText(error instanceof Error ? error.message : String(error)));
         throw error;
       } finally {
         const resultPath = path.join(artifactDir, "results", \`\${safeName(contract.id)}.json\`);
@@ -366,6 +367,22 @@ async function applyRouteMutation(page) {
 
 function isExpectedConsoleError(contract, message) {
   return (contract.expectedConsoleErrors ?? []).some((pattern) => message.includes(pattern));
+}
+
+function sanitizeText(input) {
+  let value = String(input);
+  const keys = ["access_token", "id_token", "refresh_token", "authorization", "client_secret", "password", "secret", "token", "bearer", "cookie", "set-cookie", "code", "key"];
+  for (const key of keys) {
+    const escaped = key.replace(/[-/\\\\^$*+?.()|[\\]{}]/g, "\\\\$&");
+    value = value.replace(new RegExp(\`(\${escaped})(\\\\s*[:=]\\\\s*)([^\\\\s,&;\\\\]\\\\)}]+)\`, "gi"), \`$1$2[REDACTED]\`);
+    value = value.replace(new RegExp(\`(["']\${escaped}["']\\\\s*:\\\\s*["'])([^"']+)(["'])\`, "gi"), \`$1[REDACTED]$3\`);
+    value = value.replace(new RegExp(\`([?&]\${escaped}=)([^&#\\\\s]+)\`, "gi"), \`$1[REDACTED]\`);
+  }
+  value = value.replace(/\\bBearer\\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]");
+  value = value.replace(/\\bAuthorization:\\s*[^\\n\\r]+/gi, "Authorization: [REDACTED]");
+  value = value.replace(/\\bCookie:\\s*[^\\n\\r]+/gi, "Cookie: [REDACTED]");
+  value = value.replace(/\\bSet-Cookie:\\s*[^\\n\\r]+/gi, "Set-Cookie: [REDACTED]");
+  return value;
 }
 
 async function applyDomMutation(page) {

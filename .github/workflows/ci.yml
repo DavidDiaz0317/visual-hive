@@ -22,10 +22,7 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npx playwright install --with-deps chromium
-      - run: npm run demo:build
-      - run: npm run demo:doctor
-      - run: npm run demo:plan
-      - run: npm run demo:run
+      - run: npm run demo:ci
       - run: npm run demo:triage
         if: always()
       - run: npm run demo:report
@@ -35,3 +32,4 @@ jobs:
         with:
           name: visual-hive-demo
           path: examples/demo-react-app/.visual-hive
+          include-hidden-files: true

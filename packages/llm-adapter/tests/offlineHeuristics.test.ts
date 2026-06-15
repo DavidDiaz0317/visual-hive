@@ -31,6 +31,33 @@ describe("classifyOffline", () => {
     expect(findings[0]?.suggestedNextTests.join(" ")).toContain("mobile-overflow");
   });
 
+  it("does not treat not-applicable mutations as survivors", () => {
+    const mutationReport: MutationReport = {
+      schemaVersion: 2,
+      project: "sample",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      minScore: 0.7,
+      score: 0,
+      killed: 0,
+      total: 0,
+      results: [
+        {
+          operator: "remove-demo-badge",
+          status: "not_applicable",
+          killed: false,
+          applicable: false,
+          contractIds: [],
+          durationMs: 0,
+          errors: ["No contracts matched"]
+        }
+      ]
+    };
+
+    const findings = classifyOffline({ mutationReport });
+
+    expect(findings.map((finding) => finding.classification)).not.toContain("mutation_survivor");
+  });
+
   it("classifies empty contract reports", () => {
     const report: Report = {
       schemaVersion: 2,
