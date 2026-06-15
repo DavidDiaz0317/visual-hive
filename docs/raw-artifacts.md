@@ -6,6 +6,7 @@ It records:
 
 - artifact path, kind, content type, byte size, and labels
 - JSON, Markdown, text, log, YAML, TypeScript/generated spec, image, and other classifications
+- setup recommendation artifacts labeled as `setup-recommendations`
 - sanitized previews for text-like artifacts
 - redaction and truncation flags
 

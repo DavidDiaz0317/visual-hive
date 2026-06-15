@@ -14,6 +14,7 @@ import type {
   TargetConfig,
   VisualHiveConfig,
   ArtifactIndexEntry,
+  SetupRecommendationReport,
   WorkflowAuditReport
 } from "@visual-hive/core";
 
@@ -100,6 +101,7 @@ export interface ControlPlaneSnapshot {
   contractAudit?: ContractAuditReport;
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
+  setupRecommendation?: SetupRecommendationReport;
   issueMarkdown?: string;
   prCommentMarkdown?: string;
   triagePrompt?: string;

@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, and `artifacts-index.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, and `artifacts-index.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`.
 
 ## Plan
 
@@ -9,6 +9,14 @@ Path: `.visual-hive/plan.json`
 Schema: `schemas/visual-hive.plan.schema.json`
 
 The plan records selected targets, contracts, changed files, exclusion reasons, and mutation selection. A plan with no selected contracts is treated as an error by the CLI.
+
+## Setup Recommendations
+
+Path: `.visual-hive/recommendations.json`
+
+Schema: `schemas/visual-hive.recommendations.schema.json`
+
+The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview target, starter contracts, next commands, findings, and warnings.
 
 ## Deterministic Report
 

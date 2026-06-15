@@ -260,6 +260,49 @@ viewports:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "recommendations.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: {
+          name: "ui-fixture",
+          repoRoot,
+          type: "react-vite",
+          packageManager: "npm",
+          detectedFrameworks: ["react", "vite"],
+          scripts: ["build", "preview"]
+        },
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        configPath: "visual-hive.config.yaml",
+        recommendedConfig: {},
+        recommendedConfigYaml: "project:\n  name: ui-fixture\n",
+        detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+        recommendedTarget: {
+          id: "localPreview",
+          kind: "command",
+          url: "http://127.0.0.1:4173",
+          confidence: "high",
+          reasons: ["Detected preview script."]
+        },
+        recommendedContracts: [
+          {
+            id: "app-shell-visual-stability",
+            targetId: "localPreview",
+            selectors: ["[data-testid='dashboard-page']"],
+            screenshots: [{ name: "app-shell-desktop", route: "/", viewport: "desktop" }],
+            reasons: ["Detected stable project-owned selector."]
+          }
+        ],
+        recommendedCommands: ["visual-hive doctor", "visual-hive run"],
+        findings: [],
+        warnings: []
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".github", "workflows", "visual-hive-pr.yml"),
     `name: Visual Hive PR
 on:
@@ -299,6 +342,7 @@ describe("control plane", () => {
     expect(snapshot.providers.find((provider) => provider.id === "playwright")?.availability).toBe("available");
     expect(snapshot.report?.providerResults?.[0]?.status).toBe("passed");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
     expect(snapshot.runHistory?.summary.runCount).toBe(1);
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
     expect(snapshot.llmUsage?.summary.callsMade).toBe(0);

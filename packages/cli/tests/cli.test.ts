@@ -18,6 +18,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/sched
 import { formatWorkflowsAudit, runWorkflowsCommand } from "../src/commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
+import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
 
@@ -316,6 +317,35 @@ contracts:
     expect(written.artifacts[0]?.preview).toContain("[REDACTED]");
     expect(summary).toContain("Artifact Index: cli-artifacts");
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
+  });
+
+  it("recommend writes setup recommendations and protects existing config files", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-recommend-"));
+    tempDirs.push(tempRoot);
+    await writeJson(path.join(tempRoot, "package.json"), {
+      name: "recommend-fixture",
+      scripts: {
+        build: "vite build",
+        preview: "vite preview"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const result = await runRecommendCommand({ cwd: tempRoot, writeConfig: true });
+    const summary = formatSetupRecommendation(result);
+    const report = await readJson<typeof result.report>(result.reportPath);
+
+    expect(report.project.type).toBe("react-vite");
+    expect(report.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
+    expect(summary).toContain("Visual Hive Setup Recommendation");
+    await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
+    await expect(runRecommendCommand({ cwd: tempRoot, writeConfig: true })).rejects.toThrow(/Refusing to overwrite/);
   });
 
   it("connections adds, lists, and removes local repos", async () => {

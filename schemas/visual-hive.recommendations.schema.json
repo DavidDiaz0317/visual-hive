@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.recommendations.schema.json",
+  "title": "Visual Hive Setup Recommendation Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "configPath",
+    "recommendedConfig",
+    "recommendedConfigYaml",
+    "detectedSelectors",
+    "recommendedTarget",
+    "recommendedContracts",
+    "recommendedCommands",
+    "findings",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": {
+      "type": "object",
+      "required": ["name", "repoRoot", "type", "packageManager", "detectedFrameworks", "scripts"],
+      "properties": {
+        "name": { "type": "string" },
+        "repoRoot": { "type": "string" },
+        "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"] },
+        "packageManager": { "enum": ["npm", "pnpm", "yarn", "unknown"] },
+        "detectedFrameworks": { "type": "array", "items": { "type": "string" } },
+        "scripts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "generatedAt": { "type": "string" },
+    "configPath": { "type": "string" },
+    "recommendedConfig": { "type": "object" },
+    "recommendedConfigYaml": { "type": "string" },
+    "detectedSelectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["selector", "sourceFile", "occurrences"],
+        "properties": {
+          "selector": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "occurrences": { "type": "number" }
+        }
+      }
+    },
+    "recommendedTarget": {
+      "type": "object",
+      "required": ["id", "kind", "url", "confidence", "reasons"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["url", "command", "commandGroup", "protected"] },
+        "url": { "type": "string" },
+        "install": { "type": "string" },
+        "build": { "type": "string" },
+        "serve": { "type": "string" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recommendedContracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "targetId", "selectors", "screenshots", "reasons"],
+        "properties": {
+          "id": { "type": "string" },
+          "targetId": { "type": "string" },
+          "selectors": { "type": "array", "items": { "type": "string" } },
+          "screenshots": { "type": "array" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "recommendedCommands": { "type": "array", "items": { "type": "string" } },
+    "findings": { "type": "array" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}

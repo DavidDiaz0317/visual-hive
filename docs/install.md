@@ -26,8 +26,12 @@ Future consumers should install the CLI package once it is published:
 
 ```bash
 npm install --save-dev @visual-hive/cli
+npx visual-hive recommend
+npx visual-hive recommend --write-config
 npx visual-hive init
 ```
+
+`visual-hive recommend` is the safest first command in a target repo: it writes `.visual-hive/recommendations.json` after inspecting package scripts, framework dependencies, and `data-testid` selectors. `--write-config` creates `visual-hive.config.yaml` from that recommendation and refuses to overwrite an existing config unless `--force` is passed.
 
 ## GitHub Action Templates
 

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/schema.js";
 import { auditContracts } from "../src/contracts/audit.js";
 import { analyzeCoverage } from "../src/coverage/analyze.js";
@@ -21,6 +22,7 @@ import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { buildLLMUsageReport } from "../src/llm/usage.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
+import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
 import type { Report } from "../src/reports/types.js";
 
@@ -1073,6 +1075,46 @@ describe("artifact index", () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-escape-"));
     tempDirs.push(tempRoot);
     await expect(indexArtifacts({ repoRoot: tempRoot, hiveRoot: path.dirname(tempRoot) })).rejects.toThrow(/outside repository root/);
+  });
+
+  it("labels setup recommendation artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-recommend-"));
+    tempDirs.push(tempRoot);
+    await writeJson(path.join(tempRoot, ".visual-hive", "recommendations.json"), { schemaVersion: 1 });
+
+    const index = await indexArtifacts({ repoRoot: tempRoot });
+
+    expect(index.artifacts.find((artifact) => artifact.path.endsWith("recommendations.json"))?.labels).toContain("setup-recommendations");
+  });
+});
+
+describe("setup recommendations", () => {
+  it("detects a React/Vite repo and emits a validated starter config", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "sample-dashboard",
+      scripts: {
+        build: "vite build",
+        preview: "vite preview"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
+
+    expect(recommendation.project.type).toBe("react-vite");
+    expect(recommendation.recommendedTarget.kind).toBe("command");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
+    expect(recommendation.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
+    expect(parsedYaml.contracts[0]?.id).toBe("app-shell-visual-stability");
+    expect(parsedYaml.targets.localPreview.kind).toBe("command");
   });
 });
 

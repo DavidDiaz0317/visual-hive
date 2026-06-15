@@ -184,6 +184,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
   if (normalized.endsWith("report.json")) labels.add("report");
   if (normalized.endsWith("mutation-report.json")) labels.add("mutation");
+  if (normalized.endsWith("recommendations.json")) labels.add("setup-recommendations");
   return [...labels].sort();
 }
 

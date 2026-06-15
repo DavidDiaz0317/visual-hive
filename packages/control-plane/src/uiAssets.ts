@@ -61,6 +61,7 @@ a { color: #8bc7ff; }
 export const controlPlaneJs = `
 const tabs = [
   ["overview", "Overview"],
+  ["setup", "Setup"],
   ["runs", "Runs / Reports"],
   ["failures", "Failure Inbox"],
   ["baselines", "Baselines"],
@@ -117,7 +118,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
 }
@@ -135,6 +136,31 @@ function overview() {
     card("Next actions", list(o.nextActions)) +
     card("Why this score?", list(o.explanations)) +
     card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown)) +
+    '</div>';
+}
+
+function setup() {
+  const recommendation = snapshot.setupRecommendation;
+  if (!recommendation) {
+    return '<div class="grid">' +
+      card("No recommendation artifact", '<p class="muted">Run <code>visual-hive recommend</code> in the target repo to generate .visual-hive/recommendations.json.</p>') +
+      card("Bootstrap command", '<pre>visual-hive recommend --write-config</pre>') +
+      card("What it detects", list(["package scripts for install/build/serve", "frontend framework signals", "project-owned data-testid selectors", "starter PR-safe screenshots and selection rules"])) +
+      '</div>';
+  }
+  return '<div class="section">' +
+    '<div class="grid">' +
+    metric("Detected type", recommendation.project.type, "") +
+    metric("Package manager", recommendation.project.packageManager, "") +
+    metric("Target confidence", recommendation.recommendedTarget.confidence, recommendation.recommendedTarget.confidence === "low" ? "warn" : "ok") +
+    metric("Selectors", recommendation.detectedSelectors.length, recommendation.detectedSelectors.length ? "ok" : "warn") +
+    '</div>' +
+    card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
+    card("Recommended contracts", table(["Contract", "Target", "Selectors", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
+    card("Next commands", list(recommendation.recommendedCommands)) +
+    card("Findings", recommendation.findings.length ? table(["Severity", "Message", "Evidence"], recommendation.findings.map(f => [f.severity, f.message, f.evidence || ""])) : "No findings.") +
+    card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
+    preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
 }
 

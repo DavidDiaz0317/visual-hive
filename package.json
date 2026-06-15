@@ -31,8 +31,9 @@
     "demo:triage": "node packages/cli/dist/index.js triage --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:report": "node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:workflows": "node packages/cli/dist/index.js workflows --config examples/demo-react-app/visual-hive.config.yaml --workflow-dir ../../.github/workflows",
-    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
-    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:plan && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
+    "demo:recommend": "node packages/cli/dist/index.js recommend --repo examples/demo-react-app",
+    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:run && npm run demo:mutate && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
+    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:coverage && npm run demo:workflows && npm run demo:triage && npm run demo:report",
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "ui:build": "npm run build -w @visual-hive/control-plane",
     "smoke:ui": "node scripts/smoke-ui.mjs"

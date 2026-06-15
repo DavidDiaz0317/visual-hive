@@ -23,11 +23,13 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It also writes coverage, workflow-safety, triage, PR-comment, and report artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It also writes setup recommendations, coverage, workflow-safety, triage, PR-comment, and report artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode.
 
 Initialize Visual Hive in another repo:
 
 ```bash
+npx visual-hive recommend
+npx visual-hive recommend --write-config
 npx visual-hive init
 npx visual-hive doctor
 npx visual-hive plan --mode pr --changed-files changed-files.txt
@@ -93,6 +95,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 ## CLI commands
 
 - `visual-hive init`: creates config, workflow templates, and `.visual-hive/generated`.
+- `visual-hive recommend`: inspects package scripts, framework hints, and stable selectors, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config.
 - `visual-hive doctor`: validates config, Node 22, Playwright availability, and target settings.
 - `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, and cost.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
@@ -110,7 +113,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive baselines list|approve`: inspect screenshot baselines and explicitly approve an actual screenshot as the new baseline with an audit record.
 - `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
 - `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence and provider-specific normalized metadata.
-- `visual-hive ui`: starts the local-first Control Plane over config, reports, baselines, coverage, mutation, failures, and raw artifacts.
+- `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, mutation, failures, and raw artifacts.
 
 Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
 
@@ -128,7 +131,7 @@ Local development without publishing:
 node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only
 ```
 
-The UI reads `.visual-hive` artifacts and shows overview health, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can explicitly approve reviewed baselines and save validated config edits after a diff review; `--read-only` disables those actions.
+The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can explicitly approve reviewed baselines and save validated config edits after a diff review; `--read-only` disables those actions.
 
 ## GitHub Actions
 
@@ -167,6 +170,7 @@ See also:
 - `docs/run-history.md`
 - `docs/raw-artifacts.md`
 - `docs/connections.md`
+- `docs/setup-recommendations.md`
 - `docs/install.md`
 - `docs/roadmap.md`
 

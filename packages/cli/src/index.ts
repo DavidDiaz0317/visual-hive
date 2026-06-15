@@ -23,6 +23,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.
 import { formatWorkflowsAudit, runWorkflowsCommand } from "./commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
+import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import {
   formatConnectionsIndex,
   runConnectionsAddCommand,
@@ -352,6 +353,27 @@ program
         format: options.format
       });
       console.log(formatArtifactsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("recommend")
+  .description("Inspect a target repo and recommend an initial Visual Hive setup")
+  .option("--repo <path>", "repository path to inspect")
+  .option("--write-config", "write visual-hive.config.yaml from the recommendation")
+  .option("--force", "overwrite visual-hive.config.yaml when used with --write-config")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runRecommendCommand({
+        repo: options.repo,
+        writeConfig: options.writeConfig,
+        force: options.force,
+        format: options.format
+      });
+      console.log(formatSetupRecommendation(result, options.format));
     } catch (error) {
       fail(error);
     }

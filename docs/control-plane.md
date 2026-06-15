@@ -1,6 +1,6 @@
 # Visual Hive Control Plane
 
-The Control Plane is a local-first UI over the same config, plans, reports, mutation reports, prompts, and artifacts used by the CLI.
+The Control Plane is a local-first UI over the same config, setup recommendations, plans, reports, mutation reports, prompts, and artifacts used by the CLI.
 
 Start it from a built checkout:
 
@@ -17,6 +17,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## What It Shows
 
 - Overview health score with explainable next actions
+- Setup recommendations from `.visual-hive/recommendations.json`
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
 - Baseline review with baseline, actual, and diff images
@@ -58,4 +59,4 @@ Approving a baseline does not change the historical run result. Re-run `visual-h
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over artifacts, baseline approvals, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over setup recommendations, artifacts, baseline approvals, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
