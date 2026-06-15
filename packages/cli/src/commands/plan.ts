@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { createPlan, loadConfig, mutationOperatorId, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
+import { createPlan, loadConfig, mutationOperatorId, PLAN_MODES, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
 import { readFile } from "node:fs/promises";
 
 export interface PlanCommandOptions {
@@ -17,7 +17,7 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
   const loaded = await loadConfig(options.config, cwd);
   const changedFiles = await resolveChangedFiles(options, cwd, loaded.config.project.defaultBranch);
   const plan = createPlan(loaded.config, {
-    mode: options.mode ?? "pr",
+    mode: parsePlanMode(options.mode),
     changedFiles,
     allowUnsafeTargets: options.allowUnsafeTargets
   });
@@ -31,6 +31,14 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
   }
   await writeJson(path.join(loaded.rootDir, ".visual-hive", "plan.json"), plan);
   return plan;
+}
+
+export function parsePlanMode(mode: string | undefined): PlanMode {
+  const value = mode ?? "pr";
+  if ((PLAN_MODES as readonly string[]).includes(value)) {
+    return value as PlanMode;
+  }
+  throw new Error(`Invalid plan mode "${value}". Expected one of: ${PLAN_MODES.join(", ")}`);
 }
 
 export function formatPlanSummary(plan: Plan): string {

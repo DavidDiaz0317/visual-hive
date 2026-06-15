@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { auditTargets, createPlan, loadConfig, readJson, writeJson, type Plan, type PlanMode, type Report, type TargetAuditReport } from "@visual-hive/core";
+import { parsePlanMode } from "./plan.js";
 
 export interface TargetsCommandOptions {
   config?: string;
@@ -75,7 +76,7 @@ async function resolvePlan(
     // Target audits should be useful before planning has written artifacts.
   }
   return createPlan(config, {
-    mode: options.mode ?? "pr",
+    mode: parsePlanMode(options.mode),
     changedFiles,
     allowUnsafeTargets: options.allowUnsafeTargets
   });

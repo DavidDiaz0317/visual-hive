@@ -13,6 +13,7 @@ import {
   type PlanMode,
   type Report
 } from "@visual-hive/core";
+import { parsePlanMode } from "./plan.js";
 
 export interface ContractsCommandOptions {
   config?: string;
@@ -92,7 +93,7 @@ async function resolvePlan(
     // selected/not-selected status is still useful.
   }
   return createPlan(config, {
-    mode: options.mode ?? "pr",
+    mode: parsePlanMode(options.mode),
     changedFiles,
     allowUnsafeTargets: options.allowUnsafeTargets
   });

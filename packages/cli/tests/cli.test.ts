@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
-import { runPlanCommand } from "../src/commands/plan.js";
+import { parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
 import { formatBaselineApproval, runBaselineApproveCommand, runBaselineListCommand } from "../src/commands/baselines.js";
@@ -38,6 +38,13 @@ afterEach(async () => {
 });
 
 describe("CLI commands", () => {
+  it("validates plan modes clearly", () => {
+    expect(parsePlanMode("canary")).toBe("canary");
+    expect(parsePlanMode("mutation")).toBe("mutation");
+    expect(parsePlanMode("full")).toBe("full");
+    expect(() => parsePlanMode("unknown")).toThrow(/Invalid plan mode/);
+  });
+
   it("doctor handles a valid demo config", async () => {
     const result = await runDoctor({ config: "examples/demo-react-app/visual-hive.config.yaml", cwd: repoRoot });
     expect(result.ok).toBe(true);

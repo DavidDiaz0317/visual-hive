@@ -1,7 +1,8 @@
 import type { CostSchema, MutationOperatorConfig, SeveritySchema, TargetConfig } from "../config/schema.js";
 import type { z } from "zod";
 
-export type PlanMode = "pr" | "schedule" | "manual";
+export const PLAN_MODES = ["pr", "schedule", "manual", "canary", "mutation", "full"] as const;
+export type PlanMode = (typeof PLAN_MODES)[number];
 export type CostClass = z.infer<typeof CostSchema>;
 export type Severity = z.infer<typeof SeveritySchema>;
 

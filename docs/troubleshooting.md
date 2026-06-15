@@ -20,7 +20,7 @@ Check the target command, working directory, port, and health URL. Visual Hive r
 
 ## No Contracts Selected
 
-Check `runOn`, changed-file selection rules, target `prSafe`, and whether the current mode is `pr`, `schedule`, or `manual`. Protected targets are not selected for PR runs unless unsafe targets are explicitly allowed.
+Check `runOn`, changed-file selection rules, target `prSafe`, and whether the current mode is `pr`, `schedule`, `manual`, `canary`, `mutation`, or `full`. Protected targets are not selected for PR, canary, or mutation runs unless unsafe targets are explicitly allowed. Canary mode also skips expensive targets.
 
 ## Playwright Browser Missing
 

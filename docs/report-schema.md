@@ -10,6 +10,8 @@ Schema: `schemas/visual-hive.plan.schema.json`
 
 The plan records selected targets, contracts, changed files, exclusion reasons, and mutation selection. A plan with no selected contracts is treated as an error by the CLI.
 
+Supported plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. `canary` keeps scheduled low-cost PR-safe contracts separate from deeper scheduled checks. `mutation` plans only mutation-applicable contracts by default. `full` is an explicit trusted-mode plan and can include protected or expensive targets.
+
 ## Setup Recommendations
 
 Path: `.visual-hive/recommendations.json`

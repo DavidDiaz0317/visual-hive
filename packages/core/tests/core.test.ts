@@ -420,6 +420,77 @@ describe("planner", () => {
     expect(plan.mutation.enabled).toBe(true);
   });
 
+  it("selects cheap scheduled PR-safe contracts in canary mode", () => {
+    const config = sampleConfig();
+    config.targets.safe = { ...config.targets.safe, schedule: "*/15 * * * *", cost: "cheap" };
+    config.targets.unsafe = { ...config.targets.unsafe, schedule: "*/15 * * * *", cost: "expensive" };
+
+    const plan = createPlan(config, { mode: "canary", changedFiles: [] });
+
+    expect(plan.items.map((item) => item.contractId)).toEqual(["safe-contract"]);
+    expect(plan.items[0]?.reasons).toContain("mode=canary");
+    expect(plan.items[0]?.reasons).toContain("cost is not expensive");
+    expect(plan.excluded.find((item) => item.contractId === "unsafe-contract")?.reasons).toContain("target.prSafe=false");
+    expect(plan.mutation.enabled).toBe(false);
+  });
+
+  it("selects mutation-applicable PR-safe contracts in mutation mode", () => {
+    const config = sampleConfig();
+    config.contracts = [
+      {
+        id: "critical-action",
+        description: "Critical action is present",
+        target: "safe",
+        severity: "high",
+        runOn: { pullRequest: false, schedule: false },
+        waitFor: [],
+        steps: [],
+        failOnConsoleError: false,
+        expectedConsoleErrors: [],
+        selectors: {
+          mustExist: ["[data-testid='critical-action-button']"],
+          mustNotExist: [],
+          textMustExist: [],
+          textMustNotExist: []
+        },
+        screenshots: []
+      },
+      {
+        id: "unsafe-login",
+        description: "Unsafe login target",
+        target: "unsafe",
+        severity: "critical",
+        runOn: { pullRequest: false, schedule: false },
+        waitFor: [],
+        steps: [],
+        failOnConsoleError: false,
+        expectedConsoleErrors: [],
+        selectors: {
+          mustExist: [],
+          mustNotExist: ["[data-testid='login-page']"],
+          textMustExist: [],
+          textMustNotExist: []
+        },
+        screenshots: []
+      }
+    ];
+    config.mutation.operators = ["hide-critical-button", "force-login-on-demo"];
+
+    const plan = createPlan(config, { mode: "mutation", changedFiles: [] });
+
+    expect(plan.items.map((item) => item.contractId)).toEqual(["critical-action"]);
+    expect(plan.items[0]?.reasons.join(";")).toContain("mutation-mode:hide-critical-button");
+    expect(plan.excluded.find((item) => item.contractId === "unsafe-login")?.reasons).toContain("target.prSafe=false");
+    expect(plan.mutation.enabled).toBe(true);
+  });
+
+  it("selects all contracts in explicit full mode", () => {
+    const plan = createPlan(sampleConfig(), { mode: "full", changedFiles: [] });
+
+    expect(plan.items.map((item) => item.contractId).sort()).toEqual(["changed-contract", "safe-contract", "unsafe-contract"]);
+    expect(plan.mutation.enabled).toBe(true);
+  });
+
   it("selects changed-file contracts", () => {
     const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: ["src/App.tsx"] });
     expect(plan.items.map((item) => item.contractId)).toContain("changed-contract");

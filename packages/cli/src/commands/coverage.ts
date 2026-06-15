@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { analyzeCoverage, createPlan, loadConfig, readJson, writeJson, type CoverageReport, type Plan, type PlanMode } from "@visual-hive/core";
+import { parsePlanMode } from "./plan.js";
 
 export interface CoverageCommandOptions {
   config?: string;
@@ -63,7 +64,7 @@ async function resolvePlan(
     // so selected/unselected coverage still has useful context.
   }
   return createPlan(config, {
-    mode: options.mode ?? "pr",
+    mode: parsePlanMode(options.mode),
     changedFiles,
     allowUnsafeTargets: options.allowUnsafeTargets
   });

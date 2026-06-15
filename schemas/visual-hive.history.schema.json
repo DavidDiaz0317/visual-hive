@@ -59,7 +59,7 @@
               "runId": { "type": "string" }
             }
           },
-          "mode": { "enum": ["pr", "schedule", "manual"] },
+          "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
           "mutationScore": { "type": "number" },
           "files": {
             "type": "object",

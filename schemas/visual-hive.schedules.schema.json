@@ -47,7 +47,7 @@
         ],
         "properties": {
           "id": { "enum": ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] },
-          "mode": { "enum": ["pr", "schedule", "manual"] }
+          "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] }
         }
       }
     },

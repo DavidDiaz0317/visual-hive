@@ -1,5 +1,6 @@
 import { minimatch } from "minimatch";
 import type { VisualHiveConfig } from "../config/schema.js";
+import { selectContractsForMutation } from "../mutations/operators.js";
 import type { CreatePlanOptions, ExcludedPlanItem, MutationPlan, Plan, PlanItem } from "./types.js";
 
 export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions): Plan {
@@ -8,6 +9,7 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
   const selected = new Map<string, PlanItem>();
   const excluded: ExcludedPlanItem[] = [];
   const changedFileReasons = getChangedFileReasons(config, changedFiles);
+  const mutationModeReasons = options.mode === "mutation" ? getMutationModeReasons(config) : new Map<string, string[]>();
 
   for (const contract of config.contracts) {
     const target = config.targets[contract.target];
@@ -22,19 +24,36 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     if (options.mode === "manual") {
       reasons.push("manual mode");
     }
+    if (options.mode === "full") {
+      reasons.push("full mode");
+    }
+    if (options.mode === "canary" && contract.runOn.schedule && target.schedule) {
+      reasons.push("mode=canary", "runOn.schedule=true", `target.schedule=${target.schedule}`);
+      if (target.cost !== "expensive") {
+        reasons.push("cost is not expensive");
+      }
+    }
+    if (options.mode === "mutation") {
+      reasons.push(...(mutationModeReasons.get(contract.id) ?? []));
+    }
 
     const ruleReasons = changedFileReasons.get(contract.id) ?? [];
-    reasons.push(...ruleReasons);
+    if (options.mode === "pr" || options.mode === "schedule" || options.mode === "manual") {
+      reasons.push(...ruleReasons);
+    } else if (reasons.length > 0 && ruleReasons.length > 0) {
+      reasons.push(...ruleReasons.map((reason) => `context:${reason}`));
+    }
 
     if (reasons.length === 0) {
       continue;
     }
 
-    if (options.mode === "pr" && !target.prSafe && !allowUnsafeTargets) {
+    const exclusionReasons = targetExclusionReasons(options.mode, target, allowUnsafeTargets);
+    if (exclusionReasons.length > 0) {
       excluded.push({
         contractId: contract.id,
         targetId: contract.target,
-        reasons: ["target.prSafe=false", "pass --allow-unsafe-targets to include this target"]
+        reasons: exclusionReasons
       });
       continue;
     }
@@ -94,6 +113,40 @@ function getChangedFileReasons(config: VisualHiveConfig, changedFiles: string[])
   return reasons;
 }
 
+function getMutationModeReasons(config: VisualHiveConfig): Map<string, string[]> {
+  const reasons = new Map<string, string[]>();
+  if (!config.mutation.enabled) {
+    return reasons;
+  }
+  for (const operator of config.mutation.operators) {
+    const selection = selectContractsForMutation(operator, config.contracts);
+    if (!selection.applicable) {
+      continue;
+    }
+    for (const contractId of selection.contractIds) {
+      const existing = reasons.get(contractId) ?? [];
+      existing.push(`mutation-mode:${selection.operatorId}:${selection.reason}`);
+      reasons.set(contractId, existing);
+    }
+  }
+  return reasons;
+}
+
+function targetExclusionReasons(
+  mode: CreatePlanOptions["mode"],
+  target: VisualHiveConfig["targets"][string],
+  allowUnsafeTargets: boolean
+): string[] {
+  const reasons: string[] = [];
+  if (!allowUnsafeTargets && (mode === "pr" || mode === "canary" || mode === "mutation") && !target.prSafe) {
+    reasons.push("target.prSafe=false", "pass --allow-unsafe-targets to include this target");
+  }
+  if (mode === "canary" && target.cost === "expensive") {
+    reasons.push("target.cost=expensive", "canary mode only selects cheap or medium scheduled targets");
+  }
+  return reasons;
+}
+
 function createMutationPlan(config: VisualHiveConfig, options: CreatePlanOptions): MutationPlan {
   if (!config.mutation.enabled) {
     return { enabled: false, operators: [], minScore: config.mutation.minScore, reasons: ["mutation.enabled=false"] };
@@ -112,6 +165,22 @@ function createMutationPlan(config: VisualHiveConfig, options: CreatePlanOptions
       operators: config.mutation.operators,
       minScore: config.mutation.minScore,
       reasons: ["manual mode"]
+    };
+  }
+  if (options.mode === "mutation") {
+    return {
+      enabled: true,
+      operators: config.mutation.operators,
+      minScore: config.mutation.minScore,
+      reasons: ["mode=mutation"]
+    };
+  }
+  if (options.mode === "full") {
+    return {
+      enabled: true,
+      operators: config.mutation.operators,
+      minScore: config.mutation.minScore,
+      reasons: ["full mode"]
     };
   }
   return {

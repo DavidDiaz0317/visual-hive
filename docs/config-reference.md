@@ -15,6 +15,15 @@ Required sections:
 - `contracts`: selector and screenshot checks.
 - `viewports`: named viewport dimensions.
 
+Plan modes:
+
+- `pr`: fast pull-request checks. Non-PR-safe targets are excluded unless `--allow-unsafe-targets` is passed.
+- `schedule`: scheduled/trusted checks. Schedule-enabled contracts and configured mutation runs are included.
+- `manual`: all contracts for local/manual investigation, with mutation enabled when configured.
+- `canary`: cheap or medium scheduled PR-safe contracts only. Use this for public hosted demo canaries and other low-cost health checks.
+- `mutation`: contracts relevant to configured mutation operators, using explicit mappings first and heuristics otherwise. Non-PR-safe targets are excluded unless explicitly allowed.
+- `full`: explicit trusted all-contract planning. Use only where protected target credentials and runtime cost are acceptable.
+
 Optional sections with defaults:
 
 - `selection.changedFiles`: maps glob patterns to contract IDs.

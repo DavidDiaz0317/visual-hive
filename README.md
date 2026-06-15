@@ -117,6 +117,8 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 
 Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
 
+Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use `canary` for cheap scheduled public checks, `mutation` for mutation-applicable contracts, and `full` only in trusted contexts where protected targets and cost are acceptable.
+
 ## Control Plane UI
 
 Start the local UI for a repository:

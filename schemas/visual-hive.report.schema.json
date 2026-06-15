@@ -28,7 +28,7 @@
     "schemaVersion": { "const": 2 },
     "project": { "type": "string" },
     "repository": { "$ref": "#/$defs/repositoryMetadata" },
-    "mode": { "enum": ["pr", "schedule", "manual"] },
+    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
     "generatedAt": { "type": "string" },
     "status": { "enum": ["passed", "failed"] },
     "changedFiles": { "type": "array", "items": { "type": "string" } },
