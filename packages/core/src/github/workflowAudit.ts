@@ -37,6 +37,7 @@ export interface WorkflowAuditEntry {
   reSanitizesIssueBody: boolean;
   runsVisualHive: boolean;
   runsMutation: boolean;
+  writesBaselineReview: boolean;
   hasDedupeSignature: boolean;
   risk: "low" | "medium" | "high" | "critical";
   findings: WorkflowFinding[];
@@ -132,8 +133,13 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     readsIssueArtifact: /issue\.md/i.test(content),
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
     reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
-    runsVisualHive: /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows)\b/i.test(content) || /packages\/cli\/dist\/index\.js/i.test(content),
+    runsVisualHive:
+      /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows|baselines)\b/i.test(content) || /packages\/cli\/dist\/index\.js/i.test(content),
     runsMutation: /\bvisual-hive\s+mutate\b/i.test(content),
+    writesBaselineReview:
+      /\bvisual-hive\s+baselines\s+list\b[\s\S]*--write/i.test(content) ||
+      /\.visual-hive\/baselines\.json/i.test(content) ||
+      /npm\s+run\s+demo:baselines/i.test(content),
     hasDedupeSignature: /visual-hive-dedupe|dedupe/i.test(content),
     risk: "low",
     findings: [],
@@ -184,6 +190,14 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
     if (!workflow.runsVisualHive) {
       add("missing_visual_hive_commands", "medium", "Workflow does not appear to run Visual Hive commands.", "visual-hive plan/run");
     }
+    if (workflow.runsVisualHive && !workflow.writesBaselineReview) {
+      add(
+        "missing_baseline_review_artifact",
+        "low",
+        "PR workflow should write `.visual-hive/baselines.json` before uploading artifacts.",
+        "visual-hive baselines list --write"
+      );
+    }
   }
 
   if (workflow.kind === "scheduled") {
@@ -201,6 +215,14 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
     }
     if (!workflow.appendsStepSummary) {
       add("missing_step_summary", "low", "Scheduled workflow should append Visual Hive report to `GITHUB_STEP_SUMMARY`.", "--github-step-summary");
+    }
+    if (workflow.runsVisualHive && !workflow.writesBaselineReview) {
+      add(
+        "missing_baseline_review_artifact",
+        "low",
+        "Scheduled workflow should write `.visual-hive/baselines.json` before uploading artifacts.",
+        "visual-hive baselines list --write"
+      );
     }
   }
 
@@ -248,10 +270,12 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   const recommendations = new Set<string>();
   if (workflow.kind === "pull_request") {
     recommendations.add("Use pull_request, contents: read, no secrets, plan/run/triage/report, and upload .visual-hive artifacts.");
+    recommendations.add("Write .visual-hive/baselines.json so trusted follow-up workflows and reviewers can inspect baseline decisions.");
     recommendations.add("Move issue creation into a trusted workflow_run consumer.");
   }
   if (workflow.kind === "scheduled") {
     recommendations.add("Use schedule/workflow_dispatch for protected secrets, mutation adequacy, and deeper targets.");
+    recommendations.add("Write .visual-hive/baselines.json after deterministic runs and before artifact upload.");
     recommendations.add("Upload .visual-hive artifacts with include-hidden-files: true.");
   }
   if (workflow.kind === "trusted_issue") {

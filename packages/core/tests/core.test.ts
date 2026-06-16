@@ -1584,6 +1584,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: npx visual-hive plan --mode pr --ci
       - run: npx visual-hive run --ci
+      - run: npx visual-hive baselines list --write
       - run: npx visual-hive triage
       - run: npx visual-hive report --github-step-summary
       - uses: actions/upload-artifact@v4
@@ -1599,6 +1600,36 @@ jobs:
     expect(audit.summary.criticalFindings).toBe(0);
     expect(audit.summary.prWorkflowsUsingSecrets).toBe(0);
     expect(audit.workflows[0]?.risk).toBe("low");
+    expect(audit.workflows[0]?.writesBaselineReview).toBe(true);
+  });
+
+  it("warns when Visual Hive workflows upload artifacts without baseline review evidence", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-pr.yml",
+        content: `name: Visual Hive PR
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx visual-hive plan --mode pr --ci
+      - run: npx visual-hive run --ci
+      - run: npx visual-hive report --github-step-summary
+      - uses: actions/upload-artifact@v4
+        with:
+          path: .visual-hive
+          include-hidden-files: true
+`
+      }
+    ]);
+
+    expect(audit.workflows[0]?.writesBaselineReview).toBe(false);
+    expect(audit.findings.map((finding) => finding.kind)).toContain("missing_baseline_review_artifact");
+    expect(audit.findings.find((finding) => finding.kind === "missing_baseline_review_artifact")?.severity).toBe("low");
   });
 
   it("recognizes a safe trusted issue workflow with recursive artifact discovery and redaction", () => {
@@ -1670,10 +1701,10 @@ jobs:
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
-    for (const command of ["coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
       expect(prTemplate).toContain(`npx visual-hive ${command}`);
     }
-    for (const command of ["mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
       expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
     }
     expect(audit.summary).toMatchObject({
@@ -1688,6 +1719,8 @@ jobs:
       trustedIssueWorkflowsCheckingOutCode: 0
     });
     const trusted = audit.workflows.find((workflow) => workflow.kind === "trusted_issue");
+    expect(audit.workflows.find((workflow) => workflow.kind === "pull_request")?.writesBaselineReview).toBe(true);
+    expect(audit.workflows.find((workflow) => workflow.kind === "scheduled")?.writesBaselineReview).toBe(true);
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
     expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });

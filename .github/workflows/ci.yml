@@ -23,6 +23,8 @@ jobs:
       - run: npm run lint
       - run: npx playwright install --with-deps chromium
       - run: npm run demo:ci
+      - run: npm run demo:baselines
+        if: always()
       - run: npm run demo:workflows
         if: always()
       - run: npm run demo:triage

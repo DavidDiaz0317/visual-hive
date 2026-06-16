@@ -163,7 +163,7 @@ The UI reads `.visual-hive` artifacts and shows overview health, portfolio queue
 
 Use the templates in `templates/github-actions/`, run `visual-hive init`, run `visual-hive workflows --write-templates`, or use the Control Plane GitHub / CI page to write the built-in templates after review. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
-Generated Visual Hive workflows also run `visual-hive workflows` before artifact upload so `.visual-hive/workflows.json` captures workflow safety evidence.
+Generated Visual Hive workflows also run `visual-hive baselines list --write` and `visual-hive workflows` before artifact upload so `.visual-hive/baselines.json` captures baseline review evidence and `.visual-hive/workflows.json` captures workflow safety evidence.
 
 ## Mutation testing
 

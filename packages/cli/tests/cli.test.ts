@@ -536,7 +536,10 @@ jobs:
 
     expect(written.summary.pullRequestWorkflows).toBe(1);
     expect(written.summary.criticalFindings).toBe(0);
+    expect(written.workflows[0]?.writesBaselineReview).toBe(false);
+    expect(written.findings.map((finding) => finding.kind)).toContain("missing_baseline_review_artifact");
     expect(summary).toContain("Workflow Safety Audit: cli-workflows");
+    expect(summary).toContain("baselines=no");
     await expect(access(path.join(tempRoot, ".visual-hive", "workflows.json"))).resolves.toBeUndefined();
   });
 
@@ -571,6 +574,8 @@ contracts:
     await expect(access(path.join(tempRoot, ".visual-hive", "workflows.json"))).resolves.toBeUndefined();
     expect(result.write.written[0]?.path).toBe(".github/workflows/visual-hive-pr.yml");
     expect(result.audit.summary.pullRequestWorkflows).toBe(1);
+    expect(result.audit.workflows[0]?.writesBaselineReview).toBe(true);
+    expect(summary).toContain("baselines=yes");
     expect(summary).toContain("Templates written: 1");
     expect(summary).toContain("Workflow Safety Audit: cli-workflow-templates");
 
@@ -1160,6 +1165,7 @@ contracts:
     const scheduledWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8");
     const failureWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8");
     expect(prWorkflow).toContain("include-hidden-files: true");
+    expect(prWorkflow).toContain("npx visual-hive baselines list --write");
     expect(prWorkflow).toContain("npx visual-hive workflows");
     expect(prWorkflow).toContain("npx visual-hive providers --mock-results");
     expect(prWorkflow).toContain("npx visual-hive risk");
@@ -1168,6 +1174,7 @@ contracts:
     expect(prWorkflow).toContain("npx visual-hive artifacts");
     expect(prWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
+    expect(scheduledWorkflow).toContain("npx visual-hive baselines list --write");
     expect(scheduledWorkflow).toContain("npx visual-hive workflows");
     expect(scheduledWorkflow).toContain("npx visual-hive providers --mock-results");
     expect(scheduledWorkflow).toContain("npx visual-hive risk");

@@ -28,6 +28,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx visual-hive plan --mode pr --base origin/main --ci
       - run: npx visual-hive run --ci
+      - run: npx visual-hive baselines list --write
+        if: always()
       - run: npx visual-hive coverage --mode pr --base origin/main
         if: always()
       - run: npx visual-hive improve-coverage
@@ -217,6 +219,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx visual-hive plan --mode schedule --ci
       - run: npx visual-hive run --ci
+      - run: npx visual-hive baselines list --write
+        if: always()
       - run: npx visual-hive mutate --enforce-min-score
       - run: npx visual-hive coverage --mode schedule
         if: always()

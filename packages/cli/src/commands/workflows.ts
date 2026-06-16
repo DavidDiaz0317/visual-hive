@@ -81,7 +81,7 @@ export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: stri
   ];
   for (const workflow of audit.workflows) {
     lines.push(
-      `- ${workflow.path}: kind=${workflow.kind} risk=${workflow.risk} triggers=${workflow.triggers.join(", ") || "none"} artifacts=${workflow.uploadsVisualHiveArtifacts ? "yes" : "no"}`
+      `- ${workflow.path}: kind=${workflow.kind} risk=${workflow.risk} triggers=${workflow.triggers.join(", ") || "none"} artifacts=${workflow.uploadsVisualHiveArtifacts ? "yes" : "no"} baselines=${workflow.writesBaselineReview ? "yes" : "no"}`
     );
   }
   if (audit.findings.length) {
