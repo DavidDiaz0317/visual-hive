@@ -3,7 +3,9 @@ import path from "node:path";
 import {
   auditWorkflows,
   loadConfig,
+  writeWorkflowTemplates,
   writeJson,
+  type WorkflowTemplateWriteResult,
   type WorkflowAuditInputFile,
   type WorkflowAuditReport
 } from "@visual-hive/core";
@@ -15,6 +17,17 @@ export interface WorkflowsCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface WorkflowTemplatesWriteCommandOptions extends WorkflowsCommandOptions {
+  force?: boolean;
+  templateIds?: string[];
+}
+
+export interface WorkflowTemplatesWriteCommandResult {
+  write: WorkflowTemplateWriteResult;
+  audit: WorkflowAuditReport;
+  auditPath: string;
+}
+
 export async function runWorkflowsCommand(options: WorkflowsCommandOptions = {}): Promise<{ audit: WorkflowAuditReport; auditPath: string }> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config, cwd);
@@ -24,6 +37,28 @@ export async function runWorkflowsCommand(options: WorkflowsCommandOptions = {})
   const auditPath = path.join(loaded.rootDir, ".visual-hive", "workflows.json");
   await writeJson(auditPath, audit);
   return { audit, auditPath };
+}
+
+export async function runWorkflowTemplatesWriteCommand(options: WorkflowTemplatesWriteCommandOptions = {}): Promise<WorkflowTemplatesWriteCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  const write = await writeWorkflowTemplates(
+    {
+      repoRoot: loaded.rootDir,
+      configRoot: loaded.rootDir
+    },
+    {
+      confirm: true,
+      force: options.force,
+      templateIds: options.templateIds
+    }
+  );
+  const auditResult = await runWorkflowsCommand(options);
+  return {
+    write,
+    audit: auditResult.audit,
+    auditPath: auditResult.auditPath
+  };
 }
 
 export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: string, format: "markdown" | "json" = "markdown"): string {
@@ -58,6 +93,33 @@ export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: stri
   if (audit.recommendations.length) {
     lines.push("", "## Recommendations", ...audit.recommendations.map((recommendation) => `- ${recommendation}`));
   }
+  return lines.join("\n");
+}
+
+export function formatWorkflowTemplateWrite(result: WorkflowTemplatesWriteCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        workflowTemplateWrite: result.write,
+        audit: result.audit
+      },
+      null,
+      2
+    );
+  }
+  const lines = [
+    `Workflow templates audit: ${result.auditPath}`,
+    `Audit log: ${result.write.auditPath}`,
+    `Templates written: ${result.write.written.length}`,
+    `Templates skipped: ${result.write.skipped.length}`
+  ];
+  for (const entry of result.write.written) {
+    lines.push(`- wrote ${entry.path}${entry.overwritten ? " (overwritten)" : ""}`);
+  }
+  for (const entry of result.write.skipped) {
+    lines.push(`- skipped ${entry.path} (exists; pass --force after reviewing the diff to overwrite)`);
+  }
+  lines.push("", formatWorkflowsAudit(result.audit, result.auditPath, "markdown"));
   return lines.join("\n");
 }
 

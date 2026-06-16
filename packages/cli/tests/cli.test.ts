@@ -22,7 +22,7 @@ import { formatCoverageSummary, runCoverageCommand } from "../src/commands/cover
 import { formatContractsAudit, runContractsCommand } from "../src/commands/contracts.js";
 import { formatTargetsAudit, runTargetsCommand } from "../src/commands/targets.js";
 import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/schedules.js";
-import { formatWorkflowsAudit, runWorkflowsCommand } from "../src/commands/workflows.js";
+import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "../src/commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { formatLLMUsage, runLLMCommand } from "../src/commands/llm.js";
@@ -298,6 +298,58 @@ jobs:
     expect(written.summary.criticalFindings).toBe(0);
     expect(summary).toContain("Workflow Safety Audit: cli-workflows");
     await expect(access(path.join(tempRoot, ".visual-hive", "workflows.json"))).resolves.toBeUndefined();
+  });
+
+  it("workflows can write guarded built-in workflow templates and audit the result", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-workflow-templates-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-workflow-templates
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+
+    const result = await runWorkflowTemplatesWriteCommand({
+      cwd: tempRoot,
+      templateIds: ["pull_request"]
+    });
+    const summary = formatWorkflowTemplateWrite(result);
+    const workflowPath = path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml");
+
+    await expect(readFile(workflowPath, "utf8")).resolves.toContain("Visual Hive PR");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "workflow-edits.json"), "utf8")).resolves.toContain("pull_request");
+    await expect(access(path.join(tempRoot, ".visual-hive", "workflows.json"))).resolves.toBeUndefined();
+    expect(result.write.written[0]?.path).toBe(".github/workflows/visual-hive-pr.yml");
+    expect(result.audit.summary.pullRequestWorkflows).toBe(1);
+    expect(summary).toContain("Templates written: 1");
+    expect(summary).toContain("Workflow Safety Audit: cli-workflow-templates");
+
+    await expect(
+      runWorkflowTemplatesWriteCommand({
+        cwd: tempRoot,
+        templateIds: ["pull_request"]
+      })
+    ).rejects.toThrow(/Refusing to overwrite existing workflow template/);
+
+    await writeFile(workflowPath, "custom workflow", "utf8");
+    const forced = await runWorkflowTemplatesWriteCommand({
+      cwd: tempRoot,
+      force: true,
+      templateIds: ["pull_request"]
+    });
+
+    expect(forced.write.written[0]?.overwritten).toBe(true);
+    await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
   });
 
   it("history records the latest report and mutation artifacts", async () => {

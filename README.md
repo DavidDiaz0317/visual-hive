@@ -115,7 +115,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.
 - `visual-hive targets`: audits target safety, commands, services, secrets, lifecycle evidence, and gaps in `.visual-hive/targets.json`.
 - `visual-hive schedules`: audits PR, scheduled, protected, mutation, and trusted issue lanes in `.visual-hive/schedules.json`.
-- `visual-hive workflows`: audits GitHub Actions YAML for PR secret safety, `pull_request_target`, artifact upload, and trusted issue patterns in `.visual-hive/workflows.json`.
+- `visual-hive workflows`: audits GitHub Actions YAML for PR secret safety, `pull_request_target`, artifact upload, and trusted issue patterns in `.visual-hive/workflows.json`. Add `--write-templates` to write the built-in PR, scheduled, and trusted issue workflow templates; existing files are protected unless `--force` is passed after review.
 - `visual-hive history`: records or summarizes run history and trends in `.visual-hive/history.json`.
 - `visual-hive artifacts`: indexes `.visual-hive` files with classifications and sanitized previews in `.visual-hive/artifacts-index.json`.
 - `visual-hive connections`: manages local repository connections for the Control Plane in `.visual-hive/connections.json`.
@@ -153,7 +153,7 @@ The UI reads `.visual-hive` artifacts and shows overview health, setup recommend
 
 ## GitHub Actions
 
-Use the templates in `templates/github-actions/`, run `visual-hive init`, or use the Control Plane GitHub / CI page to write the built-in templates after review. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
+Use the templates in `templates/github-actions/`, run `visual-hive init`, run `visual-hive workflows --write-templates`, or use the Control Plane GitHub / CI page to write the built-in templates after review. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
 Generated Visual Hive workflows also run `visual-hive workflows` before artifact upload so `.visual-hive/workflows.json` captures workflow safety evidence.
 

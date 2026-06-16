@@ -22,7 +22,7 @@ import { formatCoverageSummary, runCoverageCommand } from "./commands/coverage.j
 import { formatContractsAudit, runContractsCommand } from "./commands/contracts.js";
 import { formatTargetsAudit, runTargetsCommand } from "./commands/targets.js";
 import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.js";
-import { formatWorkflowsAudit, runWorkflowsCommand } from "./commands/workflows.js";
+import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "./commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatLLMUsage, runLLMCommand } from "./commands/llm.js";
@@ -339,9 +339,23 @@ program
   .description("Audit GitHub Actions workflow YAML for Visual Hive safety invariants")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--workflow-dir <path>", "workflow directory to scan", ".github/workflows")
+  .option("--write-templates", "write built-in Visual Hive workflow templates into .github/workflows")
+  .option("--template <id>", "template id to write: pull_request, scheduled, trusted_failure_issue (repeatable)", collectRepeatable, [])
+  .option("--force", "overwrite existing workflow template files when used with --write-templates")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
+      if (options.writeTemplates) {
+        const result = await runWorkflowTemplatesWriteCommand({
+          config: options.config,
+          workflowDir: options.workflowDir,
+          format: options.format,
+          force: options.force,
+          templateIds: options.template
+        });
+        console.log(formatWorkflowTemplateWrite(result, options.format));
+        return;
+      }
       const result = await runWorkflowsCommand({
         config: options.config,
         workflowDir: options.workflowDir,
