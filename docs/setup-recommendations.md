@@ -14,6 +14,7 @@ The command detects:
 - CI runtime, screenshot, and external upload cost estimates
 - PR/scheduled permission guidance and required secret names only
 - setup PR file list, steps, and security notes
+- repo-specific setup documentation for `docs/visual-hive.md`
 - initial changed-file selection and mutation operators
 
 It does not run target code, call LLMs, contact paid visual providers, or decide pass/fail. Playwright contracts remain the only deterministic oracle once the generated config is used.
@@ -22,12 +23,15 @@ It does not run target code, call LLMs, contact paid visual providers, or decide
 
 ```bash
 visual-hive recommend
-visual-hive recommend --write-config
+visual-hive recommend --write-config --write-docs
 visual-hive recommend --write-config --force
+visual-hive recommend --write-docs --force
 visual-hive recommend --format json
 ```
 
 `--write-config` creates `visual-hive.config.yaml` from the recommendation. Existing configs are protected unless `--force` is passed.
+
+`--write-docs` creates `docs/visual-hive.md` from the same deterministic recommendation data. It explains the PR lane, scheduled/protected lane, recommended contracts, provider posture, cost guardrails, baseline review commands, setup PR checklist, and security rules. Existing docs are protected unless `--force` is passed.
 
 The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json`. `--read-only` disables this action.
 

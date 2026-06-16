@@ -248,10 +248,15 @@ async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
 
 async function readPackageJson(repoRoot: string): Promise<PackageJsonShape | undefined> {
   try {
-    return JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as PackageJsonShape;
+    const raw = await readFile(path.join(repoRoot, "package.json"), "utf8");
+    return JSON.parse(stripBom(raw)) as PackageJsonShape;
   } catch {
     return undefined;
   }
+}
+
+function stripBom(value: string): string {
+  return value.charCodeAt(0) === 0xfeff ? value.slice(1) : value;
 }
 
 async function detectPackageManager(repoRoot: string): Promise<SetupRecommendationProject["packageManager"]> {

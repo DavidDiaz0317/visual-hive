@@ -11,6 +11,7 @@ export * from "./reports/repositoryMetadata.js";
 export * from "./targets/audit.js";
 export * from "./schedules/audit.js";
 export * from "./setup/recommend.js";
+export * from "./setup/docs.js";
 export * from "./history/record.js";
 export * from "./github/workflowAudit.js";
 export * from "./github/workflowTemplates.js";

@@ -431,13 +431,15 @@ program
   .description("Inspect a target repo and recommend an initial Visual Hive setup")
   .option("--repo <path>", "repository path to inspect")
   .option("--write-config", "write visual-hive.config.yaml from the recommendation")
-  .option("--force", "overwrite visual-hive.config.yaml when used with --write-config")
+  .option("--write-docs", "write docs/visual-hive.md from the recommendation")
+  .option("--force", "overwrite generated setup files when used with --write-config or --write-docs")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
       const result = await runRecommendCommand({
         repo: options.repo,
         writeConfig: options.writeConfig,
+        writeDocs: options.writeDocs,
         force: options.force,
         format: options.format
       });

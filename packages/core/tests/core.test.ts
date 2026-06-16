@@ -24,6 +24,7 @@ import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usag
 import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
+import { buildSetupDocsMarkdown } from "../src/setup/docs.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
 import type { Report } from "../src/reports/types.js";
@@ -1573,6 +1574,16 @@ describe("setup recommendations", () => {
     expect(parsedYaml.contracts[0]?.steps[0]?.action).toBe("assertVisible");
     expect(parsedYaml.project.setupProfile).toBe("free-local");
     expect(parsedYaml.targets.localPreview.kind).toBe("command");
+
+    const setupDocs = buildSetupDocsMarkdown(recommendation);
+    expect(setupDocs).toContain("# Visual Hive");
+    expect(setupDocs).toContain("## PR Lane");
+    expect(setupDocs).toContain("PR checks should run with read-only permissions and no repository secrets.");
+    expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
+    expect(setupDocs).toContain("app-shell-visual-stability");
+    expect(setupDocs).toContain("Playwright built-in");
+    expect(setupDocs).toContain("visual-hive workflows --write-templates");
+    expect(setupDocs).toContain("Use `pull_request`, not `pull_request_target`");
   });
 
   it("recommends a component-storybook profile when Storybook is detected", async () => {
@@ -1604,6 +1615,28 @@ describe("setup recommendations", () => {
       externalUploadAllowedByDefault: false
     });
     expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(0);
+  });
+
+  it("handles package.json files with a UTF-8 BOM during setup scanning", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-bom-"));
+    tempDirs.push(targetRoot);
+    await writeFile(
+      path.join(targetRoot, "package.json"),
+      `\uFEFF${JSON.stringify({
+        name: "bom-fixture",
+        scripts: { build: "vite build", preview: "vite preview" },
+        dependencies: { react: "^19.0.0", vite: "^6.0.0" }
+      })}`,
+      "utf8"
+    );
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(recommendation.project.name).toBe("bom-fixture");
+    expect(recommendation.project.type).toBe("react-vite");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
   });
 });
 

@@ -472,9 +472,10 @@ contracts:
     await mkdir(path.join(tempRoot, "src"), { recursive: true });
     await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
 
-    const result = await runRecommendCommand({ cwd: tempRoot, writeConfig: true });
+    const result = await runRecommendCommand({ cwd: tempRoot, writeConfig: true, writeDocs: true });
     const summary = formatSetupRecommendation(result);
     const report = await readJson<typeof result.report>(result.reportPath);
+    const docsPath = path.join(tempRoot, "docs", "visual-hive.md");
 
     expect(report.project.type).toBe("react-vite");
     expect(report.setupProfile).toBe("free-local");
@@ -485,9 +486,18 @@ contracts:
     expect(summary).toContain("Setup profile: free-local");
     expect(summary).toContain("Provider Recommendation");
     expect(summary).toContain("PR secrets required: none");
+    expect(summary).toContain("Docs written:");
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("visual-hive workflows --write-templates");
     await expect(runRecommendCommand({ cwd: tempRoot, writeConfig: true })).rejects.toThrow(/Refusing to overwrite/);
+    await expect(runRecommendCommand({ cwd: tempRoot, writeDocs: true })).rejects.toThrow(/Refusing to overwrite existing Visual Hive docs/);
+
+    await writeFile(docsPath, "custom docs", "utf8");
+    const forced = await runRecommendCommand({ cwd: tempRoot, writeDocs: true, force: true });
+    expect(forced.docsWritten).toBe(docsPath);
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("# Visual Hive");
   });
 
   it("connections adds, lists, and removes local repos", async () => {

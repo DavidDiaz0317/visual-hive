@@ -1,25 +1,28 @@
-import { access, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { recommendSetup, writeJson, type SetupRecommendationReport } from "@visual-hive/core";
+import { buildSetupDocsMarkdown, recommendSetup, writeJson, type SetupRecommendationReport } from "@visual-hive/core";
 
 export interface RecommendCommandOptions {
   cwd?: string;
   repo?: string;
   writeConfig?: boolean;
+  writeDocs?: boolean;
   force?: boolean;
   format?: "markdown" | "json";
 }
 
 export async function runRecommendCommand(
   options: RecommendCommandOptions = {}
-): Promise<{ report: SetupRecommendationReport; reportPath: string; configWritten?: string }> {
+): Promise<{ report: SetupRecommendationReport; reportPath: string; configWritten?: string; docsWritten?: string }> {
   const cwd = options.cwd ?? process.cwd();
   const repoRoot = path.resolve(cwd, options.repo ?? ".");
   const configPath = path.join(repoRoot, "visual-hive.config.yaml");
+  const docsPath = path.join(repoRoot, "docs", "visual-hive.md");
   const report = await recommendSetup({ repoRoot, configPath });
   const reportPath = path.join(repoRoot, ".visual-hive", "recommendations.json");
   await writeJson(reportPath, report);
   let configWritten: string | undefined;
+  let docsWritten: string | undefined;
   if (options.writeConfig) {
     if (!options.force && (await exists(configPath))) {
       throw new Error(`Refusing to overwrite existing Visual Hive config: ${configPath}. Pass --force to replace it.`);
@@ -27,11 +30,19 @@ export async function runRecommendCommand(
     await writeFile(configPath, report.recommendedConfigYaml, "utf8");
     configWritten = configPath;
   }
-  return { report, reportPath, configWritten };
+  if (options.writeDocs) {
+    if (!options.force && (await exists(docsPath))) {
+      throw new Error(`Refusing to overwrite existing Visual Hive docs: ${docsPath}. Pass --force to replace it.`);
+    }
+    await mkdir(path.dirname(docsPath), { recursive: true });
+    await writeFile(docsPath, buildSetupDocsMarkdown(report), "utf8");
+    docsWritten = docsPath;
+  }
+  return { report, reportPath, configWritten, docsWritten };
 }
 
 export function formatSetupRecommendation(
-  result: { report: SetupRecommendationReport; reportPath: string; configWritten?: string },
+  result: { report: SetupRecommendationReport; reportPath: string; configWritten?: string; docsWritten?: string },
   format: "markdown" | "json" = "markdown"
 ): string {
   if (format === "json") {
@@ -53,6 +64,7 @@ export function formatSetupRecommendation(
     `- Local screenshots/run: ${report.costEstimate.localScreenshotsPerRun}`,
     `- External screenshots/run: ${report.costEstimate.externalScreenshotsPerRun}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
+    `- Docs written: ${result.docsWritten ?? "no, pass --write-docs to create docs/visual-hive.md"}`,
     "",
     "## Why",
     ...report.recommendedTarget.reasons.map((reason) => `- ${reason}`),
