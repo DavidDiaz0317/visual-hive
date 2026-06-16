@@ -573,12 +573,19 @@ contracts:
     await expect(access(path.join(tempRoot, ".visual-hive", "generated"))).resolves.toBeUndefined();
     const prWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8");
     const scheduledWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8");
+    const failureWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8");
     expect(prWorkflow).toContain("include-hidden-files: true");
     expect(prWorkflow).toContain("npx visual-hive workflows");
     expect(prWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
     expect(scheduledWorkflow).toContain("npx visual-hive workflows");
     expect(scheduledWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
+    expect(failureWorkflow).toContain("function walkArtifacts");
+    expect(failureWorkflow).toContain("function findIssueBody");
+    expect(failureWorkflow).toContain("redactSecretValues");
+    expect(failureWorkflow).toContain("client_secret");
+    expect(failureWorkflow).toContain("visual-hive-dedupe");
+    expect(failureWorkflow).not.toContain("context.payload.workflow_run.id + \" -->\"");
   });
 
   it("lists and approves baselines from the CLI command helpers", async () => {

@@ -344,7 +344,7 @@ function workflowAuditCard() {
     metric("PR secrets", audit.summary.prWorkflowsUsingSecrets, audit.summary.prWorkflowsUsingSecrets ? "bad" : "ok") +
     metric("pull_request_target", audit.summary.workflowsUsingPullRequestTarget, audit.summary.workflowsUsingPullRequestTarget ? "bad" : "ok") +
     '</div>' +
-    table(["Workflow", "Kind", "Risk", "Triggers", "Artifacts", "Summary"], audit.workflows.map(w => [w.path, w.kind, w.risk, w.triggers.join(", ") || "none", w.uploadsVisualHiveArtifacts ? "yes" : "no", w.appendsStepSummary ? "yes" : "no"])) +
+    table(["Workflow", "Kind", "Risk", "Triggers", "Artifacts", "Summary", "Issue artifact", "Redacts issue"], audit.workflows.map(w => [w.path, w.kind, w.risk, w.triggers.join(", ") || "none", w.uploadsVisualHiveArtifacts ? "yes" : "no", w.appendsStepSummary ? "yes" : "no", w.kind === "trusted_issue" ? (w.usesRecursiveArtifactDiscovery ? "recursive" : (w.readsIssueArtifact ? "fixed path" : "missing")) : "n/a", w.kind === "trusted_issue" ? (w.reSanitizesIssueBody ? "yes" : "no") : "n/a"])) +
     (audit.findings.length ? '<h3>Findings</h3>' + table(["Severity", "Workflow", "Message"], audit.findings.map(f => [f.severity, f.workflowPath, f.message])) : '<p class="ok">No workflow safety findings.</p>'));
 }
 

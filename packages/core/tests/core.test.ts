@@ -937,9 +937,18 @@ jobs:
     expect(audit.summary.prWorkflowsWithWritePermissions).toBe(1);
     expect(audit.summary.trustedIssueWorkflows).toBe(1);
     expect(audit.findings.map((finding) => finding.kind)).toEqual(
-      expect.arrayContaining(["pull_request_target_execution", "pr_uses_secrets", "pr_write_permissions", "pr_creates_issues"])
+      expect.arrayContaining([
+        "pull_request_target_execution",
+        "pr_uses_secrets",
+        "pr_write_permissions",
+        "pr_creates_issues",
+        "missing_issue_artifact",
+        "missing_trusted_issue_redaction"
+      ])
     );
-    expect(audit.workflows.find((workflow) => workflow.kind === "trusted_issue")?.checksOutCode).toBe(false);
+    const trusted = audit.workflows.find((workflow) => workflow.kind === "trusted_issue");
+    expect(trusted?.checksOutCode).toBe(false);
+    expect(trusted?.readsIssueArtifact).toBe(false);
   });
 
   it("recognizes a safe Visual Hive PR workflow", () => {
@@ -973,6 +982,62 @@ jobs:
     expect(audit.summary.criticalFindings).toBe(0);
     expect(audit.summary.prWorkflowsUsingSecrets).toBe(0);
     expect(audit.workflows[0]?.risk).toBe("low");
+  });
+
+  it("recognizes a safe trusted issue workflow with recursive artifact discovery and redaction", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-failure-issue.yml",
+        content: `name: Visual Hive Failure Issue
+on:
+  workflow_run:
+    workflows: ["Visual Hive PR"]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+  issues: write
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-hive
+          path: visual-hive-artifacts
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            function walkArtifacts(dir) {
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walkArtifacts(entry.name) : [entry.name]);
+            }
+            function findIssueBody() {
+              return walkArtifacts("visual-hive-artifacts").find((file) => file.endsWith("issue.md"));
+            }
+            function redactSecretValues(value) {
+              return String(value)
+                .replace(/client_secret=.*/gi, "client_secret=[REDACTED]")
+                .replace(/authorization:.*/gi, "authorization: [REDACTED]")
+                .replace(/set-cookie:.*/gi, "set-cookie: [REDACTED]")
+                .replace(/Bearer .*/gi, "Bearer [REDACTED]");
+            }
+            const body = redactSecretValues(fs.readFileSync(findIssueBody(), "utf8"));
+            const marker = "<!-- visual-hive-dedupe:stable-signature -->";
+            await github.rest.issues.create({ body: marker + body });
+`
+      }
+    ]);
+
+    const trusted = audit.workflows[0];
+    expect(trusted?.kind).toBe("trusted_issue");
+    expect(trusted?.permissions).toMatchObject({ contents: "read", actions: "read", issues: "write" });
+    expect(trusted?.downloadsArtifacts).toBe(true);
+    expect(trusted?.readsIssueArtifact).toBe(true);
+    expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
+    expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.risk).toBe("low");
+    expect(audit.findings).toHaveLength(0);
   });
 });
 

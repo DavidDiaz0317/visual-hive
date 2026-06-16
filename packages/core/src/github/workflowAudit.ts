@@ -32,6 +32,9 @@ export interface WorkflowAuditEntry {
   createsIssues: boolean;
   downloadsArtifacts: boolean;
   checksOutCode: boolean;
+  readsIssueArtifact: boolean;
+  usesRecursiveArtifactDiscovery: boolean;
+  reSanitizesIssueBody: boolean;
   runsVisualHive: boolean;
   runsMutation: boolean;
   hasDedupeSignature: boolean;
@@ -109,7 +112,7 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
   const content = sanitizeText(file.content);
   const parsed = parseWorkflow(content);
   const triggers = workflowTriggers(parsed, content);
-  const permissions = workflowPermissions(parsed);
+  const permissions = workflowPermissions(parsed, content);
   const kind = classifyWorkflow(sanitizeText(file.path), triggers, content);
   const workflow: WorkflowAuditEntry = {
     path: sanitizeText(file.path),
@@ -126,6 +129,9 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     createsIssues: /github\.rest\.issues|gh\s+issue|issues\s*:\s*write|create-issue/i.test(content),
     downloadsArtifacts: /actions\/download-artifact@/i.test(content),
     checksOutCode: /actions\/checkout@/i.test(content),
+    readsIssueArtifact: /issue\.md/i.test(content),
+    usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
+    reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
     runsVisualHive: /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows)\b/i.test(content) || /packages\/cli\/dist\/index\.js/i.test(content),
     runsMutation: /\bvisual-hive\s+mutate\b/i.test(content),
     hasDedupeSignature: /visual-hive-dedupe|dedupe/i.test(content),
@@ -208,6 +214,25 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
     if (!workflow.downloadsArtifacts) {
       add("missing_artifact_download", "high", "Trusted issue workflow should download Visual Hive artifacts.", "actions/download-artifact");
     }
+    if (!workflow.readsIssueArtifact) {
+      add("missing_issue_artifact", "high", "Trusted issue workflow should read `.visual-hive/issue.md` from uploaded artifacts.", "issue.md");
+    }
+    if (workflow.downloadsArtifacts && workflow.readsIssueArtifact && !workflow.usesRecursiveArtifactDiscovery) {
+      add(
+        "brittle_issue_artifact_path",
+        "medium",
+        "Trusted issue workflow should discover `issue.md` recursively because uploaded artifact roots vary by workflow.",
+        "recursive artifact discovery"
+      );
+    }
+    if (workflow.createsIssues && !workflow.reSanitizesIssueBody) {
+      add(
+        "missing_trusted_issue_redaction",
+        "medium",
+        "Trusted issue workflow should redact secret-like values again before creating or updating an issue.",
+        "redact issue body"
+      );
+    }
     if (!workflow.createsIssues) {
       add("missing_issue_creation", "medium", "Trusted issue workflow should create or update issues from sanitized artifacts.", "issues.create/update");
     }
@@ -232,6 +257,7 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   if (workflow.kind === "trusted_issue") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
     recommendations.add("Use issues: write only in this trusted workflow and dedupe by signature.");
+    recommendations.add("Discover issue.md recursively from downloaded artifacts and redact again before issue creation.");
   }
   for (const finding of workflow.findings) {
     if (finding.kind === "pull_request_target_execution") recommendations.add("Replace pull_request_target with pull_request for untrusted validation.");
@@ -278,14 +304,30 @@ function workflowTriggers(parsed: Record<string, unknown> | undefined, content: 
   return [...triggers].sort();
 }
 
-function workflowPermissions(parsed: Record<string, unknown> | undefined): Record<string, string> {
+function workflowPermissions(parsed: Record<string, unknown> | undefined, content: string): Record<string, string> {
   const permissions = parsed?.permissions;
-  if (!permissions) return {};
   if (typeof permissions === "string") return { "*": sanitizeText(permissions) };
-  if (typeof permissions !== "object" || Array.isArray(permissions)) return {};
-  return Object.fromEntries(
-    Object.entries(permissions as Record<string, unknown>).map(([key, value]) => [sanitizeText(key), sanitizeText(String(value))])
-  );
+  if (permissions && typeof permissions === "object" && !Array.isArray(permissions)) {
+    return Object.fromEntries(
+      Object.entries(permissions as Record<string, unknown>).map(([key, value]) => [sanitizeText(key), sanitizeText(String(value))])
+    );
+  }
+  return workflowPermissionsFromText(content);
+}
+
+function workflowPermissionsFromText(content: string): Record<string, string> {
+  const singleLine = content.match(/^permissions\s*:\s*(?<value>read-all|write-all|read|write)\s*$/im)?.groups?.value;
+  if (singleLine) return { "*": sanitizeText(singleLine) };
+  const block = content.match(/^permissions\s*:\s*\n(?<body>(?:[ \t]+[A-Za-z0-9_-]+\s*:\s*[A-Za-z0-9_-]+[^\n]*\n?)+)/im)?.groups?.body;
+  if (!block) return {};
+  const permissions: Record<string, string> = {};
+  for (const line of block.split(/\r?\n/)) {
+    const match = line.match(/^\s+(?<key>[A-Za-z0-9_-]+)\s*:\s*(?<value>[A-Za-z0-9_-]+)/);
+    if (match?.groups?.key && match.groups.value) {
+      permissions[sanitizeText(match.groups.key)] = sanitizeText(match.groups.value);
+    }
+  }
+  return permissions;
 }
 
 function classifyWorkflow(path: string, triggers: string[], content: string): WorkflowKind {
