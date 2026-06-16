@@ -39,6 +39,7 @@ import {
   type WorkflowAuditReport
 } from "@visual-hive/core";
 import { readControlPlaneActionHistory } from "./commandExecutor.js";
+import { readProviderDecisionLog } from "./providerDecisions.js";
 import {
   isInsidePath,
   normalizeRepoRelativePath,
@@ -90,6 +91,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triageReport,
     mutationReport,
     providerRunReport,
+    providerDecisionLog,
     coverageImprovementArtifact,
     setupRecommendation,
     workflowAuditArtifact,
@@ -111,6 +113,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<TriageReport>(path.join(hiveRoot, "triage.json")),
     readJsonIfExists<MutationReport>(path.join(hiveRoot, "mutation-report.json")),
     readJsonIfExists<MockProviderRunReport>(path.join(hiveRoot, "provider-results.json")),
+    readProviderDecisionLog(path.join(hiveRoot, "provider-decisions.json")),
     readJsonIfExists<CoverageImprovementReport>(path.join(hiveRoot, "coverage-recommendations.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
@@ -180,6 +183,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     riskReport,
     mutationReport,
     providerRunReport,
+    providerDecisionLog,
     setupRecommendation,
     targetAudit,
     contractAudit,

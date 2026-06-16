@@ -21,6 +21,7 @@ import type {
   SetupRecommendationReport,
   WorkflowAuditReport
 } from "@visual-hive/core";
+import type { ProviderDecisionLog } from "./providerDecisions.js";
 
 export interface ControlPlaneOptions {
   repo?: string;
@@ -213,6 +214,7 @@ export interface ControlPlaneSnapshot {
   riskReport?: RiskRegisterReport;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
+  providerDecisionLog?: ProviderDecisionLog;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
   scheduleAudit?: ScheduleAuditReport;

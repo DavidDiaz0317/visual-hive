@@ -24,6 +24,8 @@ Visual Hive can run first to decide which targets/contracts deserve attention. T
 
 Visual Hive also owns external upload policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, and still report `externalCallsMade: 0` unless a future trusted adapter explicitly performs a network call.
 
+The Control Plane can also record provider decisions in `.visual-hive/provider-decisions.json`. These decisions are local audit evidence only: skip a provider for now, review it later, or approve it for a future trusted setup review. Recording a decision does not create credentials, enable billing, upload screenshots, or call a provider API.
+
 The default Visual Hive workflow does not require paid accounts or external visual providers.
 
 ## Adapter surface

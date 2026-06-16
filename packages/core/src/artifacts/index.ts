@@ -193,6 +193,8 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("control-plane-actions.json")) labels.add("control-plane-actions");
   if (normalized.endsWith("report.json")) labels.add("report");
   if (normalized.endsWith("mutation-report.json")) labels.add("mutation");
+  if (normalized.endsWith("provider-results.json")) labels.add("provider-results");
+  if (normalized.endsWith("provider-decisions.json")) labels.add("provider-decisions");
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
   if (normalized.endsWith("coverage-recommendations.json")) labels.add("coverage-recommendations");
   return [...labels].sort();

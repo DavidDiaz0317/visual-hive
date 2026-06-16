@@ -14,6 +14,7 @@ import {
 } from "@visual-hive/core";
 import { executeRunbookCommand, executeRunbookProfile } from "./commandExecutor.js";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
+import { recordProviderDecision, type ProviderDecision } from "./providerDecisions.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { writeSetupBundleFromRecommendation } from "./setupBundle.js";
 import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
@@ -248,6 +249,39 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
           confirm: true,
           force: body.force === true,
           templateIds: optionalStringArray(body.templateIds)
+        });
+        sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/providers/decision") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to record provider decisions." }, 403);
+        return;
+      }
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Provider decision recording requires explicit confirmation. No provider calls were made." }, 400);
+        return;
+      }
+      const providerId = requiredString(body.providerId, "providerId");
+      const decision = requiredString(body.decision, "decision") as ProviderDecision;
+      const snapshot = await createControlPlaneSnapshot(options, connectionIdFromUrl(url));
+      const provider = snapshot.providers.find((candidate) => candidate.id === providerId);
+      if (!provider) {
+        sendJson(response, { ok: false, error: `Unknown provider "${sanitizeText(providerId)}".` }, 404);
+        return;
+      }
+      try {
+        const result = await recordProviderDecision(path.join(resolved.configRoot, ".visual-hive", "provider-decisions.json"), {
+          providerId,
+          label: provider.label,
+          decision,
+          reason: optionalString(body.reason)
         });
         sendJson(response, result);
       } catch (error) {

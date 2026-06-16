@@ -37,6 +37,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup PR bundle generation for the recommended config, repo docs, and built-in workflow templates, with overwrite protection and `.visual-hive/setup-bundle-edits.json`
 - Target and contract managers
 - Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions and blocked reasons
+- Provider decisions, including explicit local records to skip a supplemental provider, review it later, or approve it only for a future trusted setup review
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy/write buttons
 - Guarded workflow template generation into `.github/workflows`, with overwrite protection, explicit confirmation, and `.visual-hive/workflow-edits.json`
 - Portfolio queues for connected repositories, grouping repos into broken setup, deterministic failures, stale reports, missing coverage, coverage gaps, weak mutation, high risk, and healthy queues
@@ -60,12 +61,13 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup docs generation reads only `.visual-hive/recommendations.json`, writes `docs/visual-hive.md`, refuses to overwrite existing docs unless the user confirms the overwrite action, and records `.visual-hive/setup-doc-edits.json`.
 - Setup PR bundle generation preflights all output files before writing. It writes `visual-hive.config.yaml`, `docs/visual-hive.md`, and the built-in PR/scheduled/trusted-issue workflow templates only after confirmation, then records `.visual-hive/setup-bundle-edits.json`.
 - Workflow template generation writes only built-in Visual Hive templates to `.github/workflows`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/workflow-edits.json`.
+- Provider decision recording writes only `.visual-hive/provider-decisions.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
 - The Runbook page executes only allowlisted local commands in write mode: doctor, PR plan, deterministic CI run, triage/report, and mutation adequacy. It never executes trusted/protected lanes, secret-bearing lanes, or arbitrary browser-supplied shell text.
 - The Profiles page executes only curated sequences of those same runbook commands. The PR acceptance profile runs doctor, PR plan, deterministic CI run, then triage/report. The mutation audit profile runs doctor, PR plan, mutation adequacy, then triage/report.
 - Protected or secret-bearing profiles are shown as guidance-only and cannot be launched from the local UI.
 - Runbook execution records a bounded, sanitized audit trail in `.visual-hive/control-plane-actions.json`. Secret-like values in stdout/stderr are redacted before the action history is written or returned to the browser.
 - The Actions tab renders that same audit trail so local operators can see what the UI ran and inspect sanitized output without opening raw files.
-- `--read-only` disables write actions such as baseline review decisions, setup profile regeneration, setup config/docs generation, workflow template generation, config saving, and connection add/remove.
+- `--read-only` disables write actions such as baseline review decisions, setup profile regeneration, setup config/docs generation, workflow template generation, provider decision recording, config saving, and connection add/remove.
 - `--read-only` also disables runbook execution; the Runbook remains copy-only in that mode.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 
@@ -85,6 +87,6 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over guided setup recommendations, setup profile selection, provider/cost guidance, runbook commands, actionable risk ranking, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over guided setup recommendations, setup profile selection, provider/cost guidance and decisions, runbook commands, actionable risk ranking, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
 
 The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `risk.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.

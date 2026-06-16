@@ -1873,6 +1873,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
     await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('dashboard', async () => {});", "utf8").catch(async () => {
       await mkdir(path.join(hiveRoot, "generated"), { recursive: true });
@@ -1886,7 +1887,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(9);
+    expect(index.summary.artifactCount).toBe(10);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -1910,6 +1911,9 @@ describe("artifact index", () => {
     expect(coverageRecommendations?.preview).toContain("[REDACTED]");
     expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
     expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
+    const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
+    expect(providerDecisions?.preview).toContain("[REDACTED]");
+    expect(providerDecisions?.labels).toContain("provider-decisions");
     const spec = index.artifacts.find((artifact) => artifact.kind === "typescript");
     expect(spec?.labels).toContain("generated-spec");
   });

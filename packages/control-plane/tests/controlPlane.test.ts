@@ -559,6 +559,7 @@ describe("control plane", () => {
     expect(snapshot.triageReport?.summary.findingCount).toBe(1);
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.providerDecisionLog).toBeUndefined();
     expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
       providerId: "playwright",
       externalCallsPlanned: 0
@@ -1114,6 +1115,9 @@ contracts:
       expect(appJs).toContain("function providerCostPolicyCard");
       expect(appJs).toContain("function providerCredentialSummary");
       expect(appJs).toContain("function providerInspectionPolicy");
+      expect(appJs).toContain("function providerDecisionCard");
+      expect(appJs).toContain("provider-decision");
+      expect(appJs).toContain("/api/providers/decision");
       expect(appJs).toContain("Playwright remains local and deterministic");
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("runbook-execute");
@@ -1195,6 +1199,9 @@ contracts:
     expect(controlPlaneJs).toContain("function writeSetupBundle");
     expect(controlPlaneJs).toContain("function providers");
     expect(controlPlaneJs).toContain("function providerDetailBody");
+    expect(controlPlaneJs).toContain("function providerDecisionCard");
+    expect(controlPlaneJs).toContain("function recordProviderDecision");
+    expect(controlPlaneJs).toContain("/api/providers/decision");
     expect(controlPlaneJs).toContain("External upload guardrails");
     expect(controlPlaneJs).toContain("function portfolio");
     expect(controlPlaneJs).toContain("function portfolioItemRow");
@@ -1566,6 +1573,80 @@ contracts:
     }
   });
 
+  it("records provider decisions without making external provider calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: "argos",
+          decision: "skip",
+          reason: "No hosted review yet; token=secret-value",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.decisionPath).toBe(".visual-hive/provider-decisions.json");
+      expect(payload.decision).toMatchObject({
+        providerId: "argos",
+        label: "Argos",
+        decision: "skip",
+        source: "control-plane",
+        externalCallsMade: 0
+      });
+      expect(payload.decision.reason).toContain("[REDACTED]");
+
+      const log = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-decisions.json"), "utf8"));
+      expect(log.decisions[0]).toMatchObject({ providerId: "argos", decision: "skip", externalCallsMade: 0 });
+      expect(log.decisions[0].reason).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.providerDecisionLog?.decisions[0]?.decision).toBe("skip");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"))?.labels).toContain("provider-decisions");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects unconfirmed, unknown, and invalid provider decisions", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "skip" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const unknown = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "unknown-provider", decision: "skip", confirm: true })
+      });
+      expect(unknown.status).toBe(404);
+
+      const invalid = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "enable_now", confirm: true })
+      });
+      const invalidPayload = await invalid.json();
+      expect(invalid.status).toBe(400);
+      expect(invalidPayload.error).toContain("Invalid provider decision");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-decisions.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("protects existing workflow templates unless force is confirmed", async () => {
     const fixture = await makeFixture();
     const workflowPath = path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml");
@@ -1651,6 +1732,13 @@ contracts:
         body: JSON.stringify({ confirm: true, force: true })
       });
       expect(workflowsBlocked.status).toBe(403);
+
+      const providerDecisionBlocked = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "skip", confirm: true })
+      });
+      expect(providerDecisionBlocked.status).toBe(403);
     } finally {
       await server.close();
     }

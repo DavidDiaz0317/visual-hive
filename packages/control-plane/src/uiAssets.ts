@@ -818,7 +818,8 @@ function providers() {
     metric("Policy blocked", policyBlocked.length, policyBlocked.length ? "warn" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
     providerCostPolicyCard() +
-    card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Credentials", "External upload", "Supports"], snapshot.providers.map(p => [
+    providerDecisionCard() +
+    card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Credentials", "External upload", "Decision", "Supports"], snapshot.providers.map(p => [
       '<b>' + esc(p.label) + '</b><p class="muted">' + esc(p.docs) + '</p>',
       p.enabled ? "yes" : "no",
       p.availability,
@@ -826,6 +827,7 @@ function providers() {
       p.deterministicRole,
       providerCredentialSummary(p),
       providerInspectionPolicy(p),
+      providerDecisionSummary(p.id),
       p.supports.join(", ")
     ]))) +
     providerPlanPolicyCard(snapshot.plan?.providerPolicy) +
@@ -833,6 +835,29 @@ function providers() {
     providerRunResultsCard(snapshot.providerRunReport) +
     '<div class="grid" style="margin-top:14px">' + snapshot.providers.map(p => card(p.label, providerDetailBody(p))).join("") + '</div>' +
     '</div>';
+}
+
+function providerDecisionCard() {
+  const log = snapshot.providerDecisionLog;
+  const rows = snapshot.providers
+    .filter(provider => provider.id !== "playwright")
+    .map(provider => [
+      '<b>' + esc(provider.label) + '</b><p class="muted">' + esc(provider.id) + '</p>',
+      providerDecisionSummary(provider.id),
+      snapshot.readOnly
+        ? '<span class="muted">read-only</span>'
+        : '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="skip">Skip provider</button> ' +
+          '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="review_later">Review later</button> ' +
+          '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="approve_trusted_setup">Approve trusted setup review</button>'
+    ]);
+  return card(
+    "Provider decisions",
+    '<p class="muted">Record explicit provider posture without enabling credentials, billing, uploads, or external calls. Decisions are written to <code>.visual-hive/provider-decisions.json</code>.</p>' +
+      (rows.length ? table(["Provider", "Current decision", "Actions"], rows) : '<p class="muted">No supplemental providers are configured.</p>') +
+      '<p id="provider-decision-status" class="muted">' +
+      (log?.decisions?.length ? "Latest decision: " + esc(log.decisions[0].providerId + " -> " + log.decisions[0].decision) : "No provider decisions recorded yet.") +
+      '</p>'
+  );
 }
 
 function providerCostPolicyCard() {
@@ -847,6 +872,15 @@ function providerCostPolicyCard() {
     ["Max external screenshots/run", String(policy.maxExternalScreenshotsPerRun)],
     ["Max monthly external screenshots", String(policy.maxMonthlyExternalScreenshots)]
   ]) + '<p class="muted">Playwright remains local and deterministic. Hosted providers are supplemental and require explicit config plus credential names.</p>');
+}
+
+function providerDecisionSummary(providerId) {
+  const decision = (snapshot.providerDecisionLog?.decisions || []).find(entry => entry.providerId === providerId);
+  if (!decision) return '<span class="muted">none recorded</span>';
+  const className = decision.decision === "skip" ? "warn" : decision.decision === "approve_trusted_setup" ? "ok" : "muted";
+  return '<span class="' + className + '">' + esc(decision.decision) + '</span>' +
+    '<p class="muted">' + esc(decision.reason || "No reason recorded.") + '</p>' +
+    '<p class="muted">' + esc(decision.decidedAt || "") + '</p>';
 }
 
 function providerCredentialSummary(provider) {
@@ -1188,6 +1222,7 @@ function wireActions() {
   const setupOverwriteBundle = document.querySelector("#setup-overwrite-bundle");
   if (setupOverwriteBundle) setupOverwriteBundle.addEventListener("click", () => writeSetupBundle(true));
   document.querySelectorAll(".setup-profile-select").forEach((button) => button.addEventListener("click", () => regenerateSetupRecommendation(button.dataset.profile || "")));
+  document.querySelectorAll(".provider-decision").forEach((button) => button.addEventListener("click", () => recordProviderDecision(button.dataset.provider || "", button.dataset.decision || "")));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -1394,6 +1429,33 @@ async function regenerateSetupRecommendation(profile) {
   }
   status.className = "ok";
   status.textContent = "Recommendation updated for " + payload.profile + ". Artifact: " + payload.recommendationPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function recordProviderDecision(providerId, decision) {
+  const status = document.querySelector("#provider-decision-status");
+  if (!providerId || !decision || !status) return;
+  const reason = prompt("Reason for provider decision " + providerId + " -> " + decision + "?", "");
+  if (reason === null) return;
+  if (!confirm("Record provider decision for " + providerId + "? This writes only .visual-hive/provider-decisions.json and makes no external calls.")) return;
+  status.className = "muted";
+  status.textContent = "Recording provider decision...";
+  const response = await fetch(apiUrl("/api/providers/decision"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ providerId, decision, reason, confirm: true })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Provider decision failed.";
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Provider decision recorded: " + payload.decision.providerId + " -> " + payload.decision.decision + ". Artifact: " + payload.decisionPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }
