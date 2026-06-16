@@ -7,6 +7,7 @@ It records:
 - target ID, kind, URL, PR-safe status, cost, and schedule
 - beginner labels such as `Safe on PR`, `Protected`, `Expensive`, `Schedule-only`, and `Needs setup`
 - deploy-preview URL readiness, including missing `urlEnv` names without printing values
+- Storybook target scope, including declared story/component globs and lifecycle commands
 - required secret environment variable names and missing names only
 - command target install/build/serve commands
 - commandGroup/protected setup, service, readiness, and teardown settings

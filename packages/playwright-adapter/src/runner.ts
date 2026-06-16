@@ -40,21 +40,23 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     if (options.runTargetCommands ?? true) {
       for (const targetId of options.plan.targets.map((target) => target.id)) {
         const target = options.config.targets[targetId];
-        if (target.kind === "command") {
+        if (target.kind === "command" || target.kind === "storybook") {
           if (target.install && !options.skipInstall) {
             await runLifecycleCommand(targetLifecycle, targetId, "install", target.install, options.rootDir);
           }
           if (target.build && !options.skipBuild) {
             await runLifecycleCommand(targetLifecycle, targetId, "build", target.build, options.rootDir);
           }
-          const server = await startLifecycleServer(targetLifecycle, {
-            targetId,
-            serviceName: "serve",
-            command: target.serve,
-            cwd: options.rootDir,
-            url: target.url
-          });
-          startedServers.push({ targetId, serviceName: "serve", server });
+          if (target.kind === "command" || target.serve) {
+            const server = await startLifecycleServer(targetLifecycle, {
+              targetId,
+              serviceName: target.kind === "storybook" ? "storybook" : "serve",
+              command: target.kind === "command" ? target.serve : target.serve!,
+              cwd: options.rootDir,
+              url: target.url
+            });
+            startedServers.push({ targetId, serviceName: target.kind === "storybook" ? "storybook" : "serve", server });
+          }
         }
         if (target.kind === "commandGroup" || target.kind === "protected") {
           for (const setupCommand of target.setup ?? []) {

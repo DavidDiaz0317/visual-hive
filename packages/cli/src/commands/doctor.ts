@@ -66,6 +66,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<{ ok: bool
           detail: target.serve ? target.serve : "Command target serve command is missing"
         });
       }
+      if (target.kind === "storybook") {
+        diagnostics.push({
+          check: `target:${targetId}:storybook`,
+          ok: Boolean(primaryUrl.url),
+          detail: `stories=${target.stories.length}; components=${target.components.length}; serve=${target.serve ? "configured" : "external/static URL"}`
+        });
+      }
       if (target.kind === "commandGroup" || target.kind === "protected") {
         diagnostics.push({
           check: `target:${targetId}:services`,

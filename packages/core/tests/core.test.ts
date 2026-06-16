@@ -1142,6 +1142,80 @@ describe("target audit", () => {
     });
     expect(ready.targets[0]?.gaps.map((gap) => gap.kind)).not.toContain("deploy_preview_url_unresolved");
   });
+
+  it("validates, plans, and audits storybook targets as PR-safe component lanes", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "storybook-targets", type: "custom", defaultBranch: "main", setupProfile: "component-storybook" },
+      targets: {
+        componentLibrary: {
+          kind: "storybook",
+          install: "npm ci",
+          build: "npm run build-storybook",
+          serve: "npm run storybook -- --host 127.0.0.1 --port 6006",
+          url: "http://127.0.0.1:6006",
+          stories: ["src/**/*.stories.tsx"],
+          components: ["src/components/**"]
+        }
+      },
+      contracts: [
+        {
+          id: "storybook-button",
+          description: "Button story remains stable",
+          target: "componentLibrary",
+          severity: "medium",
+          runOn: { pullRequest: true },
+          screenshots: [{ name: "button-primary", route: "/?path=/story/button--primary", viewport: "desktop" }]
+        }
+      ],
+      selection: {
+        changedFiles: [{ pattern: "src/components/**", contracts: ["storybook-button"], risk: "medium" }]
+      }
+    });
+
+    expect(config.targets.componentLibrary).toMatchObject({
+      kind: "storybook",
+      prSafe: true,
+      cost: "cheap"
+    });
+
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/components/Button.tsx"] });
+    expect(plan.targets[0]).toMatchObject({ id: "componentLibrary", kind: "storybook", url: "http://127.0.0.1:6006" });
+    expect(plan.items.map((item) => item.contractId)).toEqual(["storybook-button"]);
+
+    const audit = auditTargets(config, { plan, now: new Date("2026-06-15T00:00:00.000Z") });
+    expect(audit.summary.storybookTargets).toBe(1);
+    expect(audit.summary.setupRequiredTargets).toBe(1);
+    expect(audit.targets[0]?.labels).toEqual(expect.arrayContaining(["Safe on PR", "Needs setup"]));
+    expect(audit.targets[0]?.commands).toMatchObject({
+      build: "npm run build-storybook",
+      serve: "npm run storybook -- --host 127.0.0.1 --port 6006"
+    });
+    expect(audit.targets[0]?.gaps.map((gap) => gap.kind)).not.toContain("storybook_without_component_scope");
+  });
+
+  it("flags storybook targets without declared story or component scope", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "storybook-scope", type: "custom", defaultBranch: "main" },
+      targets: {
+        componentLibrary: {
+          kind: "storybook",
+          url: "http://127.0.0.1:6006"
+        }
+      },
+      contracts: [
+        {
+          id: "storybook-smoke",
+          description: "Storybook smoke",
+          target: "componentLibrary",
+          runOn: { pullRequest: true }
+        }
+      ]
+    });
+
+    const audit = auditTargets(config, { now: new Date("2026-06-15T00:00:00.000Z") });
+    expect(audit.targets[0]?.gaps.map((gap) => gap.kind)).toContain("storybook_without_component_scope");
+    expect(audit.targets[0]?.recommendations.join(" ")).toContain("component globs");
+  });
 });
 
 describe("schedule audit", () => {
@@ -1880,9 +1954,21 @@ describe("setup recommendations", () => {
     await writeFile(path.join(targetRoot, "src", "Card.tsx"), `<section data-testid="dashboard-card">Card</section>`, "utf8");
 
     const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
 
     expect(recommendation.setupProfile).toBe("component-storybook");
     expect(recommendation.project.detectedFrameworks).toContain("storybook");
+    expect(recommendation.recommendedTarget).toMatchObject({
+      id: "componentLibrary",
+      kind: "storybook",
+      url: "http://127.0.0.1:6006",
+      serve: "npm run storybook -- --host 127.0.0.1 --port 6006"
+    });
+    expect(parsedYaml.targets.componentLibrary.kind).toBe("storybook");
+    expect(parsedYaml.targets.componentLibrary).toMatchObject({
+      stories: ["src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
+      components: ["src/components/**"]
+    });
     expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "chromatic")).toMatchObject({
       recommendation: "optional",
       requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],

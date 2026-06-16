@@ -135,6 +135,7 @@ interface RepoInventory {
 }
 
 const DEFAULT_PORT = 4173;
+const STORYBOOK_PORT = 6006;
 const MAX_SOURCE_FILES = 250;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".html"]);
@@ -167,6 +168,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     projectName,
     projectType,
     setupProfile,
+    targetId: target.id,
     target: target.config,
     contract: contract.config
   });
@@ -322,6 +324,27 @@ function buildTarget(input: {
   projectType: VisualHiveConfig["project"]["type"];
 }): { id: string; config: TargetConfig; confidence: SetupRecommendedTarget["confidence"]; reasons: string[] } {
   const reasons: string[] = [];
+  const storybook = storybookCommands(input.inventory);
+  if (storybook.serve) {
+    reasons.push(`Detected a runnable Storybook script: ${sanitizeText(storybook.serve)}.`);
+    if (storybook.build) reasons.push(`Detected a Storybook build script: ${sanitizeText(storybook.build)}.`);
+    return {
+      id: "componentLibrary",
+      config: {
+        kind: "storybook",
+        install: input.install,
+        build: storybook.build,
+        serve: storybook.serve,
+        url: `http://127.0.0.1:${STORYBOOK_PORT}`,
+        stories: ["src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
+        components: ["src/components/**"],
+        prSafe: true,
+        cost: "cheap"
+      },
+      confidence: storybook.build ? "high" : "medium",
+      reasons
+    };
+  }
   if (input.serve) {
     reasons.push(`Detected a runnable package script for local preview: ${sanitizeText(input.serve)}.`);
     if (input.build) reasons.push(`Detected a build script: ${sanitizeText(input.build)}.`);
@@ -351,6 +374,23 @@ function buildTarget(input: {
     },
     confidence: input.inventory.packageJson ? "low" : "medium",
     reasons
+  };
+}
+
+function storybookCommands(inventory: RepoInventory): { serve?: string; build?: string } {
+  const scripts = inventory.packageJson?.scripts ?? {};
+  const runner = scriptRunner(inventory.packageManager);
+  const serveScript = scripts.storybook
+    ? "storybook"
+    : scripts["storybook:dev"]
+      ? "storybook:dev"
+      : scripts["dev:storybook"]
+        ? "dev:storybook"
+        : undefined;
+  const buildScript = scripts["build-storybook"] ? "build-storybook" : scripts["storybook:build"] ? "storybook:build" : undefined;
+  return {
+    serve: serveScript ? `${runner} ${serveScript} -- --host 127.0.0.1 --port ${STORYBOOK_PORT}` : undefined,
+    build: buildScript ? `${runner} ${buildScript}` : undefined
   };
 }
 
@@ -476,7 +516,7 @@ function buildCostEstimate(
   setupProfile: VisualHiveConfig["project"]["setupProfile"]
 ): SetupCostEstimate {
   const localScreenshotsPerRun = contract.screenshots.length;
-  const estimatedPrMinutes = target.kind === "command" && target.build ? 4 : 2;
+  const estimatedPrMinutes = (target.kind === "command" || target.kind === "storybook") && target.build ? 4 : 2;
   const estimatedScheduledMinutes = setupProfile === "complex-app" ? estimatedPrMinutes + 6 : estimatedPrMinutes + 2;
   return {
     localScreenshotsPerRun,
@@ -544,6 +584,7 @@ function configInput(input: {
   projectName: string;
   projectType: VisualHiveConfig["project"]["type"];
   setupProfile: VisualHiveConfig["project"]["setupProfile"];
+  targetId: string;
   target: TargetConfig;
   contract: ContractConfig;
 }): unknown {
@@ -555,7 +596,7 @@ function configInput(input: {
       setupProfile: input.setupProfile
     },
     targets: {
-      localPreview: input.target
+      [input.targetId]: input.target
     },
     contracts: [input.contract],
     viewports: {

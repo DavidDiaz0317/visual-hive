@@ -11,7 +11,7 @@
 ## v0.2
 
 - Tolerance-based PNG visual diffing.
-- Rich target kinds: `url`, `deployPreview`, `command`, `commandGroup`, `protected`.
+- Rich target kinds: `url`, `deployPreview`, `storybook`, `command`, `commandGroup`, `protected`.
 - Structured report schema with selector, screenshot, console, and page error details.
 - Mutation-to-contract mapping and applicability reporting.
 - Realistic KubeStellar Console example.

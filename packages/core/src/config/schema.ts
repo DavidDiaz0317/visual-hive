@@ -165,6 +165,19 @@ const DeployPreviewTargetSchema = z
     path: ["url"]
   });
 
+const StorybookTargetSchema = z.object({
+  kind: z.literal("storybook"),
+  url: z.string().url(),
+  install: z.string().optional(),
+  build: z.string().optional(),
+  serve: z.string().optional(),
+  stories: z.array(z.string().min(1)).optional().default([]),
+  components: z.array(z.string().min(1)).optional().default([]),
+  prSafe: z.boolean().optional().default(true),
+  schedule: z.string().optional(),
+  cost: CostSchema.optional().default("cheap")
+});
+
 const CommandGroupServiceSchema = z.object({
   name: z.string().min(1),
   command: z.string().min(1),
@@ -197,7 +210,14 @@ const ProtectedTargetSchema = z
     path: ["url"]
   });
 
-export const TargetSchema = z.union([CommandTargetSchema, UrlTargetSchema, DeployPreviewTargetSchema, CommandGroupTargetSchema, ProtectedTargetSchema]);
+export const TargetSchema = z.union([
+  CommandTargetSchema,
+  UrlTargetSchema,
+  DeployPreviewTargetSchema,
+  StorybookTargetSchema,
+  CommandGroupTargetSchema,
+  ProtectedTargetSchema
+]);
 
 export const ViewportSchema = z.object({
   width: z.number().int().positive(),

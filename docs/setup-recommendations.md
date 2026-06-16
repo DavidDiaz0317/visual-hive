@@ -49,7 +49,7 @@ Important fields:
 - `setupPullRequest`: suggested setup PR title, files, steps, and security notes
 - `recommendedConfig`: parsed Visual Hive config object
 - `recommendedConfigYaml`: YAML that can be written as `visual-hive.config.yaml`
-- `recommendedTarget`: target kind, URL, commands, confidence, and reasons
+- `recommendedTarget`: target kind, URL, commands, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs
 - `recommendedContracts`: starter contracts, selectors, screenshots, and reasons
 - `detectedSelectors`: top discovered `data-testid` selectors
 - `warnings`: setup gaps such as missing preview scripts or missing selectors

@@ -165,6 +165,66 @@ describe("buildSpecContent", () => {
     await expect(access(generated.path, constants.F_OK)).resolves.toBeUndefined();
   });
 
+  it("serializes storybook targets and component story routes into generated specs", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-storybook-spec-"));
+    tempDirs.push(tempRoot);
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "storybook-spec", setupProfile: "component-storybook" },
+      targets: {
+        componentLibrary: {
+          kind: "storybook",
+          serve: "npm run storybook -- --host 127.0.0.1 --port 6006",
+          url: "http://127.0.0.1:6006",
+          stories: ["src/**/*.stories.tsx"],
+          components: ["src/components/**"]
+        }
+      },
+      contracts: [
+        {
+          id: "storybook-button",
+          description: "Button story",
+          target: "componentLibrary",
+          runOn: { pullRequest: true },
+          screenshots: [{ name: "button-primary", route: "/?path=/story/button--primary", viewport: "desktop" }]
+        }
+      ]
+    });
+
+    const generated = await generatePlaywrightSpec({
+      rootDir: tempRoot,
+      config,
+      plan: {
+        schemaVersion: 1,
+        project: "storybook-spec",
+        mode: "pr",
+        generatedAt: "2026-06-16T00:00:00.000Z",
+        changedFiles: [],
+        effectiveChangedFiles: [],
+        ignoredChangedFiles: [],
+        targets: [{ id: "componentLibrary", kind: "storybook", url: "http://127.0.0.1:6006", prSafe: true, cost: "cheap" }],
+        items: [
+          {
+            contractId: "storybook-button",
+            targetId: "componentLibrary",
+            targetUrl: "http://127.0.0.1:6006",
+            severity: "medium",
+            cost: "cheap",
+            reasons: ["runOn.pullRequest=true"],
+            screenshots: ["button-primary:/?path=/story/button--primary:desktop"]
+          }
+        ],
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+        providerPolicy: []
+      }
+    });
+
+    expect(generated.content).toContain("\"kind\": \"storybook\"");
+    expect(generated.content).toContain("\"url\": \"http://127.0.0.1:6006\"");
+    expect(generated.content).toContain("\"/?path=/story/button--primary\"");
+    await expect(access(generated.path, constants.F_OK)).resolves.toBeUndefined();
+  });
+
   it("creates a missing baseline locally and serializes diff metadata", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-visual-diff-"));
     tempDirs.push(tempRoot);
@@ -395,6 +455,63 @@ describe("buildSpecContent", () => {
     expect(report.results[0]?.errors.join("\n")).toContain("Target server failed to start");
     expect(JSON.stringify(report)).toContain("token=[REDACTED]");
     expect(JSON.stringify(report)).not.toContain("secret=abc");
+  });
+
+  it("records lifecycle evidence when a storybook target cannot start", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-storybook-startup-"));
+    tempDirs.push(tempRoot);
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "storybook-startup", setupProfile: "component-storybook" },
+      targets: {
+        componentLibrary: {
+          kind: "storybook",
+          serve: "node -e \"process.exit(1)\"",
+          url: "http://127.0.0.1:9",
+          stories: ["src/**/*.stories.tsx"],
+          components: ["src/components/**"],
+          prSafe: true
+        }
+      },
+      contracts: [
+        {
+          id: "storybook-home",
+          description: "Storybook home",
+          target: "componentLibrary",
+          runOn: { pullRequest: true }
+        }
+      ]
+    });
+    const plan = {
+      schemaVersion: 1 as const,
+      project: "storybook-startup",
+      mode: "pr" as const,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      changedFiles: [],
+      effectiveChangedFiles: [],
+      ignoredChangedFiles: [],
+      targets: [{ id: "componentLibrary", kind: "storybook", url: "http://127.0.0.1:9", prSafe: true, cost: "cheap" as const }],
+      items: [
+        {
+          contractId: "storybook-home",
+          targetId: "componentLibrary",
+          targetUrl: "http://127.0.0.1:9",
+          severity: "medium" as const,
+          cost: "cheap" as const,
+          reasons: ["test"],
+          screenshots: []
+        }
+      ],
+      excluded: [],
+      mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+      providerPolicy: []
+    };
+
+    const { report, exitCode } = await runPlaywrightContracts({ config, plan, rootDir: tempRoot, skipInstall: true, skipBuild: true });
+
+    expect(exitCode).toBe(1);
+    expect(report.status).toBe("failed");
+    expect(report.selectedTargets[0]?.kind).toBe("storybook");
+    expect(report.targetLifecycle.some((event) => event.targetId === "componentLibrary" && event.serviceName === "storybook" && event.status === "failed")).toBe(true);
   });
 });
 

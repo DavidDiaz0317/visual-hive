@@ -20,6 +20,7 @@ export interface TargetAuditSummary {
   commandTargets: number;
   commandGroupTargets: number;
   deployPreviewTargets: number;
+  storybookTargets: number;
   scheduledTargets: number;
   expensiveTargets: number;
   setupRequiredTargets: number;
@@ -78,6 +79,7 @@ export interface TargetAuditGap {
     | "failed_lifecycle"
     | "missing_readiness_timeout"
     | "deploy_preview_url_unresolved"
+    | "storybook_without_component_scope"
     | "expensive_pr_safe";
   severity: "low" | "medium" | "high";
   message: string;
@@ -112,9 +114,9 @@ export function auditTargets(config: VisualHiveConfig, options: AuditTargetsOpti
       const resolvedUrl = resolveTargetUrl(target, env);
       const targetResults = (options.report?.results ?? []).filter((result) => result.targetId === id);
       const commands = {
-        install: target.kind === "command" ? sanitizeText(target.install ?? "") || undefined : undefined,
-        build: target.kind === "command" ? sanitizeText(target.build ?? "") || undefined : undefined,
-        serve: target.kind === "command" ? sanitizeText(target.serve) : undefined,
+        install: target.kind === "command" || target.kind === "storybook" ? sanitizeText(target.install ?? "") || undefined : undefined,
+        build: target.kind === "command" || target.kind === "storybook" ? sanitizeText(target.build ?? "") || undefined : undefined,
+        serve: target.kind === "command" ? sanitizeText(target.serve) : target.kind === "storybook" ? sanitizeText(target.serve ?? "") || undefined : undefined,
         setup: target.kind === "commandGroup" || target.kind === "protected" ? target.setup.map((command) => sanitizeText(command)) : [],
         teardown: target.kind === "commandGroup" || target.kind === "protected" ? target.teardown.map((command) => sanitizeText(command)) : []
       };
@@ -177,6 +179,7 @@ export function auditTargets(config: VisualHiveConfig, options: AuditTargetsOpti
       commandTargets: targets.filter((target) => target.kind === "command").length,
       commandGroupTargets: targets.filter((target) => target.kind === "commandGroup").length,
       deployPreviewTargets: targets.filter((target) => target.kind === "deployPreview").length,
+      storybookTargets: targets.filter((target) => target.kind === "storybook").length,
       scheduledTargets: targets.filter((target) => Boolean(target.schedule)).length,
       expensiveTargets: targets.filter((target) => target.cost === "expensive").length,
       setupRequiredTargets: targets.filter((target) => target.labels.includes("Needs setup")).length,
@@ -218,7 +221,12 @@ function labelsFor(target: VisualHiveConfig["targets"][string]): TargetAuditEntr
   if (target.kind === "protected") labels.push("Protected");
   if (target.cost === "expensive") labels.push("Expensive");
   if (target.schedule) labels.push("Schedule-only");
-  if (target.kind === "command" || target.kind === "commandGroup" || (target.kind === "protected" && target.services.length > 0)) {
+  if (
+    target.kind === "command" ||
+    target.kind === "commandGroup" ||
+    (target.kind === "storybook" && Boolean(target.install || target.build || target.serve)) ||
+    (target.kind === "protected" && target.services.length > 0)
+  ) {
     labels.push("Needs setup");
   }
   return labels;
@@ -264,6 +272,13 @@ function collectGaps(input: {
       message: `Deploy preview target "${input.id}" has no resolvable URL: ${sanitizeText(input.resolvedUrlReason)}`
     });
   }
+  if (input.target.kind === "storybook" && input.target.stories.length === 0 && input.target.components.length === 0) {
+    gaps.push({
+      kind: "storybook_without_component_scope",
+      severity: "low",
+      message: `Storybook target "${input.id}" does not declare stories or component globs.`
+    });
+  }
   const prContracts = input.config.contracts.filter((contract) => contract.target === input.id && contract.runOn.pullRequest);
   if (!input.target.prSafe && prContracts.length > 0) {
     gaps.push({
@@ -272,7 +287,11 @@ function collectGaps(input: {
       message: `Target "${input.id}" has pull-request contracts but is not PR safe.`
     });
   }
-  const needsSetup = input.target.kind === "command" || input.target.kind === "commandGroup" || (input.target.kind === "protected" && input.target.services.length > 0);
+  const needsSetup =
+    input.target.kind === "command" ||
+    input.target.kind === "commandGroup" ||
+    (input.target.kind === "storybook" && Boolean(input.target.install || input.target.build || input.target.serve)) ||
+    (input.target.kind === "protected" && input.target.services.length > 0);
   if (needsSetup && input.selected && input.lifecycleEvents.length === 0) {
     gaps.push({
       kind: "setup_target_not_run",
@@ -315,6 +334,7 @@ function recommendationsFor(targetId: string, gaps: TargetAuditGap[]): string[] 
     if (gap.kind === "failed_lifecycle") recommendations.push(`Inspect target lifecycle events and server logs for "${targetId}".`);
     if (gap.kind === "missing_readiness_timeout") recommendations.push(`Set readinessTimeoutMs for services on "${targetId}" to make startup failures clearer.`);
     if (gap.kind === "deploy_preview_url_unresolved") recommendations.push(`Set the deploy preview URL environment variable or configure fallbackUrl for "${targetId}".`);
+    if (gap.kind === "storybook_without_component_scope") recommendations.push(`Add stories or component globs to "${targetId}" so component visual coverage can be audited.`);
     if (gap.kind === "expensive_pr_safe") recommendations.push(`Review whether "${targetId}" should be schedule-only or manual.`);
   }
   return [...new Set(recommendations)];

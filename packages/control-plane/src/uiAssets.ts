@@ -524,6 +524,7 @@ function targets() {
     metric("Protected", s.protectedTargets, "") +
     '</div><div class="grid" style="margin-top:14px">' +
     metric("Deploy previews", s.deployPreviewTargets || 0, s.deployPreviewTargets ? "ok" : "") +
+    metric("Storybook targets", s.storybookTargets || 0, s.storybookTargets ? "ok" : "") +
     metric("Needs setup", s.setupRequiredTargets, "") +
     metric("Missing secrets", s.missingSecretNames, s.missingSecretNames ? "bad" : "ok") +
     metric("Failed lifecycle", s.targetsWithFailedLifecycle, s.targetsWithFailedLifecycle ? "bad" : "ok") +

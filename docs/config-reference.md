@@ -66,6 +66,7 @@ Target kinds:
 
 - `url`: checks an already-running or hosted URL.
 - `deployPreview`: resolves a PR preview URL from `url`, `urlEnv`, `urlTemplate`, or `fallbackUrl`; defaults to `prSafe: true` and `cost: cheap`.
+- `storybook`: checks a local or hosted Storybook URL; optional `install`, `build`, and `serve` commands can start Storybook for deterministic component screenshots, and `stories`/`components` record the intended component scope.
 - `command`: optionally runs `install` and `build`, then starts one long-running `serve` command with a health `url`.
 - `commandGroup`: runs setup commands, starts named services with health URLs and optional `readinessTimeoutMs`, and then optional teardown commands.
 - `protected`: schedule/manual-only target for secret-backed environments; `url` is optional when services are configured, `cost` defaults to `expensive`, and missing `requiresSecrets` are reported by name only.
@@ -83,6 +84,26 @@ targets:
 ```
 
 If `urlEnv` is missing and no `fallbackUrl` is configured, planner excludes the target with a clear reason instead of failing the whole plan. Doctor reports environment variable names only.
+
+Storybook example:
+
+```yaml
+targets:
+  componentLibrary:
+    kind: storybook
+    install: "npm ci"
+    build: "npm run build-storybook"
+    serve: "npm run storybook -- --host 127.0.0.1 --port 6006"
+    url: "http://127.0.0.1:6006"
+    prSafe: true
+    cost: cheap
+    stories:
+      - "src/**/*.stories.@(ts|tsx|mdx)"
+    components:
+      - "src/components/**"
+```
+
+Storybook targets still use Playwright contracts as the deterministic oracle by default. Chromatic or other hosted component review tools remain optional providers.
 
 Changed-file selection:
 

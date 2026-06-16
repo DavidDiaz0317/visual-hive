@@ -39,4 +39,4 @@ Workflow templates live in `templates/github-actions/`. Use the PR workflow for 
 
 ## Monorepo Targets
 
-Use `deployPreview` for PR preview URLs exposed through CI environment variables such as `VERCEL_URL`. Use `command` targets for one frontend preview process. Use `commandGroup` for fake OAuth or fullstack test rigs with multiple local services. Use `protected` for scheduled/manual environments that require secrets.
+Use `deployPreview` for PR preview URLs exposed through CI environment variables such as `VERCEL_URL`. Use `storybook` for component-library screenshots from a local or hosted Storybook URL. Use `command` targets for one frontend preview process. Use `commandGroup` for fake OAuth or fullstack test rigs with multiple local services. Use `protected` for scheduled/manual environments that require secrets.

@@ -100,6 +100,45 @@ contracts:
     }
   });
 
+  it("doctor reports storybook target scope and local serve posture", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-storybook-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: storybook-doctor
+  setupProfile: component-storybook
+targets:
+  componentLibrary:
+    kind: storybook
+    install: "npm ci"
+    build: "npm run build-storybook"
+    serve: "npm run storybook -- --host 127.0.0.1 --port 6006"
+    url: "http://127.0.0.1:6006"
+    stories:
+      - "src/**/*.stories.tsx"
+    components:
+      - "src/components/**"
+contracts:
+  - id: component-library-smoke
+    description: Component library smoke
+    target: componentLibrary
+    runOn:
+      pullRequest: true
+`,
+      "utf8"
+    );
+
+    const result = await runDoctor({ cwd: tempRoot });
+    const serialized = JSON.stringify(result.diagnostics);
+
+    expect(result.ok).toBe(true);
+    expect(serialized).toContain("target:componentLibrary:storybook");
+    expect(serialized).toContain("stories=1");
+    expect(serialized).toContain("components=1");
+    expect(serialized).toContain("serve=configured");
+  });
+
   it("plan writes plan.json for the demo config", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-"));
     tempDirs.push(tempRoot);

@@ -57,7 +57,7 @@
         "type": "object",
         "required": ["targetId", "kind", "prSafe", "cost", "contractIds", "scheduledContractIds", "requiresSecrets", "missingSecrets"],
         "properties": {
-          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "protected"] },
+          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
           "cost": { "enum": ["cheap", "medium", "expensive"] }
         }
       }
