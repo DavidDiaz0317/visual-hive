@@ -1506,6 +1506,14 @@ jobs:
     );
 
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
+    const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
+    for (const command of ["coverage", "targets", "contracts", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+      expect(prTemplate).toContain(`npx visual-hive ${command}`);
+    }
+    for (const command of ["mutate --enforce-min-score", "coverage", "targets", "contracts", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+      expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
+    }
     expect(audit.summary).toMatchObject({
       pullRequestWorkflows: 1,
       scheduledWorkflows: 1,

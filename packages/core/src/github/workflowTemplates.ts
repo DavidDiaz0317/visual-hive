@@ -28,11 +28,33 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx visual-hive plan --mode pr --base origin/main --ci
       - run: npx visual-hive run --ci
+      - run: npx visual-hive coverage --mode pr --base origin/main
+        if: always()
+      - run: npx visual-hive improve-coverage
+        if: always()
+      - run: npx visual-hive targets --mode pr --base origin/main
+        if: always()
+      - run: npx visual-hive contracts --mode pr --base origin/main
+        if: always()
+      - run: npx visual-hive schedules --base origin/main
+        if: always()
       - run: npx visual-hive workflows
+        if: always()
+      - run: npx visual-hive providers --mock-results
         if: always()
       - run: npx visual-hive triage
         if: always()
+      - run: npx visual-hive llm
+        if: always()
       - run: npx visual-hive report --github-step-summary
+        if: always()
+      - run: npx visual-hive risk
+        if: always()
+      - run: npx visual-hive security
+        if: always()
+      - run: npx visual-hive costs
+        if: always()
+      - run: npx visual-hive artifacts
         if: always()
       # Do not create issues from untrusted PR execution. Upload artifacts and let
       # a trusted workflow_run workflow consume them if issue creation is needed.
@@ -194,11 +216,33 @@ jobs:
       - run: npx visual-hive plan --mode schedule --ci
       - run: npx visual-hive run --ci
       - run: npx visual-hive mutate --enforce-min-score
+      - run: npx visual-hive coverage --mode schedule
+        if: always()
+      - run: npx visual-hive improve-coverage
+        if: always()
+      - run: npx visual-hive targets --mode schedule
+        if: always()
+      - run: npx visual-hive contracts --mode schedule
+        if: always()
+      - run: npx visual-hive schedules
+        if: always()
       - run: npx visual-hive workflows
+        if: always()
+      - run: npx visual-hive providers --mock-results
         if: always()
       - run: npx visual-hive triage
         if: always()
+      - run: npx visual-hive llm
+        if: always()
       - run: npx visual-hive report --github-step-summary
+        if: always()
+      - run: npx visual-hive risk
+        if: always()
+      - run: npx visual-hive security
+        if: always()
+      - run: npx visual-hive costs
+        if: always()
+      - run: npx visual-hive artifacts
         if: always()
       # This scheduled workflow may use protected secrets. A separate trusted
       # workflow_run workflow can create issues from .visual-hive/issue.md.

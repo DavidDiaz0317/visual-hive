@@ -25,11 +25,33 @@ jobs:
       - run: npx visual-hive plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule --ci
       - run: npx visual-hive run --config examples/kubestellar-console/visual-hive.config.yaml --ci
       - run: npx visual-hive mutate --config examples/kubestellar-console/visual-hive.config.yaml --enforce-min-score
+      - run: npx visual-hive coverage --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
+        if: always()
+      - run: npx visual-hive improve-coverage --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive targets --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
+        if: always()
+      - run: npx visual-hive contracts --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
+        if: always()
+      - run: npx visual-hive schedules --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
       - run: npx visual-hive workflows --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive providers --config examples/kubestellar-console/visual-hive.config.yaml --mock-results
         if: always()
       - run: npx visual-hive triage --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
+      - run: npx visual-hive llm --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
       - run: npx visual-hive report --config examples/kubestellar-console/visual-hive.config.yaml --github-step-summary
+        if: always()
+      - run: npx visual-hive risk --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive security --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive costs --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive artifacts --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
       # A trusted workflow_run workflow can create issues from uploaded artifacts.
       # For stricter supply-chain hardening, pin actions by SHA instead of tags.
