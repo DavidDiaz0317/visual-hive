@@ -22,6 +22,8 @@ Check the target command, working directory, port, and health URL. Visual Hive r
 
 Check `runOn`, changed-file selection rules, target `prSafe`, and whether the current mode is `pr`, `schedule`, `manual`, `canary`, `mutation`, or `full`. Protected targets are not selected for PR, canary, or mutation runs unless unsafe targets are explicitly allowed. Canary mode also skips expensive targets.
 
+If the plan was intentionally empty because every changed file matched `selection.ignoreChangedFiles`, this is not a setup failure. `visual-hive run` writes a passed no-op report with `noContractsReason` so PR workflows can skip docs-only visual work while preserving audit evidence.
+
 ## Playwright Browser Missing
 
 Run:

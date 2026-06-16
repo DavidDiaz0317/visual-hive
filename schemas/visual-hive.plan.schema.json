@@ -3,7 +3,19 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.plan.schema.json",
   "title": "Visual Hive Plan",
   "type": "object",
-  "required": ["schemaVersion", "project", "mode", "generatedAt", "changedFiles", "targets", "items", "excluded", "mutation"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "mode",
+    "generatedAt",
+    "changedFiles",
+    "effectiveChangedFiles",
+    "ignoredChangedFiles",
+    "targets",
+    "items",
+    "excluded",
+    "mutation"
+  ],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "const": 1 },
@@ -11,6 +23,8 @@
     "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
     "generatedAt": { "type": "string" },
     "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "effectiveChangedFiles": { "type": "array", "items": { "type": "string" } },
+    "ignoredChangedFiles": { "type": "array", "items": { "$ref": "#/$defs/ignoredChangedFile" } },
     "targets": { "type": "array" },
     "items": { "type": "array" },
     "excluded": { "type": "array" },
@@ -42,6 +56,16 @@
     }
   },
   "$defs": {
+    "ignoredChangedFile": {
+      "type": "object",
+      "required": ["file", "pattern", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "pattern": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
     "mutationOperator": {
       "enum": [
         "hide-critical-button",

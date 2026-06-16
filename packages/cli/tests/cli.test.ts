@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
 import { parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
+import { runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
 import { formatBaselineApproval, runBaselineApproveCommand, runBaselineListCommand } from "../src/commands/baselines.js";
@@ -407,6 +408,55 @@ contracts:
 
     const removed = await runConnectionsRemoveCommand({ cwd: managerRoot, id: "connected" });
     expect(removed.index.connections.map((connection) => connection.id)).not.toContain("connected");
+  });
+
+  it("writes an empty plan and no-op report for ignored docs-only changes", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-docs-only-"));
+    tempDirs.push(tempRoot);
+    const configPath = path.join(tempRoot, "visual-hive.config.yaml");
+    const changedPath = path.join(tempRoot, "changed-files.txt");
+    await writeFile(
+      configPath,
+      `project:
+  name: docs-only
+targets:
+  local:
+    kind: command
+    serve: "npm run preview"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+selection:
+  ignoreChangedFiles:
+    - pattern: "docs/**"
+      reason: "documentation-only"
+    - pattern: "**/*.md"
+      reason: "markdown-only"
+    - pattern: "*.md"
+      reason: "root markdown-only"
+`,
+      "utf8"
+    );
+    await writeFile(changedPath, "docs/visual-hive.md\nREADME.md\n", "utf8");
+
+    const plan = await runPlanCommand({ config: configPath, cwd: tempRoot, mode: "pr", changedFiles: changedPath });
+    const summary = await readFile(path.join(tempRoot, ".visual-hive", "plan.json"), "utf8");
+    const exitCode = await runDeterministicCommand({ config: configPath, cwd: tempRoot });
+    const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
+
+    expect(plan.items).toEqual([]);
+    expect(plan.effectiveChangedFiles).toEqual([]);
+    expect(plan.ignoredChangedFiles.map((entry) => entry.file)).toEqual(["README.md", "docs/visual-hive.md"]);
+    expect(summary).toContain("ignoredChangedFiles");
+    expect(exitCode).toBe(0);
+    expect(report.status).toBe("passed");
+    expect(report.results).toEqual([]);
+    expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
   });
 
   it("fails clearly when no contracts are selected", async () => {
@@ -1035,6 +1085,8 @@ mutation:
       mode: "manual",
       generatedAt: "2026-01-01T00:00:00.000Z",
       changedFiles: [],
+      effectiveChangedFiles: [],
+      ignoredChangedFiles: [],
       targets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "medium" }],
       items: [
         {

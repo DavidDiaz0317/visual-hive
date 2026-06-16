@@ -163,6 +163,7 @@ export interface Report {
   artifacts: string[];
   providerResults?: ProviderResult[];
   reproductionCommands: string[];
+  noContractsReason?: string;
 }
 
 export interface MutationResult {

@@ -222,6 +222,11 @@ export const SelectionRuleSchema = z.object({
   risk: SeveritySchema.default("medium")
 });
 
+export const IgnoredChangedFileRuleSchema = z.object({
+  pattern: z.string().min(1),
+  reason: z.string().min(1).default("changed file is ignored for visual planning")
+});
+
 export const VisualHiveConfigSchema = z.object({
   project: z.object({
     name: z.string().min(1),
@@ -240,10 +245,11 @@ export const VisualHiveConfigSchema = z.object({
   visual: VisualConfigSchema,
   selection: z
     .object({
-      changedFiles: z.array(SelectionRuleSchema).optional().default([])
+      changedFiles: z.array(SelectionRuleSchema).optional().default([]),
+      ignoreChangedFiles: z.array(IgnoredChangedFileRuleSchema).optional().default([])
     })
     .optional()
-    .default({ changedFiles: [] }),
+    .default({ changedFiles: [], ignoreChangedFiles: [] }),
   mutation: z
     .object({
       enabled: z.boolean().default(false),

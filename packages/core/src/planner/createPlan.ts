@@ -4,16 +4,32 @@ import { selectContractsForMutation } from "../mutations/operators.js";
 import type { CreatePlanOptions, ExcludedPlanItem, MutationPlan, Plan, PlanItem } from "./types.js";
 
 export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions): Plan {
-  const changedFiles = options.changedFiles ?? [];
+  const changedFiles = [...(options.changedFiles ?? [])].sort();
+  const ignoredChangedFiles = getIgnoredChangedFiles(config, changedFiles);
+  const ignoredFileSet = new Set(ignoredChangedFiles.map((entry) => entry.file));
+  const effectiveChangedFiles = changedFiles.filter((file) => !ignoredFileSet.has(file));
+  const onlyIgnoredChangedFiles = options.mode === "pr" && changedFiles.length > 0 && effectiveChangedFiles.length === 0 && ignoredChangedFiles.length > 0;
   const allowUnsafeTargets = options.allowUnsafeTargets ?? false;
   const selected = new Map<string, PlanItem>();
   const excluded: ExcludedPlanItem[] = [];
-  const changedFileReasons = getChangedFileReasons(config, changedFiles);
+  const changedFileReasons = getChangedFileReasons(config, effectiveChangedFiles);
   const mutationModeReasons = options.mode === "mutation" ? getMutationModeReasons(config) : new Map<string, string[]>();
 
   for (const contract of config.contracts) {
     const target = config.targets[contract.target];
     const reasons: string[] = [];
+
+    if (onlyIgnoredChangedFiles && contract.runOn.pullRequest) {
+      excluded.push({
+        contractId: contract.id,
+        targetId: contract.target,
+        reasons: [
+          "all changed files matched selection.ignoreChangedFiles",
+          ...ignoredChangedFiles.map((entry) => `ignored:${entry.file}:matches=${entry.pattern}:reason=${entry.reason}`)
+        ]
+      });
+      continue;
+    }
 
     if (options.mode === "pr" && contract.runOn.pullRequest) {
       reasons.push("runOn.pullRequest=true");
@@ -78,6 +94,8 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     mode: options.mode,
     generatedAt: (options.now ?? new Date()).toISOString(),
     changedFiles,
+    effectiveChangedFiles,
+    ignoredChangedFiles,
     targets: unique(items.map((item) => item.targetId))
       .sort()
       .map((targetId) => {
@@ -95,6 +113,18 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     excluded,
     mutation: createMutationPlan(config, options)
   };
+}
+
+function getIgnoredChangedFiles(config: VisualHiveConfig, changedFiles: string[]): Plan["ignoredChangedFiles"] {
+  const ignored: Plan["ignoredChangedFiles"] = [];
+  for (const file of changedFiles) {
+    const normalizedFile = normalizePath(file);
+    const match = config.selection.ignoreChangedFiles.find((rule) => minimatch(normalizedFile, normalizePath(rule.pattern), { dot: true }));
+    if (match) {
+      ignored.push({ file, pattern: match.pattern, reason: match.reason });
+    }
+  }
+  return ignored;
 }
 
 function getChangedFileReasons(config: VisualHiveConfig, changedFiles: string[]): Map<string, string[]> {

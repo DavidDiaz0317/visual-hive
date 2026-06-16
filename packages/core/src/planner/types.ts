@@ -38,12 +38,20 @@ export interface MutationPlan {
   reasons: string[];
 }
 
+export interface IgnoredChangedFile {
+  file: string;
+  pattern: string;
+  reason: string;
+}
+
 export interface Plan {
   schemaVersion: 1;
   project: string;
   mode: PlanMode;
   generatedAt: string;
   changedFiles: string[];
+  effectiveChangedFiles: string[];
+  ignoredChangedFiles: IgnoredChangedFile[];
   targets: PlanTarget[];
   items: PlanItem[];
   excluded: ExcludedPlanItem[];

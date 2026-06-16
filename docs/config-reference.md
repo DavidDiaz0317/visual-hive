@@ -27,6 +27,7 @@ Plan modes:
 Optional sections with defaults:
 
 - `selection.changedFiles`: maps glob patterns to contract IDs.
+- `selection.ignoreChangedFiles`: maps docs/metadata patterns to explicit PR-plan skips.
 - `visual`: controls screenshot diff thresholds and baseline update behavior.
 - `mutation`: enables mutation adequacy checks.
 - `ai`: controls prompt generation, advisory-only governance, and token/cost estimate budgets.
@@ -39,6 +40,30 @@ Target kinds:
 - `command`: optionally runs `install` and `build`, then starts one long-running `serve` command with a health `url`.
 - `commandGroup`: runs setup commands, starts named services with health URLs and optional `readinessTimeoutMs`, and then optional teardown commands.
 - `protected`: schedule/manual-only target for secret-backed environments; `url` is optional when services are configured, `cost` defaults to `expensive`, and missing `requiresSecrets` are reported by name only.
+
+Changed-file selection:
+
+```yaml
+selection:
+  ignoreChangedFiles:
+    - pattern: "docs/**"
+      reason: "documentation-only change"
+    - pattern: "**/*.md"
+      reason: "markdown-only change"
+    - pattern: "*.md"
+      reason: "root markdown-only change"
+  changedFiles:
+    - pattern: "src/components/auth/**"
+      contracts:
+        - hosted-demo-never-login
+      risk: critical
+```
+
+`ignoreChangedFiles` is an explicit exclude list for files that should not
+trigger visual QA work by themselves. When a PR's entire changed-file set
+matches these rules, `visual-hive plan --mode pr` writes an empty plan with
+ignored-file evidence and `visual-hive run` writes a passed no-op report without
+starting targets. Mixed changes still run the normal PR lane.
 
 Contracts support:
 

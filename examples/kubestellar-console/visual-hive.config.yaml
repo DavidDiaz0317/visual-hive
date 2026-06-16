@@ -242,6 +242,13 @@ visual:
   artifactDir: ".visual-hive/artifacts"
 
 selection:
+  ignoreChangedFiles:
+    - pattern: "docs/**"
+      reason: "documentation-only change"
+    - pattern: "**/*.md"
+      reason: "markdown-only change"
+    - pattern: "*.md"
+      reason: "root markdown-only change"
   changedFiles:
     - pattern: "docs/**"
       contracts: []

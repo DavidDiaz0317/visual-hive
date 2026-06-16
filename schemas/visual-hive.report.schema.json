@@ -43,7 +43,8 @@
     "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
     "artifacts": { "type": "array", "items": { "type": "string" } },
     "providerResults": { "type": "array", "items": { "$ref": "#/$defs/providerResult" } },
-    "reproductionCommands": { "type": "array", "items": { "type": "string" } }
+    "reproductionCommands": { "type": "array", "items": { "type": "string" } },
+    "noContractsReason": { "type": "string" }
   },
   "$defs": {
     "runtimeError": {

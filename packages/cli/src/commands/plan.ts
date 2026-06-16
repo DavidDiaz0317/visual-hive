@@ -21,7 +21,7 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
     changedFiles,
     allowUnsafeTargets: options.allowUnsafeTargets
   });
-  if (plan.items.length === 0) {
+  if (plan.items.length === 0 && !isIntentionalIgnoredFilesPlan(plan)) {
     const excluded = plan.excluded.length
       ? ` Excluded contracts: ${plan.excluded.map((item) => `${item.contractId} (${item.reasons.join("; ")})`).join(", ")}.`
       : "";
@@ -49,6 +49,12 @@ export function formatPlanSummary(plan: Plan): string {
     `Targets selected: ${plan.targets.map((target) => target.id).join(", ") || "none"}`,
     `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.map((operator) => mutationOperatorId(operator)).join(", ")})` : "disabled"}`
   ];
+  if (plan.mode === "pr" && plan.ignoredChangedFiles.length > 0) {
+    lines.push(`Ignored changed files: ${plan.ignoredChangedFiles.length}`);
+    for (const ignored of plan.ignoredChangedFiles) {
+      lines.push(`- ${ignored.file} ignored by ${ignored.pattern}: ${ignored.reason}`);
+    }
+  }
   for (const item of plan.items) {
     lines.push(`- ${item.contractId} on ${item.targetId} [${item.cost}] because ${item.reasons.join("; ")}`);
   }
@@ -59,6 +65,10 @@ export function formatPlanSummary(plan: Plan): string {
     }
   }
   return lines.join("\n");
+}
+
+export function isIntentionalIgnoredFilesPlan(plan: Plan): boolean {
+  return plan.mode === "pr" && plan.changedFiles.length > 0 && plan.effectiveChangedFiles.length === 0 && plan.ignoredChangedFiles.length > 0;
 }
 
 async function resolveChangedFiles(options: PlanCommandOptions, cwd: string, defaultBranch: string): Promise<string[]> {

@@ -119,6 +119,8 @@ Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected ta
 
 Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use `canary` for cheap scheduled public checks, `mutation` for mutation-applicable contracts, and `full` only in trusted contexts where protected targets and cost are acceptable.
 
+Changed-file selection can also define `selection.ignoreChangedFiles` for docs-only or metadata-only patterns. If every changed file matches that explicit ignore list in PR mode, Visual Hive writes an empty plan plus a passed no-op report instead of starting target servers.
+
 ## Control Plane UI
 
 Start the local UI for a repository:

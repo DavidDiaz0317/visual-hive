@@ -46,7 +46,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "changedFiles": { "type": "array", "items": { "$ref": "#/$defs/changedFileRule" } }
+        "changedFiles": { "type": "array", "items": { "$ref": "#/$defs/changedFileRule" } },
+        "ignoreChangedFiles": { "type": "array", "items": { "$ref": "#/$defs/ignoredChangedFileRule" } }
       }
     },
     "mutation": {
@@ -332,6 +333,15 @@
         "pattern": { "type": "string", "minLength": 1 },
         "contracts": { "type": "array", "items": { "type": "string" } },
         "risk": { "$ref": "#/$defs/severity" }
+      }
+    },
+    "ignoredChangedFileRule": {
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1, "default": "changed file is ignored for visual planning" }
       }
     },
     "mutationOperator": {

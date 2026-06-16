@@ -93,6 +93,20 @@ function sampleConfig(): VisualHiveConfig {
       desktop: { width: 1440, height: 900 }
     },
     selection: {
+      ignoreChangedFiles: [
+        {
+          pattern: "docs/**",
+          reason: "documentation-only"
+        },
+        {
+          pattern: "**/*.md",
+          reason: "markdown-only"
+        },
+        {
+          pattern: "*.md",
+          reason: "root markdown-only"
+        }
+      ],
       changedFiles: [
         {
           pattern: "src/**",
@@ -135,6 +149,27 @@ describe("config validation", () => {
       snapshotDir: ".visual-hive/snapshots",
       artifactDir: ".visual-hive/artifacts"
     });
+  });
+
+  it("applies ignored changed-file defaults and validation", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      selection: {
+        ignoreChangedFiles: [{ pattern: "docs/**" }]
+      }
+    });
+    expect(config.selection.ignoreChangedFiles[0]).toEqual({
+      pattern: "docs/**",
+      reason: "changed file is ignored for visual planning"
+    });
+    expect(() =>
+      VisualHiveConfigSchema.parse({
+        ...sampleConfig(),
+        selection: {
+          ignoreChangedFiles: [{ pattern: "" }]
+        }
+      })
+    ).toThrow();
   });
 
   it("validates contract flow steps", () => {
@@ -395,7 +430,12 @@ contracts:
       mode: "pr",
       changedFiles: ["docs/getting-started.md"]
     });
-    expect(docsPlan.items.every((item) => item.cost !== "expensive")).toBe(true);
+    expect(docsPlan.items).toEqual([]);
+    expect(docsPlan.effectiveChangedFiles).toEqual([]);
+    expect(docsPlan.ignoredChangedFiles[0]).toMatchObject({ file: "docs/getting-started.md", pattern: "docs/**" });
+    expect(docsPlan.excluded.map((item) => item.reasons.join(";"))).toContainEqual(
+      expect.stringContaining("all changed files matched selection.ignoreChangedFiles")
+    );
   });
 });
 
@@ -495,7 +535,28 @@ describe("planner", () => {
     const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: ["src/App.tsx"] });
     expect(plan.items.map((item) => item.contractId)).toContain("changed-contract");
   });
-});
+
+  it("writes an intentional empty PR plan when every changed file is ignored", () => {
+    const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: ["docs/guide.md", "README.md"] });
+
+    expect(plan.items).toEqual([]);
+    expect(plan.changedFiles).toEqual(["README.md", "docs/guide.md"]);
+    expect(plan.effectiveChangedFiles).toEqual([]);
+    expect(plan.ignoredChangedFiles.map((entry) => entry.file)).toEqual(["README.md", "docs/guide.md"]);
+    expect(plan.excluded.find((item) => item.contractId === "safe-contract")?.reasons).toContain(
+      "all changed files matched selection.ignoreChangedFiles"
+    );
+  });
+
+  it("keeps normal PR selection when ignored files are mixed with app changes", () => {
+    const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: ["docs/guide.md", "src/App.tsx"] });
+
+    expect(plan.effectiveChangedFiles).toEqual(["src/App.tsx"]);
+    expect(plan.ignoredChangedFiles.map((entry) => entry.file)).toEqual(["docs/guide.md"]);
+    expect(plan.items.map((item) => item.contractId)).toContain("safe-contract");
+    expect(plan.items.map((item) => item.contractId)).toContain("changed-contract");
+  });
+  });
 
 describe("coverage analysis", () => {
   it("summarizes targets, selected contracts, routes, viewports, and changed-file gaps", () => {
@@ -515,7 +576,7 @@ describe("coverage analysis", () => {
       routesCovered: 1,
       viewportsCovered: 1,
       matchedChangedFileRules: 1,
-      unmatchedChangedFiles: 1
+      unmatchedChangedFiles: 0
     });
     expect(coverage.targets.find((target) => target.id === "safe")?.selectedContractIds.sort()).toEqual(["changed-contract", "safe-contract"]);
     expect(coverage.contracts.find((contract) => contract.id === "unsafe-contract")?.excludedReasons).toContain("target.prSafe=false");
@@ -525,7 +586,7 @@ describe("coverage analysis", () => {
       matchedFiles: ["src/App.tsx"],
       selectedContracts: ["changed-contract"]
     });
-    expect(coverage.uncoveredAreas.map((gap) => gap.kind)).toContain("changed_file_without_rule");
+    expect(coverage.uncoveredAreas.map((gap) => gap.kind)).not.toContain("changed_file_without_rule");
   });
 });
 

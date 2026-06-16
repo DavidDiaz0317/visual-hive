@@ -310,6 +310,8 @@ describe("buildSpecContent", () => {
       mode: "pr" as const,
       generatedAt: "2026-01-01T00:00:00.000Z",
       changedFiles: [],
+      effectiveChangedFiles: [],
+      ignoredChangedFiles: [],
       targets: [{ id: "local", kind: "command", url: "http://127.0.0.1:9?token=abc", prSafe: true, cost: "medium" }],
       items: [
         {

@@ -14,6 +14,8 @@ Safe PR targets:
 
 PR contracts include hosted demo no-login checks, fake OAuth flow checks, dashboard/card screenshots, cluster fixture screenshots, and mobile overflow screenshots.
 
+Docs-only PRs are intentionally modeled as a no-op. The config uses `selection.ignoreChangedFiles` for `docs/**` and Markdown-only changes, so `sample-docs-changed-files.txt` writes an empty plan with ignored-file evidence and `visual-hive run` writes a passed no-op report without starting preview or fullstack targets.
+
 Sample local planning commands:
 
 ```bash
