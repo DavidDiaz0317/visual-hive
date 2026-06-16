@@ -215,17 +215,28 @@ function runbook() {
   const laneOrder = ["local", "pull_request", "ci", "schedule", "protected", "triage", "ui"];
   const laneCards = laneOrder
     .filter(lane => commandsByLane[lane]?.length)
-    .map(lane => card(laneLabel(lane), table(["Command", "Safety", "Secrets", "Artifacts", "Copy"], commandsByLane[lane].map(command => [
+    .map(lane => card(laneLabel(lane), table(["Command", "Safety", "Secrets", "Artifacts", "Actions"], commandsByLane[lane].map(command => [
       '<b>' + esc(command.label) + '</b><p class="muted">' + esc(command.description) + '</p><pre>' + esc(command.command) + '</pre><p class="muted">cwd: ' + esc(command.cwd) + '</p>',
       safetyBadge(command.safety),
       command.requiredSecrets?.length ? esc(command.requiredSecrets.join(", ")) : '<span class="ok">none</span>',
       command.expectedArtifacts?.length ? command.expectedArtifacts.map(path => '<code>' + esc(path) + '</code>').join("<br>") : '<span class="muted">none</span>',
-      copyButton(command.command, command.label)
+      runbookActions(command)
     ]))));
   return '<div class="section">' +
-    card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. These commands are explicit operator guidance; the Control Plane does not execute trusted or secret-bearing lanes for you.</p>' + list(rb.notes || [])) +
+    card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. The Control Plane can execute allowlisted local commands in write mode; trusted and secret-bearing lanes remain guidance-only.</p>' + list(rb.notes || [])) +
     laneCards.join("") +
     '</div>';
+}
+
+function runbookActions(command) {
+  return '<div class="actions compact">' + copyButton(command.command, command.label) + runbookExecuteButton(command) + '</div>';
+}
+
+function runbookExecuteButton(command) {
+  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate"].includes(command.id);
+  if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
+  if (!executable || command.safety === "trusted_only" || command.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
+  return '<button class="button link-button runbook-execute" data-command="' + escAttr(command.id) + '">Run</button>';
 }
 
 function risk() {
@@ -1049,6 +1060,28 @@ function wireActions() {
     const original = button.textContent;
     button.textContent = "Copied";
     setTimeout(() => { button.textContent = original || "Copy"; }, 1200);
+  }));
+  document.querySelectorAll(".runbook-execute").forEach((button) => button.addEventListener("click", async () => {
+    const commandId = button.dataset.command;
+    if (!commandId) return;
+    if (!confirm("Run Visual Hive command " + commandId + " locally? This executes the selected repository's configured commands when the runbook command requires it.")) return;
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Running...";
+    const response = await fetch(apiUrl("/api/runbook/execute"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commandId })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.execution?.status === "failed") {
+      button.textContent = "Failed";
+      alert(payload.execution?.message || payload.error || "Runbook command failed.");
+      return;
+    }
+    button.textContent = "Done";
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    setTimeout(() => { button.textContent = original || "Run"; render(); }, 800);
   }));
   document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {
     const key = select.dataset.filter;

@@ -17,7 +17,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## What It Shows
 
 - Overview health score with explainable next actions
-- Runbook commands for local readiness, PR planning, CI deterministic checks, mutation adequacy, triage/reporting, protected scheduled lanes, and opening the Control Plane
+- Runbook commands for local readiness, PR planning, CI deterministic checks, mutation adequacy, triage/reporting, protected scheduled lanes, and opening the Control Plane. In write mode, the UI can execute a small allowlist of local Visual Hive commands by command ID and records sanitized output in `.visual-hive/control-plane-actions.json`.
 - Risk Register from `.visual-hive/risk.json` or the same core analyzer over loaded artifacts, ranking deterministic failures, baseline review needs, mutation adequacy, coverage gaps, target safety, workflow safety, environment gaps, and provider policy. Each risk row links into the related Contracts, Targets, Failure Inbox, Baselines, Coverage, GitHub/CI, Providers, or Raw Artifacts view.
 - Setup recommendations from `.visual-hive/recommendations.json`, including a guided checklist for repository inspection, PR-safe target selection, starter contracts, PR safety, setup file generation, local validation, setup profile, provider posture, cost estimate, permission guidance, setup PR guidance, and guarded actions to write the recommended config and repo setup docs
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
@@ -57,8 +57,10 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup docs generation reads only `.visual-hive/recommendations.json`, writes `docs/visual-hive.md`, refuses to overwrite existing docs unless the user confirms the overwrite action, and records `.visual-hive/setup-doc-edits.json`.
 - Setup PR bundle generation preflights all output files before writing. It writes `visual-hive.config.yaml`, `docs/visual-hive.md`, and the built-in PR/scheduled/trusted-issue workflow templates only after confirmation, then records `.visual-hive/setup-bundle-edits.json`.
 - Workflow template generation writes only built-in Visual Hive templates to `.github/workflows`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/workflow-edits.json`.
-- The Runbook page does not execute commands. It shows exact operator commands, safety class, expected artifacts, and required secret names so PR-safe and trusted lanes stay separated.
+- The Runbook page executes only allowlisted local commands in write mode: doctor, PR plan, deterministic CI run, triage/report, and mutation adequacy. It never executes trusted/protected lanes, secret-bearing lanes, or arbitrary browser-supplied shell text.
+- Runbook execution records a bounded, sanitized audit trail in `.visual-hive/control-plane-actions.json`. Secret-like values in stdout/stderr are redacted before the action history is written or returned to the browser.
 - `--read-only` disables write actions such as baseline review decisions, setup config/docs generation, workflow template generation, config saving, and connection add/remove.
+- `--read-only` also disables runbook execution; the Runbook remains copy-only in that mode.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 
 ## Baseline Approval

@@ -28,6 +28,8 @@ export interface ControlPlaneOptions {
   open?: boolean;
   readOnly?: boolean;
   demo?: boolean;
+  cliPath?: string;
+  commandRunner?: ControlPlaneCommandRunner;
 }
 
 export interface ResolvedControlPlaneOptions {
@@ -98,6 +100,49 @@ export interface ControlPlaneRunbookCommand {
   safety: "pr_safe" | "trusted_only" | "local_only";
   description: string;
   requiredSecrets: string[];
+  expectedArtifacts: string[];
+}
+
+export interface ControlPlaneCommandRunnerInput {
+  commandId: string;
+  stepId: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+
+export interface ControlPlaneCommandRunnerResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export type ControlPlaneCommandRunner = (input: ControlPlaneCommandRunnerInput) => Promise<ControlPlaneCommandRunnerResult>;
+
+export interface ControlPlaneCommandStepResult {
+  stepId: string;
+  command: string;
+  args: string[];
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+}
+
+export interface ControlPlaneCommandExecution {
+  schemaVersion: 1;
+  commandId: string;
+  label: string;
+  status: "passed" | "failed" | "blocked";
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  cwd: string;
+  safety: ControlPlaneRunbookCommand["safety"];
+  readOnly: boolean;
+  message: string;
+  steps: ControlPlaneCommandStepResult[];
   expectedArtifacts: string[];
 }
 

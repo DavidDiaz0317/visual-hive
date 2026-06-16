@@ -844,6 +844,130 @@ contracts:
     }
   });
 
+  it("executes allowlisted runbook commands through the local API and records sanitized output", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[]; cwd: string }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args, cwd: input.cwd });
+        return {
+          exitCode: 0,
+          stdout: "doctor ok token=secret-token authorization: Bearer secret-value",
+          stderr: "cookie=session-secret"
+        };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "doctor" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.steps[0].stdout).toContain("[REDACTED]");
+      expect(payload.execution.steps[0].stdout).not.toContain("secret-token");
+      expect(payload.execution.steps[0].stderr).not.toContain("session-secret");
+      expect(calls[0]).toMatchObject({
+        commandId: "doctor",
+        stepId: "doctor",
+        cwd: fixture.repoRoot
+      });
+      expect(calls[0]?.args).toContain("doctor");
+      expect(calls[0]?.args).toContain("--config");
+      expect(calls[0]?.args).toContain(path.resolve(fixture.configPath));
+
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "control-plane-actions.json"), "utf8");
+      expect(audit).toContain('"commandId": "doctor"');
+      expect(audit).toContain("[REDACTED]");
+      expect(audit).not.toContain("secret-value");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks runbook execution in read-only mode", async () => {
+    const fixture = await makeFixture();
+    let called = false;
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      readOnly: true,
+      commandRunner: async () => {
+        called = true;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "doctor" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("read-only");
+      expect(called).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps trusted protected runbook commands guidance-only", async () => {
+    const fixture = await makeFixture();
+    const config = await readFile(fixture.configPath, "utf8");
+    await writeFile(
+      fixture.configPath,
+      config.replace(
+        "contracts:\n",
+        `  liveCluster:
+    kind: protected
+    url: "https://cluster.example.invalid"
+    requiresSecrets:
+      - KUBECONFIG
+    schedule: "0 6 * * *"
+    cost: expensive
+contracts:
+`
+      ),
+      "utf8"
+    );
+    let called = false;
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async () => {
+        called = true;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "schedule-protected" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("guidance-only");
+      expect(JSON.stringify(payload)).not.toContain("secret-token");
+      expect(called).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("blocks connection writes in read-only mode", async () => {
     const manager = await makeFixture();
     const connected = await makeFixture();
@@ -906,6 +1030,8 @@ contracts:
       expect(appJs).toContain("function providerInspectionPolicy");
       expect(appJs).toContain("Playwright remains local and deterministic");
       expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("runbook-execute");
+      expect(appJs).toContain("/api/runbook/execute");
       expect(appJs).toContain("Guided setup checklist");
       expect(appJs).toContain("function setupChecklist");
       expect(appJs).toContain("function setupStatusBadge");
@@ -950,6 +1076,8 @@ contracts:
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");
     expect(controlPlaneJs).toContain("function runbook");
+    expect(controlPlaneJs).toContain("function runbookExecuteButton");
+    expect(controlPlaneJs).toContain("/api/runbook/execute");
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function risk");
