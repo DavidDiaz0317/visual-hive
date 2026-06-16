@@ -551,6 +551,10 @@ describe("control plane", () => {
     expect(snapshot.targets).toHaveLength(1);
     expect(snapshot.contracts).toHaveLength(1);
     expect(snapshot.providers.find((provider) => provider.id === "playwright")?.availability).toBe("available");
+    expect(snapshot.providers.find((provider) => provider.id === "argos")?.costPolicy.externalUploadAllowed).toBe(false);
+    expect(snapshot.providers.find((provider) => provider.id === "argos")?.costPolicy.blockedReasons).toContain(
+      "costPolicy.externalUpload.onFailureOnly=true and deterministic status is passed."
+    );
     expect(snapshot.report?.providerResults?.[0]?.status).toBe("passed");
     expect(snapshot.triageReport?.summary.findingCount).toBe(1);
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
@@ -896,6 +900,11 @@ contracts:
       expect(appJs).toContain("workflow-write-all");
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Provider plan policy");
+      expect(appJs).toContain("External upload guardrails");
+      expect(appJs).toContain("function providerCostPolicyCard");
+      expect(appJs).toContain("function providerCredentialSummary");
+      expect(appJs).toContain("function providerInspectionPolicy");
+      expect(appJs).toContain("Playwright remains local and deterministic");
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("Guided setup checklist");
       expect(appJs).toContain("function setupChecklist");
@@ -950,6 +959,9 @@ contracts:
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
     expect(controlPlaneJs).toContain("function writeSetupBundle");
+    expect(controlPlaneJs).toContain("function providers");
+    expect(controlPlaneJs).toContain("function providerDetailBody");
+    expect(controlPlaneJs).toContain("External upload guardrails");
     expect(controlPlaneJs).toContain("function portfolio");
     expect(controlPlaneJs).toContain("function portfolioItemRow");
     expect(controlPlaneJs).toContain("function connectionHealthBadge");

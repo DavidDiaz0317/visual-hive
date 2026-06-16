@@ -657,11 +657,80 @@ function llm() {
 
 function providers() {
   if (!snapshot.providers.length) return empty("No provider config loaded.");
-  return card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Missing env", "Supports"], snapshot.providers.map(p => [p.label, p.enabled ? "yes" : "no", p.availability, p.mode, p.deterministicRole, p.missingEnv.join(", ") || "none", p.supports.join(", ")]))) +
+  const enabled = snapshot.providers.filter(p => p.enabled || p.id === "playwright");
+  const missing = snapshot.providers.filter(p => p.missingEnv?.length);
+  const policyBlocked = snapshot.providers.filter(p => p.availability === "policy_blocked");
+  return '<div class="grid">' +
+    metric("Providers", snapshot.providers.length, "") +
+    metric("Enabled", enabled.length, "") +
+    metric("Missing credentials", missing.length, missing.length ? "warn" : "ok") +
+    metric("Policy blocked", policyBlocked.length, policyBlocked.length ? "warn" : "ok") +
+    '</div><div class="section" style="margin-top:14px">' +
+    providerCostPolicyCard() +
+    card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Credentials", "External upload", "Supports"], snapshot.providers.map(p => [
+      '<b>' + esc(p.label) + '</b><p class="muted">' + esc(p.docs) + '</p>',
+      p.enabled ? "yes" : "no",
+      p.availability,
+      p.mode,
+      p.deterministicRole,
+      providerCredentialSummary(p),
+      providerInspectionPolicy(p),
+      p.supports.join(", ")
+    ]))) +
     providerPlanPolicyCard(snapshot.plan?.providerPolicy) +
     providerResultsCard(snapshot.report?.providerResults) +
     providerRunResultsCard(snapshot.providerRunReport) +
-    '<div class="grid" style="margin-top:14px">' + snapshot.providers.map(p => card(p.label, '<p><b>Status:</b> ' + esc(p.availability) + '</p><p>' + esc(p.message) + '</p><p class="muted">' + esc(p.docs) + '</p>')).join("") + '</div>';
+    '<div class="grid" style="margin-top:14px">' + snapshot.providers.map(p => card(p.label, providerDetailBody(p))).join("") + '</div>' +
+    '</div>';
+}
+
+function providerCostPolicyCard() {
+  const policy = snapshot.config?.costPolicy;
+  if (!policy) return card("External upload guardrails", '<p class="muted">No cost policy loaded. External providers remain optional and disabled by default.</p>');
+  return card("External upload guardrails", table(["Policy", "Value"], [
+    ["PR uploads", policy.externalUpload?.pullRequest ? "allowed" : "blocked"],
+    ["Scheduled uploads", policy.externalUpload?.schedule ? "allowed" : "blocked"],
+    ["Manual uploads", policy.externalUpload?.manual ? "allowed" : "blocked"],
+    ["Failure-only", policy.externalUpload?.onFailureOnly ? "yes" : "no"],
+    ["Critical contracts only", policy.externalUpload?.criticalContractsOnly ? "yes" : "no"],
+    ["Max external screenshots/run", String(policy.maxExternalScreenshotsPerRun)],
+    ["Max monthly external screenshots", String(policy.maxMonthlyExternalScreenshots)]
+  ]) + '<p class="muted">Playwright remains local and deterministic. Hosted providers are supplemental and require explicit config plus credential names.</p>');
+}
+
+function providerCredentialSummary(provider) {
+  const required = provider.requiredEnv || [];
+  const missing = provider.missingEnv || [];
+  if (!required.length) return '<span class="ok">none required</span>';
+  return '<p>Required names: ' + esc(required.join(", ")) + '</p>' +
+    (missing.length ? '<p class="warn">Missing names: ' + esc(missing.join(", ")) + '</p>' : '<p class="ok">Credential names present</p>');
+}
+
+function providerInspectionPolicy(provider) {
+  if (provider.id === "playwright") return '<span class="ok">local only</span>';
+  const policy = provider.costPolicy;
+  if (!provider.enabled) return '<span class="muted">disabled</span>';
+  if (!policy) return '<span class="muted">not evaluated</span>';
+  const allowed = policy.externalUploadAllowed;
+  const reasons = policy.blockedReasons || [];
+  return '<span class="' + (allowed ? "ok" : "warn") + '">' + (allowed ? "allowed" : "blocked") + '</span>' +
+    '<p class="muted">' + esc(policy.estimatedExternalScreenshots) + " estimated screenshot(s), max " + esc(policy.maxExternalScreenshotsPerRun) + "/run</p>" +
+    (reasons.length ? '<p class="muted">' + esc(reasons.join(" ")) + '</p>' : "");
+}
+
+function providerDetailBody(provider) {
+  const policy = provider.costPolicy;
+  return '<p><b>Status:</b> ' + esc(provider.availability) + ' <b>Mode:</b> ' + esc(provider.mode) + '</p>' +
+    '<p>' + esc(provider.message) + '</p>' +
+    table(["Field", "Value"], [
+      ["Deterministic role", esc(provider.deterministicRole)],
+      ["Credential names", providerCredentialSummary(provider)],
+      ["External upload", providerInspectionPolicy(provider)],
+      ["Estimated screenshots", esc(policy?.estimatedExternalScreenshots ?? "n/a")],
+      ["Run limit", esc(policy?.maxExternalScreenshotsPerRun ?? "n/a")],
+      ["Monthly limit", esc(policy?.maxMonthlyExternalScreenshots ?? "n/a")],
+      ["Supported actions", esc((provider.supports || []).join(", ") || "none")]
+    ]);
 }
 
 function providerPlanPolicyCard(policy) {
