@@ -424,10 +424,21 @@ function workflowTemplatesCard() {
   const templates = snapshot.workflowTemplates || [];
   if (!templates.length) return card("Workflow templates", '<p class="muted">No built-in workflow templates were loaded.</p>');
   return '<div class="section">' + card("Workflow templates", '<p class="muted">Copy these snippets into the target repository or run <code>visual-hive init</code>. PR execution stays read-only and no-secret; issue creation belongs in the trusted workflow_run lane.</p>' +
-    table(["Template", "Path", "Purpose", "Safety", "Copy"], templates.map(t => [esc(t.label), esc(t.path), esc(t.description), list(t.safetyNotes), copyButton(t.content, t.label + " workflow")])) +
-    '<p class="muted">For production supply-chain hardening, pin GitHub Actions by SHA after adopting a template.</p>') +
+    workflowTemplateActions() +
+    table(["Template", "Path", "Purpose", "Safety", "Actions"], templates.map(t => [esc(t.label), esc(t.path), esc(t.description), list(t.safetyNotes), copyButton(t.content, t.label + " workflow") + workflowTemplateWriteButton(t)])) +
+    '<p class="muted">For production supply-chain hardening, pin GitHub Actions by SHA after adopting a template.</p><pre id="workflow-template-status" class="muted">Workflow writes require confirmation and record .visual-hive/workflow-edits.json.</pre>') +
     templates.map(t => card(t.label + " snippet", '<p class="muted">' + esc(t.path) + '</p><pre>' + esc(t.content) + '</pre>')).join("") +
     '</div>';
+}
+
+function workflowTemplateActions() {
+  if (snapshot.readOnly) return '<p class="muted">Read-only mode disables workflow template writes.</p>';
+  return '<div class="actions"><button id="workflow-write-all" class="button">Write all templates</button><button id="workflow-overwrite-all" class="button">Overwrite all after review</button></div>';
+}
+
+function workflowTemplateWriteButton(template) {
+  if (snapshot.readOnly) return "";
+  return ' <button class="button workflow-write-one" data-template="' + escAttr(template.id) + '">Write</button>';
 }
 
 function workflowAuditCard() {
@@ -622,6 +633,11 @@ function wireActions() {
   if (save) save.addEventListener("click", () => validateConfigDraft(true));
   const setupWrite = document.querySelector("#setup-write-config");
   if (setupWrite) setupWrite.addEventListener("click", () => writeRecommendedConfig());
+  const workflowWriteAll = document.querySelector("#workflow-write-all");
+  if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
+  const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
+  if (workflowOverwriteAll) workflowOverwriteAll.addEventListener("click", () => writeWorkflowTemplates(true));
+  document.querySelectorAll(".workflow-write-one").forEach((button) => button.addEventListener("click", () => writeWorkflowTemplates(false, [button.dataset.template])));
   document.querySelectorAll(".copy-button").forEach((button) => button.addEventListener("click", async () => {
     const value = button.dataset.copy || "";
     await copyText(value);
@@ -699,6 +715,35 @@ function wireActions() {
     snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
     render();
   });
+}
+
+async function writeWorkflowTemplates(force, templateIds) {
+  const status = document.querySelector("#workflow-template-status");
+  if (!status) return;
+  const label = templateIds && templateIds.length ? "selected workflow template" : "all Visual Hive workflow templates";
+  const promptText = force
+    ? "Overwrite " + label + " after reviewing the snippets on this page?"
+    : "Write " + label + " without overwriting existing files?";
+  if (!confirm(promptText)) return;
+  status.className = "muted";
+  status.textContent = force ? "Writing workflow templates with overwrite enabled..." : "Writing workflow templates...";
+  const response = await fetch(apiUrl("/api/workflows/write-templates"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true, force, templateIds: (templateIds || []).filter(Boolean) })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Workflow template write failed.";
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Wrote " + payload.written.length + " workflow template(s). Audit: " + payload.auditPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
 }
 
 async function writeRecommendedConfig() {

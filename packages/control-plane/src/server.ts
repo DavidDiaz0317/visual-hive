@@ -7,6 +7,7 @@ import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup }
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
 import type { ControlPlaneOptions, ResolvedControlPlaneOptions, StartedControlPlane } from "./types.js";
+import { writeWorkflowTemplates } from "./workflowWriter.js";
 
 export async function startControlPlaneServer(options: ControlPlaneOptions = {}): Promise<StartedControlPlane> {
   const server = http.createServer((request, response) => {
@@ -136,6 +137,30 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       }
       try {
         const result = await writeRecommendedConfigFromSetup(await optionsForRequest(options, url), true, body.force === true);
+        sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/workflows/write-templates") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to write workflow templates." }, 403);
+        return;
+      }
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Workflow template writes require explicit confirmation after reviewing the templates." }, 400);
+        return;
+      }
+      try {
+        const result = await writeWorkflowTemplates(await optionsForRequest(options, url), {
+          confirm: true,
+          force: body.force === true,
+          templateIds: optionalStringArray(body.templateIds)
+        });
         sendJson(response, result);
       } catch (error) {
         sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);

@@ -592,6 +592,8 @@ describe("control plane", () => {
       expect(appJs).toContain("Diff pixels");
       expect(appJs).toContain("Workflow templates");
       expect(appJs).toContain("trusted workflow_run lane");
+      expect(appJs).toContain("/api/workflows/write-templates");
+      expect(appJs).toContain("workflow-write-all");
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Setup PR guidance");
       expect(appJs).toContain("setup-write-config");
@@ -779,6 +781,67 @@ describe("control plane", () => {
     }
   });
 
+  it("writes built-in workflow templates through the local API", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["scheduled"] })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(200);
+      expect(payload.written[0].path).toBe(".github/workflows/visual-hive-scheduled.yml");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8")).resolves.toContain(
+        "Visual Hive Scheduled"
+      );
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "workflow-edits.json"), "utf8");
+      expect(audit).toContain("scheduled");
+
+      const unknown = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["missing-template"] })
+      });
+      const unknownPayload = await unknown.json();
+      expect(unknown.status).toBe(400);
+      expect(unknownPayload.error).toContain("Unknown Visual Hive workflow template id");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects existing workflow templates unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const workflowPath = path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml");
+    const original = await readFile(workflowPath, "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["pull_request"] })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing workflow template");
+      await expect(readFile(workflowPath, "utf8")).resolves.toBe(original);
+
+      const forced = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true, templateIds: ["pull_request"] })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.written[0].overwritten).toBe(true);
+      await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects invalid config drafts and blocks config saves in read-only mode", async () => {
     const fixture = await makeFixture();
     const invalidDraft = "project:\n  name: broken\ncontracts: []\ntargets: {}\n";
@@ -806,6 +869,13 @@ describe("control plane", () => {
         body: JSON.stringify({ confirm: true, force: true })
       });
       expect(setupBlocked.status).toBe(403);
+
+      const workflowsBlocked = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(workflowsBlocked.status).toBe(403);
     } finally {
       await server.close();
     }

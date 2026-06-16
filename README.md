@@ -149,11 +149,11 @@ Local development without publishing:
 node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only
 ```
 
-The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can generate a recommended config from `.visual-hive/recommendations.json`, explicitly approve or reject reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
+The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can generate a recommended config from `.visual-hive/recommendations.json`, write built-in safe workflow templates into `.github/workflows`, explicitly approve or reject reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
 
 ## GitHub Actions
 
-Use the templates in `templates/github-actions/` or run `visual-hive init`. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
+Use the templates in `templates/github-actions/`, run `visual-hive init`, or use the Control Plane GitHub / CI page to write the built-in templates after review. PR lanes should run with read-only permissions and no secrets. Scheduled or protected lanes can use trusted secrets for protected environments. Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
 Generated Visual Hive workflows also run `visual-hive workflows` before artifact upload so `.visual-hive/workflows.json` captures workflow safety evidence.
 
