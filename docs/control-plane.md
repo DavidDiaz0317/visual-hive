@@ -25,7 +25,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Baseline review with baseline, actual, diff images, diff pixel metadata, artifact path links, and copy buttons
 - Mutation adequacy score and operator outcomes
 - Coverage map from `.visual-hive/coverage.json` or the same core analyzer over configured targets, contracts, routes, viewports, changed-file rules, selected contracts, and gaps
-- Target Manager from `.visual-hive/targets.json` or the same core audit model over URL/command/commandGroup/protected targets, services, readiness checks, required secret names, lifecycle evidence, and recommendations
+- Target Manager from `.visual-hive/targets.json` or the same core audit model over URL/deploy-preview/command/commandGroup/protected targets, services, readiness checks, required secret names, lifecycle evidence, and recommendations
 - Contract Manager from `.visual-hive/contracts.json` or the same core audit model over wait selectors, assertions, screenshots, console rules, latest results, mutation mappings, and recommendations
 - Schedule Manager from `.visual-hive/schedules.json` or the same core audit model over PR, scheduled, protected, mutation, and trusted issue lanes, including secret-name-only readiness and workflow safety gaps
 - Config validation and raw YAML

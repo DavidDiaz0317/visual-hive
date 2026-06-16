@@ -8,6 +8,7 @@ import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/sch
 import { auditContracts } from "../src/contracts/audit.js";
 import { analyzeCoverage } from "../src/coverage/analyze.js";
 import { auditTargets } from "../src/targets/audit.js";
+import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
 import { createPlan } from "../src/planner/createPlan.js";
 import { calculateMutationScore } from "../src/mutations/score.js";
@@ -403,6 +404,46 @@ describe("config validation", () => {
     expect(config.targets.live.prSafe).toBe(false);
   });
 
+  it("supports deploy preview targets with PR-safe cheap defaults", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "deploy-preview-default" },
+      targets: {
+        preview: {
+          kind: "deployPreview",
+          provider: "vercel",
+          urlEnv: "VERCEL_URL"
+        }
+      },
+      contracts: [{ id: "preview", description: "Preview", target: "preview" }]
+    });
+
+    expect(config.targets.preview.kind).toBe("deployPreview");
+    expect(config.targets.preview.prSafe).toBe(true);
+    expect(config.targets.preview.cost).toBe("cheap");
+    expect(resolveTargetUrl(config.targets.preview, { VERCEL_URL: "visual-hive-preview.vercel.app" }).url).toBe(
+      "https://visual-hive-preview.vercel.app"
+    );
+  });
+
+  it("uses deploy preview templates and fallback URLs without exposing env values in reasons", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "deploy-preview-template" },
+      targets: {
+        preview: {
+          kind: "deployPreview",
+          provider: "custom",
+          urlEnv: "PREVIEW_HOST",
+          urlTemplate: "https://${PREVIEW_HOST}/console",
+          fallbackUrl: "https://fallback.example.com"
+        }
+      },
+      contracts: [{ id: "preview", description: "Preview", target: "preview" }]
+    });
+
+    expect(resolveTargetUrl(config.targets.preview, { PREVIEW_HOST: "pr-12.example.com" }).url).toBe("https://pr-12.example.com/console");
+    expect(resolveTargetUrl(config.targets.preview, {}).url).toBe("https://fallback.example.com");
+  });
+
   it("rejects unsafe visual artifact paths", () => {
     expect(() =>
       VisualHiveConfigSchema.parse({
@@ -546,6 +587,46 @@ describe("planner", () => {
     const plan = createPlan(sampleConfig(), { mode: "schedule", changedFiles: [] });
     expect(plan.items.map((item) => item.contractId)).toEqual(["safe-contract", "unsafe-contract"]);
     expect(plan.mutation.enabled).toBe(true);
+  });
+
+  it("excludes deploy preview contracts when the URL env var is missing", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "deploy-preview-plan" },
+      targets: {
+        preview: {
+          kind: "deployPreview",
+          provider: "vercel",
+          urlEnv: "VERCEL_URL"
+        }
+      },
+      contracts: [
+        {
+          id: "preview-dashboard",
+          description: "Preview dashboard",
+          target: "preview",
+          runOn: { pullRequest: true }
+        }
+      ]
+    });
+
+    const missing = createPlan(config, { mode: "pr", changedFiles: [], env: {} });
+    expect(missing.items).toEqual([]);
+    expect(missing.excluded[0]).toMatchObject({
+      contractId: "preview-dashboard",
+      reasons: expect.arrayContaining(["Deploy preview URL env var VERCEL_URL is not set and no fallbackUrl is configured."])
+    });
+
+    const resolved = createPlan(config, { mode: "pr", changedFiles: [], env: { VERCEL_URL: "preview.example.com" } });
+    expect(resolved.items[0]).toMatchObject({
+      contractId: "preview-dashboard",
+      targetUrl: "https://preview.example.com"
+    });
+    expect(resolved.targets[0]).toMatchObject({
+      kind: "deployPreview",
+      url: "https://preview.example.com",
+      prSafe: true,
+      cost: "cheap"
+    });
   });
 
   it("selects cheap scheduled PR-safe contracts in canary mode", () => {
@@ -1021,6 +1102,45 @@ describe("target audit", () => {
     expect(live?.labels).toEqual(expect.arrayContaining(["Protected", "Expensive"]));
     expect(live?.missingSecrets).toEqual(["KUBECONFIG", "KC_AGENT_TOKEN"]);
     expect(live?.gaps.map((gap) => gap.kind)).toContain("pr_contract_on_unsafe_target");
+  });
+
+  it("reports deploy preview target URL readiness by env name only", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "deploy-targets", type: "custom", defaultBranch: "main" },
+      targets: {
+        preview: {
+          kind: "deployPreview",
+          provider: "vercel",
+          urlEnv: "VERCEL_URL"
+        }
+      },
+      contracts: [
+        {
+          id: "preview-pr",
+          description: "Preview PR",
+          target: "preview",
+          runOn: { pullRequest: true }
+        }
+      ]
+    });
+
+    const missing = auditTargets(config, { env: {}, now: new Date("2026-06-15T00:00:00.000Z") });
+    expect(missing.summary.deployPreviewTargets).toBe(1);
+    expect(missing.targets[0]?.url).toBe("");
+    expect(missing.targets[0]?.gaps.map((gap) => gap.kind)).toContain("deploy_preview_url_unresolved");
+    expect(JSON.stringify(missing)).toContain("VERCEL_URL");
+
+    const ready = auditTargets(config, {
+      env: { VERCEL_URL: "secret-preview-host.vercel.app" },
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    expect(ready.targets[0]).toMatchObject({
+      kind: "deployPreview",
+      url: "https://secret-preview-host.vercel.app",
+      prSafe: true,
+      cost: "cheap"
+    });
+    expect(ready.targets[0]?.gaps.map((gap) => gap.kind)).not.toContain("deploy_preview_url_unresolved");
   });
 });
 

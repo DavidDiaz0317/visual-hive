@@ -26,6 +26,7 @@
       "additionalProperties": {
         "oneOf": [
           { "$ref": "#/$defs/urlTarget" },
+          { "$ref": "#/$defs/deployPreviewTarget" },
           { "$ref": "#/$defs/commandTarget" },
           { "$ref": "#/$defs/commandGroupTarget" },
           { "$ref": "#/$defs/protectedTarget" }
@@ -182,6 +183,23 @@
         "prSafe": { "type": "boolean", "default": false },
         "schedule": { "type": "string" },
         "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "deployPreviewTarget": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["url"] }, { "required": ["urlEnv"] }, { "required": ["fallbackUrl"] }],
+      "properties": {
+        "kind": { "const": "deployPreview" },
+        "provider": { "enum": ["vercel", "netlify", "github-pages", "custom"], "default": "custom" },
+        "url": { "type": "string", "format": "uri" },
+        "urlEnv": { "type": "string", "minLength": 1 },
+        "urlTemplate": { "type": "string", "minLength": 1 },
+        "fallbackUrl": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": true },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost", "default": "cheap" }
       }
     },
     "service": {

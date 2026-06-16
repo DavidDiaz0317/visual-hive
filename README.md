@@ -128,7 +128,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, mutation, failures, and raw artifacts.
 
-Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
+Target kinds are `url`, `deployPreview`, `command`, `commandGroup`, and `protected`. Deploy-preview targets resolve PR preview URLs from safe env-var names and default to cheap PR-safe checks; protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
 
 Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use `canary` for cheap scheduled public checks, `mutation` for mutation-applicable contracts, and `full` only in trusted contexts where protected targets and cost are acceptable.
 

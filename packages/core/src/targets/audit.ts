@@ -2,6 +2,7 @@ import type { VisualHiveConfig } from "../config/schema.js";
 import type { Plan } from "../planner/types.js";
 import type { Report, TargetLifecycleEvent } from "../reports/types.js";
 import { sanitizeText } from "../utils/sanitize.js";
+import { resolveTargetUrl } from "./resolve.js";
 
 export interface TargetAuditReport {
   schemaVersion: 1;
@@ -18,6 +19,7 @@ export interface TargetAuditSummary {
   protectedTargets: number;
   commandTargets: number;
   commandGroupTargets: number;
+  deployPreviewTargets: number;
   scheduledTargets: number;
   expensiveTargets: number;
   setupRequiredTargets: number;
@@ -75,6 +77,7 @@ export interface TargetAuditGap {
     | "setup_target_not_run"
     | "failed_lifecycle"
     | "missing_readiness_timeout"
+    | "deploy_preview_url_unresolved"
     | "expensive_pr_safe";
   severity: "low" | "medium" | "high";
   message: string;
@@ -106,6 +109,7 @@ export function auditTargets(config: VisualHiveConfig, options: AuditTargetsOpti
       const lifecycleEvents = sanitizeLifecycle((options.report?.targetLifecycle ?? []).filter((event) => event.targetId === id));
       const missingSecrets = target.kind === "protected" ? target.requiresSecrets.filter((name) => !env[name]) : [];
       const services = target.kind === "commandGroup" || target.kind === "protected" ? target.services.map(serviceAudit) : [];
+      const resolvedUrl = resolveTargetUrl(target, env);
       const targetResults = (options.report?.results ?? []).filter((result) => result.targetId === id);
       const commands = {
         install: target.kind === "command" ? sanitizeText(target.install ?? "") || undefined : undefined,
@@ -129,13 +133,14 @@ export function auditTargets(config: VisualHiveConfig, options: AuditTargetsOpti
         missingSecrets,
         lifecycleEvents,
         selected,
-        services
+        services,
+        resolvedUrlReason: resolvedUrl.url ? undefined : resolvedUrl.reason
       });
 
       return {
         id,
         kind: target.kind,
-        url: sanitizeText(primaryUrl(target)),
+        url: sanitizeText(resolvedUrl.url ?? ""),
         prSafe: target.prSafe,
         cost: target.cost,
         schedule: target.schedule,
@@ -171,6 +176,7 @@ export function auditTargets(config: VisualHiveConfig, options: AuditTargetsOpti
       protectedTargets: targets.filter((target) => target.kind === "protected").length,
       commandTargets: targets.filter((target) => target.kind === "command").length,
       commandGroupTargets: targets.filter((target) => target.kind === "commandGroup").length,
+      deployPreviewTargets: targets.filter((target) => target.kind === "deployPreview").length,
       scheduledTargets: targets.filter((target) => Boolean(target.schedule)).length,
       expensiveTargets: targets.filter((target) => target.cost === "expensive").length,
       setupRequiredTargets: targets.filter((target) => target.labels.includes("Needs setup")).length,
@@ -227,6 +233,7 @@ function collectGaps(input: {
   lifecycleEvents: TargetLifecycleEvent[];
   selected: boolean;
   services: TargetServiceAudit[];
+  resolvedUrlReason?: string;
 }): TargetAuditGap[] {
   const gaps: TargetAuditGap[] = [];
   if (input.contractIds.length === 0) {
@@ -248,6 +255,13 @@ function collectGaps(input: {
       kind: "protected_pr_safe",
       severity: "high",
       message: `Protected target "${input.id}" should not be marked prSafe.`
+    });
+  }
+  if (input.target.kind === "deployPreview" && input.resolvedUrlReason) {
+    gaps.push({
+      kind: "deploy_preview_url_unresolved",
+      severity: "medium",
+      message: `Deploy preview target "${input.id}" has no resolvable URL: ${sanitizeText(input.resolvedUrlReason)}`
     });
   }
   const prContracts = input.config.contracts.filter((contract) => contract.target === input.id && contract.runOn.pullRequest);
@@ -300,15 +314,10 @@ function recommendationsFor(targetId: string, gaps: TargetAuditGap[]): string[] 
     if (gap.kind === "setup_target_not_run") recommendations.push(`Run visual-hive run so install/build/service lifecycle evidence is captured for "${targetId}".`);
     if (gap.kind === "failed_lifecycle") recommendations.push(`Inspect target lifecycle events and server logs for "${targetId}".`);
     if (gap.kind === "missing_readiness_timeout") recommendations.push(`Set readinessTimeoutMs for services on "${targetId}" to make startup failures clearer.`);
+    if (gap.kind === "deploy_preview_url_unresolved") recommendations.push(`Set the deploy preview URL environment variable or configure fallbackUrl for "${targetId}".`);
     if (gap.kind === "expensive_pr_safe") recommendations.push(`Review whether "${targetId}" should be schedule-only or manual.`);
   }
   return [...new Set(recommendations)];
-}
-
-function primaryUrl(target: VisualHiveConfig["targets"][string]): string {
-  if (target.url) return target.url;
-  if ((target.kind === "commandGroup" || target.kind === "protected") && target.services.length > 0) return target.services[0].url;
-  return "";
 }
 
 function rank(severity: TargetAuditGap["severity"]): number {

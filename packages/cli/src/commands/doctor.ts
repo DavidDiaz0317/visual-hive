@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { loadConfig, sanitizeText } from "@visual-hive/core";
+import { loadConfig, resolveTargetUrl, sanitizeText } from "@visual-hive/core";
 
 const require = createRequire(import.meta.url);
 
@@ -41,12 +41,24 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<{ ok: bool
 
   if (loaded) {
     for (const [targetId, target] of Object.entries(loaded.config.targets)) {
-      const primaryUrl = target.url ?? ((target.kind === "commandGroup" || target.kind === "protected") ? target.services[0]?.url : undefined);
+      const primaryUrl = resolveTargetUrl(target);
       diagnostics.push({
         check: `target:${targetId}:url`,
-        ok: Boolean(primaryUrl),
-        detail: primaryUrl ? primaryUrl : "Target URL is missing"
+        ok: Boolean(primaryUrl.url),
+        detail: primaryUrl.url
+          ? target.kind === "deployPreview" && target.urlEnv && !target.url
+            ? `Resolved from deploy preview env var ${target.urlEnv}`
+            : primaryUrl.url
+          : primaryUrl.reason ?? "Target URL is missing"
       });
+      if (target.kind === "deployPreview") {
+        const envStatus = target.urlEnv ? (process.env[target.urlEnv] ? "present" : "missing") : "not configured";
+        diagnostics.push({
+          check: `target:${targetId}:deploy-preview`,
+          ok: Boolean(primaryUrl.url),
+          detail: `provider=${target.provider}; urlEnv=${target.urlEnv ?? "none"} (${envStatus}); fallback=${target.fallbackUrl ? "configured" : "none"}`
+        });
+      }
       if (target.kind === "command") {
         diagnostics.push({
           check: `target:${targetId}:serve`,

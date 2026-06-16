@@ -59,6 +59,47 @@ describe("CLI commands", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("doctor reports deploy preview URL env readiness without printing secret values", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-preview-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: deploy-preview-doctor
+targets:
+  preview:
+    kind: deployPreview
+    provider: vercel
+    urlEnv: VISUAL_HIVE_TEST_PREVIEW_URL
+contracts:
+  - id: preview
+    description: Preview
+    target: preview
+    runOn:
+      pullRequest: true
+`,
+      "utf8"
+    );
+
+    const previous = process.env.VISUAL_HIVE_TEST_PREVIEW_URL;
+    process.env.VISUAL_HIVE_TEST_PREVIEW_URL = "secret-preview-host.example.com";
+    try {
+      const result = await runDoctor({ cwd: tempRoot });
+      const serialized = JSON.stringify(result.diagnostics);
+
+      expect(result.ok).toBe(true);
+      expect(serialized).toContain("target:preview:deploy-preview");
+      expect(serialized).toContain("VISUAL_HIVE_TEST_PREVIEW_URL");
+      expect(serialized).not.toContain("secret-preview-host");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.VISUAL_HIVE_TEST_PREVIEW_URL;
+      } else {
+        process.env.VISUAL_HIVE_TEST_PREVIEW_URL = previous;
+      }
+    }
+  });
+
   it("plan writes plan.json for the demo config", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-"));
     tempDirs.push(tempRoot);

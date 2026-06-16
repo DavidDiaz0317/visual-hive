@@ -11,7 +11,7 @@ The JSON Schema for editor support is tracked at `schemas/visual-hive.config.sch
 Required sections:
 
 - `project`: `name`, `type`, and `defaultBranch`.
-- `targets`: command or URL targets.
+- `targets`: URL, command, command group, deploy-preview, or protected targets.
 - `contracts`: selector and screenshot checks.
 - `viewports`: named viewport dimensions.
 
@@ -65,9 +65,24 @@ project:
 Target kinds:
 
 - `url`: checks an already-running or hosted URL.
+- `deployPreview`: resolves a PR preview URL from `url`, `urlEnv`, `urlTemplate`, or `fallbackUrl`; defaults to `prSafe: true` and `cost: cheap`.
 - `command`: optionally runs `install` and `build`, then starts one long-running `serve` command with a health `url`.
 - `commandGroup`: runs setup commands, starts named services with health URLs and optional `readinessTimeoutMs`, and then optional teardown commands.
 - `protected`: schedule/manual-only target for secret-backed environments; `url` is optional when services are configured, `cost` defaults to `expensive`, and missing `requiresSecrets` are reported by name only.
+
+Deploy-preview example:
+
+```yaml
+targets:
+  prPreview:
+    kind: deployPreview
+    provider: vercel
+    urlEnv: VERCEL_URL
+    urlTemplate: "https://${VERCEL_URL}"
+    fallbackUrl: "https://preview.example.com"
+```
+
+If `urlEnv` is missing and no `fallbackUrl` is configured, planner excludes the target with a clear reason instead of failing the whole plan. Doctor reports environment variable names only.
 
 Changed-file selection:
 

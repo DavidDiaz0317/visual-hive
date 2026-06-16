@@ -21,7 +21,7 @@ export async function generatePlaywrightSpec(options: GenerateSpecOptions): Prom
 const content = buildSpecContent({
     rootDir: options.rootDir,
     contracts,
-    targets: normalizeTargets(options.config.targets),
+    targets: normalizeTargets(options.config.targets, options.plan.targets),
     viewports: options.config.viewports,
     visual: options.config.visual
   });
@@ -29,9 +29,15 @@ const content = buildSpecContent({
   return { path: specPath, content };
 }
 
-function normalizeTargets(targets: VisualHiveConfig["targets"]): VisualHiveConfig["targets"] {
+function normalizeTargets(targets: VisualHiveConfig["targets"], planTargets: Plan["targets"] = []): VisualHiveConfig["targets"] {
   const normalized: VisualHiveConfig["targets"] = {};
+  const plannedUrls = new Map(planTargets.map((target) => [target.id, target.url]));
   for (const [id, target] of Object.entries(targets)) {
+    const plannedUrl = plannedUrls.get(id);
+    if (plannedUrl) {
+      normalized[id] = { ...target, url: plannedUrl };
+      continue;
+    }
     if (target.url || (target.kind !== "commandGroup" && target.kind !== "protected")) {
       normalized[id] = target;
       continue;

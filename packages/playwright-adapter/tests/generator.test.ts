@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { VisualHiveConfigSchema } from "@visual-hive/core";
-import { buildSpecContent } from "../src/generator.js";
+import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
@@ -106,6 +106,63 @@ describe("buildSpecContent", () => {
     const artifacts = await collectArtifacts(tempRoot);
 
     expect(artifacts.some((artifact) => artifact.endsWith("visual-hive.generated.spec.ts"))).toBe(true);
+  });
+
+  it("serializes resolved deploy preview URLs into generated specs", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-deploy-preview-spec-"));
+    tempDirs.push(tempRoot);
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "preview-spec" },
+      targets: {
+        preview: {
+          kind: "deployPreview",
+          provider: "vercel",
+          urlEnv: "VERCEL_URL"
+        }
+      },
+      contracts: [
+        {
+          id: "preview-dashboard",
+          description: "Preview dashboard",
+          target: "preview",
+          runOn: { pullRequest: true },
+          screenshots: [{ name: "home", route: "/", viewport: "desktop" }]
+        }
+      ]
+    });
+
+    const generated = await generatePlaywrightSpec({
+      rootDir: tempRoot,
+      config,
+      plan: {
+        schemaVersion: 1,
+        project: "preview-spec",
+        mode: "pr",
+        generatedAt: "2026-06-16T00:00:00.000Z",
+        changedFiles: [],
+        effectiveChangedFiles: [],
+        ignoredChangedFiles: [],
+        targets: [{ id: "preview", kind: "deployPreview", url: "https://preview.example.com", prSafe: true, cost: "cheap" }],
+        items: [
+          {
+            contractId: "preview-dashboard",
+            targetId: "preview",
+            targetUrl: "https://preview.example.com",
+            severity: "medium",
+            cost: "cheap",
+            reasons: ["runOn.pullRequest=true"],
+            screenshots: ["home:/:desktop"]
+          }
+        ],
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+        providerPolicy: []
+      }
+    });
+
+    expect(generated.content).toContain("\"kind\": \"deployPreview\"");
+    expect(generated.content).toContain("\"url\": \"https://preview.example.com\"");
+    await expect(access(generated.path, constants.F_OK)).resolves.toBeUndefined();
   });
 
   it("creates a missing baseline locally and serializes diff metadata", async () => {

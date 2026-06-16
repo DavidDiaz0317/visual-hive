@@ -148,6 +148,23 @@ const UrlTargetSchema = BaseTargetSchema.extend({
   kind: z.literal("url")
 });
 
+const DeployPreviewTargetSchema = z
+  .object({
+    kind: z.literal("deployPreview"),
+    provider: z.enum(["vercel", "netlify", "github-pages", "custom"]).default("custom"),
+    url: z.string().url().optional(),
+    urlEnv: z.string().min(1).optional(),
+    urlTemplate: z.string().min(1).optional(),
+    fallbackUrl: z.string().url().optional(),
+    prSafe: z.boolean().optional().default(true),
+    schedule: z.string().optional(),
+    cost: CostSchema.optional().default("cheap")
+  })
+  .refine((target) => Boolean(target.url || target.urlEnv || target.fallbackUrl), {
+    message: "Deploy-preview targets require url, urlEnv, or fallbackUrl",
+    path: ["url"]
+  });
+
 const CommandGroupServiceSchema = z.object({
   name: z.string().min(1),
   command: z.string().min(1),
@@ -180,7 +197,7 @@ const ProtectedTargetSchema = z
     path: ["url"]
   });
 
-export const TargetSchema = z.union([CommandTargetSchema, UrlTargetSchema, CommandGroupTargetSchema, ProtectedTargetSchema]);
+export const TargetSchema = z.union([CommandTargetSchema, UrlTargetSchema, DeployPreviewTargetSchema, CommandGroupTargetSchema, ProtectedTargetSchema]);
 
 export const ViewportSchema = z.object({
   width: z.number().int().positive(),

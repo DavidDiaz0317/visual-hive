@@ -18,6 +18,7 @@
         "protectedTargets",
         "commandTargets",
         "commandGroupTargets",
+        "deployPreviewTargets",
         "scheduledTargets",
         "expensiveTargets",
         "setupRequiredTargets",
@@ -54,7 +55,7 @@
           "recommendations"
         ],
         "properties": {
-          "kind": { "enum": ["url", "command", "commandGroup", "protected"] },
+          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "protected"] },
           "latestStatus": { "enum": ["passed", "failed", "not_run"] },
           "labels": {
             "type": "array",
@@ -77,6 +78,7 @@
                     "setup_target_not_run",
                     "failed_lifecycle",
                     "missing_readiness_timeout",
+                    "deploy_preview_url_unresolved",
                     "expensive_pr_safe"
                   ]
                 },

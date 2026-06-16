@@ -9,6 +9,7 @@ export * from "./reports/types.js";
 export * from "./reports/triageReport.js";
 export * from "./reports/repositoryMetadata.js";
 export * from "./targets/audit.js";
+export * from "./targets/resolve.js";
 export * from "./schedules/audit.js";
 export * from "./setup/recommend.js";
 export * from "./setup/docs.js";

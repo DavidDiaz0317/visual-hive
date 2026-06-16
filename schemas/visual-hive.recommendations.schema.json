@@ -68,7 +68,7 @@
       "required": ["id", "kind", "url", "confidence", "reasons"],
       "properties": {
         "id": { "type": "string" },
-        "kind": { "enum": ["url", "command", "commandGroup", "protected"] },
+        "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "protected"] },
         "url": { "type": "string" },
         "install": { "type": "string" },
         "build": { "type": "string" },
