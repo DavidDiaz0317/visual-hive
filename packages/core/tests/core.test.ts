@@ -2336,6 +2336,19 @@ describe("setup recommendations", () => {
       requiredEnv: ["ARGOS_TOKEN"]
     });
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
+    expect(recommendation.onboardingChecklist.map((item) => item.id)).toEqual([
+      "inspect-repository",
+      "choose-pr-safe-target",
+      "seed-starter-contracts",
+      "verify-pr-safety",
+      "generate-setup-files",
+      "validate-locally"
+    ]);
+    expect(recommendation.onboardingChecklist.find((item) => item.id === "verify-pr-safety")).toMatchObject({
+      status: "ready",
+      relatedArtifacts: expect.arrayContaining([".github/workflows/visual-hive-pr.yml"])
+    });
+    expect(recommendation.onboardingChecklist.find((item) => item.id === "validate-locally")?.command).toContain("visual-hive doctor");
     expect(parsedYaml.contracts[0]?.id).toBe("app-shell-visual-stability");
     expect(parsedYaml.contracts[0]?.steps[0]?.action).toBe("assertVisible");
     expect(parsedYaml.project.setupProfile).toBe("free-local");
@@ -2348,6 +2361,8 @@ describe("setup recommendations", () => {
     expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
     expect(setupDocs).toContain("app-shell-visual-stability");
     expect(setupDocs).toContain("Playwright built-in");
+    expect(setupDocs).toContain("## Onboarding Checklist");
+    expect(setupDocs).toContain("### Verify PR safety");
     expect(setupDocs).toContain("visual-hive workflows --write-templates");
     expect(setupDocs).toContain("Use `pull_request`, not `pull_request_target`");
   });

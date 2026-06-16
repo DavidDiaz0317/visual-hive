@@ -1356,6 +1356,7 @@ contracts:
     expect(controlPlaneJs).toContain("function actionOutput");
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
+    expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function setupProfileSelector");
     expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");

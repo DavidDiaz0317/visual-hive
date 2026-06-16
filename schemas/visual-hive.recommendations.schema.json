@@ -92,6 +92,10 @@
         }
       }
     },
+    "onboardingChecklist": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/checklistItem" }
+    },
     "recommendedCommands": { "type": "array", "items": { "type": "string" } },
     "findings": { "type": "array" },
     "warnings": { "type": "array", "items": { "type": "string" } }
@@ -157,6 +161,21 @@
         "files": { "type": "array", "items": { "type": "string" } },
         "steps": { "type": "array", "items": { "type": "string" } },
         "securityNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status", "description", "evidence", "action", "relatedArtifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "enum": ["ready", "review", "blocked"] },
+        "description": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "action": { "type": "string" },
+        "command": { "type": "string" },
+        "relatedArtifacts": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

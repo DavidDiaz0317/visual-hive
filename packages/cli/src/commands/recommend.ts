@@ -118,6 +118,12 @@ export function formatSetupRecommendation(
     `- PR secrets required: ${report.permissions.pullRequest.secretsRequired.join(", ") || "none"}`,
     `- Scheduled secrets required: ${report.permissions.scheduled.secretsRequired.join(", ") || "none"}`,
     "",
+    "## Onboarding Checklist",
+    ...(report.onboardingChecklist ?? []).map(
+      (item) =>
+        `- [${item.status}] ${item.title}: ${item.action}${item.command ? ` Command: \`${item.command}\`` : ""}`
+    ),
+    "",
     "## Next Commands",
     ...report.recommendedCommands.map((command) => `- \`${command}\``)
   ];

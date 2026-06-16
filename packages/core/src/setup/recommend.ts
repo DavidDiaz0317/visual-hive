@@ -25,6 +25,7 @@ export interface SetupRecommendationReport {
   detectedSelectors: SetupDetectedSelector[];
   recommendedTarget: SetupRecommendedTarget;
   recommendedContracts: SetupRecommendedContract[];
+  onboardingChecklist: SetupChecklistItem[];
   recommendedCommands: string[];
   findings: SetupRecommendationFinding[];
   warnings: string[];
@@ -113,6 +114,17 @@ export interface SetupRecommendationFinding {
   evidence?: string;
 }
 
+export interface SetupChecklistItem {
+  id: string;
+  title: string;
+  status: "ready" | "review" | "blocked";
+  description: string;
+  evidence: string[];
+  action: string;
+  command?: string;
+  relatedArtifacts: string[];
+}
+
 export interface RecommendSetupOptions {
   repoRoot: string;
   configPath?: string;
@@ -177,6 +189,36 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const recommendedConfigYaml = stringify(recommendationInput, { sortMapEntries: false });
   const warnings = buildWarnings(inventory, serve, selector);
   const costEstimate = buildCostEstimate(contract.config, target.config, setupProfile);
+  const providerRecommendations = buildProviderRecommendations(inventory, setupProfile);
+  const permissions = buildPermissionRecommendation(setupProfile);
+  const setupPullRequest = buildSetupPullRequestRecommendation(configPath, setupProfile);
+  const recommendedContracts = [
+    {
+      id: contract.config.id,
+      targetId: contract.config.target,
+      selectors: contract.config.selectors.mustExist,
+      steps: contract.config.steps.map((step) => ({
+        action: step.action,
+        selector: step.selector,
+        route: step.route,
+        value: step.action === "fill" ? "[configured]" : (step.value ?? step.key ?? step.text)
+      })),
+      screenshots: contract.config.screenshots.map((screenshot) => ({
+        name: screenshot.name,
+        route: screenshot.route,
+        viewport: screenshot.viewport
+      })),
+      reasons: contract.reasons
+    }
+  ];
+  const recommendedCommands = [
+    "visual-hive doctor",
+    "visual-hive plan --mode pr --changed-files changed-files.txt",
+    "visual-hive run",
+    "visual-hive coverage --mode pr --changed-files changed-files.txt",
+    "visual-hive triage",
+    "visual-hive report"
+  ];
 
   return {
     schemaVersion: 1,
@@ -191,10 +233,10 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     generatedAt: (options.now ?? new Date()).toISOString(),
     configPath: normalizeSlashes(path.relative(repoRoot, configPath) || path.basename(configPath)),
     setupProfile,
-    providerRecommendations: buildProviderRecommendations(inventory, setupProfile),
+    providerRecommendations,
     costEstimate,
-    permissions: buildPermissionRecommendation(setupProfile),
-    setupPullRequest: buildSetupPullRequestRecommendation(configPath, setupProfile),
+    permissions,
+    setupPullRequest,
     recommendedConfig,
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
@@ -208,33 +250,18 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
       confidence: target.confidence,
       reasons: target.reasons
     },
-    recommendedContracts: [
-      {
-        id: contract.config.id,
-        targetId: contract.config.target,
-        selectors: contract.config.selectors.mustExist,
-        steps: contract.config.steps.map((step) => ({
-          action: step.action,
-          selector: step.selector,
-          route: step.route,
-          value: step.action === "fill" ? "[configured]" : (step.value ?? step.key ?? step.text)
-        })),
-        screenshots: contract.config.screenshots.map((screenshot) => ({
-          name: screenshot.name,
-          route: screenshot.route,
-          viewport: screenshot.viewport
-        })),
-        reasons: contract.reasons
-      }
-    ],
-    recommendedCommands: [
-      "visual-hive doctor",
-      "visual-hive plan --mode pr --changed-files changed-files.txt",
-      "visual-hive run",
-      "visual-hive coverage --mode pr --changed-files changed-files.txt",
-      "visual-hive triage",
-      "visual-hive report"
-    ],
+    recommendedContracts,
+    onboardingChecklist: buildOnboardingChecklist({
+      projectName,
+      inventory,
+      target,
+      recommendedContracts,
+      providerRecommendations,
+      permissions,
+      setupPullRequest,
+      recommendedCommands
+    }),
+    recommendedCommands,
     findings: buildFindings(inventory, target, selector),
     warnings
   };
@@ -687,6 +714,111 @@ function maxExternalScreenshotsPerRun(setupProfile: VisualHiveConfig["project"][
   if (setupProfile === "free-local") return 0;
   if (setupProfile === "enterprise-visual-ai") return Math.max(10, screenshotCount * 2);
   return Math.max(5, screenshotCount);
+}
+
+function buildOnboardingChecklist(input: {
+  projectName: string;
+  inventory: RepoInventory;
+  target: { id: string; config: TargetConfig; confidence: SetupRecommendedTarget["confidence"]; reasons: string[] };
+  recommendedContracts: SetupRecommendedContract[];
+  providerRecommendations: SetupProviderRecommendation[];
+  permissions: SetupPermissionRecommendation;
+  setupPullRequest: SetupPullRequestRecommendation;
+  recommendedCommands: string[];
+}): SetupChecklistItem[] {
+  const prSecrets = input.permissions.pullRequest.secretsRequired;
+  const externalProvidersByDefault = input.providerRecommendations.filter((provider) => provider.externalUploadAllowedByDefault);
+  const selectorCount = input.inventory.selectors.length;
+  const screenshotCount = input.recommendedContracts.flatMap((contract) => contract.screenshots).length;
+  return [
+    {
+      id: "inspect-repository",
+      title: "Inspect repository",
+      status: input.inventory.packageJson ? "ready" : "review",
+      description: "Confirm Visual Hive detected the project, package manager, scripts, framework signals, and selectors correctly.",
+      evidence: [
+        `project=${input.projectName}`,
+        `packageManager=${input.inventory.packageManager}`,
+        `frameworks=${input.inventory.detectedFrameworks.join(", ") || "none"}`,
+        `scripts=${Object.keys(input.inventory.packageJson?.scripts ?? {}).sort().join(", ") || "none"}`
+      ],
+      action: "Review detected repo facts before writing setup files.",
+      command: "visual-hive recommend --repo .",
+      relatedArtifacts: [".visual-hive/recommendations.json"]
+    },
+    {
+      id: "choose-pr-safe-target",
+      title: "Choose PR-safe target",
+      status: input.target.confidence === "low" ? "review" : "ready",
+      description: "Use a local or otherwise PR-safe target that can run without secrets in pull request workflows.",
+      evidence: [
+        `target=${input.target.id}`,
+        `kind=${input.target.config.kind}`,
+        `confidence=${input.target.confidence}`,
+        `url=${"url" in input.target.config ? input.target.config.url ?? "not configured" : "not configured"}`
+      ],
+      action:
+        input.target.confidence === "low"
+          ? "Add or fix a dev, preview, or start script before enabling required PR checks."
+          : "Keep this target in the first PR-safe deterministic lane.",
+      relatedArtifacts: ["visual-hive.config.yaml", ".visual-hive/targets.json"]
+    },
+    {
+      id: "seed-starter-contracts",
+      title: "Seed starter contracts",
+      status: input.recommendedContracts.length && selectorCount ? "ready" : "review",
+      description: "Start with the smallest useful route, selector, flow, and screenshot coverage before expanding to protected lanes.",
+      evidence: [
+        `contracts=${input.recommendedContracts.length}`,
+        `selectors=${selectorCount}`,
+        `screenshots=${screenshotCount}`
+      ],
+      action:
+        selectorCount === 0
+          ? "Add project-owned data-testid selectors for more precise diagnostics."
+          : "Review the starter contract and add domain-specific contracts for important routes.",
+      relatedArtifacts: ["visual-hive.config.yaml", ".visual-hive/contracts.json", ".visual-hive/coverage.json"]
+    },
+    {
+      id: "verify-pr-safety",
+      title: "Verify PR safety",
+      status: prSecrets.length || externalProvidersByDefault.length ? "blocked" : "ready",
+      description: "PR execution must stay read-only, no-secret, local-first, and free of external uploads by default.",
+      evidence: [
+        `permissions=${input.permissions.pullRequest.permissions.join(", ") || "unknown"}`,
+        `prSecrets=${prSecrets.join(", ") || "none"}`,
+        `externalProvidersByDefault=${externalProvidersByDefault.map((provider) => provider.label).join(", ") || "none"}`
+      ],
+      action:
+        prSecrets.length || externalProvidersByDefault.length
+          ? "Move secrets or external uploads to a scheduled/manual trusted lane before opening the setup PR."
+          : "Use pull_request with read-only permissions and no secrets for the generated PR workflow.",
+      relatedArtifacts: [".github/workflows/visual-hive-pr.yml", ".visual-hive/workflows.json", ".visual-hive/security.json"]
+    },
+    {
+      id: "generate-setup-files",
+      title: "Generate setup files",
+      status: input.setupPullRequest.recommended ? "review" : "ready",
+      description: "Write config, repo docs, and safe workflow templates only after reviewing the generated YAML and security notes.",
+      evidence: [
+        `files=${input.setupPullRequest.files.join(", ") || "none"}`,
+        `title=${input.setupPullRequest.title}`
+      ],
+      action: "Run the guarded setup bundle command after reviewing the recommended YAML.",
+      command: "visual-hive recommend --write-setup-bundle",
+      relatedArtifacts: ["visual-hive.config.yaml", "docs/visual-hive.md", ".github/workflows/visual-hive-pr.yml"]
+    },
+    {
+      id: "validate-locally",
+      title: "Validate locally",
+      status: input.recommendedCommands.length ? "ready" : "review",
+      description: "Prove the deterministic local path before making CI required or approving baselines.",
+      evidence: [`commands=${input.recommendedCommands.join(" && ") || "none"}`],
+      action: "Run the recommended commands locally and review created baselines before CI enforcement.",
+      command: input.recommendedCommands.join(" && "),
+      relatedArtifacts: [".visual-hive/plan.json", ".visual-hive/report.json", ".visual-hive/triage.json", ".visual-hive/issue.md"]
+    }
+  ];
 }
 
 function buildFindings(

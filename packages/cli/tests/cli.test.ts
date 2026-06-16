@@ -893,6 +893,8 @@ contracts:
     expect(summary).toContain("Visual Hive Setup Recommendation");
     expect(summary).toContain("Setup profile: free-local");
     expect(summary).toContain("Provider Recommendation");
+    expect(summary).toContain("Onboarding Checklist");
+    expect(summary).toContain("[ready] Verify PR safety");
     expect(summary).toContain("PR secrets required: none");
     expect(summary).toContain("Docs written:");
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();

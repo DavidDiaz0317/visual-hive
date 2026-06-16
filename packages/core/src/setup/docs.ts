@@ -47,6 +47,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...providerLines(report),
     "",
+    "## Onboarding Checklist",
+    "",
+    ...onboardingChecklistLines(report),
+    "",
     "## Cost Guardrails",
     "",
     `- Local screenshots per run: ${safe(String(report.costEstimate.localScreenshotsPerRun))}`,
@@ -112,6 +116,21 @@ function providerLines(report: SetupRecommendationReport): string[] {
         provider.externalUploadAllowedByDefault ? "yes" : "no"
       }.`
   );
+}
+
+function onboardingChecklistLines(report: SetupRecommendationReport): string[] {
+  if (!report.onboardingChecklist?.length) return ["No structured onboarding checklist was generated. Re-run `visual-hive recommend` with a current Visual Hive version."];
+  return report.onboardingChecklist.flatMap((item) => [
+    `### ${safe(item.title)}`,
+    "",
+    `- Status: ${safe(item.status)}`,
+    `- Why: ${safe(item.description)}`,
+    `- Action: ${safe(item.action)}`,
+    item.command ? `- Command: \`${safe(item.command)}\`` : "- Command: none",
+    `- Evidence: ${listInline(item.evidence)}`,
+    `- Related artifacts: ${listInline(item.relatedArtifacts)}`,
+    ""
+  ]);
 }
 
 function setupPrLines(report: SetupRecommendationReport): string[] {

@@ -18,7 +18,7 @@ Path: `.visual-hive/recommendations.json`
 
 Schema: `schemas/visual-hive.recommendations.schema.json`
 
-The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview target, starter contracts, next commands, findings, and warnings.
+The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview target, starter contracts, a structured onboarding checklist, next commands, findings, and warnings. New reports include `onboardingChecklist` rows with `ready | review | blocked` status, evidence, operator action, optional command, and related artifact paths; older schema v1 artifacts without this field remain readable.
 
 ## Deterministic Report
 

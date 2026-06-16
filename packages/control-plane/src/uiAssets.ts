@@ -547,6 +547,18 @@ function setupProfileSelector(recommendation) {
 }
 
 function setupChecklist(recommendation) {
+  if (recommendation.onboardingChecklist?.length) {
+    return card(
+      "Guided setup checklist",
+      '<p class="muted">Driven by <code>.visual-hive/recommendations.json</code>. Complete these steps in order before opening a setup PR in another repository.</p>' +
+        table(["Step", "Status", "Evidence", "Operator action"], recommendation.onboardingChecklist.map(item => [
+          '<b>' + esc(item.title) + '</b><p class="muted">' + esc(item.description || "") + '</p>',
+          setupStatusBadge(item.status),
+          (item.evidence || []).map(esc).join("<br>") + ((item.relatedArtifacts || []).length ? '<p class="muted">Artifacts: ' + item.relatedArtifacts.map(a => link(a)).join(", ") + '</p>' : ""),
+          esc(item.action || "review") + (item.command ? '<p>' + copyButton(item.command, item.title + " command") + '</p>' : "")
+        ]))
+    );
+  }
   const prSecrets = recommendation.permissions?.pullRequest?.secretsRequired || [];
   const providers = recommendation.providerRecommendations || [];
   const externalByDefault = providers.filter(provider => provider.externalUploadAllowedByDefault);
