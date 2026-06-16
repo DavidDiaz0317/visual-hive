@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.security.schema.json",
+  "title": "Visual Hive security audit",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "inputs", "npmAudit", "findings", "recommendations"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "score",
+        "totalFindings",
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "prBlocking",
+        "trustedOnly",
+        "npmAuditSource",
+        "npmAuditTotal"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "totalFindings": { "type": "integer", "minimum": 0 },
+        "critical": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "medium": { "type": "integer", "minimum": 0 },
+        "low": { "type": "integer", "minimum": 0 },
+        "prBlocking": { "type": "integer", "minimum": 0 },
+        "trustedOnly": { "type": "integer", "minimum": 0 },
+        "npmAuditSource": { "enum": ["not_run", "npm_audit_json", "npm_audit_command"] },
+        "npmAuditTotal": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["workflowAudit", "npmAudit"],
+      "additionalProperties": false,
+      "properties": {
+        "workflowAudit": { "type": "boolean" },
+        "npmAudit": { "type": "boolean" }
+      }
+    },
+    "npmAudit": {
+      "type": "object",
+      "required": ["source", "total", "critical", "high", "moderate", "low", "info"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "enum": ["not_run", "npm_audit_json", "npm_audit_command"] },
+        "total": { "type": "integer", "minimum": 0 },
+        "critical": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "moderate": { "type": "integer", "minimum": 0 },
+        "low": { "type": "integer", "minimum": 0 },
+        "info": { "type": "integer", "minimum": 0 },
+        "error": { "type": "string" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "category", "severity", "title", "message", "evidence", "recommendation", "trustedOnly"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "category": {
+          "enum": ["workflow", "secrets", "protected_target", "provider", "llm", "dependency", "artifact", "policy"]
+        },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recommendation": { "type": "string" },
+        "trustedOnly": { "type": "boolean" }
+      }
+    }
+  }
+}

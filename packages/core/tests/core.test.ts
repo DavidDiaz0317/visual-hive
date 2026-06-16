@@ -21,6 +21,7 @@ import { inspectProviders, normalizeProviderResults } from "../src/providers/ins
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
+import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
 import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usage.js";
@@ -1522,6 +1523,99 @@ jobs:
   });
 });
 
+describe("security audit", () => {
+  it("combines workflow, protected target, provider, LLM, and npm audit posture", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      targets: {
+        ...sampleConfig().targets,
+        protectedLane: {
+          kind: "protected",
+          url: "https://cluster.example.com",
+          prSafe: true
+        }
+      },
+      providers: {
+        argos: {
+          enabled: true,
+          mode: "external",
+          requiredEnv: ["ARGOS_TOKEN"]
+        }
+      },
+      costPolicy: {
+        maxExternalScreenshotsPerRun: 10,
+        maxMonthlyExternalScreenshots: 5000,
+        externalUpload: {
+          pullRequest: true
+        }
+      },
+      ai: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-4.1",
+        neverSoleOracle: true,
+        maxEstimatedCostUsd: 5
+      }
+    });
+    const workflowAudit = auditWorkflows(config, [
+      {
+        path: ".github/workflows/unsafe-pr.yml",
+        content: `
+on: pull_request_target
+permissions:
+  contents: write
+jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4
+      - run: visual-hive run
+        env:
+          TOKEN: \${{ secrets.SECRET_TOKEN }}
+`
+      }
+    ]);
+    const npmAudit = npmAuditSummaryFromJson({
+      metadata: {
+        vulnerabilities: {
+          critical: 1,
+          high: 2,
+          moderate: 3,
+          low: 4,
+          info: 0,
+          total: 10
+        }
+      }
+    });
+
+    const security = analyzeSecurity(config, { workflowAudit, npmAudit, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(security.schemaVersion).toBe(1);
+    expect(security.summary.critical).toBeGreaterThan(0);
+    expect(security.summary.npmAuditTotal).toBe(10);
+    expect(security.findings.map((finding) => finding.category)).toEqual(
+      expect.arrayContaining(["workflow", "protected_target", "provider", "llm", "dependency"])
+    );
+    expect(security.findings.find((finding) => finding.id.includes("protectedLane"))?.title).toContain("Protected target");
+    expect(JSON.stringify(security)).not.toContain("SECRET_TOKEN");
+    expect(security.recommendations).toEqual(expect.arrayContaining(["Fix workflow safety findings before making Visual Hive checks required."]));
+  });
+
+  it("keeps npm audit optional and parses object-form vulnerability output", () => {
+    const audit = npmAuditSummaryFromJson({
+      vulnerabilities: {
+        packageA: { severity: "high" },
+        packageB: { severity: "moderate" },
+        packageC: { severity: "low" }
+      }
+    });
+    const security = analyzeSecurity(sampleConfig(), { npmAudit: audit });
+
+    expect(audit).toMatchObject({ total: 3, high: 1, moderate: 1, low: 1 });
+    expect(security.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining(["dependency:npm-audit-high"]));
+    expect(security.findings.some((finding) => finding.id === "dependency:npm-audit-not-run")).toBe(false);
+  });
+});
+
 describe("mutation score", () => {
   it("calculates killed over total", () => {
     expect(calculateMutationScore([{ killed: true }, { killed: false }, { killed: true }])).toEqual({
@@ -1873,6 +1967,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "security.json"), '{"findings":[{"evidence":["authorization: bearer abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
@@ -1888,7 +1983,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(11);
+    expect(index.summary.artifactCount).toBe(12);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -1912,6 +2007,9 @@ describe("artifact index", () => {
     expect(coverageRecommendations?.preview).toContain("[REDACTED]");
     expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
     expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
+    const securityAudit = index.artifacts.find((artifact) => artifact.path.endsWith("security.json"));
+    expect(securityAudit?.preview).toContain("[REDACTED]");
+    expect(securityAudit?.labels).toContain("security-audit");
     const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");

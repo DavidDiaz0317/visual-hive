@@ -23,7 +23,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
 
 Initialize Visual Hive in another repo:
 
@@ -115,6 +115,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
 - `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.
 - `visual-hive risk`: builds `.visual-hive/risk.json`, a prioritized register across deterministic failures, baselines, mutation adequacy, coverage, target safety, workflow safety, environment gaps, and provider policy.
+- `visual-hive security`: builds `.visual-hive/security.json`, an offline security posture report across workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence.
 - `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.
 - `visual-hive targets`: audits target safety, commands, services, secrets, lifecycle evidence, and gaps in `.visual-hive/targets.json`.
 - `visual-hive schedules`: audits PR, scheduled, protected, mutation, and trusted issue lanes in `.visual-hive/schedules.json`.
@@ -194,6 +195,7 @@ See also:
 - `docs/raw-artifacts.md`
 - `docs/connections.md`
 - `docs/setup-recommendations.md`
+- `docs/security.md`
 - `docs/install.md`
 - `docs/roadmap.md`
 

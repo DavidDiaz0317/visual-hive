@@ -74,6 +74,7 @@ const tabs = [
   ["profiles", "Profiles"],
   ["actions", "Actions"],
   ["risk", "Risk"],
+  ["security", "Security"],
   ["setup", "Setup"],
   ["runs", "Runs / Reports"],
   ["failures", "Failure Inbox"],
@@ -134,7 +135,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, profiles, actions, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, profiles, actions, risk, security, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -317,7 +318,7 @@ function runbookActions(command) {
 }
 
 function runbookExecuteButton(command) {
-  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate"].includes(command.id);
+  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate", "security"].includes(command.id);
   if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
   if (!executable || command.safety === "trusted_only" || command.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
   return '<button class="button link-button runbook-execute" data-command="' + escAttr(command.id) + '">Run</button>';
@@ -367,6 +368,41 @@ function riskNavigation(risk) {
   if (risk.category === "planning") buttons.push(navButton("runbook", "runbook"));
   if ((risk.artifacts || []).length) buttons.push(navButton("artifacts", "artifact", { artifact: risk.artifacts[0] }));
   return buttons.length ? '<div class="actions compact">' + buttons.join("") + '</div>' : '<span class="muted">global</span>';
+}
+
+function security() {
+  const report = snapshot.securityAudit;
+  if (!report) {
+    return empty("No security audit available. Run visual-hive security to create .visual-hive/security.json.");
+  }
+  const summary = report.summary || {};
+  return '<div class="grid">' +
+    metric("Security score", (summary.score ?? 0) + "/100", summary.score >= 85 ? "ok" : (summary.score >= 60 ? "warn" : "bad")) +
+    metric("Findings", summary.totalFindings ?? 0, summary.totalFindings ? "warn" : "ok") +
+    metric("Critical/high", (summary.critical || 0) + (summary.high || 0), (summary.critical || summary.high) ? "bad" : "ok") +
+    metric("npm audit", (summary.npmAuditSource || "not_run") + " / " + (summary.npmAuditTotal || 0), summary.npmAuditTotal ? "warn" : "ok") +
+    '</div><div class="section" style="margin-top:14px">' +
+    card("Security findings", report.findings?.length ? table(["Severity", "Category", "Title", "Evidence", "Recommendation"], report.findings.map(f => [
+      severity(f.severity),
+      esc(f.category),
+      esc(f.title) + '<p class="muted">' + esc(f.message) + '</p>',
+      list(f.evidence || []),
+      esc(f.recommendation)
+    ])) : '<p class="ok">No immediate Visual Hive security posture findings.</p>') +
+    card("Recommendations", list(report.recommendations || [])) +
+    card("Scope", table(["Input", "Value"], [
+      ["Workflow audit loaded", report.inputs?.workflowAudit ? "yes" : "no"],
+      ["npm audit loaded", report.inputs?.npmAudit ? "yes" : "no"],
+      ["npm audit source", report.npmAudit?.source || "not_run"],
+      ["npm audit error", report.npmAudit?.error || "none"]
+    ])) +
+    '</div>';
+}
+
+function severity(value) {
+  if (value === "critical" || value === "high") return '<span class="bad">' + esc(value) + '</span>';
+  if (value === "medium") return '<span class="warn">' + esc(value) + '</span>';
+  return '<span class="ok">' + esc(value || "low") + '</span>';
 }
 
 function navButton(tab, label, data = {}) {

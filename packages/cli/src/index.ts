@@ -34,6 +34,7 @@ import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
+import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
@@ -530,6 +531,31 @@ program
         format: options.format
       });
       console.log(formatRiskRegister(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("security")
+  .description("Audit Visual Hive security posture, workflow safety, provider/LLM governance, and optional npm audit evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--workflow-dir <path>", "workflow directory to inspect", ".github/workflows")
+  .option("--workflows <path>", "existing .visual-hive/workflows.json artifact path")
+  .option("--audit-json <path>", "existing npm audit --json artifact path")
+  .option("--npm-audit", "run npm audit --json in this repository")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runSecurityCommand({
+        config: options.config,
+        workflowDir: options.workflowDir,
+        workflows: options.workflows,
+        auditJson: options.auditJson,
+        npmAudit: options.npmAudit,
+        format: options.format
+      });
+      console.log(formatSecurityAudit(result.report, result.reportPath, options.format));
     } catch (error) {
       fail(error);
     }

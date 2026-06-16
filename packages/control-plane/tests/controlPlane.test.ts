@@ -536,6 +536,57 @@ jobs:
     ),
     "utf8"
   );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "security.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          score: 96,
+          totalFindings: 1,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 1,
+          prBlocking: 0,
+          trustedOnly: 0,
+          npmAuditSource: "not_run",
+          npmAuditTotal: 0
+        },
+        inputs: {
+          workflowAudit: true,
+          npmAudit: false
+        },
+        npmAudit: {
+          source: "not_run",
+          total: 0,
+          critical: 0,
+          high: 0,
+          moderate: 0,
+          low: 0,
+          info: 0
+        },
+        findings: [
+          {
+            id: "dependency:npm-audit-not-run",
+            category: "dependency",
+            severity: "low",
+            title: "Dependency audit was not run",
+            message: "Security audit did not run npm audit by default.",
+            evidence: ["npmAudit.source=not_run"],
+            recommendation: "Run visual-hive security --npm-audit in a trusted environment.",
+            trustedOnly: false
+          }
+        ],
+        recommendations: ["Run npm audit in a trusted environment when reviewing supply-chain risk."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"), "actual-dashboard", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "old-dashboard", "utf8");
   return { repoRoot, configPath };
@@ -609,8 +660,16 @@ describe("control plane", () => {
       commandIds: ["doctor", "plan-pr", "mutate", "triage-report"],
       safety: "local_only"
     });
+    expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
+    expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "security", "triage-report"],
+      safety: "pr_safe"
+    });
     expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
+    expect(snapshot.securityAudit?.project).toBe("ui-fixture");
+    expect(snapshot.securityAudit?.summary.score).toBe(96);
     expect(snapshot.riskReport?.inputs.report).toBe(true);
     expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
     expect(snapshot.riskReport?.risks[0]?.contractIds).toEqual(["dashboard"]);
@@ -622,6 +681,7 @@ describe("control plane", () => {
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
   });
 
   it("adds trusted protected-lane runbook commands with secret names only", async () => {
@@ -1142,6 +1202,8 @@ contracts:
       expect(appJs).toContain("Verify PR safety");
       expect(appJs).toContain("Risk Register");
       expect(appJs).toContain("function risk");
+      expect(appJs).toContain("Security findings");
+      expect(appJs).toContain("function security");
       expect(appJs).toContain("function severityBadge");
       expect(appJs).toContain("function riskNavigation");
       expect(appJs).toContain("risk-nav");

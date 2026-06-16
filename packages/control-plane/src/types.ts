@@ -10,6 +10,7 @@ import type {
   ProviderInspection,
   Report,
   RiskRegisterReport,
+  SecurityAuditReport,
   RunHistoryReport,
   ScheduleAuditReport,
   TargetAuditReport,
@@ -213,6 +214,7 @@ export interface ControlPlaneSnapshot {
   triageReport?: TriageReport;
   runHistory?: RunHistoryReport;
   riskReport?: RiskRegisterReport;
+  securityAudit?: SecurityAuditReport;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;

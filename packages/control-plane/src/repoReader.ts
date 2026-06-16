@@ -30,6 +30,7 @@ import {
   type Plan,
   type Report,
   type RiskRegisterReport,
+  type SecurityAuditReport,
   type RunHistoryReport,
   type SetupRecommendationReport,
   type TargetConfig,
@@ -98,6 +99,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     workflowAuditArtifact,
     runHistoryArtifact,
     riskArtifact,
+    securityAudit,
     issueMarkdown,
     prCommentMarkdown,
     triagePrompt,
@@ -121,6 +123,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
+    readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
     readTextIfExists(path.join(hiveRoot, "triage-prompt.md")),
@@ -184,6 +187,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triageReport,
     runHistory,
     riskReport,
+    securityAudit,
     mutationReport,
     providerRunReport,
     providerDecisionLog,
@@ -236,6 +240,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       label: "Mutation adequacy audit",
       description: "Validate readiness, refresh the PR plan, run contract-aware mutation adequacy, then regenerate triage/report evidence.",
       commandIds: ["doctor", "plan-pr", "mutate", "triage-report"]
+    },
+    {
+      id: "security-audit",
+      label: "Security posture audit",
+      description: "Validate readiness, audit workflow/config/provider/LLM security posture, then refresh the markdown report.",
+      commandIds: ["doctor", "security", "triage-report"]
     },
     {
       id: "protected-schedule-preview",
@@ -343,6 +353,17 @@ function buildRunbook(
       description: "Run contract-aware mutation operators to verify that deterministic contracts catch intentional UI/auth/API breakage.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/mutation-report.json"]
+    },
+    {
+      id: "security",
+      label: "Audit security posture",
+      lane: "local",
+      command: `visual-hive security ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Audit workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence without making external provider or model calls.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/security.json"]
     },
     {
       id: "control-plane",

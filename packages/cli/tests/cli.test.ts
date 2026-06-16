@@ -35,6 +35,7 @@ import { formatHistorySummary, runHistoryCommand } from "../src/commands/history
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
+import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
@@ -184,6 +185,7 @@ contracts:
       "demo:llm",
       "demo:report",
       "demo:risk",
+      "demo:security",
       "demo:history",
       "demo:artifacts"
     ];
@@ -196,6 +198,7 @@ contracts:
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
+    expect(packageJson.scripts["demo:security"]).toContain("security --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
@@ -560,6 +563,85 @@ contracts:
 
     expect(forced.write.written[0]?.overwritten).toBe(true);
     await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
+  });
+
+  it("writes a security audit from workflow and npm audit evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-security-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-security
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+  protectedLane:
+    kind: protected
+    url: "https://cluster.example.com"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+providers:
+  argos:
+    enabled: true
+    mode: external
+costPolicy:
+  externalUpload:
+    pullRequest: true
+ai:
+  enabled: true
+  provider: openai
+  model: gpt-4.1
+  neverSoleOracle: true
+`,
+      "utf8"
+    );
+    await mkdir(path.join(tempRoot, ".github", "workflows"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, ".github", "workflows", "unsafe-pr.yml"),
+      `on: pull_request_target
+permissions:
+  contents: write
+jobs:
+  visual:
+    steps:
+      - uses: actions/checkout@v4
+      - run: visual-hive run
+        env:
+          TOKEN: \${{ secrets.SECRET_TOKEN }}
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, "npm-audit.json"), {
+      metadata: {
+        vulnerabilities: {
+          critical: 1,
+          high: 1,
+          moderate: 0,
+          low: 0,
+          info: 0,
+          total: 2
+        }
+      }
+    });
+
+    const result = await runSecurityCommand({ cwd: tempRoot, auditJson: "npm-audit.json" });
+    const written = await readJson<typeof result.report>(result.reportPath);
+    const summary = formatSecurityAudit(written, result.reportPath);
+
+    expect(written.schemaVersion).toBe(1);
+    expect(written.summary.critical).toBeGreaterThan(0);
+    expect(written.summary.npmAuditTotal).toBe(2);
+    expect(written.findings.map((finding) => finding.category)).toEqual(
+      expect.arrayContaining(["workflow", "protected_target", "provider", "llm", "dependency"])
+    );
+    expect(JSON.stringify(written)).not.toContain("SECRET_TOKEN");
+    expect(summary).toContain("Security Audit: cli-security");
+    expect(summary).toContain("npm audit: npm_audit_json");
+    await expect(access(path.join(tempRoot, ".visual-hive", "security.json"))).resolves.toBeUndefined();
   });
 
   it("history records the latest report and mutation artifacts", async () => {
