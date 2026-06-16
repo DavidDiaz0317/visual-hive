@@ -63,6 +63,7 @@ a { color: #8bc7ff; }
 export const controlPlaneJs = `
 const tabs = [
   ["overview", "Overview"],
+  ["runbook", "Runbook"],
   ["setup", "Setup"],
   ["runs", "Runs / Reports"],
   ["failures", "Failure Inbox"],
@@ -121,7 +122,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, runbook, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
 }
@@ -140,6 +141,49 @@ function overview() {
     card("Why this score?", list(o.explanations)) +
     card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown) + "<br>Baseline review: " + yes(snapshot.baselineReviewMarkdown)) +
     '</div>';
+}
+
+function runbook() {
+  const rb = snapshot.runbook;
+  if (!rb || !rb.commands?.length) return empty("No runbook could be generated. Load a valid Visual Hive config first.");
+  const commandsByLane = {};
+  rb.commands.forEach(command => {
+    commandsByLane[command.lane] ||= [];
+    commandsByLane[command.lane].push(command);
+  });
+  const laneOrder = ["local", "pull_request", "ci", "schedule", "protected", "triage", "ui"];
+  const laneCards = laneOrder
+    .filter(lane => commandsByLane[lane]?.length)
+    .map(lane => card(laneLabel(lane), table(["Command", "Safety", "Secrets", "Artifacts", "Copy"], commandsByLane[lane].map(command => [
+      '<b>' + esc(command.label) + '</b><p class="muted">' + esc(command.description) + '</p><pre>' + esc(command.command) + '</pre><p class="muted">cwd: ' + esc(command.cwd) + '</p>',
+      safetyBadge(command.safety),
+      command.requiredSecrets?.length ? esc(command.requiredSecrets.join(", ")) : '<span class="ok">none</span>',
+      command.expectedArtifacts?.length ? command.expectedArtifacts.map(path => '<code>' + esc(path) + '</code>').join("<br>") : '<span class="muted">none</span>',
+      copyButton(command.command, command.label)
+    ]))));
+  return '<div class="section">' +
+    card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. These commands are explicit operator guidance; the Control Plane does not execute trusted or secret-bearing lanes for you.</p>' + list(rb.notes || [])) +
+    laneCards.join("") +
+    '</div>';
+}
+
+function laneLabel(lane) {
+  const labels = {
+    local: "Local readiness",
+    pull_request: "Pull request lane",
+    ci: "CI deterministic lane",
+    schedule: "Scheduled adequacy lane",
+    protected: "Trusted protected lane",
+    triage: "Triage and reporting",
+    ui: "Control Plane"
+  };
+  return labels[lane] || lane;
+}
+
+function safetyBadge(safety) {
+  if (safety === "pr_safe") return '<span class="ok">PR-safe</span>';
+  if (safety === "trusted_only") return '<span class="bad">trusted only</span>';
+  return '<span class="warn">local only</span>';
 }
 
 function setup() {

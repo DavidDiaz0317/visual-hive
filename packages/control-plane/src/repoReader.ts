@@ -45,6 +45,8 @@ import type {
   ControlPlaneFailure,
   ControlPlaneOptions,
   ControlPlaneOverview,
+  ControlPlaneRunbook,
+  ControlPlaneRunbookCommand,
   ControlPlaneScreenshot,
   ControlPlaneSnapshot,
   ResolvedControlPlaneOptions
@@ -130,6 +132,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const overview = buildOverview(report, mutationReport, configError);
   const providers = config ? inspectProviders(config) : [];
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
+  const runbook = buildRunbook(resolved, config, plan, report, mutationReport);
 
   return {
     schemaVersion: 1,
@@ -163,6 +166,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     llmUsage,
     overview,
     failures,
+    runbook,
     screenshots,
     coverage,
     targets,
@@ -172,6 +176,132 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     artifacts,
     connections
   };
+}
+
+function buildRunbook(
+  resolved: ResolvedControlPlaneOptions,
+  config?: VisualHiveConfig,
+  plan?: unknown,
+  report?: Report,
+  mutationReport?: MutationReport
+): ControlPlaneRunbook {
+  const configPath = toRepoRelativePath(resolved.repoRoot, resolved.configPath);
+  const configFlag = `--config ${quoteForShell(configPath)}`;
+  const commands: ControlPlaneRunbookCommand[] = [
+    {
+      id: "doctor",
+      label: "Check local readiness",
+      lane: "local",
+      command: `visual-hive doctor ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Validate config, Node, Playwright, target shapes, and protected secret names before running contracts.",
+      requiredSecrets: [],
+      expectedArtifacts: []
+    },
+    {
+      id: "plan-pr",
+      label: "Plan PR-safe contracts",
+      lane: "pull_request",
+      command: `visual-hive plan ${configFlag} --mode pr --base origin/main --ci`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Select only PR-safe deterministic contracts from changed files, target safety, severity, cost, mutation applicability, and provider policy.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/plan.json"]
+    },
+    {
+      id: "run-ci",
+      label: "Run deterministic CI checks",
+      lane: "ci",
+      command: `visual-hive run ${configFlag} --ci`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Run generated Playwright contracts as the pass/fail oracle. CI mode fails on missing baselines unless snapshot updates are explicitly enabled.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/report.json", ".visual-hive/generated/visual-hive.generated.spec.ts", ".visual-hive/artifacts"]
+    },
+    {
+      id: "triage-report",
+      label: "Triage and summarize",
+      lane: "triage",
+      command: `visual-hive triage ${configFlag} && visual-hive report ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Generate offline triage, repair prompts, issue/PR markdown, and a markdown report from sanitized deterministic artifacts.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/triage.json", ".visual-hive/issue.md", ".visual-hive/pr-comment.md"]
+    },
+    {
+      id: "mutate",
+      label: "Measure mutation adequacy",
+      lane: "schedule",
+      command: `visual-hive mutate ${configFlag}${config?.mutation.enabled ? " --enforce-min-score" : ""}`,
+      cwd: resolved.repoRoot,
+      safety: "local_only",
+      description: "Run contract-aware mutation operators to verify that deterministic contracts catch intentional UI/auth/API breakage.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/mutation-report.json"]
+    },
+    {
+      id: "control-plane",
+      label: "Open local Control Plane",
+      lane: "ui",
+      command: `visual-hive ui ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "local_only",
+      description: "Inspect runs, failures, baselines, coverage, providers, LLM prompts, schedules, workflows, artifacts, and this runbook locally.",
+      requiredSecrets: [],
+      expectedArtifacts: []
+    }
+  ];
+  const protectedSecretNames = config ? protectedSecrets(config) : [];
+  const hasProtectedTargets = config ? Object.values(config.targets).some((target) => target.kind === "protected") : false;
+  if (hasProtectedTargets) {
+    commands.push({
+      id: "schedule-protected",
+      label: "Plan trusted protected lane",
+      lane: "protected",
+      command: `visual-hive plan ${configFlag} --mode schedule --allow-unsafe-targets && visual-hive run ${configFlag} --ci`,
+      cwd: resolved.repoRoot,
+      safety: "trusted_only",
+      description: "Use only from a trusted scheduled/manual workflow where protected target secret values are available. Do not run this from untrusted pull_request code.",
+      requiredSecrets: protectedSecretNames,
+      expectedArtifacts: [".visual-hive/plan.json", ".visual-hive/report.json"]
+    });
+  }
+  const notes = [
+    "Playwright contracts remain the deterministic pass/fail oracle.",
+    "PR commands require no secrets and should run under pull_request with read-only permissions.",
+    "LLM and provider outputs are advisory/supplemental unless a future trusted adapter explicitly changes policy.",
+    "Protected commands show required environment variable names only; secret values are never included."
+  ];
+  if (isPlan(plan)) {
+    notes.push(`Latest plan selected ${plan.items.length} contract(s) across ${plan.targets.length} target(s).`);
+  }
+  if (report) {
+    notes.push(`Latest deterministic report status: ${report.status}.`);
+  }
+  if (mutationReport) {
+    notes.push(`Latest mutation score: ${Math.round(mutationReport.score * 100)}%.`);
+  }
+  return {
+    generatedAt: new Date().toISOString(),
+    configPath,
+    commands,
+    notes
+  };
+}
+
+function protectedSecrets(config: VisualHiveConfig): string[] {
+  return uniqueStrings(
+    Object.values(config.targets).flatMap((target) => (target.kind === "protected" ? (target.requiresSecrets ?? []) : []))
+  );
+}
+
+function quoteForShell(value: string): string {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
+  return `"${value.replaceAll('"', '\\"')}"`;
 }
 
 export async function readControlPlaneArtifact(options: ControlPlaneOptions, repoRelativePath: string, connectionId?: string): Promise<ArtifactFile> {

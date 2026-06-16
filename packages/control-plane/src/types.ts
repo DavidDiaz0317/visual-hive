@@ -88,6 +88,25 @@ export interface ControlPlaneFailure {
   artifacts: string[];
 }
 
+export interface ControlPlaneRunbookCommand {
+  id: string;
+  label: string;
+  lane: "local" | "pull_request" | "ci" | "schedule" | "protected" | "triage" | "ui";
+  command: string;
+  cwd: string;
+  safety: "pr_safe" | "trusted_only" | "local_only";
+  description: string;
+  requiredSecrets: string[];
+  expectedArtifacts: string[];
+}
+
+export interface ControlPlaneRunbook {
+  generatedAt: string;
+  configPath: string;
+  commands: ControlPlaneRunbookCommand[];
+  notes: string[];
+}
+
 export type ControlPlaneCoverage = CoverageReport;
 
 export interface ControlPlaneSnapshot {
@@ -121,6 +140,7 @@ export interface ControlPlaneSnapshot {
   llmUsage?: LLMUsageReport;
   overview: ControlPlaneOverview;
   failures: ControlPlaneFailure[];
+  runbook: ControlPlaneRunbook;
   screenshots: ControlPlaneScreenshot[];
   coverage: ControlPlaneCoverage;
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;

@@ -532,12 +532,57 @@ describe("control plane", () => {
     expect(snapshot.workflowAudit?.summary.criticalFindings).toBe(0);
     expect(snapshot.workflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     expect(snapshot.workflowTemplates.find((template) => template.id === "trusted_failure_issue")?.content).toContain("function walkArtifacts");
+    expect(snapshot.runbook.configPath).toBe("visual-hive.config.yaml");
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-pr")).toMatchObject({
+      lane: "pull_request",
+      safety: "pr_safe",
+      requiredSecrets: []
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
+    expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
     expect(snapshot.screenshots[0]?.name).toBe("dashboard");
     expect(snapshot.issueMarkdown).toContain("Issue");
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
+  });
+
+  it("adds trusted protected-lane runbook commands with secret names only", async () => {
+    const fixture = await makeFixture();
+    const config = await readFile(fixture.configPath, "utf8");
+    await writeFile(
+      fixture.configPath,
+      config.replace(
+        "contracts:\n",
+        `  liveCluster:
+    kind: protected
+    url: "https://cluster.example.invalid"
+    requiresSecrets:
+      - KUBECONFIG
+      - KC_AGENT_TOKEN
+    schedule: "0 6 * * *"
+    cost: expensive
+contracts:
+`
+      ),
+      "utf8"
+    );
+    process.env.KC_AGENT_TOKEN = "real-secret-value";
+    try {
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+      const protectedCommand = snapshot.runbook.commands.find((command) => command.id === "schedule-protected");
+
+      expect(protectedCommand).toMatchObject({
+        lane: "protected",
+        safety: "trusted_only",
+        requiredSecrets: ["KC_AGENT_TOKEN", "KUBECONFIG"]
+      });
+      expect(protectedCommand?.command).toContain("--allow-unsafe-targets");
+      expect(JSON.stringify(snapshot.runbook)).not.toContain("real-secret-value");
+    } finally {
+      delete process.env.KC_AGENT_TOKEN;
+    }
   });
 
   it("loads a selected connected repository by connection id", async () => {
@@ -663,6 +708,9 @@ describe("control plane", () => {
       expect(appJs).toContain("workflow-write-all");
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Provider plan policy");
+      expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("trusted only");
+      expect(appJs).toContain("visual-hive run");
       expect(appJs).toContain("Setup PR guidance");
       expect(appJs).toContain("setup-write-config");
       expect(appJs).toContain("/api/setup/write-config");
@@ -684,6 +732,8 @@ describe("control plane", () => {
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
     expect(controlPlaneJs).toContain("navigator.clipboard");
+    expect(controlPlaneJs).toContain("function runbook");
+    expect(controlPlaneJs).toContain("function safetyBadge");
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
     expect(controlPlaneJs).toContain("function writeSetupBundle");

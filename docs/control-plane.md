@@ -17,6 +17,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## What It Shows
 
 - Overview health score with explainable next actions
+- Runbook commands for local readiness, PR planning, CI deterministic checks, mutation adequacy, triage/reporting, protected scheduled lanes, and opening the Control Plane
 - Setup recommendations from `.visual-hive/recommendations.json`, including setup profile, provider posture, cost estimate, permission guidance, setup PR guidance, and guarded actions to write the recommended config and repo setup docs
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
@@ -52,6 +53,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup docs generation reads only `.visual-hive/recommendations.json`, writes `docs/visual-hive.md`, refuses to overwrite existing docs unless the user confirms the overwrite action, and records `.visual-hive/setup-doc-edits.json`.
 - Setup PR bundle generation preflights all output files before writing. It writes `visual-hive.config.yaml`, `docs/visual-hive.md`, and the built-in PR/scheduled/trusted-issue workflow templates only after confirmation, then records `.visual-hive/setup-bundle-edits.json`.
 - Workflow template generation writes only built-in Visual Hive templates to `.github/workflows`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/workflow-edits.json`.
+- The Runbook page does not execute commands. It shows exact operator commands, safety class, expected artifacts, and required secret names so PR-safe and trusted lanes stay separated.
 - `--read-only` disables write actions such as baseline review decisions, setup config/docs generation, workflow template generation, config saving, and connection add/remove.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 
@@ -71,6 +73,6 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over setup recommendations, provider/cost guidance, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over setup recommendations, provider/cost guidance, runbook commands, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
 
 The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.
