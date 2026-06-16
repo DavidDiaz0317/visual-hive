@@ -1,6 +1,7 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/load.js";
+import type { CoverageReport } from "../coverage/analyze.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { RiskRegisterReport, RiskSeverity } from "../risk/analyze.js";
 import { readJson, writeJson } from "../utils/files.js";
@@ -8,6 +9,7 @@ import { sanitizeText } from "../utils/sanitize.js";
 
 export type ConnectionStatus = "ready" | "missing_repo" | "missing_config" | "invalid_config";
 export type ConnectionHealth = "ready" | "attention" | "blocked";
+const STALE_REPORT_DAYS = 7;
 
 export interface RepoConnectionRecord {
   id: string;
@@ -26,11 +28,20 @@ export interface RepoConnectionEntry extends RepoConnectionRecord {
   projectName?: string;
   latestDeterministicStatus?: "passed" | "failed";
   latestReportAt?: string;
+  latestReportAgeDays?: number;
+  staleReport: boolean;
   latestMutationScore?: number;
   latestMutationAt?: string;
   mutationMinScore?: number;
   mutationKilled?: number;
   mutationTotal?: number;
+  latestCoverageAt?: string;
+  coverageGapCount?: number;
+  highCoverageGapCount?: number;
+  mediumCoverageGapCount?: number;
+  uncoveredTargets?: number;
+  uncoveredContracts?: number;
+  missingCoverage: boolean;
   latestRiskScore?: number;
   latestRiskSeverity?: RiskSeverity | "none";
   latestRiskAt?: string;
@@ -56,6 +67,10 @@ export interface RepoConnectionIndex {
     missingReportConnections: number;
     weakMutationConnections: number;
     highRiskConnections: number;
+    staleReportConnections: number;
+    missingCoverageConnections: number;
+    coverageGapConnections: number;
+    highCoverageGapConnections: number;
   };
   connections: RepoConnectionEntry[];
   warnings: string[];
@@ -97,9 +112,10 @@ export async function listConnections(options: ConnectionStoreOptions): Promise<
       addedAt: resolved.now.toISOString(),
       updatedAt: resolved.now.toISOString()
     },
-    false
+    false,
+    resolved.now
   );
-  const stored = await Promise.all(store.connections.map((connection) => inspectConnection(connection, true)));
+  const stored = await Promise.all(store.connections.map((connection) => inspectConnection(connection, true, resolved.now)));
   const byId = new Map<string, RepoConnectionEntry>();
   byId.set(current.id, current);
   for (const connection of stored) {
@@ -202,17 +218,25 @@ async function writeStore(filePath: string, store: ConnectionStoreFile): Promise
   await writeJson(filePath, store);
 }
 
-async function inspectConnection(record: RepoConnectionRecord, stored: boolean): Promise<RepoConnectionEntry> {
+async function inspectConnection(record: RepoConnectionRecord, stored: boolean, now: Date): Promise<RepoConnectionEntry> {
   const warnings: string[] = [];
   let statusValue: ConnectionStatus = "ready";
   let projectName: string | undefined;
   let latestDeterministicStatus: "passed" | "failed" | undefined;
   let latestReportAt: string | undefined;
+  let latestReportAgeDays: number | undefined;
   let latestMutationScore: number | undefined;
   let latestMutationAt: string | undefined;
   let mutationMinScore: number | undefined;
   let mutationKilled: number | undefined;
   let mutationTotal: number | undefined;
+  let latestCoverageAt: string | undefined;
+  let coverageGapCount: number | undefined;
+  let highCoverageGapCount: number | undefined;
+  let mediumCoverageGapCount: number | undefined;
+  let uncoveredTargets: number | undefined;
+  let uncoveredContracts: number | undefined;
+  let missingCoverage = true;
   let latestRiskScore: number | undefined;
   let latestRiskSeverity: RiskSeverity | "none" | undefined;
   let latestRiskAt: string | undefined;
@@ -255,6 +279,7 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
     const report = await readOptionalJson<Report>(artifactPath(record, "report.json"));
     if (report.status === "passed" || report.status === "failed") latestDeterministicStatus = report.status;
     if (typeof report.generatedAt === "string") latestReportAt = report.generatedAt;
+    latestReportAgeDays = ageInDays(latestReportAt, now);
   } catch {
     // Reports are optional for connected repositories.
   }
@@ -271,6 +296,19 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
   }
 
   try {
+    const coverageReport = await readOptionalJson<CoverageReport>(artifactPath(record, "coverage.json"));
+    missingCoverage = false;
+    latestCoverageAt = stringOrUndefined(coverageReport.generatedAt);
+    coverageGapCount = numberOrUndefined(coverageReport.uncoveredAreas?.length);
+    highCoverageGapCount = numberOrUndefined(coverageReport.uncoveredAreas?.filter((gap) => gap.severity === "high").length);
+    mediumCoverageGapCount = numberOrUndefined(coverageReport.uncoveredAreas?.filter((gap) => gap.severity === "medium").length);
+    uncoveredTargets = numberOrUndefined(coverageReport.summary?.uncoveredTargets);
+    uncoveredContracts = numberOrUndefined(coverageReport.summary?.uncoveredContracts);
+  } catch {
+    // Coverage reports are optional, but missing coverage is useful health evidence.
+  }
+
+  try {
     const riskReport = await readOptionalJson<RiskRegisterReport>(artifactPath(record, "risk.json"));
     latestRiskScore = numberOrUndefined(riskReport.summary?.riskScore);
     latestRiskSeverity = riskSeverityOrUndefined(riskReport.summary?.highestSeverity);
@@ -282,8 +320,14 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
   const attention = deriveAttention({
     status: statusValue,
     latestDeterministicStatus,
+    latestReportAgeDays,
     latestMutationScore,
     mutationMinScore,
+    missingCoverage,
+    coverageGapCount,
+    highCoverageGapCount,
+    uncoveredTargets,
+    uncoveredContracts,
     latestRiskScore,
     latestRiskSeverity
   });
@@ -301,11 +345,20 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
     projectName,
     latestDeterministicStatus,
     latestReportAt,
+    latestReportAgeDays,
+    staleReport: latestReportAgeDays !== undefined && latestReportAgeDays > STALE_REPORT_DAYS,
     latestMutationScore,
     latestMutationAt,
     mutationMinScore,
     mutationKilled,
     mutationTotal,
+    latestCoverageAt,
+    coverageGapCount,
+    highCoverageGapCount,
+    mediumCoverageGapCount,
+    uncoveredTargets,
+    uncoveredContracts,
+    missingCoverage,
     latestRiskScore,
     latestRiskSeverity,
     latestRiskAt,
@@ -327,7 +380,11 @@ function summarize(connections: RepoConnectionEntry[]): RepoConnectionIndex["sum
     failedConnections: connections.filter((connection) => connection.latestDeterministicStatus === "failed").length,
     missingReportConnections: connections.filter((connection) => connection.status === "ready" && !connection.latestDeterministicStatus).length,
     weakMutationConnections: connections.filter((connection) => mutationIsWeak(connection)).length,
-    highRiskConnections: connections.filter((connection) => riskIsHigh(connection)).length
+    highRiskConnections: connections.filter((connection) => riskIsHigh(connection)).length,
+    staleReportConnections: connections.filter((connection) => connection.staleReport).length,
+    missingCoverageConnections: connections.filter((connection) => connection.status === "ready" && connection.missingCoverage).length,
+    coverageGapConnections: connections.filter((connection) => (connection.coverageGapCount ?? 0) > 0).length,
+    highCoverageGapConnections: connections.filter((connection) => (connection.highCoverageGapCount ?? 0) > 0).length
   };
 }
 
@@ -343,8 +400,14 @@ async function readOptionalJson<T>(filePath: string): Promise<T> {
 function deriveAttention(input: {
   status: ConnectionStatus;
   latestDeterministicStatus?: "passed" | "failed";
+  latestReportAgeDays?: number;
   latestMutationScore?: number;
   mutationMinScore?: number;
+  missingCoverage?: boolean;
+  coverageGapCount?: number;
+  highCoverageGapCount?: number;
+  uncoveredTargets?: number;
+  uncoveredContracts?: number;
   latestRiskScore?: number;
   latestRiskSeverity?: RiskSeverity | "none";
 }): string[] {
@@ -354,8 +417,20 @@ function deriveAttention(input: {
   if (input.status === "invalid_config") attention.push("Visual Hive config is invalid.");
   if (input.status === "ready" && !input.latestDeterministicStatus) attention.push("No deterministic report found.");
   if (input.latestDeterministicStatus === "failed") attention.push("Latest deterministic run failed.");
+  if (input.latestReportAgeDays !== undefined && input.latestReportAgeDays > STALE_REPORT_DAYS) {
+    attention.push(`Latest deterministic report is stale (${input.latestReportAgeDays} days old).`);
+  }
   if (input.latestMutationScore !== undefined && input.mutationMinScore !== undefined && input.latestMutationScore < input.mutationMinScore) {
     attention.push(`Mutation score ${formatPercent(input.latestMutationScore)} is below minimum ${formatPercent(input.mutationMinScore)}.`);
+  }
+  if (input.status === "ready" && input.latestDeterministicStatus && input.missingCoverage) {
+    attention.push("No coverage audit found.");
+  }
+  if ((input.highCoverageGapCount ?? 0) > 0) {
+    attention.push(`Coverage has ${input.highCoverageGapCount} high-severity gap${input.highCoverageGapCount === 1 ? "" : "s"}.`);
+  }
+  if ((input.uncoveredTargets ?? 0) > 0 || (input.uncoveredContracts ?? 0) > 0) {
+    attention.push(`Coverage leaves ${input.uncoveredTargets ?? 0} target(s) and ${input.uncoveredContracts ?? 0} contract(s) uncovered.`);
   }
   if (input.latestRiskSeverity === "critical" || input.latestRiskSeverity === "high" || (input.latestRiskScore ?? 0) >= 50) {
     attention.push(`Risk register needs review${input.latestRiskScore === undefined ? "." : ` (${input.latestRiskScore}/100).`}`);
@@ -374,6 +449,13 @@ function mutationIsWeak(connection: RepoConnectionEntry): boolean {
 
 function riskIsHigh(connection: RepoConnectionEntry): boolean {
   return connection.latestRiskSeverity === "critical" || connection.latestRiskSeverity === "high" || (connection.latestRiskScore ?? 0) >= 50;
+}
+
+function ageInDays(value: string | undefined, now: Date): number | undefined {
+  if (!value) return undefined;
+  const then = Date.parse(value);
+  if (!Number.isFinite(then)) return undefined;
+  return Math.max(0, Math.floor((now.getTime() - then) / 86_400_000));
 }
 
 function numberOrUndefined(value: unknown): number | undefined {

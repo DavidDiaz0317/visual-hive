@@ -9,7 +9,7 @@ The file stores:
 - config path inside that repository
 - tags
 
-`visual-hive connections list` and the Control Plane inspect those paths at runtime to show readiness status, project name, latest deterministic status, mutation score, risk score, and attention reasons when the corresponding `.visual-hive` artifacts exist.
+`visual-hive connections list` and the Control Plane inspect those paths at runtime to show readiness status, project name, latest deterministic status, report age, mutation score, coverage gaps, risk score, and attention reasons when the corresponding `.visual-hive` artifacts exist.
 
 It does not store credentials, tokens, cookies, provider secrets, kubeconfigs, or LLM keys. Required secrets are still represented by name only in target/provider audits.
 
@@ -31,14 +31,15 @@ The connection health dashboard is derived, not stored. For each connected repo 
 - `visual-hive.config.yaml` to validate readiness and project name
 - `.visual-hive/report.json` for latest deterministic status and timestamp
 - `.visual-hive/mutation-report.json` for mutation score, minimum score, and killed/total count
+- `.visual-hive/coverage.json` for uncovered targets, uncovered contracts, and high/medium/low coverage gaps
 - `.visual-hive/risk.json` for risk score and highest severity
 
 Health states:
 
 - `ready`: config is valid and available evidence does not need operator attention
-- `attention`: config is valid, but the repo has no deterministic report, a failed deterministic run, mutation score below its minimum, or a high/critical risk register
+- `attention`: config is valid, but the repo has no deterministic report, a stale deterministic report, a failed deterministic run, missing coverage audit, high coverage gaps, mutation score below its minimum, or a high/critical risk register
 - `blocked`: repo path, config path, or config validation is broken
 
-The summary counts failed deterministic reports, missing deterministic reports, weak mutation scores, high-risk registers, blocked repos, and repos needing attention. Secret values are never read from the target repos; protected target audits show required environment variable names only.
+The summary counts failed deterministic reports, missing deterministic reports, stale deterministic reports, missing coverage audits, coverage gaps, high coverage gaps, weak mutation scores, high-risk registers, blocked repos, and repos needing attention. Secret values are never read from the target repos; protected target audits show required environment variable names only.
 
 Schema: `schemas/visual-hive.connections.schema.json`.

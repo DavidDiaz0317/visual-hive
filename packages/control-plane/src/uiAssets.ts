@@ -675,14 +675,17 @@ function connections() {
     metric("Stored", index.summary.storedConnections, "") +
     metric("Needs attention", index.summary.connectionsNeedingAttention || 0, index.summary.connectionsNeedingAttention ? "warn" : "ok") +
     metric("Blocked", index.summary.blockedConnections || 0, index.summary.blockedConnections ? "bad" : "ok") +
+    metric("Stale reports", index.summary.staleReportConnections || 0, index.summary.staleReportConnections ? "warn" : "ok") +
     metric("Weak mutation", index.summary.weakMutationConnections || 0, index.summary.weakMutationConnections ? "warn" : "ok") +
+    metric("Coverage gaps", index.summary.coverageGapConnections || 0, index.summary.highCoverageGapConnections ? "bad" : (index.summary.coverageGapConnections ? "warn" : "ok")) +
     metric("High risk", index.summary.highRiskConnections || 0, index.summary.highRiskConnections ? "bad" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Connection health dashboard", table(["Repository", "Health", "Latest deterministic", "Mutation", "Risk", "Attention", "Action"], index.connections.map(c => [
+    card("Connection health dashboard", table(["Repository", "Health", "Latest deterministic", "Mutation", "Coverage", "Risk", "Attention", "Action"], index.connections.map(c => [
       '<b>' + esc(c.label) + '</b><p class="muted">' + esc(c.projectName || c.id) + '</p><p class="muted">' + esc((c.tags || []).join(", ") || "no tags") + '</p>',
       connectionHealthBadge(c),
       connectionLatest(c),
       connectionMutation(c),
+      connectionCoverage(c),
       connectionRisk(c),
       connectionAttention(c),
       connectionAction(c)
@@ -701,8 +704,9 @@ function connectionHealthBadge(connection) {
 }
 
 function connectionLatest(connection) {
-  if (connection.latestDeterministicStatus === "passed") return '<span class="ok">passed</span>' + connectionTimestamp(connection.latestReportAt);
-  if (connection.latestDeterministicStatus === "failed") return '<span class="bad">failed</span>' + connectionTimestamp(connection.latestReportAt);
+  const age = connection.latestReportAgeDays == null ? "" : '<p class="' + (connection.staleReport ? "warn" : "muted") + '">' + esc(connection.latestReportAgeDays) + 'd old</p>';
+  if (connection.latestDeterministicStatus === "passed") return '<span class="ok">passed</span>' + connectionTimestamp(connection.latestReportAt) + age;
+  if (connection.latestDeterministicStatus === "failed") return '<span class="bad">failed</span>' + connectionTimestamp(connection.latestReportAt) + age;
   return '<span class="muted">no report</span>';
 }
 
@@ -713,6 +717,17 @@ function connectionMutation(connection) {
   const cls = connection.mutationMinScore != null && connection.latestMutationScore < connection.mutationMinScore ? "warn" : "ok";
   const detail = connection.mutationTotal == null ? "" : '<p class="muted">' + esc(connection.mutationKilled ?? 0) + "/" + esc(connection.mutationTotal) + " killed</p>";
   return '<span class="' + cls + '">' + esc(score) + '</span>' + min + detail;
+}
+
+function connectionCoverage(connection) {
+  if (connection.missingCoverage || connection.coverageGapCount == null) return '<span class="muted">not run</span>';
+  const high = connection.highCoverageGapCount || 0;
+  const medium = connection.mediumCoverageGapCount || 0;
+  const cls = high ? "bad" : (connection.coverageGapCount ? "warn" : "ok");
+  const uncovered = (connection.uncoveredTargets || connection.uncoveredContracts)
+    ? '<p class="muted">' + esc(connection.uncoveredTargets || 0) + " target(s), " + esc(connection.uncoveredContracts || 0) + " contract(s) uncovered</p>"
+    : "";
+  return '<span class="' + cls + '">' + esc(connection.coverageGapCount) + ' gap(s)</span><p class="muted">high ' + esc(high) + ', medium ' + esc(medium) + '</p>' + uncovered;
 }
 
 function connectionRisk(connection) {

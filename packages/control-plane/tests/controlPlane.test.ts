@@ -666,8 +666,9 @@ contracts:
     const manager = await makeFixture();
     const connected = await makeFixture();
     const reportPath = path.join(connected.repoRoot, ".visual-hive", "report.json");
-    const report = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; summary: { passed: number; failed: number } };
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; generatedAt: string; summary: { passed: number; failed: number } };
     report.status = "failed";
+    report.generatedAt = "2020-01-01T00:00:00.000Z";
     report.summary.passed = 0;
     report.summary.failed = 1;
     await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
@@ -683,6 +684,43 @@ contracts:
           killed: 2,
           total: 5,
           results: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "coverage.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:05:00.000Z",
+          mode: "pr",
+          summary: {
+            targetCount: 2,
+            contractCount: 2,
+            selectedContracts: 1,
+            unselectedContracts: 1,
+            prSafeContracts: 1,
+            protectedContracts: 0,
+            scheduleOnlyContracts: 0,
+            routesCovered: 1,
+            viewportsCovered: 1,
+            uncoveredTargets: 1,
+            uncoveredContracts: 0,
+            changedFileRules: 1,
+            matchedChangedFileRules: 1,
+            unmatchedChangedFiles: 0
+          },
+          targets: [],
+          contracts: [],
+          routes: [],
+          viewports: [],
+          changedFileCoverage: [],
+          unmatchedChangedFiles: [],
+          uncoveredAreas: [{ kind: "target_without_contracts", severity: "high", message: "Fullstack target has no contracts.", targetId: "fullstack" }]
         },
         null,
         2
@@ -736,12 +774,19 @@ contracts:
     const connection = snapshot.connections?.connections.find((candidate) => candidate.id === "attention-repo");
 
     expect(snapshot.connections?.summary.failedConnections).toBe(1);
+    expect(snapshot.connections?.summary.staleReportConnections).toBe(1);
     expect(snapshot.connections?.summary.weakMutationConnections).toBe(1);
+    expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
+    expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
     expect(connection?.health).toBe("attention");
+    expect(connection?.staleReport).toBe(true);
     expect(connection?.latestMutationScore).toBe(0.4);
+    expect(connection?.coverageGapCount).toBe(1);
+    expect(connection?.highCoverageGapCount).toBe(1);
     expect(connection?.latestRiskSeverity).toBe("critical");
     expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
+    expect(connection?.attention.join(" ")).toContain("Coverage has 1 high-severity gap");
   });
 
   it("rejects unknown selected connection ids", async () => {
@@ -872,6 +917,7 @@ contracts:
       expect(appJs).toContain("Connection health dashboard");
       expect(appJs).toContain("function connectionHealthBadge");
       expect(appJs).toContain("function connectionMutation");
+      expect(appJs).toContain("function connectionCoverage");
       expect(appJs).toContain("function connectionRisk");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
@@ -899,6 +945,7 @@ contracts:
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
     expect(controlPlaneJs).toContain("function writeSetupBundle");
     expect(controlPlaneJs).toContain("function connectionHealthBadge");
+    expect(controlPlaneJs).toContain("function connectionCoverage");
     expect(controlPlaneJs).toContain("Connection health dashboard");
   });
 

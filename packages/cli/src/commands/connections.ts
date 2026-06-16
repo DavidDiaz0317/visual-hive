@@ -63,7 +63,11 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
     `- Blocked: ${index.summary.blockedConnections}`,
     `- Failed deterministic reports: ${index.summary.failedConnections}`,
     `- Missing deterministic reports: ${index.summary.missingReportConnections}`,
+    `- Stale deterministic reports: ${index.summary.staleReportConnections}`,
     `- Weak mutation scores: ${index.summary.weakMutationConnections}`,
+    `- Missing coverage audits: ${index.summary.missingCoverageConnections}`,
+    `- Coverage gaps: ${index.summary.coverageGapConnections}`,
+    `- High coverage gaps: ${index.summary.highCoverageGapConnections}`,
     `- High risk registers: ${index.summary.highRiskConnections}`,
     `- Missing config: ${index.summary.missingConfigConnections}`,
     `- Invalid config: ${index.summary.invalidConfigConnections}`,
@@ -78,11 +82,17 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
       connection.latestMutationScore === undefined
         ? "mutation=not run"
         : `mutation=${Math.round(connection.latestMutationScore * 100)}%${connection.mutationMinScore === undefined ? "" : ` min=${Math.round(connection.mutationMinScore * 100)}%`}`;
+    const coverage =
+      connection.missingCoverage || connection.coverageGapCount === undefined
+        ? "coverage=not run"
+        : `coverage=${connection.coverageGapCount} gap(s), high=${connection.highCoverageGapCount ?? 0}`;
     const risk = connection.latestRiskScore === undefined ? "risk=not run" : `risk=${connection.latestRiskScore}/100 ${connection.latestRiskSeverity ?? ""}`.trim();
     lines.push(`- ${connection.id}: ${connection.label} - ${connection.health} / ${status}${tags}`);
     lines.push(`  repo: ${connection.repoRoot}`);
     lines.push(`  config: ${connection.configPath}`);
-    lines.push(`  latest: ${connection.latestDeterministicStatus ?? "no report"}; ${mutation}; ${risk}`);
+    lines.push(
+      `  latest: ${connection.latestDeterministicStatus ?? "no report"}${connection.latestReportAgeDays === undefined ? "" : ` (${connection.latestReportAgeDays}d old)`}; ${mutation}; ${coverage}; ${risk}`
+    );
     if (connection.attention.length) lines.push(`  attention: ${connection.attention.join(" ")}`);
   }
   if (index.warnings.length) {

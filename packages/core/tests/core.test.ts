@@ -1870,11 +1870,13 @@ describe("local repository connections", () => {
   it("summarizes connected repository health from reports, mutation score, and risk", async () => {
     const managerRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-connections-health-manager-"));
     const connectedRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-connections-health-target-"));
+    const now = new Date("2026-06-16T00:00:00.000Z");
     tempDirs.push(managerRoot, connectedRoot);
     await writeMinimalConfig(managerRoot, "manager-project");
     await writeMinimalConfig(connectedRoot, "connected-project");
     await writeJson(path.join(managerRoot, ".visual-hive", "report.json"), connectionReport("manager-project", "passed"));
-    await writeJson(path.join(connectedRoot, ".visual-hive", "report.json"), connectionReport("connected-project", "failed"));
+    await writeJson(path.join(managerRoot, ".visual-hive", "coverage.json"), connectionCoverage("manager-project", []));
+    await writeJson(path.join(connectedRoot, ".visual-hive", "report.json"), connectionReport("connected-project", "failed", "2026-06-01T00:00:00.000Z"));
     await writeJson(path.join(connectedRoot, ".visual-hive", "mutation-report.json"), {
       schemaVersion: 2,
       project: "connected-project",
@@ -1885,6 +1887,14 @@ describe("local repository connections", () => {
       total: 2,
       results: []
     });
+    await writeJson(
+      path.join(connectedRoot, ".visual-hive", "coverage.json"),
+      connectionCoverage("connected-project", [
+        { kind: "target_without_contracts", severity: "high", message: "Admin target has no contracts.", targetId: "admin" },
+        { kind: "contract_without_assertions", severity: "low", message: "Settings contract has no assertions.", contractId: "settings" },
+        { kind: "viewport_without_screenshots", severity: "medium", message: "Mobile viewport has no screenshots.", viewport: "mobile" }
+      ])
+    );
     await writeJson(path.join(connectedRoot, ".visual-hive", "risk.json"), {
       schemaVersion: 1,
       project: "connected-project",
@@ -1918,28 +1928,41 @@ describe("local repository connections", () => {
       repoRoot: managerRoot,
       repoPath: connectedRoot,
       id: "risky-console",
-      label: "Risky Console"
+      label: "Risky Console",
+      now
     });
 
-    const index = await listConnections({ repoRoot: managerRoot });
+    const index = await listConnections({ repoRoot: managerRoot, now });
     const connection = index.connections.find((candidate) => candidate.id === "risky-console");
 
     expect(index.summary.failedConnections).toBe(1);
+    expect(index.summary.staleReportConnections).toBe(1);
     expect(index.summary.weakMutationConnections).toBe(1);
+    expect(index.summary.coverageGapConnections).toBe(1);
+    expect(index.summary.highCoverageGapConnections).toBe(1);
     expect(index.summary.highRiskConnections).toBe(1);
     expect(index.summary.connectionsNeedingAttention).toBe(1);
     expect(connection).toMatchObject({
       health: "attention",
       latestDeterministicStatus: "failed",
+      latestReportAgeDays: 15,
+      staleReport: true,
       latestMutationScore: 0.5,
       mutationMinScore: 0.75,
       mutationKilled: 1,
       mutationTotal: 2,
+      coverageGapCount: 3,
+      highCoverageGapCount: 1,
+      mediumCoverageGapCount: 1,
+      uncoveredTargets: 1,
+      uncoveredContracts: 1,
       latestRiskScore: 62,
       latestRiskSeverity: "high"
     });
     expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
+    expect(connection?.attention.join(" ")).toContain("Latest deterministic report is stale");
     expect(connection?.attention.join(" ")).toContain("Mutation score 50% is below minimum 75%");
+    expect(connection?.attention.join(" ")).toContain("Coverage has 1 high-severity gap");
     expect(connection?.attention.join(" ")).toContain("Risk register needs review");
   });
 });
@@ -1962,13 +1985,13 @@ contracts:
   );
 }
 
-function connectionReport(project: string, status: "passed" | "failed"): Report {
+function connectionReport(project: string, status: "passed" | "failed", generatedAt = "2026-06-15T00:00:00.000Z"): Report {
   return {
     schemaVersion: 2,
     project,
     repository: sampleRepository,
     mode: "pr",
-    generatedAt: "2026-06-15T00:00:00.000Z",
+    generatedAt,
     status,
     changedFiles: [],
     selectedTargets: [],
@@ -1993,6 +2016,41 @@ function connectionReport(project: string, status: "passed" | "failed"): Report 
     pageErrors: [],
     artifacts: [],
     reproductionCommands: []
+  };
+}
+
+function connectionCoverage(
+  project: string,
+  gaps: Array<{ kind: string; severity: "low" | "medium" | "high"; message: string; targetId?: string; contractId?: string; route?: string; viewport?: string }>
+): unknown {
+  return {
+    schemaVersion: 1,
+    project,
+    generatedAt: "2026-06-15T00:05:00.000Z",
+    mode: "pr",
+    summary: {
+      targetCount: 2,
+      contractCount: 2,
+      selectedContracts: 1,
+      unselectedContracts: 1,
+      prSafeContracts: 1,
+      protectedContracts: 0,
+      scheduleOnlyContracts: 0,
+      routesCovered: 1,
+      viewportsCovered: 1,
+      uncoveredTargets: gaps.some((gap) => gap.kind === "target_without_contracts") ? 1 : 0,
+      uncoveredContracts: gaps.some((gap) => gap.kind === "contract_without_assertions") ? 1 : 0,
+      changedFileRules: 1,
+      matchedChangedFileRules: 1,
+      unmatchedChangedFiles: 0
+    },
+    targets: [],
+    contracts: [],
+    routes: [],
+    viewports: [],
+    changedFileCoverage: [],
+    unmatchedChangedFiles: [],
+    uncoveredAreas: gaps
   };
 }
 
