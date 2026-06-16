@@ -23,3 +23,14 @@ visual-hive contracts --changed-files changed-files.txt
 ```
 
 The artifact schema is tracked at `schemas/visual-hive.contracts.schema.json`. The Control Plane Contract Manager page reads the same core audit model as the CLI.
+
+The Control Plane filters contracts locally by:
+
+- target
+- severity
+- PR-safe vs protected/non-PR-safe target
+- failed, passed, not-run, selected, or unselected status
+- covered route
+- covered viewport
+
+Filters do not modify config or artifacts. They are a browser-only inspection aid for narrowing large projects down to the contracts that need review.

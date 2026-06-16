@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { addConnection } from "@visual-hive/core";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, startControlPlaneServer } from "../src/index.js";
+import { controlPlaneJs } from "../src/uiAssets.js";
 
 const sampleRepository = {
   provider: "local",
@@ -527,11 +528,25 @@ describe("control plane", () => {
     try {
       const page = await fetch(server.url).then((response) => response.text());
       expect(page).toContain("Visual Hive Control Plane");
+      const appJs = await fetch(`${server.url}/assets/app.js`).then((response) => response.text());
+      expect(appJs).toContain("contract-filter-target");
+      expect(appJs).toContain("contract-filter-severity");
+      expect(appJs).toContain("contract-filter-prsafe");
+      expect(appJs).toContain("contract-filter-status");
+      expect(appJs).toContain("contract-filter-route");
+      expect(appJs).toContain("contract-filter-viewport");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
       await server.close();
     }
+  });
+
+  it("ships parseable browser JavaScript for contract manager filters", () => {
+    expect(() => new Function(controlPlaneJs)).not.toThrow();
+    expect(controlPlaneJs).toContain("function filterContracts");
+    expect(controlPlaneJs).toContain("contractTargetPrSafe");
+    expect(controlPlaneJs).toContain("Filters are local to the browser");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {

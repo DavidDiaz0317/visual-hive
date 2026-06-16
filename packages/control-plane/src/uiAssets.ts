@@ -45,6 +45,7 @@ p { color: #aebcca; margin: 4px 0 0; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0c1014; border: 1px solid #28313a; border-radius: 8px; padding: 12px; color: #dce7f2; }
 textarea.editor { width: 100%; min-height: 420px; box-sizing: border-box; resize: vertical; border: 1px solid #303b46; border-radius: 8px; background: #0c1014; color: #dce7f2; padding: 12px; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 input.text-input { width: 100%; box-sizing: border-box; border: 1px solid #303b46; border-radius: 6px; background: #0c1014; color: #dce7f2; padding: 9px 10px; font: 13px ui-sans-serif, system-ui, sans-serif; }
+select.filter-select { width: 100%; box-sizing: border-box; border: 1px solid #303b46; border-radius: 6px; background: #0c1014; color: #dce7f2; padding: 9px 10px; font: 13px ui-sans-serif, system-ui, sans-serif; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; border-bottom: 1px solid #28313a; padding: 9px; vertical-align: top; }
 th { color: #b9c6d3; font-size: 12px; text-transform: uppercase; }
@@ -81,6 +82,7 @@ const tabs = [
 let snapshot;
 let active = "overview";
 let activeConnectionId = new URLSearchParams(window.location.search).get("connection") || "current";
+let contractFilters = { target: "all", severity: "all", prSafe: "all", status: "all", route: "all", viewport: "all" };
 
 const app = document.querySelector("#app");
 const tabRoot = document.querySelector("#tabs");
@@ -262,9 +264,12 @@ function contracts() {
   if (!snapshot.contracts.length) return empty("No contracts found.");
   const audit = snapshot.contractAudit;
   if (!audit) {
-    return card("Contracts", table(["ID", "Target", "Severity", "Run on PR", "Screenshots", "Latest", "Mutations"], snapshot.contracts.map(c => [c.config.id, c.config.target, c.config.severity, c.config.runOn?.pullRequest ? "yes" : "no", c.config.screenshots?.map(s => s.route + "@" + s.viewport).join(", ") || "", c.latestStatus || "not run", c.mutationOperators.join(", ")])));
+    const rows = snapshot.contracts.map(c => ({ id: c.config.id, targetId: c.config.target, severity: c.config.severity, selected: false, latestStatus: c.latestStatus || "not_run", routes: (c.config.screenshots || []).map(s => s.route), viewports: (c.config.screenshots || []).map(s => s.viewport), mutationMappings: c.mutationOperators.map(operator => ({ operator })), gaps: [], recommendations: [], flowStepCount: c.config.flow?.length || 0, consoleRules: { failOnConsoleError: Boolean(c.config.failOnConsoleError), expectedConsoleErrors: c.config.expectedConsoleErrors || [] } }));
+    const filtered = filterContracts(rows);
+    return contractFilterCard(rows, filtered.length) + card("Contracts", table(["ID", "Target", "Severity", "Run on PR", "Routes", "Viewports", "Latest", "Mutations"], filtered.map(c => [c.id, c.targetId, c.severity, snapshot.config?.contracts?.find(contract => contract.id === c.id)?.runOn?.pullRequest ? "yes" : "no", c.routes.join(", ") || "none", c.viewports.join(", ") || "none", statusLabel(c), c.mutationMappings.map(m => m.operator).join(", ")])));
   }
   const s = audit.summary;
+  const filteredContracts = filterContracts(audit.contracts);
   return '<div class="grid">' +
     metric("Contracts", s.contractCount, "") +
     metric("Selected", s.selectedContracts, "") +
@@ -276,10 +281,60 @@ function contracts() {
     metric("No waitFor", s.contractsWithoutWaitFor, "") +
     metric("Mutation mapped", s.mutationMappedContracts, "") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Contract audit", table(["ID", "Target", "Severity", "Selected", "Latest", "Flow", "Routes", "Viewports", "Mutations", "Gaps"], audit.contracts.map(c => [c.id, c.targetId, c.severity, c.selected ? "yes" : "no", c.latestStatus, String(c.flowStepCount ?? 0), c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
-    card("Recommendations", audit.contracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r)).length ? list(audit.contracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r))) : "No contract recommendations from the current audit.") +
-    card("Console rules", table(["ID", "Fail on console", "Expected errors"], audit.contracts.map(c => [c.id, c.consoleRules.failOnConsoleError ? "yes" : "no", c.consoleRules.expectedConsoleErrors.join(", ") || "none"]))) +
+    contractFilterCard(audit.contracts, filteredContracts.length) +
+    card("Contract audit", table(["ID", "Target", "Severity", "PR safe", "Selected", "Latest", "Flow", "Routes", "Viewports", "Mutations", "Gaps"], filteredContracts.map(c => [c.id, c.targetId, c.severity, contractTargetPrSafe(c.targetId) ? "yes" : "no", c.selected ? "yes" : "no", statusLabel(c), String(c.flowStepCount ?? 0), c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
+    card("Recommendations", filteredContracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r)).length ? list(filteredContracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r))) : "No contract recommendations match the current filters.") +
+    card("Console rules", table(["ID", "Fail on console", "Expected errors"], filteredContracts.map(c => [c.id, c.consoleRules.failOnConsoleError ? "yes" : "no", c.consoleRules.expectedConsoleErrors.join(", ") || "none"]))) +
     '</div>';
+}
+
+function contractFilterCard(contracts, filteredCount) {
+  const targets = uniqueValues(contracts.map(c => c.targetId));
+  const severities = uniqueValues(contracts.map(c => c.severity));
+  const routes = uniqueValues(contracts.flatMap(c => c.routes || []));
+  const viewports = uniqueValues(contracts.flatMap(c => c.viewports || []));
+  return card("Contract filters", '<div class="grid">' +
+    filterSelect("contract-filter-target", "Target", contractFilters.target, [["all", "All targets"]].concat(targets.map(value => [value, value]))) +
+    filterSelect("contract-filter-severity", "Severity", contractFilters.severity, [["all", "All severities"]].concat(severities.map(value => [value, value]))) +
+    filterSelect("contract-filter-prsafe", "PR safety", contractFilters.prSafe, [["all", "Any safety"], ["safe", "PR-safe targets"], ["unsafe", "Not PR-safe/protected"]]) +
+    filterSelect("contract-filter-status", "Status", contractFilters.status, [["all", "Any status"], ["failed", "Failed"], ["passed", "Passed"], ["not_run", "Not run"], ["selected", "Selected"], ["unselected", "Not selected"]]) +
+    filterSelect("contract-filter-route", "Route", contractFilters.route, [["all", "All routes"]].concat(routes.map(value => [value, value]))) +
+    filterSelect("contract-filter-viewport", "Viewport", contractFilters.viewport, [["all", "All viewports"]].concat(viewports.map(value => [value, value]))) +
+    '</div><p class="muted">' + esc(filteredCount) + ' of ' + esc(contracts.length) + ' contracts shown. Filters are local to the browser and do not change config.</p>');
+}
+
+function filterContracts(contracts) {
+  return contracts.filter(c => {
+    if (contractFilters.target !== "all" && c.targetId !== contractFilters.target) return false;
+    if (contractFilters.severity !== "all" && c.severity !== contractFilters.severity) return false;
+    if (contractFilters.prSafe === "safe" && !contractTargetPrSafe(c.targetId)) return false;
+    if (contractFilters.prSafe === "unsafe" && contractTargetPrSafe(c.targetId)) return false;
+    if (contractFilters.status === "failed" && statusLabel(c) !== "failed") return false;
+    if (contractFilters.status === "passed" && statusLabel(c) !== "passed") return false;
+    if (contractFilters.status === "not_run" && statusLabel(c) !== "not run") return false;
+    if (contractFilters.status === "selected" && !c.selected) return false;
+    if (contractFilters.status === "unselected" && c.selected) return false;
+    if (contractFilters.route !== "all" && !(c.routes || []).includes(contractFilters.route)) return false;
+    if (contractFilters.viewport !== "all" && !(c.viewports || []).includes(contractFilters.viewport)) return false;
+    return true;
+  });
+}
+
+function contractTargetPrSafe(targetId) {
+  return Boolean(snapshot.targets.find(t => t.id === targetId)?.config?.prSafe);
+}
+
+function statusLabel(contract) {
+  const status = contract.latestStatus || "not run";
+  return status === "not_run" ? "not run" : status;
+}
+
+function filterSelect(id, label, selected, options) {
+  return '<label>' + esc(label) + '<select id="' + escAttr(id) + '" class="filter-select contract-filter" data-filter="' + escAttr(id.replace("contract-filter-", "")) + '">' + options.map(([value, text]) => '<option value="' + escAttr(value) + '" ' + (selected === value ? "selected" : "") + '>' + esc(text) + '</option>').join("") + '</select></label>';
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean).map(value => String(value)))].sort();
 }
 
 function schedule() {
@@ -494,6 +549,11 @@ function wireActions() {
   const save = document.querySelector("#config-save");
   if (validate) validate.addEventListener("click", () => validateConfigDraft(false));
   if (save) save.addEventListener("click", () => validateConfigDraft(true));
+  document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {
+    const key = select.dataset.filter;
+    if (key) contractFilters[key] = select.value || "all";
+    render();
+  }));
   document.querySelectorAll(".connection-switch").forEach((button) => button.addEventListener("click", async () => {
     activeConnectionId = button.dataset.connection || "current";
     window.history.replaceState(null, "", activeConnectionId === "current" ? window.location.pathname : "?connection=" + encodeURIComponent(activeConnectionId));
