@@ -62,5 +62,9 @@ export interface CreatePlanOptions {
   mode: PlanMode;
   changedFiles?: string[];
   allowUnsafeTargets?: boolean;
+  includeContracts?: string[];
+  excludeContracts?: string[];
+  includeTargets?: string[];
+  excludeTargets?: string[];
   now?: Date;
 }

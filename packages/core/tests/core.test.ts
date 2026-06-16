@@ -556,7 +556,57 @@ describe("planner", () => {
     expect(plan.items.map((item) => item.contractId)).toContain("safe-contract");
     expect(plan.items.map((item) => item.contractId)).toContain("changed-contract");
   });
+
+  it("supports explicit contract and target include rules", () => {
+    const plan = createPlan(sampleConfig(), {
+      mode: "pr",
+      changedFiles: [],
+      includeContracts: ["changed-contract"],
+      includeTargets: ["safe"]
+    });
+
+    const selected = plan.items.map((item) => item.contractId);
+    expect(selected).toContain("safe-contract");
+    expect(selected).toContain("changed-contract");
+    expect(plan.items.find((item) => item.contractId === "changed-contract")?.reasons).toContain("explicit include contract");
+    expect(plan.items.find((item) => item.contractId === "safe-contract")?.reasons).toContain("explicit include target");
   });
+
+  it("supports explicit exclude rules and keeps them higher priority than includes", () => {
+    const plan = createPlan(sampleConfig(), {
+      mode: "pr",
+      changedFiles: ["src/App.tsx"],
+      includeContracts: ["changed-contract"],
+      excludeContracts: ["safe-contract"],
+      excludeTargets: ["safe"]
+    });
+
+    expect(plan.items).toEqual([]);
+    expect(plan.excluded.find((item) => item.contractId === "safe-contract")?.reasons).toEqual([
+      "explicit exclude contract",
+      "explicit exclude target"
+    ]);
+    expect(plan.excluded.find((item) => item.contractId === "changed-contract")?.reasons).toEqual(["explicit exclude target"]);
+  });
+
+  it("does not let explicit includes bypass PR target safety", () => {
+    const blocked = createPlan(sampleConfig(), {
+      mode: "pr",
+      changedFiles: [],
+      includeContracts: ["unsafe-contract"]
+    });
+    expect(blocked.items.map((item) => item.contractId)).not.toContain("unsafe-contract");
+    expect(blocked.excluded.find((item) => item.contractId === "unsafe-contract")?.reasons).toContain("target.prSafe=false");
+
+    const allowed = createPlan(sampleConfig(), {
+      mode: "pr",
+      changedFiles: [],
+      includeContracts: ["unsafe-contract"],
+      allowUnsafeTargets: true
+    });
+    expect(allowed.items.map((item) => item.contractId)).toContain("unsafe-contract");
+  });
+});
 
 describe("coverage analysis", () => {
   it("summarizes targets, selected contracts, routes, viewports, and changed-file gaps", () => {

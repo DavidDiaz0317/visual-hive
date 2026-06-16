@@ -10,6 +10,10 @@ export interface PlanCommandOptions {
   changedFiles?: string;
   base?: string;
   allowUnsafeTargets?: boolean;
+  includeContracts?: string[];
+  excludeContracts?: string[];
+  includeTargets?: string[];
+  excludeTargets?: string[];
 }
 
 export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<Plan> {
@@ -19,7 +23,11 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
   const plan = createPlan(loaded.config, {
     mode: parsePlanMode(options.mode),
     changedFiles,
-    allowUnsafeTargets: options.allowUnsafeTargets
+    allowUnsafeTargets: options.allowUnsafeTargets,
+    includeContracts: options.includeContracts,
+    excludeContracts: options.excludeContracts,
+    includeTargets: options.includeTargets,
+    excludeTargets: options.excludeTargets
   });
   if (plan.items.length === 0 && !isIntentionalIgnoredFilesPlan(plan)) {
     const excluded = plan.excluded.length

@@ -13,6 +13,10 @@ export interface TargetsCommandOptions {
   changedFiles?: string;
   base?: string;
   allowUnsafeTargets?: boolean;
+  includeContracts?: string[];
+  excludeContracts?: string[];
+  includeTargets?: string[];
+  excludeTargets?: string[];
   format?: "markdown" | "json";
 }
 
@@ -78,7 +82,11 @@ async function resolvePlan(
   return createPlan(config, {
     mode: parsePlanMode(options.mode),
     changedFiles,
-    allowUnsafeTargets: options.allowUnsafeTargets
+    allowUnsafeTargets: options.allowUnsafeTargets,
+    includeContracts: options.includeContracts,
+    excludeContracts: options.excludeContracts,
+    includeTargets: options.includeTargets,
+    excludeTargets: options.excludeTargets
   });
 }
 

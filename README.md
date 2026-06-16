@@ -121,6 +121,8 @@ Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use
 
 Changed-file selection can also define `selection.ignoreChangedFiles` for docs-only or metadata-only patterns. If every changed file matches that explicit ignore list in PR mode, Visual Hive writes an empty plan plus a passed no-op report instead of starting target servers.
 
+For one-off investigations, `visual-hive plan` also supports repeatable `--include-contract`, `--exclude-contract`, `--include-target`, and `--exclude-target` flags. Excludes win over includes, and explicit includes still respect PR target safety unless `--allow-unsafe-targets` is passed.
+
 ## Control Plane UI
 
 Start the local UI for a repository:

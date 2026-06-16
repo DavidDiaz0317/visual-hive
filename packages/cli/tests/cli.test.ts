@@ -67,6 +67,45 @@ describe("CLI commands", () => {
     expect(written.excluded.map((item) => item.contractId)).toContain("live-cluster-protected-lane");
   });
 
+  it("passes explicit include and exclude options through plan command", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-explicit-plan-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: explicit-plan
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: pr-contract
+    description: PR contract
+    target: local
+    runOn:
+      pullRequest: true
+  - id: manual-contract
+    description: Manual contract
+    target: local
+    runOn:
+      pullRequest: false
+`,
+      "utf8"
+    );
+
+    const plan = await runPlanCommand({
+      cwd: tempRoot,
+      mode: "pr",
+      includeContracts: ["manual-contract"],
+      excludeContracts: ["pr-contract"]
+    });
+
+    expect(plan.items.map((item) => item.contractId)).toEqual(["manual-contract"]);
+    expect(plan.items[0]?.reasons).toContain("explicit include contract");
+    expect(plan.excluded.find((item) => item.contractId === "pr-contract")?.reasons).toContain("explicit exclude contract");
+  });
+
   it("coverage writes coverage.json for the demo config", async () => {
     const demoRoot = path.join(repoRoot, "examples/demo-react-app");
     const result = await runCoverageCommand({

@@ -68,6 +68,10 @@ program
   .option("--changed-files <path>", "newline-delimited changed files")
   .option("--base <ref>", "git base ref for diff")
   .option("--allow-unsafe-targets", "include non-prSafe targets in PR mode")
+  .option("--include-contract <id>", "explicitly include a contract in the plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-contract <id>", "explicitly exclude a contract from the plan (repeatable)", collectRepeatable, [])
+  .option("--include-target <id>", "explicitly include contracts for a target in the plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-target <id>", "explicitly exclude contracts for a target from the plan (repeatable)", collectRepeatable, [])
   .option("--ci", "accepted for workflow compatibility")
   .action(async (options) => {
     try {
@@ -76,7 +80,11 @@ program
         mode: options.mode,
         changedFiles: options.changedFiles,
         base: options.base,
-        allowUnsafeTargets: options.allowUnsafeTargets
+        allowUnsafeTargets: options.allowUnsafeTargets,
+        includeContracts: options.includeContract,
+        excludeContracts: options.excludeContract,
+        includeTargets: options.includeTarget,
+        excludeTargets: options.excludeTarget
       });
       console.log(formatPlanSummary(plan));
     } catch (error) {
@@ -198,6 +206,10 @@ program
   .option("--changed-files <path>", "newline-delimited changed files")
   .option("--base <ref>", "git base ref for changed-file coverage")
   .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode coverage selection")
+  .option("--include-contract <id>", "explicitly include a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-contract <id>", "explicitly exclude a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--include-target <id>", "explicitly include contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-target <id>", "explicitly exclude contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
   .action(async (options) => {
     try {
       const result = await runCoverageCommand({
@@ -206,7 +218,11 @@ program
         mode: options.mode,
         changedFiles: options.changedFiles,
         base: options.base,
-        allowUnsafeTargets: options.allowUnsafeTargets
+        allowUnsafeTargets: options.allowUnsafeTargets,
+        includeContracts: options.includeContract,
+        excludeContracts: options.excludeContract,
+        includeTargets: options.includeTarget,
+        excludeTargets: options.excludeTarget
       });
       console.log(formatCoverageSummary(result.report, result.reportPath));
     } catch (error) {
@@ -225,6 +241,10 @@ program
   .option("--changed-files <path>", "newline-delimited changed files")
   .option("--base <ref>", "git base ref for changed-file selection")
   .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode selection")
+  .option("--include-contract <id>", "explicitly include a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-contract <id>", "explicitly exclude a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--include-target <id>", "explicitly include contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-target <id>", "explicitly exclude contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -237,6 +257,10 @@ program
         changedFiles: options.changedFiles,
         base: options.base,
         allowUnsafeTargets: options.allowUnsafeTargets,
+        includeContracts: options.includeContract,
+        excludeContracts: options.excludeContract,
+        includeTargets: options.includeTarget,
+        excludeTargets: options.excludeTarget,
         format: options.format
       });
       console.log(formatContractsAudit(result.audit, result.auditPath, options.format));
@@ -255,6 +279,10 @@ program
   .option("--changed-files <path>", "newline-delimited changed files")
   .option("--base <ref>", "git base ref for changed-file selection")
   .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode selection")
+  .option("--include-contract <id>", "explicitly include a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-contract <id>", "explicitly exclude a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--include-target <id>", "explicitly include contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-target <id>", "explicitly exclude contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -266,6 +294,10 @@ program
         changedFiles: options.changedFiles,
         base: options.base,
         allowUnsafeTargets: options.allowUnsafeTargets,
+        includeContracts: options.includeContract,
+        excludeContracts: options.excludeContract,
+        includeTargets: options.includeTarget,
+        excludeTargets: options.excludeTarget,
         format: options.format
       });
       console.log(formatTargetsAudit(result.audit, result.auditPath, options.format));
@@ -510,6 +542,11 @@ program.parseAsync(process.argv);
 function fail(error: unknown): void {
   console.error(sanitizeText(error instanceof Error ? error.message : String(error)));
   process.exitCode = 1;
+}
+
+function collectRepeatable(value: string, previous: string[]): string[] {
+  const trimmed = value.trim();
+  return trimmed ? [...previous, trimmed] : previous;
 }
 
 async function waitForShutdown(close: () => Promise<void>): Promise<void> {

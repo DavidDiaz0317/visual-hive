@@ -24,6 +24,8 @@ Check `runOn`, changed-file selection rules, target `prSafe`, and whether the cu
 
 If the plan was intentionally empty because every changed file matched `selection.ignoreChangedFiles`, this is not a setup failure. `visual-hive run` writes a passed no-op report with `noContractsReason` so PR workflows can skip docs-only visual work while preserving audit evidence.
 
+If you used `--exclude-contract` or `--exclude-target`, check the `Excluded` section in `plan` output. Explicit excludes override changed-file selection and explicit includes.
+
 ## Playwright Browser Missing
 
 Run:

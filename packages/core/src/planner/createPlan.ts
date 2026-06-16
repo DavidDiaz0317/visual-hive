@@ -10,6 +10,10 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
   const effectiveChangedFiles = changedFiles.filter((file) => !ignoredFileSet.has(file));
   const onlyIgnoredChangedFiles = options.mode === "pr" && changedFiles.length > 0 && effectiveChangedFiles.length === 0 && ignoredChangedFiles.length > 0;
   const allowUnsafeTargets = options.allowUnsafeTargets ?? false;
+  const includeContracts = new Set(options.includeContracts ?? []);
+  const excludeContracts = new Set(options.excludeContracts ?? []);
+  const includeTargets = new Set(options.includeTargets ?? []);
+  const excludeTargets = new Set(options.excludeTargets ?? []);
   const selected = new Map<string, PlanItem>();
   const excluded: ExcludedPlanItem[] = [];
   const changedFileReasons = getChangedFileReasons(config, effectiveChangedFiles);
@@ -18,8 +22,19 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
   for (const contract of config.contracts) {
     const target = config.targets[contract.target];
     const reasons: string[] = [];
+    const explicitlyIncluded = includeContracts.has(contract.id) || includeTargets.has(contract.target);
 
-    if (onlyIgnoredChangedFiles && contract.runOn.pullRequest) {
+    const explicitExclusionReasons = explicitExclusionReasonsFor(contract.id, contract.target, excludeContracts, excludeTargets);
+    if (explicitExclusionReasons.length > 0) {
+      excluded.push({
+        contractId: contract.id,
+        targetId: contract.target,
+        reasons: explicitExclusionReasons
+      });
+      continue;
+    }
+
+    if (onlyIgnoredChangedFiles && contract.runOn.pullRequest && !explicitlyIncluded) {
       excluded.push({
         contractId: contract.id,
         targetId: contract.target,
@@ -51,6 +66,12 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     }
     if (options.mode === "mutation") {
       reasons.push(...(mutationModeReasons.get(contract.id) ?? []));
+    }
+    if (includeContracts.has(contract.id)) {
+      reasons.push("explicit include contract");
+    }
+    if (includeTargets.has(contract.target)) {
+      reasons.push("explicit include target");
     }
 
     const ruleReasons = changedFileReasons.get(contract.id) ?? [];
@@ -113,6 +134,17 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
     excluded,
     mutation: createMutationPlan(config, options)
   };
+}
+
+function explicitExclusionReasonsFor(contractId: string, targetId: string, excludeContracts: Set<string>, excludeTargets: Set<string>): string[] {
+  const reasons: string[] = [];
+  if (excludeContracts.has(contractId)) {
+    reasons.push("explicit exclude contract");
+  }
+  if (excludeTargets.has(targetId)) {
+    reasons.push("explicit exclude target");
+  }
+  return reasons;
 }
 
 function getIgnoredChangedFiles(config: VisualHiveConfig, changedFiles: string[]): Plan["ignoredChangedFiles"] {

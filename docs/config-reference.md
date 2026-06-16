@@ -24,6 +24,15 @@ Plan modes:
 - `mutation`: contracts relevant to configured mutation operators, using explicit mappings first and heuristics otherwise. Non-PR-safe targets are excluded unless explicitly allowed.
 - `full`: explicit trusted all-contract planning. Use only where protected target credentials and runtime cost are acceptable.
 
+Planner include/exclude controls:
+
+- `--include-contract <id>`: select a specific contract even when no `runOn` or changed-file rule selected it.
+- `--exclude-contract <id>`: remove a specific contract from the plan.
+- `--include-target <id>`: select contracts for a target.
+- `--exclude-target <id>`: remove contracts for a target.
+
+The flags are repeatable. Explicit excludes win over explicit includes. Explicit includes do not bypass PR safety; non-PR-safe targets still require `--allow-unsafe-targets`.
+
 Optional sections with defaults:
 
 - `selection.changedFiles`: maps glob patterns to contract IDs.
