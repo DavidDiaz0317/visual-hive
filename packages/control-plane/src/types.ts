@@ -15,6 +15,7 @@ import type {
   TargetConfig,
   VisualHiveConfig,
   ArtifactIndexEntry,
+  GitHubWorkflowTemplate,
   SetupRecommendationReport,
   WorkflowAuditReport
 } from "@visual-hive/core";
@@ -125,6 +126,7 @@ export interface ControlPlaneSnapshot {
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;
   contracts: Array<{ config: ContractConfig; latestStatus?: string; mutationOperators: string[] }>;
   providers: ProviderInspection[];
+  workflowTemplates: GitHubWorkflowTemplate[];
   artifacts: ControlPlaneArtifact[];
   connections?: RepoConnectionIndex;
   activeConnectionId?: string;

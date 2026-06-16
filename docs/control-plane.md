@@ -30,6 +30,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Config editing with validation, diff preview, explicit save confirmation, and audit logging
 - Target and contract managers
 - Schedule, GitHub, LLM, and provider settings
+- GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy buttons
 - Local repository connections from `.visual-hive/connections.json`, including write-mode add/remove controls
 - Safe raw artifact browser for `.visual-hive`, with image previews and redacted text previews from the shared artifact index
 

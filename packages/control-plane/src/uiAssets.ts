@@ -387,7 +387,17 @@ function providers() {
 
 function github() {
   const gh = snapshot.config?.github;
-  return '<div class="section">' + card("GitHub settings", table(["Setting", "Value"], [["Enabled", gh?.enabled ? "yes" : "no"], ["Labels", (gh?.issueLabels || []).join(", ")], ["Comment marker", gh?.commentMarker || ""]])) + workflowAuditCard() + schedule() + '</div>';
+  return '<div class="section">' + card("GitHub settings", table(["Setting", "Value"], [["Enabled", gh?.enabled ? "yes" : "no"], ["Labels", (gh?.issueLabels || []).join(", ")], ["Comment marker", gh?.commentMarker || ""]])) + workflowTemplatesCard() + workflowAuditCard() + schedule() + '</div>';
+}
+
+function workflowTemplatesCard() {
+  const templates = snapshot.workflowTemplates || [];
+  if (!templates.length) return card("Workflow templates", '<p class="muted">No built-in workflow templates were loaded.</p>');
+  return '<div class="section">' + card("Workflow templates", '<p class="muted">Copy these snippets into the target repository or run <code>visual-hive init</code>. PR execution stays read-only and no-secret; issue creation belongs in the trusted workflow_run lane.</p>' +
+    table(["Template", "Path", "Purpose", "Safety", "Copy"], templates.map(t => [esc(t.label), esc(t.path), esc(t.description), list(t.safetyNotes), copyButton(t.content, t.label + " workflow")])) +
+    '<p class="muted">For production supply-chain hardening, pin GitHub Actions by SHA after adopting a template.</p>') +
+    templates.map(t => card(t.label + " snippet", '<p class="muted">' + esc(t.path) + '</p><pre>' + esc(t.content) + '</pre>')).join("") +
+    '</div>';
 }
 
 function workflowAuditCard() {

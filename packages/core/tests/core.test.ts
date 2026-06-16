@@ -19,6 +19,7 @@ import { inspectProviders, normalizeProviderResults } from "../src/providers/ins
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
+import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
 import { buildLLMUsageReport } from "../src/llm/usage.js";
 import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
@@ -1038,6 +1039,34 @@ jobs:
     expect(trusted?.reSanitizesIssueBody).toBe(true);
     expect(trusted?.risk).toBe("low");
     expect(audit.findings).toHaveLength(0);
+  });
+
+  it("ships built-in GitHub workflow templates that audit as safe lanes", () => {
+    const audit = auditWorkflows(
+      sampleConfig(),
+      githubWorkflowTemplates.map((template) => ({
+        path: template.path,
+        content: template.content
+      })),
+      { workflowRoot: ".github/workflows", now: new Date("2026-06-15T00:00:00.000Z") }
+    );
+
+    expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(audit.summary).toMatchObject({
+      pullRequestWorkflows: 1,
+      scheduledWorkflows: 1,
+      trustedIssueWorkflows: 1,
+      criticalFindings: 0,
+      highFindings: 0,
+      workflowsUsingPullRequestTarget: 0,
+      prWorkflowsUsingSecrets: 0,
+      prWorkflowsWithWritePermissions: 0,
+      trustedIssueWorkflowsCheckingOutCode: 0
+    });
+    const trusted = audit.workflows.find((workflow) => workflow.kind === "trusted_issue");
+    expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
+    expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
   });
 });
 

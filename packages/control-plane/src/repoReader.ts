@@ -14,6 +14,7 @@ import {
   artifactKind,
   createRunHistoryEntry,
   createRunHistoryReport,
+  githubWorkflowTemplates,
   indexArtifacts,
   listConnections,
   resolveConnection,
@@ -167,6 +168,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     targets,
     contracts,
     providers,
+    workflowTemplates: githubWorkflowTemplates,
     artifacts,
     connections
   };
