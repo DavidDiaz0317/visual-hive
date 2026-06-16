@@ -419,6 +419,7 @@ function setup() {
     metric("External screenshots", cost.externalScreenshotsPerRun == null ? "unknown" : cost.externalScreenshotsPerRun + "/run", cost.externalScreenshotsPerRun ? "warn" : "ok") +
     '</div>' +
     setupChecklist(recommendation) +
+    setupProfileSelector(recommendation) +
     card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
     card("Provider recommendation", recommendation.providerRecommendations?.length ? table(["Provider", "Recommendation", "External by default", "Required env names", "Reason"], recommendation.providerRecommendations.map(p => [p.label, p.recommendation, p.externalUploadAllowedByDefault ? "yes" : "no", p.requiredEnv?.join(", ") || "none", p.reason])) : '<p class="muted">No provider recommendation found. Run a newer visual-hive recommend.</p>') +
     card("Cost and permissions", table(["Area", "Value"], [
@@ -437,6 +438,29 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupProfileSelector(recommendation) {
+  const profiles = [
+    ["free-local", "Use free local setup", "Playwright-only local artifacts, no external uploads, no paid provider assumptions."],
+    ["hosted-review", "Enable hosted review posture", "Keeps PR uploads off by default but recommends optional hosted review for scheduled/manual lanes."],
+    ["component-storybook", "Use component/Storybook posture", "Adds component-library guidance when Storybook or component workflows are part of the repo."],
+    ["enterprise-visual-ai", "Use enterprise visual AI posture", "Models optional Applitools/Percy-style review with explicit cost and credential governance."],
+    ["complex-app", "Use complex app posture", "Optimizes for fake OAuth, command groups, protected scheduled lanes, and deeper orchestration."]
+  ];
+  const current = recommendation.setupProfile || "free-local";
+  return card(
+    "Setup profile",
+    '<p class="muted">Profiles tune provider recommendations, cost estimates, permissions, and generated config posture. Regenerating writes only <code>.visual-hive/recommendations.json</code>; config/workflow files still require the guarded setup actions below.</p>' +
+      table(["Profile", "Purpose", "Action"], profiles.map(([id, label, description]) => [
+        '<b>' + esc(label) + '</b><p class="muted"><code>' + esc(id) + '</code>' + (id === current ? ' <span class="ok">current</span>' : "") + '</p>',
+        description,
+        snapshot.readOnly
+          ? '<button class="button link-button" disabled>Read-only</button>'
+          : '<button class="button link-button setup-profile-select" data-profile="' + escAttr(id) + '">' + (id === current ? "Regenerate" : "Use profile") + '</button>'
+      ])) +
+      '<p id="setup-profile-status" class="muted">Current profile: ' + esc(current) + '</p>'
+  );
 }
 
 function setupChecklist(recommendation) {
@@ -1163,6 +1187,7 @@ function wireActions() {
   if (setupWriteBundle) setupWriteBundle.addEventListener("click", () => writeSetupBundle(false));
   const setupOverwriteBundle = document.querySelector("#setup-overwrite-bundle");
   if (setupOverwriteBundle) setupOverwriteBundle.addEventListener("click", () => writeSetupBundle(true));
+  document.querySelectorAll(".setup-profile-select").forEach((button) => button.addEventListener("click", () => regenerateSetupRecommendation(button.dataset.profile || "")));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -1342,6 +1367,33 @@ async function writeWorkflowTemplates(force, templateIds) {
   }
   status.className = "ok";
   status.textContent = "Wrote " + payload.written.length + " workflow template(s). Audit: " + payload.auditPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function regenerateSetupRecommendation(profile) {
+  const status = document.querySelector("#setup-profile-status");
+  if (!profile || !status) return;
+  if (!confirm("Regenerate Visual Hive setup recommendations for profile " + profile + "? This writes only .visual-hive/recommendations.json.")) return;
+  status.className = "muted";
+  status.textContent = "Regenerating setup recommendations for " + profile + "...";
+  document.querySelectorAll(".setup-profile-select").forEach((button) => { button.disabled = true; });
+  const response = await fetch(apiUrl("/api/setup/recommend"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Setup recommendation failed.";
+    document.querySelectorAll(".setup-profile-select").forEach((button) => { button.disabled = false; });
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Recommendation updated for " + payload.profile + ". Artifact: " + payload.recommendationPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }

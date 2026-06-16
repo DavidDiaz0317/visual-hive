@@ -2,7 +2,16 @@ import { spawn } from "node:child_process";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { addConnection, approveBaseline, rejectBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
+import {
+  SetupProfileSchema,
+  addConnection,
+  approveBaseline,
+  recommendSetup,
+  rejectBaseline,
+  removeConnection,
+  sanitizeText,
+  writeJson
+} from "@visual-hive/core";
 import { executeRunbookCommand, executeRunbookProfile } from "./commandExecutor.js";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
@@ -140,6 +149,43 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       try {
         const result = await writeRecommendedConfigFromSetup(await optionsForRequest(options, url), true, body.force === true);
         sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/setup/recommend") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to regenerate setup recommendations." }, 403);
+        return;
+      }
+      const profile = SetupProfileSchema.safeParse(requiredString(body.profile, "profile"));
+      if (!profile.success) {
+        sendJson(response, { ok: false, error: `Invalid setup profile "${sanitizeText(String(body.profile))}". Expected one of: ${SetupProfileSchema.options.join(", ")}.` }, 400);
+        return;
+      }
+      try {
+        const report = await recommendSetup({
+          repoRoot: resolved.repoRoot,
+          configPath: resolved.configPath,
+          setupProfile: profile.data
+        });
+        const reportPath = path.join(resolved.configRoot, ".visual-hive", "recommendations.json");
+        await writeJson(reportPath, report);
+        sendJson(response, {
+          ok: true,
+          profile: report.setupProfile,
+          recommendationPath: ".visual-hive/recommendations.json",
+          providerRecommendations: report.providerRecommendations.map((provider) => ({
+            providerId: provider.providerId,
+            recommendation: provider.recommendation,
+            externalUploadAllowedByDefault: provider.externalUploadAllowedByDefault
+          })),
+          costEstimate: report.costEstimate
+        });
       } catch (error) {
         sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
       }

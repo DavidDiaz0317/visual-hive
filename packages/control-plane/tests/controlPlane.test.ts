@@ -1127,6 +1127,9 @@ contracts:
       expect(appJs).toContain("Guided setup checklist");
       expect(appJs).toContain("function setupChecklist");
       expect(appJs).toContain("function setupStatusBadge");
+      expect(appJs).toContain("function setupProfileSelector");
+      expect(appJs).toContain("setup-profile-select");
+      expect(appJs).toContain("/api/setup/recommend");
       expect(appJs).toContain("Inspect repository");
       expect(appJs).toContain("Verify PR safety");
       expect(appJs).toContain("Risk Register");
@@ -1180,6 +1183,9 @@ contracts:
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
+    expect(controlPlaneJs).toContain("function setupProfileSelector");
+    expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");
+    expect(controlPlaneJs).toContain("/api/setup/recommend");
     expect(controlPlaneJs).toContain("function risk");
     expect(controlPlaneJs).toContain("function navButton");
     expect(controlPlaneJs).toContain("function scrollToFocusedElement");
@@ -1358,6 +1364,55 @@ contracts:
       const forcedPayload = await forced.json();
       expect(forced.status).toBe(200);
       expect(forcedPayload.overwritten).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("regenerates setup recommendations for an explicit setup profile", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "hosted-review" })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.profile).toBe("hosted-review");
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      expect(payload.costEstimate.externalScreenshotsPerRun).toBeGreaterThan(0);
+
+      const recommendation = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8"));
+      expect(recommendation.setupProfile).toBe("hosted-review");
+      expect(recommendation.providerRecommendations.find((provider: { providerId: string }) => provider.providerId === "percy")?.recommendation).toBe(
+        "optional"
+      );
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.setupRecommendation?.setupProfile).toBe("hosted-review");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects invalid setup profiles without changing recommendations", async () => {
+    const fixture = await makeFixture();
+    const before = await readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "paid-everything" })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(400);
+      expect(payload.error).toContain("Invalid setup profile");
+      expect(payload.error).toContain("free-local");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8")).resolves.toBe(before);
     } finally {
       await server.close();
     }
@@ -1568,6 +1623,13 @@ contracts:
         body: JSON.stringify({ confirm: true, force: true })
       });
       expect(setupBlocked.status).toBe(403);
+
+      const setupRecommendBlocked = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "hosted-review" })
+      });
+      expect(setupRecommendBlocked.status).toBe(403);
 
       const setupDocsBlocked = await fetch(`${server.url}/api/setup/write-docs`, {
         method: "POST",

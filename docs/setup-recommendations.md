@@ -40,7 +40,9 @@ visual-hive recommend --format json
 
 `--write-setup-bundle` creates the recommended config, repo docs, and built-in PR, scheduled, and trusted failure-issue workflow templates in one guarded operation. It preflights every output path and refuses to overwrite existing files unless `--force` is passed after review. The bundle records `.visual-hive/config-edits.json`, `.visual-hive/setup-doc-edits.json`, `.visual-hive/workflow-edits.json`, and `.visual-hive/setup-bundle-edits.json`.
 
-The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate the same setup PR bundle after preflighting every output path. `--read-only` disables these actions.
+The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, can regenerate that recommendation for any supported setup profile, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate the same setup PR bundle after preflighting every output path. `--read-only` disables recommendation regeneration and setup writes.
+
+Regenerating from the Control Plane writes only `.visual-hive/recommendations.json`. It does not overwrite `visual-hive.config.yaml`, docs, or workflows. After reviewing the profile-specific recommendation, use the guarded setup actions to generate config, docs, or the setup PR bundle.
 
 ## Artifact
 
@@ -63,4 +65,4 @@ Important fields:
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. In write mode it can generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging; in `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
