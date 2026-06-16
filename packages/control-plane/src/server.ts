@@ -282,7 +282,8 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
           providerId,
           label: provider.label,
           decision,
-          reason: optionalString(body.reason)
+          reason: optionalString(body.reason),
+          source: "control-plane"
         });
         sendJson(response, result);
       } catch (error) {
@@ -305,7 +306,8 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       try {
         const result = await recordLLMDecision(path.join(resolved.configRoot, ".visual-hive", "llm-decisions.json"), {
           decision: requiredString(body.decision, "decision") as LLMDecision,
-          reason: optionalString(body.reason)
+          reason: optionalString(body.reason),
+          source: "control-plane"
         });
         sendJson(response, result);
       } catch (error) {

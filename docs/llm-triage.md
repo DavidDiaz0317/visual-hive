@@ -62,7 +62,7 @@ The Control Plane LLM page reads the same artifact and shows prompt availability
 
 ## Governance Decisions
 
-The Control Plane and CLI can record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
+The CLI and Control Plane use the same core governance helper to record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
 
 - `keep_disabled`: keep the default offline/prompt-only posture.
 - `review_later`: leave LLM usage for a future review.

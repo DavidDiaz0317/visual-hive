@@ -17,6 +17,7 @@ import { loadConfig, parseConfigText } from "../src/config/load.js";
 import { MUTATION_OPERATOR_METADATA, selectContractsForMutation } from "../src/mutations/operators.js";
 import { approveBaseline, listBaselines, rejectBaseline } from "../src/baselines/manage.js";
 import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../src/providers/adapter.js";
+import { readProviderDecisionLog, recordProviderDecision } from "../src/providers/decisions.js";
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
@@ -25,6 +26,7 @@ import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.
 import { analyzeCosts } from "../src/costs/analyze.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
+import { readLLMDecisionLog, recordLLMDecision } from "../src/llm/decisions.js";
 import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usage.js";
 import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
@@ -389,6 +391,35 @@ describe("config validation", () => {
       "normalize_result",
       "emit_report_metadata"
     ]);
+  });
+
+  it("records provider governance decisions in core without leaking secrets or making external calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-provider-decision-"));
+    tempDirs.push(tempRoot);
+    const decisionPath = path.join(tempRoot, ".visual-hive", "provider-decisions.json");
+
+    const result = await recordProviderDecision(decisionPath, {
+      providerId: "argos",
+      label: "Argos",
+      decision: "review_later",
+      reason: "Review after ARGOS_TOKEN=abc123 and client_secret=hidden are configured.",
+      source: "control-plane",
+      now: new Date("2026-06-16T00:00:00.000Z")
+    });
+    const log = await readProviderDecisionLog(decisionPath);
+
+    expect(result.decisionPath).toBe(".visual-hive/provider-decisions.json");
+    expect(result.decision).toMatchObject({
+      providerId: "argos",
+      label: "Argos",
+      decision: "review_later",
+      source: "control-plane",
+      externalCallsMade: 0
+    });
+    expect(result.decision.reason).toContain("[REDACTED]");
+    expect(JSON.stringify(log)).not.toContain("abc123");
+    expect(JSON.stringify(log)).not.toContain("hidden");
+    expect(log?.decisions[0].externalCallsMade).toBe(0);
   });
 
   it("defaults protected target cost to expensive", () => {
@@ -2006,6 +2037,30 @@ describe("LLM usage governance", () => {
       status: "blocked_by_token_budget",
       estimatedTokens: 25
     });
+  });
+
+  it("records LLM governance decisions in core without leaking secrets or making model calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-llm-decision-"));
+    tempDirs.push(tempRoot);
+    const decisionPath = path.join(tempRoot, ".visual-hive", "llm-decisions.json");
+
+    const result = await recordLLMDecision(decisionPath, {
+      decision: "approve_trusted_prompt_only",
+      reason: "Review prompts later with OPENAI_API_KEY=abc123, but never use LLM output as pass/fail.",
+      source: "control-plane",
+      now: new Date("2026-06-16T00:00:00.000Z")
+    });
+    const log = await readLLMDecisionLog(decisionPath);
+
+    expect(result.decisionPath).toBe(".visual-hive/llm-decisions.json");
+    expect(result.decision).toMatchObject({
+      decision: "approve_trusted_prompt_only",
+      source: "control-plane",
+      externalCallsMade: 0
+    });
+    expect(result.decision.reason).toContain("[REDACTED]");
+    expect(JSON.stringify(log)).not.toContain("abc123");
+    expect(log?.decisions[0].externalCallsMade).toBe(0);
   });
 });
 

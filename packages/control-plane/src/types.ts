@@ -20,11 +20,11 @@ import type {
   VisualHiveConfig,
   ArtifactIndexEntry,
   GitHubWorkflowTemplate,
+  LLMDecisionLog,
+  ProviderDecisionLog,
   SetupRecommendationReport,
   WorkflowAuditReport
 } from "@visual-hive/core";
-import type { ProviderDecisionLog } from "./providerDecisions.js";
-import type { LLMDecisionLog } from "./llmDecisions.js";
 
 export interface ControlPlaneOptions {
   repo?: string;
