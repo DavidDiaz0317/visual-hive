@@ -15,6 +15,11 @@ export interface SetupRecommendationReport {
   project: SetupRecommendationProject;
   generatedAt: string;
   configPath: string;
+  setupProfile: VisualHiveConfig["project"]["setupProfile"];
+  providerRecommendations: SetupProviderRecommendation[];
+  costEstimate: SetupCostEstimate;
+  permissions: SetupPermissionRecommendation;
+  setupPullRequest: SetupPullRequestRecommendation;
   recommendedConfig: VisualHiveConfig;
   recommendedConfigYaml: string;
   detectedSelectors: SetupDetectedSelector[];
@@ -60,6 +65,48 @@ export interface SetupRecommendedContract {
   reasons: string[];
 }
 
+export interface SetupProviderRecommendation {
+  providerId: string;
+  label: string;
+  recommendation: "use" | "optional" | "skip" | "future";
+  reason: string;
+  requiredEnv: string[];
+  externalUploadAllowedByDefault: boolean;
+}
+
+export interface SetupCostEstimate {
+  localScreenshotsPerRun: number;
+  externalScreenshotsPerRun: number;
+  estimatedPrMinutes: number;
+  estimatedScheduledMinutes: number;
+  estimatedMonthlyExternalScreenshots: number;
+  ciRuntimeClass: "cheap" | "medium" | "expensive";
+  notes: string[];
+}
+
+export interface SetupPermissionRecommendation {
+  pullRequest: {
+    permissions: string[];
+    secretsRequired: string[];
+    externalNetwork: boolean;
+    notes: string[];
+  };
+  scheduled: {
+    permissions: string[];
+    secretsRequired: string[];
+    externalNetwork: boolean;
+    notes: string[];
+  };
+}
+
+export interface SetupPullRequestRecommendation {
+  recommended: boolean;
+  title: string;
+  files: string[];
+  steps: string[];
+  securityNotes: string[];
+}
+
 export interface SetupRecommendationFinding {
   severity: "info" | "warning";
   message: string;
@@ -92,6 +139,15 @@ const MAX_SOURCE_FILES = 250;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".html"]);
 const SKIPPED_DIRS = new Set([".git", ".visual-hive", "node_modules", "dist", "build", "coverage", ".next", "out"]);
+const PROVIDER_LABELS: Record<string, string> = {
+  playwright: "Playwright built-in",
+  argos: "Argos",
+  percy: "Percy",
+  chromatic: "Chromatic",
+  applitools: "Applitools",
+  storybook: "Storybook",
+  "github-checks": "GitHub Checks"
+};
 
 export async function recommendSetup(options: RecommendSetupOptions): Promise<SetupRecommendationReport> {
   const repoRoot = path.resolve(options.repoRoot);
@@ -106,15 +162,18 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const target = buildTarget({ install, build, serve, inventory, projectType });
   const selector = preferredSelector(inventory.selectors);
   const contract = buildContract(selector, target.id);
+  const setupProfile = inferSetupProfile(inventory, scripts);
   const recommendationInput = configInput({
     projectName,
     projectType,
+    setupProfile,
     target: target.config,
     contract: contract.config
   });
   const recommendedConfig = VisualHiveConfigSchema.parse(recommendationInput);
   const recommendedConfigYaml = stringify(recommendationInput, { sortMapEntries: false });
   const warnings = buildWarnings(inventory, serve, selector);
+  const costEstimate = buildCostEstimate(contract.config, target.config, setupProfile);
 
   return {
     schemaVersion: 1,
@@ -128,6 +187,11 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     },
     generatedAt: (options.now ?? new Date()).toISOString(),
     configPath: normalizeSlashes(path.relative(repoRoot, configPath) || path.basename(configPath)),
+    setupProfile,
+    providerRecommendations: buildProviderRecommendations(inventory, setupProfile),
+    costEstimate,
+    permissions: buildPermissionRecommendation(setupProfile),
+    setupPullRequest: buildSetupPullRequestRecommendation(configPath, setupProfile),
     recommendedConfig,
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
@@ -202,9 +266,10 @@ function detectFrameworks(packageJson?: PackageJsonShape): string[] {
   const deps = { ...(packageJson?.dependencies ?? {}), ...(packageJson?.devDependencies ?? {}) };
   const frameworks = new Set<string>();
   for (const key of Object.keys(deps)) {
-    if (["react", "vite", "next", "vue", "svelte", "@angular/core", "storybook"].includes(key)) {
+    if (["react", "vite", "next", "vue", "svelte", "@angular/core"].includes(key)) {
       frameworks.add(key);
     }
+    if (key === "storybook" || key.startsWith("@storybook/") || key.includes("storybook")) frameworks.add("storybook");
   }
   return [...frameworks].sort();
 }
@@ -327,9 +392,153 @@ function buildContract(
   };
 }
 
+function inferSetupProfile(
+  inventory: RepoInventory,
+  scripts: Record<string, string>
+): VisualHiveConfig["project"]["setupProfile"] {
+  const frameworks = new Set(inventory.detectedFrameworks);
+  if (frameworks.has("storybook")) return "component-storybook";
+  const scriptText = Object.entries(scripts)
+    .map(([name, value]) => `${name} ${value}`)
+    .join(" ")
+    .toLowerCase();
+  const complexHints = ["backend", "server", "api", "oauth", "auth", "cluster", "fullstack", "docker compose"];
+  if (complexHints.some((hint) => scriptText.includes(hint))) return "complex-app";
+  return "free-local";
+}
+
+function buildProviderRecommendations(
+  inventory: RepoInventory,
+  setupProfile: VisualHiveConfig["project"]["setupProfile"]
+): SetupProviderRecommendation[] {
+  const frameworks = new Set(inventory.detectedFrameworks);
+  const recommendations: SetupProviderRecommendation[] = [
+    {
+      providerId: "playwright",
+      label: PROVIDER_LABELS.playwright,
+      recommendation: "use",
+      reason: "Default deterministic oracle. No paid account or external upload is required.",
+      requiredEnv: [],
+      externalUploadAllowedByDefault: false
+    }
+  ];
+  if (frameworks.has("storybook")) {
+    recommendations.push({
+      providerId: "chromatic",
+      label: PROVIDER_LABELS.chromatic,
+      recommendation: "optional",
+      reason: "Storybook was detected, so hosted component review can be useful after the local Playwright lane is stable.",
+      requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
+      externalUploadAllowedByDefault: false
+    });
+  } else {
+    recommendations.push({
+      providerId: "argos",
+      label: PROVIDER_LABELS.argos,
+      recommendation: setupProfile === "free-local" ? "future" : "optional",
+      reason:
+        setupProfile === "free-local"
+          ? "Start with local artifacts. Enable hosted review later only if the team needs shared screenshot review/history."
+          : "Useful for hosted screenshot review on scheduled or failure-only runs after local checks are stable.",
+      requiredEnv: ["ARGOS_TOKEN"],
+      externalUploadAllowedByDefault: false
+    });
+  }
+  recommendations.push(
+    {
+      providerId: "percy",
+      label: PROVIDER_LABELS.percy,
+      recommendation: "future",
+      reason: "Consider only when broader hosted review or browser/device coverage justifies the extra service.",
+      requiredEnv: ["PERCY_TOKEN"],
+      externalUploadAllowedByDefault: false
+    },
+    {
+      providerId: "applitools",
+      label: PROVIDER_LABELS.applitools,
+      recommendation: "future",
+      reason: "Reserve for enterprise visual AI or cross-browser/device requirements.",
+      requiredEnv: ["APPLITOOLS_API_KEY"],
+      externalUploadAllowedByDefault: false
+    }
+  );
+  return recommendations;
+}
+
+function buildCostEstimate(
+  contract: ContractConfig,
+  target: TargetConfig,
+  setupProfile: VisualHiveConfig["project"]["setupProfile"]
+): SetupCostEstimate {
+  const localScreenshotsPerRun = contract.screenshots.length;
+  const estimatedPrMinutes = target.kind === "command" && target.build ? 4 : 2;
+  const estimatedScheduledMinutes = setupProfile === "complex-app" ? estimatedPrMinutes + 6 : estimatedPrMinutes + 2;
+  return {
+    localScreenshotsPerRun,
+    externalScreenshotsPerRun: 0,
+    estimatedPrMinutes,
+    estimatedScheduledMinutes,
+    estimatedMonthlyExternalScreenshots: 0,
+    ciRuntimeClass: estimatedPrMinutes <= 2 ? "cheap" : "medium",
+    notes: [
+      "Default recommendation uses local Playwright artifacts only.",
+      "External provider uploads are disabled on PRs by the generated cost policy.",
+      "Actual runtime depends on dependency cache, app build time, and target startup time."
+    ]
+  };
+}
+
+function buildPermissionRecommendation(setupProfile: VisualHiveConfig["project"]["setupProfile"]): SetupPermissionRecommendation {
+  return {
+    pullRequest: {
+      permissions: ["contents: read"],
+      secretsRequired: [],
+      externalNetwork: false,
+      notes: ["PR lane should run with no repository secrets and should not create issues."]
+    },
+    scheduled: {
+      permissions: ["contents: read", "actions: read"],
+      secretsRequired: setupProfile === "complex-app" ? ["PROTECTED_TARGET_SECRET_NAMES"] : [],
+      externalNetwork: setupProfile !== "free-local",
+      notes: [
+        "Scheduled/manual lanes may use protected secrets after explicit user authorization.",
+        "Issue creation should happen from sanitized artifacts in a trusted workflow_run lane."
+      ]
+    }
+  };
+}
+
+function buildSetupPullRequestRecommendation(configPath: string, setupProfile: VisualHiveConfig["project"]["setupProfile"]): SetupPullRequestRecommendation {
+  return {
+    recommended: true,
+    title: "Add Visual Hive deterministic visual QA",
+    files: [
+      normalizeSlashes(path.basename(configPath)),
+      ".github/workflows/visual-hive-pr.yml",
+      ".github/workflows/visual-hive-scheduled.yml",
+      "docs/visual-hive.md"
+    ],
+    steps: [
+      "Run visual-hive recommend --write-config in the target repo.",
+      "Review the generated config and PR workflow diff before committing.",
+      "Run visual-hive doctor, plan, and run locally before opening the setup PR.",
+      setupProfile === "free-local"
+        ? "Keep the first PR lane local-only; add providers later if hosted review is needed."
+        : "Keep provider uploads disabled until credentials and cost policy are explicitly approved."
+    ],
+    securityNotes: [
+      "Use pull_request, not pull_request_target, for PR code execution.",
+      "Do not put secrets in PR workflows.",
+      "Show required secret names only; never print values.",
+      "LLM output remains advisory and cannot decide pass/fail."
+    ]
+  };
+}
+
 function configInput(input: {
   projectName: string;
   projectType: VisualHiveConfig["project"]["type"];
+  setupProfile: VisualHiveConfig["project"]["setupProfile"];
   target: TargetConfig;
   contract: ContractConfig;
 }): unknown {
@@ -338,7 +547,7 @@ function configInput(input: {
       name: input.projectName,
       type: input.projectType,
       defaultBranch: "main",
-      setupProfile: "free-local"
+      setupProfile: input.setupProfile
     },
     targets: {
       localPreview: input.target

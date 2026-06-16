@@ -324,6 +324,55 @@ viewports:
         },
         generatedAt: "2026-06-15T00:00:00.000Z",
         configPath: "visual-hive.config.yaml",
+        setupProfile: "free-local",
+        providerRecommendations: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            recommendation: "use",
+            reason: "Default deterministic oracle. No paid account or external upload is required.",
+            requiredEnv: [],
+            externalUploadAllowedByDefault: false
+          },
+          {
+            providerId: "argos",
+            label: "Argos",
+            recommendation: "future",
+            reason: "Start with local artifacts. Enable hosted review later only if the team needs shared screenshot review/history.",
+            requiredEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowedByDefault: false
+          }
+        ],
+        costEstimate: {
+          localScreenshotsPerRun: 2,
+          externalScreenshotsPerRun: 0,
+          estimatedPrMinutes: 4,
+          estimatedScheduledMinutes: 6,
+          estimatedMonthlyExternalScreenshots: 0,
+          ciRuntimeClass: "medium",
+          notes: ["Default recommendation uses local Playwright artifacts only."]
+        },
+        permissions: {
+          pullRequest: {
+            permissions: ["contents: read"],
+            secretsRequired: [],
+            externalNetwork: false,
+            notes: ["PR lane should run with no repository secrets and should not create issues."]
+          },
+          scheduled: {
+            permissions: ["contents: read", "actions: read"],
+            secretsRequired: [],
+            externalNetwork: false,
+            notes: ["Issue creation should happen from sanitized artifacts in a trusted workflow_run lane."]
+          }
+        },
+        setupPullRequest: {
+          recommended: true,
+          title: "Add Visual Hive deterministic visual QA",
+          files: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+          steps: ["Run visual-hive recommend --write-config in the target repo."],
+          securityNotes: ["Use pull_request, not pull_request_target, for PR code execution."]
+        },
         recommendedConfig: {},
         recommendedConfigYaml: "project:\n  name: ui-fixture\n",
         detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
@@ -396,6 +445,10 @@ describe("control plane", () => {
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
     expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
+    expect(snapshot.setupRecommendation?.setupProfile).toBe("free-local");
+    expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
+      "ARGOS_TOKEN"
+    ]);
     expect(snapshot.runHistory?.summary.runCount).toBe(1);
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
     expect(snapshot.llmUsage?.summary.callsMade).toBe(0);
@@ -542,6 +595,8 @@ describe("control plane", () => {
       expect(appJs).toContain("Diff pixels");
       expect(appJs).toContain("Workflow templates");
       expect(appJs).toContain("trusted workflow_run lane");
+      expect(appJs).toContain("Provider recommendation");
+      expect(appJs).toContain("Setup PR guidance");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {

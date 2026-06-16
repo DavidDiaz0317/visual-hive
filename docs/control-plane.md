@@ -17,7 +17,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## What It Shows
 
 - Overview health score with explainable next actions
-- Setup recommendations from `.visual-hive/recommendations.json`
+- Setup recommendations from `.visual-hive/recommendations.json`, including setup profile, provider posture, cost estimate, permission guidance, and setup PR guidance
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
 - Baseline review with baseline, actual, diff images, diff pixel metadata, artifact path links, and copy buttons
@@ -63,6 +63,6 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over setup recommendations, artifacts, baseline review decisions, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over setup recommendations, provider/cost guidance, artifacts, baseline review decisions, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
 
 The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.

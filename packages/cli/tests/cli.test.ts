@@ -425,8 +425,14 @@ contracts:
     const report = await readJson<typeof result.report>(result.reportPath);
 
     expect(report.project.type).toBe("react-vite");
+    expect(report.setupProfile).toBe("free-local");
     expect(report.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
+    expect(report.providerRecommendations.find((provider) => provider.providerId === "playwright")?.recommendation).toBe("use");
+    expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
     expect(summary).toContain("Visual Hive Setup Recommendation");
+    expect(summary).toContain("Setup profile: free-local");
+    expect(summary).toContain("Provider Recommendation");
+    expect(summary).toContain("PR secrets required: none");
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(runRecommendCommand({ cwd: tempRoot, writeConfig: true })).rejects.toThrow(/Refusing to overwrite/);

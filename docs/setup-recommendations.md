@@ -9,6 +9,11 @@ The command detects:
 - stable `data-testid` selectors in source files
 - a likely PR-safe `localPreview` target
 - a starter visual contract with desktop and mobile screenshots
+- an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
+- provider recommendations that keep Playwright as the default oracle and external uploads disabled by default
+- CI runtime, screenshot, and external upload cost estimates
+- PR/scheduled permission guidance and required secret names only
+- setup PR file list, steps, and security notes
 - initial changed-file selection and mutation operators
 
 It does not run target code, call LLMs, contact paid visual providers, or decide pass/fail. Playwright contracts remain the only deterministic oracle once the generated config is used.
@@ -31,6 +36,11 @@ The report schema is `schemas/visual-hive.recommendations.schema.json`.
 Important fields:
 
 - `project`: detected project name, type, package manager, scripts, and framework hints
+- `setupProfile`: deterministic setup profile recommendation
+- `providerRecommendations`: Playwright and optional hosted-provider guidance, required environment variable names only, and whether external upload is allowed by default
+- `costEstimate`: local screenshot count, external screenshot count, CI runtime class, monthly external screenshot estimate, and notes
+- `permissions`: least-privilege PR and scheduled-lane recommendations
+- `setupPullRequest`: suggested setup PR title, files, steps, and security notes
 - `recommendedConfig`: parsed Visual Hive config object
 - `recommendedConfigYaml`: YAML that can be written as `visual-hive.config.yaml`
 - `recommendedTarget`: target kind, URL, commands, confidence, and reasons
@@ -40,4 +50,4 @@ Important fields:
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the recommended target, contracts, warnings, and YAML preview. It is read-only; config creation remains an explicit CLI action.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. It is read-only for setup generation; config creation remains an explicit CLI action.

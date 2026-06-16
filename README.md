@@ -106,7 +106,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 ## CLI commands
 
 - `visual-hive init`: creates config, workflow templates, and `.visual-hive/generated`.
-- `visual-hive recommend`: inspects package scripts, framework hints, and stable selectors, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config.
+- `visual-hive recommend`: inspects package scripts, framework hints, stable selectors, setup profile, provider posture, cost/permission guidance, and setup PR steps, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config.
 - `visual-hive doctor`: validates config, Node 22, Playwright availability, and target settings.
 - `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, and cost.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.

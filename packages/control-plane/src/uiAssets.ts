@@ -151,14 +151,30 @@ function setup() {
       card("What it detects", list(["package scripts for install/build/serve", "frontend framework signals", "project-owned data-testid selectors", "starter PR-safe screenshots and selection rules"])) +
       '</div>';
   }
+  const cost = recommendation.costEstimate || {};
+  const permissions = recommendation.permissions || {};
+  const setupPr = recommendation.setupPullRequest || {};
   return '<div class="section">' +
     '<div class="grid">' +
+    metric("Setup profile", recommendation.setupProfile || "unknown", "") +
     metric("Detected type", recommendation.project.type, "") +
     metric("Package manager", recommendation.project.packageManager, "") +
     metric("Target confidence", recommendation.recommendedTarget.confidence, recommendation.recommendedTarget.confidence === "low" ? "warn" : "ok") +
     metric("Selectors", recommendation.detectedSelectors.length, recommendation.detectedSelectors.length ? "ok" : "warn") +
+    metric("PR runtime", cost.estimatedPrMinutes == null ? "unknown" : cost.estimatedPrMinutes + "m", cost.ciRuntimeClass === "expensive" ? "bad" : "") +
+    metric("External screenshots", cost.externalScreenshotsPerRun == null ? "unknown" : cost.externalScreenshotsPerRun + "/run", cost.externalScreenshotsPerRun ? "warn" : "ok") +
     '</div>' +
     card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
+    card("Provider recommendation", recommendation.providerRecommendations?.length ? table(["Provider", "Recommendation", "External by default", "Required env names", "Reason"], recommendation.providerRecommendations.map(p => [p.label, p.recommendation, p.externalUploadAllowedByDefault ? "yes" : "no", p.requiredEnv?.join(", ") || "none", p.reason])) : '<p class="muted">No provider recommendation found. Run a newer visual-hive recommend.</p>') +
+    card("Cost and permissions", table(["Area", "Value"], [
+      ["Local screenshots/run", String(cost.localScreenshotsPerRun ?? "unknown")],
+      ["External screenshots/run", String(cost.externalScreenshotsPerRun ?? "unknown")],
+      ["Estimated monthly external screenshots", String(cost.estimatedMonthlyExternalScreenshots ?? "unknown")],
+      ["PR permissions", permissions.pullRequest?.permissions?.join(", ") || "unknown"],
+      ["PR secrets", permissions.pullRequest?.secretsRequired?.join(", ") || "none"],
+      ["Scheduled secrets", permissions.scheduled?.secretsRequired?.join(", ") || "none"]
+    ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
+    card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
     card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
     card("Next commands", list(recommendation.recommendedCommands)) +
     card("Findings", recommendation.findings.length ? table(["Severity", "Message", "Evidence"], recommendation.findings.map(f => [f.severity, f.message, f.evidence || ""])) : "No findings.") +

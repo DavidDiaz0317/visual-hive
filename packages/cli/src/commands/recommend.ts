@@ -44,19 +44,46 @@ export function formatSetupRecommendation(
     "",
     `- Project: ${report.project.name}`,
     `- Detected type: ${report.project.type}`,
+    `- Setup profile: ${report.setupProfile}`,
     `- Package manager: ${report.project.packageManager}`,
     `- Frameworks: ${report.project.detectedFrameworks.join(", ") || "none detected"}`,
     `- Target: ${report.recommendedTarget.id} (${report.recommendedTarget.kind}, ${report.recommendedTarget.confidence} confidence)`,
     `- URL: ${report.recommendedTarget.url}`,
     `- Selector seed: ${report.recommendedContracts[0]?.selectors.join(", ") || "none"}`,
+    `- Local screenshots/run: ${report.costEstimate.localScreenshotsPerRun}`,
+    `- External screenshots/run: ${report.costEstimate.externalScreenshotsPerRun}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
     "",
     "## Why",
     ...report.recommendedTarget.reasons.map((reason) => `- ${reason}`),
     "",
+    "## Provider Recommendation",
+    ...report.providerRecommendations.map(
+      (provider) =>
+        `- ${provider.label}: ${provider.recommendation} - ${provider.reason}${
+          provider.requiredEnv.length ? ` Required env names: ${provider.requiredEnv.join(", ")}` : ""
+        }`
+    ),
+    "",
+    "## Cost And Permissions",
+    `- PR runtime estimate: ${report.costEstimate.estimatedPrMinutes} minute(s), ${report.costEstimate.ciRuntimeClass}`,
+    `- Scheduled runtime estimate: ${report.costEstimate.estimatedScheduledMinutes} minute(s)`,
+    `- PR permissions: ${report.permissions.pullRequest.permissions.join(", ")}`,
+    `- PR secrets required: ${report.permissions.pullRequest.secretsRequired.join(", ") || "none"}`,
+    `- Scheduled secrets required: ${report.permissions.scheduled.secretsRequired.join(", ") || "none"}`,
+    "",
     "## Next Commands",
     ...report.recommendedCommands.map((command) => `- \`${command}\``)
   ];
+  if (report.setupPullRequest.recommended) {
+    lines.push(
+      "",
+      "## Setup PR",
+      `- Title: ${report.setupPullRequest.title}`,
+      ...report.setupPullRequest.files.map((file) => `- File: ${file}`),
+      ...report.setupPullRequest.securityNotes.map((note) => `- Security: ${note}`)
+    );
+  }
   if (report.warnings.length) {
     lines.push("", "## Warnings", ...report.warnings.map((warning) => `- ${warning}`));
   }

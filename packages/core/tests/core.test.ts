@@ -1549,13 +1549,61 @@ describe("setup recommendations", () => {
     const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
 
     expect(recommendation.project.type).toBe("react-vite");
+    expect(recommendation.setupProfile).toBe("free-local");
     expect(recommendation.recommendedTarget.kind).toBe("command");
     expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
     expect(recommendation.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(recommendation.recommendedContracts[0]?.steps[0]).toMatchObject({ action: "assertVisible", selector: "[data-testid='dashboard-page']" });
+    expect(recommendation.costEstimate).toMatchObject({
+      localScreenshotsPerRun: 2,
+      externalScreenshotsPerRun: 0,
+      estimatedMonthlyExternalScreenshots: 0
+    });
+    expect(recommendation.permissions.pullRequest.secretsRequired).toEqual([]);
+    expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "playwright")).toMatchObject({
+      recommendation: "use",
+      externalUploadAllowedByDefault: false
+    });
+    expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "argos")).toMatchObject({
+      recommendation: "future",
+      requiredEnv: ["ARGOS_TOKEN"]
+    });
+    expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
     expect(parsedYaml.contracts[0]?.id).toBe("app-shell-visual-stability");
     expect(parsedYaml.contracts[0]?.steps[0]?.action).toBe("assertVisible");
+    expect(parsedYaml.project.setupProfile).toBe("free-local");
     expect(parsedYaml.targets.localPreview.kind).toBe("command");
+  });
+
+  it("recommends a component-storybook profile when Storybook is detected", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-storybook-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "storybook-fixture",
+      scripts: {
+        build: "vite build",
+        storybook: "storybook dev -p 6006",
+        preview: "vite preview"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0",
+        "@storybook/react-vite": "^8.0.0"
+      }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "Card.tsx"), `<section data-testid="dashboard-card">Card</section>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(recommendation.setupProfile).toBe("component-storybook");
+    expect(recommendation.project.detectedFrameworks).toContain("storybook");
+    expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "chromatic")).toMatchObject({
+      recommendation: "optional",
+      requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
+      externalUploadAllowedByDefault: false
+    });
+    expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(0);
   });
 });
 

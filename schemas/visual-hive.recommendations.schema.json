@@ -9,6 +9,11 @@
     "project",
     "generatedAt",
     "configPath",
+    "setupProfile",
+    "providerRecommendations",
+    "costEstimate",
+    "permissions",
+    "setupPullRequest",
     "recommendedConfig",
     "recommendedConfigYaml",
     "detectedSelectors",
@@ -34,6 +39,16 @@
     },
     "generatedAt": { "type": "string" },
     "configPath": { "type": "string" },
+    "setupProfile": {
+      "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"]
+    },
+    "providerRecommendations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerRecommendation" }
+    },
+    "costEstimate": { "$ref": "#/$defs/costEstimate" },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "setupPullRequest": { "$ref": "#/$defs/setupPullRequest" },
     "recommendedConfig": { "type": "object" },
     "recommendedConfigYaml": { "type": "string" },
     "detectedSelectors": {
@@ -80,5 +95,69 @@
     "recommendedCommands": { "type": "array", "items": { "type": "string" } },
     "findings": { "type": "array" },
     "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "providerRecommendation": {
+      "type": "object",
+      "required": ["providerId", "label", "recommendation", "reason", "requiredEnv", "externalUploadAllowedByDefault"],
+      "properties": {
+        "providerId": { "type": "string" },
+        "label": { "type": "string" },
+        "recommendation": { "enum": ["use", "optional", "skip", "future"] },
+        "reason": { "type": "string" },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "externalUploadAllowedByDefault": { "type": "boolean" }
+      }
+    },
+    "costEstimate": {
+      "type": "object",
+      "required": [
+        "localScreenshotsPerRun",
+        "externalScreenshotsPerRun",
+        "estimatedPrMinutes",
+        "estimatedScheduledMinutes",
+        "estimatedMonthlyExternalScreenshots",
+        "ciRuntimeClass",
+        "notes"
+      ],
+      "properties": {
+        "localScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+        "externalScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+        "estimatedPrMinutes": { "type": "integer", "minimum": 0 },
+        "estimatedScheduledMinutes": { "type": "integer", "minimum": 0 },
+        "estimatedMonthlyExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "ciRuntimeClass": { "enum": ["cheap", "medium", "expensive"] },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["pullRequest", "scheduled"],
+      "properties": {
+        "pullRequest": { "$ref": "#/$defs/permissionLane" },
+        "scheduled": { "$ref": "#/$defs/permissionLane" }
+      }
+    },
+    "permissionLane": {
+      "type": "object",
+      "required": ["permissions", "secretsRequired", "externalNetwork", "notes"],
+      "properties": {
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "secretsRequired": { "type": "array", "items": { "type": "string" } },
+        "externalNetwork": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "setupPullRequest": {
+      "type": "object",
+      "required": ["recommended", "title", "files", "steps", "securityNotes"],
+      "properties": {
+        "recommended": { "type": "boolean" },
+        "title": { "type": "string" },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "securityNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
   }
 }
