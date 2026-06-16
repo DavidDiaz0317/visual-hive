@@ -2,12 +2,18 @@
 
 Visual Hive should become a complete, production-grade, deterministic-first visual QA orchestration platform.
 
-It should not remain only a CLI, screenshot diff tool, report generator, or passive dashboard. It should become an end-to-end system that helps users connect repositories, understand visual risk, generate and manage visual/user-flow coverage, run safe PR checks, schedule deeper validation, measure whether tests are meaningful through mutation adequacy, manage baselines, inspect failures, use LLMs safely for triage and repair context, optionally connect external visual providers, and operate across large complex applications.
+It should not remain only a CLI, screenshot diff tool, report generator, passive dashboard, or thin wrapper around existing visual testing products. It should become an end-to-end system that helps users connect repositories, understand visual risk, generate and manage visual/user-flow coverage, run safe PR checks, schedule deeper validation, measure whether tests are meaningful through mutation adequacy, manage baselines, inspect failures, govern LLM usage, optionally connect external visual providers, and operate across large complex applications.
+
+The most important product framing:
+
+> **Visual Hive is the visual QA orchestration and control layer. It should decide what to test, where to run it, how deeply to run it, what it costs, what is protected, what is missing, and which external tool should be used only when it adds value.**
+
+Visual Hive should not try to out-Percy Percy, out-Chromatic Chromatic, out-Argos Argos, or out-Applitools Applitools. It should integrate with those tools when they are useful, while owning the project-aware intelligence layer they generally do not provide.
 
 The finished product should be usable by two groups at the same time:
 
-1. **Beginner maintainers** who do not deeply understand testing, Playwright, CI, baselines, mutation testing, or visual diffing.
-2. **Advanced teams** managing large applications that require fine-grained control over targets, contracts, schedules, protected environments, visual thresholds, LLM usage, provider adapters, artifacts, and governance.
+1. **Beginner maintainers** who do not deeply understand testing, Playwright, CI, baselines, mutation testing, visual diffing, GitHub workflow safety, provider setup, or LLM governance.
+2. **Advanced teams** managing large applications that require fine-grained control over targets, contracts, schedules, protected environments, visual thresholds, provider adapters, LLM usage, artifacts, secrets, costs, and governance.
 
 The final product should make visual QA feel like a guided, understandable workflow while preserving enough depth for serious engineering teams.
 
@@ -20,7 +26,7 @@ Visual Hive turns visual testing from isolated screenshot checks into a layered,
 A mature Visual Hive installation should be able to answer:
 
 - What parts of my app are visually covered?
-- What user-visible contracts protect my most important flows?
+- What important user-visible contracts protect my app?
 - What runs on every PR?
 - What runs only on a schedule?
 - What requires secrets or protected environments?
@@ -28,34 +34,95 @@ A mature Visual Hive installation should be able to answer:
 - Was the change intentional?
 - What files likely caused the regression?
 - What tests are missing?
-- Would my current test suite catch common UI breakages?
+- Would my current test suite catch common UI/auth/API/layout breakages?
 - What should an AI or developer do next to fix the issue?
 - How much do LLM/provider integrations cost?
+- Which external visual provider, if any, is worth using for this repo?
 - Which repos in my org have weak visual coverage?
+- How do I set this up without becoming a testing expert?
 
 Visual Hive should not merely detect differences. It should help users build and maintain a visual quality system.
 
 ---
 
+# Strategic Positioning
+
+Visual Hive should be built around this division of responsibility:
+
+```text
+Visual Hive owns:
+  planning, orchestration, target setup, contracts, mutation adequacy,
+  security policy, reports, LLM governance, repair context, cost policy,
+  Control Plane UX, and repo-specific visual QA strategy.
+
+External providers optionally own:
+  hosted screenshot storage, team visual review, browser/device grids,
+  visual AI comparison, Storybook publishing, enterprise collaboration,
+  and mature baseline approval workflows.
+```
+
+## What Visual Hive should build in-house
+
+Visual Hive should own these because they are the core differentiated product:
+
+- Project-aware planning
+- Changed-file risk selection
+- PR-safe vs protected target decisions
+- `url`, `command`, `commandGroup`, `protected`, deploy-preview, and Storybook-like targets
+- User-visible contracts
+- Fake OAuth / local fullstack orchestration
+- Live-cluster or protected-environment scheduling
+- Mutation adequacy
+- Cost/risk-aware scheduling
+- LLM prompt generation and governance
+- Repair-ready issue context
+- Coverage maps
+- Beginner-friendly setup and Control Plane UX
+- GitHub-safe workflow templates
+- Provider selection and policy
+
+## What Visual Hive should integrate instead of rebuilding
+
+Visual Hive should not prioritize rebuilding these from scratch unless there is a clear product reason:
+
+- Hosted visual review UI
+- Cross-browser/device infrastructure
+- Enterprise baseline collaboration
+- Visual AI diffing engines
+- Storybook publishing/versioning
+- Team review workflows
+- SSO/enterprise access control for hosted artifact review
+- Long-term screenshot hosting at scale
+
+Those should be handled through optional adapters where possible.
+
+---
+
 # Product Shape
 
-Visual Hive has four major layers:
+Visual Hive has five major layers:
 
 ```text
 Visual Hive Core
   CLI, config schema, planner, runner, mutation engine, reports, triage
 
+Visual Hive Setup Agent
+  repo scanner, setup wizard, provider recommender, cost estimator,
+  config/workflow generator, setup PR generator, safe authorization guide
+
 Visual Hive Integrations
-  GitHub Actions, GitHub App future path, provider adapters, LLM adapters
+  GitHub Actions, future GitHub App, provider adapters, LLM adapters,
+  trusted artifact workflows, optional issue/comment creation
 
 Visual Hive Control Plane
-  UI for configuration, coverage, runs, failures, baselines, schedules, LLMs, providers, repos
+  UI for setup, configuration, coverage, runs, failures, baselines,
+  schedules, LLMs, providers, costs, repos, artifacts, and governance
 
 Visual Hive Dogfooding / Examples
   demo app, KubeStellar Console example, real repo integration patterns
 ```
 
-The CLI/core engine must remain usable without the UI. The UI must act as a control plane over the same config, reports, artifacts, and workflows.
+The CLI/core engine must remain usable without the UI. The UI must act as a control plane over the same config, reports, artifacts, workflows, and setup recommendations.
 
 ---
 
@@ -73,7 +140,7 @@ Allowed pass/fail sources:
 - route assertions
 - console/page/network error assertions
 - mutation adequacy thresholds
-- provider-normalized deterministic results
+- provider-normalized deterministic results when explicitly configured
 
 LLM output must never be the sole pass/fail oracle.
 
@@ -89,6 +156,9 @@ LLMs may:
 - draft repair prompts
 - review mutation survivors
 - help generate contracts
+- explain provider recommendations
+- draft setup PR descriptions
+- translate expert testing concepts for beginners
 
 LLMs may not:
 
@@ -97,6 +167,10 @@ LLMs may not:
 - decide CI pass/fail alone
 - access secrets
 - run untrusted code in privileged contexts
+- silently connect paid tools
+- silently upload screenshots/logs to a third party
+- silently create GitHub secrets
+- enable billing or paid-provider integrations without explicit authorization
 
 ## Secure by default
 
@@ -107,9 +181,12 @@ LLMs may not:
 - Required secrets may be shown by name only.
 - Issue creation should happen from sanitized artifacts in a trusted workflow, not directly from untrusted PR execution.
 - Config changes from the UI should show diffs before saving.
+- Setup changes should ideally be committed through setup PRs.
 - The UI must prevent path traversal.
 - LLM prompts must be sanitized.
 - Provider credentials must be optional and never required for the default path.
+- External artifact upload must be opt-in.
+- Paid provider usage must be explicit and budget-aware.
 
 ## Local-first, cloud-ready
 
@@ -121,11 +198,281 @@ A future cloud/GitHub App Control Plane should be possible, but the local-first 
 
 Visual Hive may support optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, GitHub Checks, Slack, Jira, Linear, etc.
 
-But the default working path must be:
+But the default working path must remain:
 
 ```text
 Visual Hive CLI + Playwright + GitHub Actions + local artifacts
 ```
+
+---
+
+# Setup Agent / Setup Wizard Goal
+
+Visual Hive should make onboarding easy enough for users who are not testing experts.
+
+The Setup Agent should not be “an LLM that does whatever it wants.” It should be a hybrid system:
+
+```text
+Deterministic scanner + policy engine + optional LLM explanation
+```
+
+The scanner/policy engine should make safety-critical decisions. The LLM may explain or draft recommendations.
+
+## Setup Agent responsibilities
+
+The Setup Agent should:
+
+1. Scan the repo.
+2. Detect framework, package manager, build scripts, preview scripts, Storybook, Playwright, CI workflows, likely routes, selectors, test IDs, and app type.
+3. Recommend a setup profile.
+4. Recommend local-only vs hosted-provider usage.
+5. Estimate runtime, screenshot count, and external cost risk.
+6. Generate `visual-hive.config.yaml`.
+7. Generate GitHub Actions workflows.
+8. Generate docs for the repo.
+9. Create or preview a setup PR.
+10. Guide provider connection.
+11. Verify provider readiness by checking credential names only.
+12. Explain what is now protected and what remains uncovered.
+
+## Setup profiles
+
+Visual Hive should provide opinionated setup profiles:
+
+### Free Local
+
+Best for early projects, open-source repos, and budget-sensitive teams.
+
+Uses:
+
+- Visual Hive
+- Playwright
+- GitHub Actions
+- local artifacts
+- no external provider
+
+### Hosted Review
+
+Best for teams needing hosted screenshot review/history.
+
+Uses:
+
+- Visual Hive planner
+- Playwright local deterministic checks
+- optional Argos or Percy upload
+- scheduled or failure-only external upload by default
+
+### Component / Storybook
+
+Best for design systems and Storybook-heavy repos.
+
+Uses:
+
+- Visual Hive
+- Storybook target
+- Chromatic or Storybook adapter
+- optional Playwright app-flow checks
+
+### Enterprise Visual AI
+
+Best for large apps requiring enterprise visual AI, browser/device grids, and team governance.
+
+Uses:
+
+- Visual Hive
+- Applitools or Percy/BrowserStack-style provider
+- protected/scheduled checks
+- strict LLM/provider governance
+
+### Complex App / KubeStellar
+
+Best for dashboards, auth flows, local services, fake OAuth, and protected live environments.
+
+Uses:
+
+- hosted demo canary
+- local preview
+- fake OAuth `commandGroup`
+- protected live-cluster target
+- mutation adequacy
+- optional hosted provider on scheduled/failure-only runs
+
+## User authorization model
+
+Visual Hive should eliminate manual wiring where possible, but not eliminate user authorization.
+
+An LLM/setup agent may:
+
+- recommend tools
+- generate config
+- generate workflows
+- draft setup PRs
+- explain tradeoffs
+- identify required secrets
+- suggest provider connection
+
+It may not silently:
+
+- install GitHub Apps
+- create repository secrets
+- connect paid providers
+- upload artifacts externally
+- accept billing
+- expand permissions
+- make LLM calls using paid APIs
+
+The ideal flow:
+
+```text
+LLM recommends.
+Policy engine constrains.
+User authorizes.
+Visual Hive configures.
+GitHub Actions runs.
+Providers remain optional.
+```
+
+## Setup Wizard UI
+
+The Control Plane should include a Setup page that shows:
+
+- detected repo facts
+- recommended profile
+- provider recommendation
+- why this recommendation was made
+- estimated CI runtime
+- estimated external cost
+- required permissions
+- required secrets by name only
+- generated config preview
+- generated workflow preview
+- setup PR instructions
+- “Use free local setup”
+- “Enable hosted review”
+- “Skip provider”
+- “Generate config”
+- “Preview setup PR”
+
+Empty states should teach the next command:
+
+```bash
+visual-hive recommend
+visual-hive recommend --write-config
+visual-hive recommend --profile hosted-review
+```
+
+---
+
+# Provider Strategy
+
+Visual Hive should not treat provider integrations as an afterthought, but it should also not make external providers mandatory.
+
+## Provider roles
+
+### Playwright
+
+- Default deterministic oracle.
+- No paid account.
+- Should always be usable.
+
+### Argos
+
+- Good first hosted visual adapter candidate for general Playwright screenshot review.
+- Useful for teams that want hosted review without building a full review UI in Visual Hive.
+- Should support mock mode and future external upload.
+
+### Chromatic
+
+- Strong for Storybook/component/design-system workflows.
+- Should be recommended primarily when Storybook is detected or component coverage is requested.
+
+### Percy / BrowserStack
+
+- Strong for broader browser/device visual coverage and hosted team review.
+- Should be recommended when real-device/browser matrix or team review requirements justify it.
+
+### Applitools
+
+- Strong for enterprise visual AI and cross-browser visual testing.
+- Should be recommended only when enterprise visual AI/cross-browser/device needs justify cost/complexity.
+
+### Storybook
+
+- Supplemental component coverage target.
+- Useful for design-system and card/component-level visual coverage.
+
+### GitHub Checks
+
+- Supplemental status/reporting adapter.
+- Should respect trusted workflow boundaries.
+
+## Provider cost policy
+
+Visual Hive should make cost visible and controllable.
+
+Config should support cost policy such as:
+
+```yaml
+costPolicy:
+  maxExternalScreenshotsPerRun: 0
+  maxMonthlyExternalScreenshots: 5000
+  externalUpload:
+    pullRequest: false
+    schedule: true
+    manual: true
+    onFailureOnly: true
+    criticalContractsOnly: true
+```
+
+The planner and Control Plane should explain:
+
+```text
+Playwright local: 42 screenshots, $0 external
+Argos: skipped on PR by policy
+Chromatic: skipped because no Storybook detected
+Percy: missing PERCY_TOKEN
+Applitools: disabled
+LLM: prompt-only, no call
+```
+
+Provider usage must be recommended based on:
+
+- user profile
+- repo type
+- Storybook presence
+- screenshot count
+- team review need
+- cross-browser/device need
+- budget policy
+- token availability
+- schedule mode
+- PR safety
+
+## Adapter standard
+
+Adapters should expose:
+
+- availability check
+- credential-name check
+- upload artifact
+- compare
+- fetch result
+- normalize result
+- emit report metadata
+- cost estimate
+- skipped/deferred reason
+- external calls made count
+
+Adapters must support mock mode.
+
+No external network call should happen unless:
+
+- provider is enabled
+- mode is external
+- credentials are present
+- user/policy allows upload
+- run mode allows provider usage
+- budget constraints pass
 
 ---
 
@@ -138,6 +485,7 @@ Visual Hive is considered substantially complete when the following are true.
 The CLI can:
 
 - initialize a repo
+- recommend a setup
 - validate config
 - create a plan
 - run deterministic contracts
@@ -149,6 +497,13 @@ The CLI can:
 - start the Control Plane UI
 - manage baselines
 - inspect providers
+- inspect coverage
+- inspect contracts
+- inspect targets
+- inspect schedules
+- inspect workflows
+- inspect artifacts
+- manage local repo connections
 - support safe GitHub workflow templates
 
 ## Config
@@ -156,6 +511,7 @@ The CLI can:
 The config can model:
 
 - project metadata
+- setup profile
 - visual diff thresholds
 - targets
 - contracts
@@ -169,8 +525,10 @@ The config can model:
 - AI settings
 - GitHub settings
 - provider settings
+- provider cost policy
 - protected environments
 - secrets by name only
+- local/future connected repo metadata
 
 ## Targets
 
@@ -210,9 +568,11 @@ The planner selects tests based on:
 - schedule settings
 - protected target restrictions
 - provider availability
+- provider cost policy
 - mutation applicability
 - docs-only changes
 - explicit include/exclude rules
+- setup profile
 
 Every inclusion or exclusion must have a human-readable reason.
 
@@ -263,6 +623,8 @@ A full report should include:
 - artifacts
 - reproduction commands
 - provider results
+- provider skipped reasons
+- provider cost estimates
 - LLM prompt metadata
 - summary counts
 
@@ -288,6 +650,8 @@ Triage should classify failures as:
 - `flaky_baseline`
 - `protected_target_missing_secret`
 - `insufficient_coverage`
+- `provider_cost_policy_skipped`
+- `external_upload_blocked`
 
 Triage should generate:
 
@@ -300,6 +664,7 @@ Triage should generate:
 - suggested files to inspect
 - suggested next tests
 - likely root-cause context
+- provider recommendation context where relevant
 
 ## Mutation Adequacy
 
@@ -379,6 +744,11 @@ The UI should read:
 - `.visual-hive/triage-prompt.md`
 - `.visual-hive/repair-prompt.md`
 - `.visual-hive/missing-tests.md`
+- `.visual-hive/recommendations.json`
+- `.visual-hive/provider-results.json`
+- `.visual-hive/llm-usage.json`
+- `.visual-hive/coverage.json`
+- `.visual-hive/history.json`
 - `.visual-hive/artifacts/**`
 - `.visual-hive/snapshots/**`
 
@@ -392,6 +762,7 @@ Eventually, the Control Plane should support:
 - setup PR creation
 - workflow scheduling
 - provider management
+- provider billing/cost visibility
 - LLM usage tracking
 - org-wide coverage dashboards
 - audit logs
@@ -418,6 +789,8 @@ Show:
 - visual diffs
 - console/page errors
 - LLM prompt availability
+- provider status
+- external upload policy
 - issue body availability
 - selected targets
 - selected contracts
@@ -431,10 +804,39 @@ Example beginner messages:
 Your fast PR checks are passing.
 Three baselines were created and need review.
 Mutation score is low: some intentional breakages were not caught.
+Argos is recommended for hosted review, but external uploads are disabled on PRs.
 No report found yet. Run visual-hive plan && visual-hive run.
 ```
 
-## 2. Runs / Reports
+## 2. Setup Wizard
+
+Show:
+
+- detected repo facts
+- package manager
+- framework
+- build/preview scripts
+- Storybook presence
+- Playwright presence
+- existing workflow hints
+- detected selectors/routes where practical
+- recommended setup profile
+- provider recommendation
+- cost/runtime estimate
+- required secrets by name only
+- generated config preview
+- generated workflow preview
+- setup PR instructions
+
+Actions:
+
+- use free local setup
+- enable hosted review
+- skip provider
+- generate config
+- preview setup PR instructions
+
+## 3. Runs / Reports
 
 Show:
 
@@ -450,9 +852,10 @@ Show:
 - errors
 - artifacts
 - reproduction commands
+- provider results
 - raw JSON
 
-## 3. Failure Inbox
+## 4. Failure Inbox
 
 Show failed contracts and triage findings.
 
@@ -473,7 +876,7 @@ Each failure should include:
 - triage prompt preview
 - repair prompt preview
 
-## 4. Screenshot / Baseline Review
+## 5. Screenshot / Baseline Review
 
 Show:
 
@@ -491,7 +894,7 @@ Show:
 
 Do not silently approve baselines. Show diffs and require confirmation.
 
-## 5. Mutation Adequacy
+## 6. Mutation Adequacy
 
 Show:
 
@@ -509,7 +912,7 @@ Explain:
 - survived = tests missed the intentional breakage
 - not_applicable = mutation did not match selected contracts
 
-## 6. Coverage Map
+## 7. Coverage Map
 
 Show:
 
@@ -525,7 +928,7 @@ Show:
 
 The first version may be config/report-based. Future versions can add static route/component discovery.
 
-## 7. Config Editor
+## 8. Config Editor
 
 Show:
 
@@ -541,6 +944,7 @@ Show:
 - AI settings
 - GitHub settings
 - provider settings
+- cost policy
 
 Editing requirements:
 
@@ -550,7 +954,7 @@ Editing requirements:
 - support read-only mode
 - do not silently mutate files
 
-## 8. Target Manager
+## 9. Target Manager
 
 Show target cards for:
 
@@ -581,7 +985,7 @@ Beginner labels:
 - Schedule-only
 - Needs setup
 
-## 9. Contract Manager
+## 10. Contract Manager
 
 Show:
 
@@ -608,7 +1012,7 @@ Filters:
 - route
 - viewport
 
-## 10. Schedule Manager
+## 11. Schedule Manager
 
 Show:
 
@@ -616,6 +1020,7 @@ Show:
 - scheduled checks
 - protected checks
 - mutation schedule
+- provider upload schedule
 - workflow templates
 - cron guidance
 - manual dispatch guidance
@@ -626,8 +1031,9 @@ Explain safe scheduling:
 - scheduled checks can be deeper
 - protected checks may require secrets
 - issue creation should use trusted artifact workflows
+- external provider upload should usually be scheduled, failure-only, or critical-contract-only by default
 
-## 11. LLM Settings and Usage
+## 12. LLM Settings and Usage
 
 Show:
 
@@ -642,7 +1048,7 @@ Show:
 
 No real LLM calls by default.
 
-## 12. Provider Integrations
+## 13. Provider Integrations
 
 Show:
 
@@ -658,13 +1064,17 @@ Show:
 Each provider should show:
 
 - enabled/disabled
+- recommended/not recommended
 - credentials present/missing by name only
 - supported actions
 - result normalization status
+- cost policy
+- estimated screenshot use
 - setup docs
 - mock/test status
+- external calls made count
 
-## 13. GitHub / CI Integration
+## 14. GitHub / CI Integration
 
 Show:
 
@@ -673,6 +1083,7 @@ Show:
 - trusted failure issue workflow
 - security warnings
 - copyable snippets
+- setup PR guidance
 
 Warnings:
 
@@ -681,7 +1092,7 @@ Warnings:
 - issue creation from trusted artifacts only
 - sanitize artifacts before issue creation
 
-## 14. Raw Artifacts
+## 15. Raw Artifacts
 
 A safe browser for `.visual-hive`.
 
@@ -700,7 +1111,7 @@ Security:
 - sanitize logs/prompts
 - do not display secret values
 
-## 15. Multi-repo / Connections
+## 16. Multi-repo / Connections
 
 Local-first version may support:
 
@@ -732,12 +1143,14 @@ Visual Hive should include safe GitHub templates.
 - upload `.visual-hive` artifacts
 - write step summary
 - no issue creation
+- no paid provider upload by default unless explicitly allowed and no secrets are exposed
 
 ## Scheduled workflow
 
 - `on: schedule` and `workflow_dispatch`
 - may use protected secrets
 - plan/run/mutate/triage/report
+- optional provider upload
 - upload artifacts
 
 ## Trusted issue workflow
@@ -748,6 +1161,21 @@ Visual Hive should include safe GitHub templates.
 - sanitizes issue body
 - dedupes by signature
 - creates or updates issue
+
+## Future GitHub App
+
+Eventually support:
+
+- repo installation
+- repo selection
+- setup PR generation
+- artifact ingestion
+- workflow scheduling
+- issue/comment creation
+- secret-name readiness checks
+- audit logs
+
+GitHub App permissions should be incremental and least-privilege.
 
 ---
 
@@ -770,6 +1198,8 @@ Implement:
 
 LLM task types:
 
+- setup explanation
+- provider recommendation explanation
 - failure explanation
 - visual diff summary
 - missing coverage review
@@ -787,11 +1217,14 @@ Visual Hive should support adapters without requiring paid providers.
 Adapters should expose:
 
 - availability check
+- credential-name check
 - upload artifact
 - compare
 - fetch result
 - normalize result
 - emit report metadata
+- estimate cost
+- explain skip/defer reason
 
 Adapters:
 
@@ -805,6 +1238,8 @@ Adapters:
 
 Mock adapters should be implemented and tested.
 
+A real provider integration should be implemented one provider at a time, with Argos or another accessible hosted provider as the likely first candidate. External providers should supplement Visual Hive; they should not replace the default Playwright path.
+
 ---
 
 # Dogfooding
@@ -816,6 +1251,7 @@ Visual Hive must dogfood itself.
 Must support:
 
 - doctor
+- recommend
 - plan
 - run
 - mutate
@@ -834,6 +1270,7 @@ Must model:
 - docs-only no-expensive-selection
 - auth changed files select auth contracts
 - schedule mode selects protected targets
+- optional hosted provider policy
 
 ## Real console integration
 
@@ -866,6 +1303,7 @@ Support:
 - npx future usage
 - GitHub Actions templates
 - monorepo setup
+- setup wizard docs
 - troubleshooting docs
 - examples
 
@@ -886,6 +1324,8 @@ Audit and improve:
 - prompt injection surfaces
 - provider credentials
 - untrusted PR boundaries
+- external provider upload policy
+- LLM data-sharing policy
 
 Document:
 
@@ -893,6 +1333,8 @@ Document:
 - prompt injection guidance
 - GitHub workflow safety
 - dependency audit status
+- provider credential handling
+- setup agent authorization model
 
 ---
 
@@ -945,6 +1387,7 @@ Also validate:
 ```bash
 node packages/cli/dist/index.js --help
 node packages/cli/dist/index.js ui --help
+node packages/cli/dist/index.js recommend --help
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-docs-changed-files.txt
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
@@ -972,10 +1415,12 @@ Do not stop at stubs, docs-only changes, or a shallow dashboard.
 Prefer useful vertical slices:
 
 ```text
-config -> plan -> run -> report -> triage -> UI display -> test -> docs
+scan -> recommend -> config -> plan -> run -> report -> triage -> UI display -> test -> docs
 ```
 
 over disconnected broad scaffolding.
+
+When CI is red, stop feature expansion and stabilize before continuing.
 
 ---
 
@@ -986,17 +1431,19 @@ The finished product should allow a user to:
 1. Install Visual Hive.
 2. Connect or select a repo.
 3. Generate a recommended visual QA setup.
-4. Run PR-safe checks.
-5. Schedule deeper checks.
-6. Manage protected targets.
-7. Review visual diffs.
-8. Approve/update baselines safely.
-9. See mutation adequacy.
-10. Understand failures.
-11. Generate issue/repair context.
-12. Control LLM usage.
-13. Use optional providers.
-14. Operate across complex apps.
-15. Dogfood against KubeStellar Console.
+4. Choose free-local or optional provider-backed workflows.
+5. Understand provider recommendations and cost tradeoffs.
+6. Run PR-safe checks.
+7. Schedule deeper checks.
+8. Manage protected targets.
+9. Review visual diffs.
+10. Approve/update baselines safely.
+11. See mutation adequacy.
+12. Understand failures.
+13. Generate issue/repair context.
+14. Control LLM usage.
+15. Use optional providers.
+16. Operate across complex apps.
+17. Dogfood against KubeStellar Console.
 
 Remaining gaps should be external activation items only, not missing core architecture.
