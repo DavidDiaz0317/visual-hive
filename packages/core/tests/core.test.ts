@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -572,6 +572,28 @@ contracts:
     expect(docsPlan.excluded.map((item) => item.reasons.join(";"))).toContainEqual(
       expect.stringContaining("all changed files matched selection.ignoreChangedFiles")
     );
+  });
+});
+
+describe("schema catalog", () => {
+  it("includes JSON schemas for every documented governance artifact", async () => {
+    const schemaNames = new Set((await readdir(path.join(repoRoot, "schemas"))).filter((name) => name.endsWith(".schema.json")));
+
+    expect(schemaNames).toContain("visual-hive.provider-decisions.schema.json");
+    expect(schemaNames).toContain("visual-hive.llm-decisions.schema.json");
+
+    const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
+      properties: { decisions: { items: { $ref: string } } };
+      $defs: { decision: { properties: Record<string, unknown> } };
+    };
+    const llmSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.llm-decisions.schema.json"), "utf8")) as {
+      $defs: { decision: { properties: Record<string, unknown> } };
+    };
+
+    expect(providerSchema.$defs.decision.properties.externalCallsMade).toEqual({ const: 0 });
+    expect(llmSchema.$defs.decision.properties.externalCallsMade).toEqual({ const: 0 });
+    expect(providerSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
+    expect(llmSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
   });
 });
 

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.provider-decisions.schema.json",
+  "title": "Visual Hive Provider Decisions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "decisions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/decision" }
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerId", "decision", "reason", "decidedAt", "source", "externalCallsMade"],
+      "properties": {
+        "providerId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{2,64}$"
+        },
+        "label": { "type": "string" },
+        "decision": {
+          "enum": ["skip", "review_later", "approve_trusted_setup"]
+        },
+        "reason": { "type": "string" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "source": {
+          "enum": ["cli", "control-plane"]
+        },
+        "externalCallsMade": { "const": 0 }
+      }
+    }
+  }
+}

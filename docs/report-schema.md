@@ -58,7 +58,7 @@ When this artifact exists before `visual-hive triage`, `.visual-hive/triage.json
 
 Path: `.visual-hive/provider-decisions.json`
 
-Schema version: `1`
+Schema: `schemas/visual-hive.provider-decisions.schema.json`
 
 Provider decisions are local governance records written through the shared core helper used by both the CLI and Control Plane. They record provider ID, optional label, decision (`skip`, `review_later`, or `approve_trusted_setup`), sanitized reason, timestamp, source (`cli` or `control-plane`), and `externalCallsMade: 0`. They do not enable credentials, billing, external uploads, or provider network calls.
 
@@ -138,7 +138,7 @@ The LLM usage artifact is written by `visual-hive triage` and can be refreshed i
 
 Path: `.visual-hive/llm-decisions.json`
 
-Schema version: `1`
+Schema: `schemas/visual-hive.llm-decisions.schema.json`
 
 LLM decisions are local governance records written through the shared core helper used by both the CLI and Control Plane. They record decision (`keep_disabled`, `review_later`, or `approve_trusted_prompt_only`), sanitized reason, timestamp, source (`cli` or `control-plane`), and `externalCallsMade: 0`. They do not create API keys, call a model, upload artifacts, or change deterministic pass/fail authority.
 
