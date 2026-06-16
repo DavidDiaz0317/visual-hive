@@ -27,7 +27,7 @@
     },
     "inputs": {
       "type": "object",
-      "required": ["plan", "report", "mutationReport", "coverageReport", "targetAudit", "contractAudit", "scheduleAudit", "workflowAudit"],
+      "required": ["plan", "report", "mutationReport", "coverageReport", "targetAudit", "contractAudit", "flowAudit", "scheduleAudit", "workflowAudit"],
       "additionalProperties": false,
       "properties": {
         "plan": { "type": "boolean" },
@@ -36,6 +36,7 @@
         "coverageReport": { "type": "boolean" },
         "targetAudit": { "type": "boolean" },
         "contractAudit": { "type": "boolean" },
+        "flowAudit": { "type": "boolean" },
         "scheduleAudit": { "type": "boolean" },
         "workflowAudit": { "type": "boolean" }
       }
@@ -75,6 +76,7 @@
             "baseline_review",
             "mutation_adequacy",
             "coverage_gap",
+            "flow_coverage",
             "target_safety",
             "workflow_safety",
             "provider_policy",

@@ -913,7 +913,7 @@ describe("coverage analysis", () => {
 });
 
 describe("risk register", () => {
-  it("prioritizes deterministic, baseline, mutation, coverage, target, workflow, and provider risks", () => {
+  it("prioritizes deterministic, baseline, mutation, coverage, flow, target, workflow, and provider risks", () => {
     const config = sampleConfig();
     const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
     const report: Report = {
@@ -1022,6 +1022,7 @@ describe("risk register", () => {
         ]
       },
       coverageReport: coverage,
+      flowAudit: auditFlows(config, { plan, report }),
       targetAudit: targets,
       workflowAudit: workflows,
       now: new Date("2026-06-15T00:00:00.000Z")
@@ -1030,11 +1031,21 @@ describe("risk register", () => {
     expect(risk.schemaVersion).toBe(1);
     expect(risk.summary.total).toBeGreaterThan(0);
     expect(risk.summary.prBlocking).toBeGreaterThan(0);
+    expect(risk.inputs.flowAudit).toBe(true);
     expect(risk.risks.map((item) => item.category)).toEqual(
-      expect.arrayContaining(["deterministic_failure", "baseline_review", "mutation_adequacy", "target_safety", "workflow_safety", "provider_policy"])
+      expect.arrayContaining([
+        "deterministic_failure",
+        "baseline_review",
+        "mutation_adequacy",
+        "flow_coverage",
+        "target_safety",
+        "workflow_safety",
+        "provider_policy"
+      ])
     );
     expect(risk.risks.find((item) => item.category === "deterministic_failure")?.message).toContain("[REDACTED]");
     expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
+    expect(risk.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
   });
 });
 
@@ -2574,6 +2585,7 @@ describe("local repository connections", () => {
         coverageReport: false,
         targetAudit: false,
         contractAudit: false,
+        flowAudit: false,
         scheduleAudit: false,
         workflowAudit: false
       },

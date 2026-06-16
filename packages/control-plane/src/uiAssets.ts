@@ -365,6 +365,7 @@ function riskNavigation(risk) {
   if (risk.category === "deterministic_failure" || risk.category === "mutation_adequacy") buttons.push(navButton("failures", "failure inbox"));
   if (risk.category === "baseline_review") buttons.push(navButton("baselines", "baseline review"));
   if (risk.category === "coverage_gap") buttons.push(navButton("coverage", "coverage"));
+  if (risk.category === "flow_coverage") buttons.push(navButton("flows", "flows"));
   if (risk.category === "workflow_safety") buttons.push(navButton("github", "GitHub / CI"));
   if (risk.category === "provider_policy") buttons.push(navButton("providers", "providers"));
   if (risk.category === "planning") buttons.push(navButton("runbook", "runbook"));

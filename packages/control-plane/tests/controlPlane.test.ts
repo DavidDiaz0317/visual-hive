@@ -510,6 +510,7 @@ jobs:
           coverageReport: true,
           targetAudit: true,
           contractAudit: true,
+          flowAudit: true,
           scheduleAudit: true,
           workflowAudit: true
         },
@@ -769,6 +770,18 @@ describe("control plane", () => {
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
   });
 
+  it("computes flow coverage risks when no stored risk artifact exists", async () => {
+    const fixture = await makeFixture();
+    await rm(path.join(fixture.repoRoot, ".visual-hive", "risk.json"), { force: true });
+
+    const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+
+    expect(snapshot.flowAudit?.summary.contractsWithoutFlow).toBe(1);
+    expect(snapshot.riskReport?.inputs.flowAudit).toBe(true);
+    expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("flow_coverage");
+    expect(snapshot.riskReport?.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
+  });
+
   it("adds trusted protected-lane runbook commands with secret names only", async () => {
     const fixture = await makeFixture();
     const config = await readFile(fixture.configPath, "utf8");
@@ -916,6 +929,7 @@ contracts:
             coverageReport: false,
             targetAudit: false,
             contractAudit: false,
+            flowAudit: false,
             scheduleAudit: false,
             workflowAudit: false
           },

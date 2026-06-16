@@ -550,6 +550,7 @@ program
   .option("--coverage <path>", "coverage artifact path override")
   .option("--targets <path>", "targets audit artifact path override")
   .option("--contracts <path>", "contracts audit artifact path override")
+  .option("--flows <path>", "flow audit artifact path override")
   .option("--schedules <path>", "schedules audit artifact path override")
   .option("--workflows <path>", "workflow audit artifact path override")
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
@@ -564,6 +565,7 @@ program
         coverage: options.coverage,
         targets: options.targets,
         contracts: options.contracts,
+        flows: options.flows,
         schedules: options.schedules,
         workflows: options.workflows,
         workflowDir: options.workflowDir,

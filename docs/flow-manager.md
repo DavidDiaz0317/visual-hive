@@ -27,4 +27,4 @@ The command writes `.visual-hive/flows.json` with schema `schemas/visual-hive.fl
 
 ## Suggested Use
 
-Run `visual-hive flows` after `visual-hive run` in PR and scheduled workflows. Use it alongside `visual-hive contracts`, `visual-hive coverage`, and `visual-hive improve-coverage` to decide which user journeys need stronger deterministic protection.
+Run `visual-hive flows` after `visual-hive run` in PR and scheduled workflows. Use it alongside `visual-hive contracts`, `visual-hive coverage`, and `visual-hive improve-coverage` to decide which user journeys need stronger deterministic protection. `visual-hive risk` reads `.visual-hive/flows.json` when present, or computes the same audit as a fallback, and raises `flow_coverage` risks for missing or failed deterministic user-flow steps.

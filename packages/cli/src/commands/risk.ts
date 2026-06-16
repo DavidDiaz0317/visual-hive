@@ -4,6 +4,7 @@ import {
   analyzeCoverage,
   analyzeRisk,
   auditContracts,
+  auditFlows,
   auditSchedules,
   auditTargets,
   auditWorkflows,
@@ -12,6 +13,7 @@ import {
   writeJson,
   type ContractAuditReport,
   type CoverageReport,
+  type FlowAuditReport,
   type MutationReport,
   type Plan,
   type Report,
@@ -30,6 +32,7 @@ export interface RiskCommandOptions {
   coverage?: string;
   targets?: string;
   contracts?: string;
+  flows?: string;
   schedules?: string;
   workflows?: string;
   workflowDir?: string;
@@ -54,6 +57,9 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
   const contractAudit =
     (await readOptionalJson<ContractAuditReport>(path.resolve(loaded.rootDir, options.contracts ?? path.join(".visual-hive", "contracts.json")))) ??
     auditContracts(loaded.config, { plan, report, mutationReport, selectedContractIds: report?.selectedContracts });
+  const flowAudit =
+    (await readOptionalJson<FlowAuditReport>(path.resolve(loaded.rootDir, options.flows ?? path.join(".visual-hive", "flows.json")))) ??
+    auditFlows(loaded.config, { plan, report, selectedContractIds: report?.selectedContracts });
   const scheduleAudit =
     (await readOptionalJson<ScheduleAuditReport>(path.resolve(loaded.rootDir, options.schedules ?? path.join(".visual-hive", "schedules.json")))) ??
     auditSchedules(loaded.config, { changedFiles: plan?.changedFiles ?? report?.changedFiles });
@@ -68,6 +74,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
     coverageReport,
     targetAudit,
     contractAudit,
+    flowAudit,
     scheduleAudit,
     workflowAudit
   });

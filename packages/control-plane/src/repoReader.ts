@@ -177,6 +177,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         coverageReport: coverage,
         targetAudit,
         contractAudit,
+        flowAudit,
         scheduleAudit,
         workflowAudit
       })

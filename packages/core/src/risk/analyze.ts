@@ -1,6 +1,7 @@
 import type { VisualHiveConfig } from "../config/schema.js";
 import type { ContractAuditReport } from "../contracts/audit.js";
 import type { CoverageReport } from "../coverage/analyze.js";
+import type { FlowAuditReport } from "../flows/audit.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { ScheduleAuditReport } from "../schedules/audit.js";
@@ -14,6 +15,7 @@ export type RiskCategory =
   | "baseline_review"
   | "mutation_adequacy"
   | "coverage_gap"
+  | "flow_coverage"
   | "target_safety"
   | "workflow_safety"
   | "provider_policy"
@@ -49,6 +51,7 @@ export interface RiskInputs {
   coverageReport: boolean;
   targetAudit: boolean;
   contractAudit: boolean;
+  flowAudit: boolean;
   scheduleAudit: boolean;
   workflowAudit: boolean;
 }
@@ -75,6 +78,7 @@ export interface AnalyzeRiskOptions {
   coverageReport?: CoverageReport;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
+  flowAudit?: FlowAuditReport;
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
   now?: Date;
@@ -88,6 +92,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...baselineRisks(options.report, contractSeverity),
     ...mutationRisks(options.mutationReport),
     ...coverageRisks(options.coverageReport),
+    ...flowRisks(options.flowAudit),
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
     ...providerRisks(options.plan, options.report)
@@ -107,6 +112,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       coverageReport: Boolean(options.coverageReport),
       targetAudit: Boolean(options.targetAudit),
       contractAudit: Boolean(options.contractAudit),
+      flowAudit: Boolean(options.flowAudit),
       scheduleAudit: Boolean(options.scheduleAudit),
       workflowAudit: Boolean(options.workflowAudit)
     },
@@ -271,6 +277,56 @@ function coverageRisks(coverageReport?: CoverageReport): RiskItem[] {
   }));
 }
 
+function flowRisks(flowAudit?: FlowAuditReport): RiskItem[] {
+  if (!flowAudit) return [];
+  const risks: RiskItem[] = [];
+  for (const flow of flowAudit.flows) {
+    if (flow.latestFailedSteps > 0) {
+      risks.push({
+        id: `flow:${flow.contractId}:failed-latest-flow`,
+        category: "flow_coverage",
+        severity: "high",
+        title: `Flow failed: ${flow.contractId}`,
+        message: "Latest deterministic run includes failed user-flow steps.",
+        evidence: [
+          `status=${flow.latestStatus}`,
+          `failedSteps=${flow.latestFailedSteps}`,
+          ...flow.latestFailedMessages.slice(0, 5)
+        ],
+        contractIds: [flow.contractId],
+        targetIds: [flow.targetId],
+        artifacts: [".visual-hive/flows.json", ".visual-hive/report.json"],
+        suggestedActions: flow.recommendations.length ? flow.recommendations : ["Inspect failed flow steps before updating visual baselines."],
+        prBlocking: flow.selected,
+        trustedOnly: flow.targetKind === "protected"
+      });
+    }
+    for (const gap of flow.gaps) {
+      risks.push({
+        id: `flow:${flow.contractId}:${gap.kind}`,
+        category: "flow_coverage",
+        severity: gap.severity,
+        title: `Flow coverage gap: ${flow.contractId}`,
+        message: gap.message,
+        evidence: [
+          `target=${flow.targetId}`,
+          `targetKind=${flow.targetKind}`,
+          `selected=${flow.selected}`,
+          `steps=${flow.steps.length}`,
+          `severity=${flow.severity}`
+        ],
+        contractIds: [flow.contractId],
+        targetIds: [flow.targetId],
+        artifacts: [".visual-hive/flows.json"],
+        suggestedActions: flow.recommendations.length ? flow.recommendations : ["Add deterministic flow steps for the user journey this contract protects."],
+        prBlocking: flow.selected && gap.severity === "high",
+        trustedOnly: flow.targetKind === "protected"
+      });
+    }
+  }
+  return risks;
+}
+
 function targetRisks(targetAudit?: TargetAuditReport): RiskItem[] {
   if (!targetAudit) return [];
   return targetAudit.targets.flatMap((target) =>
@@ -372,6 +428,7 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "deterministic_failure")) recs.add("Fix deterministic contract failures before updating baselines.");
   if (risks.some((risk) => risk.category === "baseline_review")) recs.add("Review screenshot actual/baseline/diff artifacts and record explicit baseline decisions.");
   if (risks.some((risk) => risk.category === "mutation_adequacy")) recs.add("Strengthen contracts for survived or errored mutation operators.");
+  if (risks.some((risk) => risk.category === "flow_coverage")) recs.add("Add or repair deterministic flow steps for high-risk user journeys.");
   if (risks.some((risk) => risk.category === "workflow_safety")) recs.add("Repair GitHub workflow safety findings before relying on CI automation.");
   if (risks.some((risk) => risk.category === "environment")) recs.add("Configure required secret names only in trusted scheduled/manual environments.");
   if (risks.some((risk) => risk.category === "coverage_gap")) recs.add("Add contracts or changed-file rules for uncovered high-risk areas.");

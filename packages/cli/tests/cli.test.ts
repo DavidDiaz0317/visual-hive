@@ -1588,12 +1588,13 @@ contracts:
     const riskSummary = formatRiskRegister(riskResult.report, riskResult.reportPath);
     expect(riskResult.report.summary.total).toBeGreaterThan(0);
     expect(riskResult.report.risks.map((risk) => risk.category)).toEqual(
-      expect.arrayContaining(["deterministic_failure", "mutation_adequacy", "coverage_gap", "workflow_safety"])
+      expect.arrayContaining(["deterministic_failure", "mutation_adequacy", "coverage_gap", "flow_coverage", "workflow_safety"])
     );
+    expect(riskResult.report.inputs.flowAudit).toBe(true);
     expect(JSON.stringify(riskResult.report)).not.toContain("secret-value");
     expect(JSON.stringify(riskResult.report)).toContain("[REDACTED]");
     expect(riskSummary).toContain("Risk Register: cli-triage");
-    await expect(readFile(path.join(tempRoot, ".visual-hive", "risk.json"), "utf8")).resolves.toContain("workflow_safety");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "risk.json"), "utf8")).resolves.toContain("flow_coverage");
   });
 
   it("inspects providers without printing secret values", async () => {
