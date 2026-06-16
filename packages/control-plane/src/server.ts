@@ -5,6 +5,7 @@ import { URL } from "node:url";
 import { addConnection, approveBaseline, rejectBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
+import { writeSetupBundleFromRecommendation } from "./setupBundle.js";
 import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
 import type { ControlPlaneOptions, ResolvedControlPlaneOptions, StartedControlPlane } from "./types.js";
 import { writeWorkflowTemplates } from "./workflowWriter.js";
@@ -157,6 +158,26 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       }
       try {
         const result = await writeRecommendedDocsFromSetup(await optionsForRequest(options, url), true, body.force === true);
+        sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/setup/write-bundle") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to generate a setup bundle." }, 403);
+        return;
+      }
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Setup bundle generation requires explicit confirmation after reviewing the recommendation and workflow snippets." }, 400);
+        return;
+      }
+      try {
+        const result = await writeSetupBundleFromRecommendation(await optionsForRequest(options, url), { confirm: true, force: body.force === true });
         sendJson(response, result);
       } catch (error) {
         sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);

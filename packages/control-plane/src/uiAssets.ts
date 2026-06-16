@@ -198,6 +198,10 @@ function setupActions() {
     '<button id="setup-write-docs" class="button" data-force="false">Generate setup docs</button>' +
     '<button id="setup-overwrite-docs" class="button" data-force="true">Overwrite setup docs after review</button>' +
     '<span id="setup-docs-status" class="muted">Writes docs/visual-hive.md and records .visual-hive/setup-doc-edits.json.</span>' +
+    '</div><div class="actions">' +
+    '<button id="setup-write-bundle" class="button">Generate setup PR bundle</button>' +
+    '<button id="setup-overwrite-bundle" class="button">Overwrite setup bundle after review</button>' +
+    '<span id="setup-bundle-status" class="muted">Writes config, docs, workflow templates, and records .visual-hive/setup-bundle-edits.json.</span>' +
     '</div>';
 }
 
@@ -641,6 +645,10 @@ function wireActions() {
   if (setupWriteDocs) setupWriteDocs.addEventListener("click", () => writeRecommendedDocs(false));
   const setupOverwriteDocs = document.querySelector("#setup-overwrite-docs");
   if (setupOverwriteDocs) setupOverwriteDocs.addEventListener("click", () => writeRecommendedDocs(true));
+  const setupWriteBundle = document.querySelector("#setup-write-bundle");
+  if (setupWriteBundle) setupWriteBundle.addEventListener("click", () => writeSetupBundle(false));
+  const setupOverwriteBundle = document.querySelector("#setup-overwrite-bundle");
+  if (setupOverwriteBundle) setupOverwriteBundle.addEventListener("click", () => writeSetupBundle(true));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -813,6 +821,37 @@ async function writeRecommendedDocs(force) {
   }
   status.className = "ok";
   status.textContent = "Docs written to " + payload.docsPath + ". Audit: " + payload.auditPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function writeSetupBundle(force) {
+  const status = document.querySelector("#setup-bundle-status");
+  const buttons = [document.querySelector("#setup-write-bundle"), document.querySelector("#setup-overwrite-bundle")].filter(Boolean);
+  if (!status) return;
+  const promptText = force
+    ? "Overwrite config, docs, and Visual Hive workflow templates after reviewing the generated setup bundle?"
+    : "Write config, docs, and Visual Hive workflow templates for a setup PR without overwriting existing files?";
+  if (!confirm(promptText)) return;
+  buttons.forEach((button) => { button.disabled = true; });
+  status.className = "muted";
+  status.textContent = force ? "Overwriting setup PR bundle..." : "Writing setup PR bundle...";
+  const response = await fetch(apiUrl("/api/setup/write-bundle"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true, force })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Setup bundle write failed.";
+    buttons.forEach((button) => { button.disabled = false; });
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Setup PR bundle written. Audit: " + payload.auditPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }

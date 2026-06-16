@@ -600,6 +600,8 @@ describe("control plane", () => {
       expect(appJs).toContain("/api/setup/write-config");
       expect(appJs).toContain("setup-write-docs");
       expect(appJs).toContain("/api/setup/write-docs");
+      expect(appJs).toContain("setup-write-bundle");
+      expect(appJs).toContain("/api/setup/write-bundle");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
@@ -616,6 +618,7 @@ describe("control plane", () => {
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
+    expect(controlPlaneJs).toContain("function writeSetupBundle");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {
@@ -832,6 +835,75 @@ describe("control plane", () => {
     }
   });
 
+  it("writes a full setup PR bundle from setup recommendations when files are missing", async () => {
+    const fixture = await makeFixture();
+    await rm(fixture.configPath);
+    await rm(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml"), { force: true });
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.auditPath).toBe(".visual-hive/setup-bundle-edits.json");
+      expect(payload.config.configPath).toBe("visual-hive.config.yaml");
+      expect(payload.docs.docsPath).toBe("docs/visual-hive.md");
+      expect(payload.workflows.written.map((entry: { path: string }) => entry.path).sort()).toEqual([
+        ".github/workflows/visual-hive-failure-issue.yml",
+        ".github/workflows/visual-hive-pr.yml",
+        ".github/workflows/visual-hive-scheduled.yml"
+      ]);
+
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture");
+      await expect(readFile(path.join(fixture.repoRoot, "docs", "visual-hive.md"), "utf8")).resolves.toContain("## PR Lane");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8")).resolves.toContain("pull_request");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8")).resolves.toContain(
+        "workflow_dispatch"
+      );
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8")).resolves.toContain(
+        "workflow_run"
+      );
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-bundle-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      expect(audit).toContain("docs/visual-hive.md");
+      expect(audit).toContain(".github/workflows/visual-hive-pr.yml");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects setup bundle files from accidental overwrite unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to write setup bundle because files already exist");
+
+      const forced = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-bundle-edits.json"), "utf8")).resolves.toContain("force");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("writes built-in workflow templates through the local API", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
@@ -927,6 +999,13 @@ describe("control plane", () => {
         body: JSON.stringify({ confirm: true, force: true })
       });
       expect(setupDocsBlocked.status).toBe(403);
+
+      const setupBundleBlocked = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupBundleBlocked.status).toBe(403);
 
       const workflowsBlocked = await fetch(`${server.url}/api/workflows/write-templates`, {
         method: "POST",

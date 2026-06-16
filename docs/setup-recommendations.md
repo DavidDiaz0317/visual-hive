@@ -33,7 +33,7 @@ visual-hive recommend --format json
 
 `--write-docs` creates `docs/visual-hive.md` from the same deterministic recommendation data. It explains the PR lane, scheduled/protected lane, recommended contracts, provider posture, cost guardrails, baseline review commands, setup PR checklist, and security rules. Existing docs are protected unless `--force` is passed.
 
-The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. `--read-only` disables these actions.
+The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate a setup PR bundle that writes the recommended config, repo docs, and built-in workflow templates after preflighting every output path; that aggregate action records `.visual-hive/setup-bundle-edits.json`. `--read-only` disables these actions.
 
 ## Artifact
 
@@ -56,4 +56,4 @@ Important fields:
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. In write mode it can generate the recommended config and `docs/visual-hive.md` with confirmation and audit logging; in `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. In write mode it can generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging; in `--read-only` mode it remains display-only.
