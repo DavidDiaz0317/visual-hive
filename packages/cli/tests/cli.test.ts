@@ -73,6 +73,34 @@ describe("CLI commands", () => {
     expect(written.excluded.map((item) => item.contractId)).toContain("live-cluster-protected-lane");
   });
 
+  it("demo acceptance scripts exercise management-plane artifacts", async () => {
+    const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const expectedCommands = [
+      "demo:coverage",
+      "demo:targets",
+      "demo:contracts",
+      "demo:schedules",
+      "demo:workflows",
+      "demo:providers",
+      "demo:triage",
+      "demo:report",
+      "demo:history",
+      "demo:artifacts"
+    ];
+
+    for (const command of expectedCommands) {
+      expect(packageJson.scripts["demo:all"]).toContain(command);
+      expect(packageJson.scripts["demo:ci"]).toContain(command);
+    }
+    expect(packageJson.scripts["demo:providers"]).toContain("providers --config");
+    expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
+    expect(packageJson.scripts["demo:history"]).toContain("history --config");
+    expect(packageJson.scripts["demo:history"]).toContain("--record");
+    expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+  });
+
   it("passes explicit include and exclude options through plan command", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-explicit-plan-"));
     tempDirs.push(tempRoot);

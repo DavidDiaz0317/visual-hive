@@ -64,3 +64,5 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 ## Current Limits
 
 This is an early local Control Plane slice. It is a real management layer over setup recommendations, artifacts, baseline review decisions, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+
+The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.
