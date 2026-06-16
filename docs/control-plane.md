@@ -17,7 +17,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## What It Shows
 
 - Overview health score with explainable next actions
-- Setup recommendations from `.visual-hive/recommendations.json`, including setup profile, provider posture, cost estimate, permission guidance, and setup PR guidance
+- Setup recommendations from `.visual-hive/recommendations.json`, including setup profile, provider posture, cost estimate, permission guidance, setup PR guidance, and a guarded action to write the recommended config
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
 - Baseline review with baseline, actual, diff images, diff pixel metadata, artifact path links, and copy buttons
@@ -28,6 +28,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Schedule Manager from `.visual-hive/schedules.json` or the same core audit model over PR, scheduled, protected, mutation, and trusted issue lanes, including secret-name-only readiness and workflow safety gaps
 - Config validation and raw YAML
 - Config editing with validation, diff preview, explicit save confirmation, and audit logging
+- Setup config generation from `.visual-hive/recommendations.json`, with validation, overwrite protection, explicit confirmation, and audit logging
 - Target and contract managers
 - Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions and blocked reasons
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy buttons
@@ -44,6 +45,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
 - Baseline rejection is explicit: the user records a reason in `.visual-hive/baseline-rejections.json`; the baseline image is not changed.
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
+- Setup config generation reads only `.visual-hive/recommendations.json`, validates `recommendedConfigYaml`, refuses to overwrite an existing config unless the user confirms the overwrite action, and records `.visual-hive/config-edits.json`.
 - `--read-only` disables write actions such as baseline review decisions, config saving, and connection add/remove.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 

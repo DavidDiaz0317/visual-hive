@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { parseConfigText, sanitizeText, type VisualHiveConfig } from "@visual-hive/core";
+import { parseConfigText, sanitizeText, type SetupRecommendationReport, type VisualHiveConfig } from "@visual-hive/core";
 import type { ControlPlaneOptions } from "./types.js";
 import { isInsidePath, toRepoRelativePath } from "./safePath.js";
 import { resolveControlPlaneOptions } from "./repoReader.js";
@@ -18,6 +18,11 @@ export interface ConfigDraftValidation {
 export interface ConfigSaveResult extends ConfigDraftValidation {
   ok: true;
   auditPath: string;
+}
+
+export interface RecommendedConfigWriteResult extends ConfigSaveResult {
+  recommendationPath: string;
+  overwritten: boolean;
 }
 
 export async function validateConfigDraft(options: ControlPlaneOptions, content: string): Promise<ConfigDraftValidation> {
@@ -63,6 +68,7 @@ export async function saveConfigDraft(
   await writeFile(resolved.configPath, content, "utf8");
   const auditPath = path.join(resolved.configRoot, ".visual-hive", "config-edits.json");
   await appendAudit(auditPath, {
+    source: "config-editor",
     editedAt: new Date().toISOString(),
     configPath: toRepoRelativePath(resolved.repoRoot, resolved.configPath),
     diff: validation.diff,
@@ -75,8 +81,73 @@ export async function saveConfigDraft(
   };
 }
 
+export async function writeRecommendedConfigFromSetup(
+  options: ControlPlaneOptions,
+  confirm: boolean,
+  force = false
+): Promise<RecommendedConfigWriteResult> {
+  const resolved = resolveControlPlaneOptions(options);
+  if (resolved.readOnly) {
+    throw new Error("Control Plane is read-only. Restart without --read-only to generate config.");
+  }
+  if (!confirm) {
+    throw new Error("Recommended config write requires explicit confirmation after reviewing the generated YAML.");
+  }
+  assertEditableConfigPath(resolved.repoRoot, resolved.configPath);
+  const recommendationPath = path.join(resolved.configRoot, ".visual-hive", "recommendations.json");
+  const recommendation = await readSetupRecommendation(recommendationPath);
+  const content = recommendation.recommendedConfigYaml;
+  if (!content || typeof content !== "string") {
+    throw new Error("Setup recommendation does not contain recommendedConfigYaml. Re-run visual-hive recommend.");
+  }
+  const configAlreadyExists = await exists(resolved.configPath);
+  if (configAlreadyExists && !force) {
+    throw new Error(`Refusing to overwrite existing Visual Hive config: ${toRepoRelativePath(resolved.repoRoot, resolved.configPath)}. Set force=true after reviewing the diff.`);
+  }
+  const validation = await validateConfigDraft(options, content);
+  if (!validation.ok || !validation.config) {
+    throw new Error(validation.error ?? "Recommended config is invalid.");
+  }
+  await mkdir(path.dirname(resolved.configPath), { recursive: true });
+  await writeFile(resolved.configPath, content, "utf8");
+  const auditPath = path.join(resolved.configRoot, ".visual-hive", "config-edits.json");
+  await appendAudit(auditPath, {
+    source: "setup-recommendation",
+    editedAt: new Date().toISOString(),
+    configPath: toRepoRelativePath(resolved.repoRoot, resolved.configPath),
+    diff: validation.diff,
+    bytes: Buffer.byteLength(content, "utf8")
+  });
+  return {
+    ...validation,
+    ok: true,
+    auditPath: toRepoRelativePath(resolved.repoRoot, auditPath),
+    recommendationPath: toRepoRelativePath(resolved.repoRoot, recommendationPath),
+    overwritten: configAlreadyExists
+  };
+}
+
 async function readConfigText(configPath: string): Promise<string> {
-  return readFile(configPath, "utf8");
+  try {
+    return await readFile(configPath, "utf8");
+  } catch (error) {
+    if (isNodeErrorCode(error, "ENOENT")) return "";
+    throw error;
+  }
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === code);
+}
+
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch (error) {
+    if (isNodeErrorCode(error, "ENOENT")) return false;
+    throw error;
+  }
 }
 
 function assertEditableConfigPath(repoRoot: string, configPath: string): void {
@@ -92,7 +163,10 @@ function assertConfigSize(content: string): void {
   }
 }
 
-async function appendAudit(auditPath: string, entry: { editedAt: string; configPath: string; diff: string; bytes: number }): Promise<void> {
+async function appendAudit(
+  auditPath: string,
+  entry: { source: "config-editor" | "setup-recommendation"; editedAt: string; configPath: string; diff: string; bytes: number }
+): Promise<void> {
   let previous: { schemaVersion: 1; edits: Array<typeof entry> } = { schemaVersion: 1, edits: [] };
   try {
     previous = JSON.parse(await readFile(auditPath, "utf8")) as typeof previous;
@@ -103,6 +177,23 @@ async function appendAudit(auditPath: string, entry: { editedAt: string; configP
   previous.edits.push(entry);
   await mkdir(path.dirname(auditPath), { recursive: true });
   await writeFile(auditPath, `${JSON.stringify(previous, null, 2)}\n`, "utf8");
+}
+
+async function readSetupRecommendation(recommendationPath: string): Promise<SetupRecommendationReport> {
+  let raw: string;
+  try {
+    raw = await readFile(recommendationPath, "utf8");
+  } catch (error) {
+    if (isNodeErrorCode(error, "ENOENT")) {
+      throw new Error(`Missing setup recommendation artifact: ${sanitizeText(recommendationPath)}. Run visual-hive recommend first.`);
+    }
+    throw error;
+  }
+  try {
+    return JSON.parse(raw) as SetupRecommendationReport;
+  } catch {
+    throw new Error(`Invalid setup recommendation artifact: ${sanitizeText(recommendationPath)}. Re-run visual-hive recommend.`);
+  }
 }
 
 function createUnifiedDiff(current: string, proposed: string, fromLabel: string, toLabel: string): string {

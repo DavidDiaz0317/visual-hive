@@ -174,12 +174,26 @@ function setup() {
       ["PR secrets", permissions.pullRequest?.secretsRequired?.join(", ") || "none"],
       ["Scheduled secrets", permissions.scheduled?.secretsRequired?.join(", ") || "none"]
     ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
+    card("Setup actions", setupActions()) +
     card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
     card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
     card("Next commands", list(recommendation.recommendedCommands)) +
     card("Findings", recommendation.findings.length ? table(["Severity", "Message", "Evidence"], recommendation.findings.map(f => [f.severity, f.message, f.evidence || ""])) : "No findings.") +
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
+    '</div>';
+}
+
+function setupActions() {
+  if (snapshot.readOnly) {
+    return '<p class="muted">Read-only mode disables setup writes. Restart without <code>--read-only</code> to generate config from this recommendation.</p>';
+  }
+  const hasConfig = Boolean(snapshot.configRaw);
+  return '<p class="muted">Recommended config writes validate the generated YAML, require confirmation, and record .visual-hive/config-edits.json.</p>' +
+    '<div class="actions">' +
+    '<button id="setup-write-config" class="button" data-force="' + (hasConfig ? "true" : "false") + '">' + (hasConfig ? "Overwrite config after review" : "Generate config") + '</button>' +
+    '<button class="button copy-button" data-copy="' + escAttr(snapshot.setupRecommendation?.recommendedConfigYaml || "") + '">Copy recommended YAML</button>' +
+    '<span id="setup-action-status" class="muted">' + (hasConfig ? "Existing config detected. Overwrite requires confirmation." : "No config content loaded for this repo.") + '</span>' +
     '</div>';
 }
 
@@ -606,6 +620,8 @@ function wireActions() {
   const save = document.querySelector("#config-save");
   if (validate) validate.addEventListener("click", () => validateConfigDraft(false));
   if (save) save.addEventListener("click", () => validateConfigDraft(true));
+  const setupWrite = document.querySelector("#setup-write-config");
+  if (setupWrite) setupWrite.addEventListener("click", () => writeRecommendedConfig());
   document.querySelectorAll(".copy-button").forEach((button) => button.addEventListener("click", async () => {
     const value = button.dataset.copy || "";
     await copyText(value);
@@ -683,6 +699,38 @@ function wireActions() {
     snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
     render();
   });
+}
+
+async function writeRecommendedConfig() {
+  const button = document.querySelector("#setup-write-config");
+  const status = document.querySelector("#setup-action-status");
+  if (!button || !status) return;
+  const force = button.dataset.force === "true";
+  const promptText = force
+    ? "Overwrite the existing Visual Hive config with the recommended YAML after reviewing it on this page?"
+    : "Write the recommended Visual Hive config after reviewing the generated YAML on this page?";
+  if (!confirm(promptText)) return;
+  button.disabled = true;
+  status.className = "muted";
+  status.textContent = force ? "Overwriting recommended config..." : "Writing recommended config...";
+  const response = await fetch(apiUrl("/api/setup/write-config"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true, force })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Recommended config write failed.";
+    button.disabled = false;
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Config written. Audit: " + payload.auditPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
 }
 
 async function validateConfigDraft(saveAfterValidation) {

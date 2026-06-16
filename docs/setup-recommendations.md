@@ -29,6 +29,8 @@ visual-hive recommend --format json
 
 `--write-config` creates `visual-hive.config.yaml` from the recommendation. Existing configs are protected unless `--force` is passed.
 
+The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json`. `--read-only` disables this action.
+
 ## Artifact
 
 The report schema is `schemas/visual-hive.recommendations.schema.json`.
@@ -50,4 +52,4 @@ Important fields:
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. It is read-only for setup generation; config creation remains an explicit CLI action.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, contracts, warnings, and YAML preview. In write mode it can generate the recommended config with confirmation and audit logging; in `--read-only` mode it remains display-only.

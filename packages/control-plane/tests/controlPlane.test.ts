@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -20,9 +20,7 @@ async function makeFixture(): Promise<{ repoRoot: string; configPath: string }> 
   await mkdir(path.join(repoRoot, ".visual-hive", "snapshots"), { recursive: true });
   await mkdir(path.join(repoRoot, ".github", "workflows"), { recursive: true });
   const configPath = path.join(repoRoot, "visual-hive.config.yaml");
-  await writeFile(
-    configPath,
-    `project:
+  const configYaml = `project:
   name: ui-fixture
   type: react-vite
   defaultBranch: main
@@ -50,9 +48,8 @@ viewports:
   desktop:
     width: 1440
     height: 900
-`,
-    "utf8"
-  );
+`;
+  await writeFile(configPath, configYaml, "utf8");
   await writeFile(
     path.join(repoRoot, ".visual-hive", "report.json"),
     JSON.stringify(
@@ -374,7 +371,7 @@ viewports:
           securityNotes: ["Use pull_request, not pull_request_target, for PR code execution."]
         },
         recommendedConfig: {},
-        recommendedConfigYaml: "project:\n  name: ui-fixture\n",
+        recommendedConfigYaml: configYaml,
         detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
         recommendedTarget: {
           id: "localPreview",
@@ -597,6 +594,8 @@ describe("control plane", () => {
       expect(appJs).toContain("trusted workflow_run lane");
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Setup PR guidance");
+      expect(appJs).toContain("setup-write-config");
+      expect(appJs).toContain("/api/setup/write-config");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
@@ -728,6 +727,58 @@ describe("control plane", () => {
     }
   });
 
+  it("writes recommended config from setup artifact when config is missing", async () => {
+    const fixture = await makeFixture();
+    await rm(fixture.configPath);
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.overwritten).toBe(false);
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture");
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.config?.project.name).toBe("ui-fixture");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects existing config from setup writes unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing Visual Hive config");
+
+      const forced = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects invalid config drafts and blocks config saves in read-only mode", async () => {
     const fixture = await makeFixture();
     const invalidDraft = "project:\n  name: broken\ncontracts: []\ntargets: {}\n";
@@ -748,6 +799,13 @@ describe("control plane", () => {
         body: JSON.stringify({ content: invalidDraft, confirm: true })
       });
       expect(blocked.status).toBe(403);
+
+      const setupBlocked = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupBlocked.status).toBe(403);
     } finally {
       await server.close();
     }
