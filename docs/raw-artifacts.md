@@ -12,6 +12,8 @@ It records:
 
 The indexer refuses artifact roots outside the repository and only previews non-image text-like files. Secret-looking values are redacted with the same sanitizer used for issues, PR comments, prompts, and reports.
 
+The generated `.visual-hive/artifacts-index.json` file is intentionally excluded from the next index run. This keeps repeated artifact indexing stable and avoids the inventory recursively growing by indexing its own previous output.
+
 Example:
 
 ```bash

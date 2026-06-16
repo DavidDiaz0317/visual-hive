@@ -53,6 +53,7 @@ export interface IndexArtifactsOptions {
 
 const DEFAULT_MAX_ARTIFACTS = 500;
 const DEFAULT_MAX_PREVIEW_BYTES = 8192;
+const GENERATED_ARTIFACT_INDEX = ".visual-hive/artifacts-index.json";
 
 export async function indexArtifacts(options: IndexArtifactsOptions): Promise<ArtifactIndexReport> {
   const repoRoot = path.resolve(options.repoRoot);
@@ -67,6 +68,8 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
 
   await walk(hiveRoot, async (filePath) => {
     if (artifacts.length >= maxArtifacts) return;
+    const repoRelativePath = toRepoRelativePath(repoRoot, filePath);
+    if (isGeneratedArtifactIndex(repoRelativePath)) return;
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) return;
     artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
@@ -216,4 +219,8 @@ function toRepoRelativePath(repoRoot: string, filePath: string): string {
 function isInsideOrEqual(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isGeneratedArtifactIndex(repoRelativePath: string): boolean {
+  return repoRelativePath.replaceAll("\\", "/") === GENERATED_ARTIFACT_INDEX;
 }
