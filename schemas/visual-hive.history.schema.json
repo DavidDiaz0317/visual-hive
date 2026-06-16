@@ -73,6 +73,7 @@
               "triagePrompt": { "type": "string" },
               "repairPrompt": { "type": "string" },
               "missingTests": { "type": "string" },
+              "baselineReview": { "type": "string" },
               "llmUsage": { "type": "string" },
               "coverage": { "type": "string" },
               "contracts": { "type": "string" },

@@ -7,7 +7,8 @@ export type LLMTaskType =
   | "missing_coverage_review"
   | "repair_prompt"
   | "missing_tests"
-  | "issue_draft";
+  | "issue_draft"
+  | "baseline_review_summary";
 
 export interface LLMPromptArtifact {
   task: LLMTaskType;

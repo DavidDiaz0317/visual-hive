@@ -10,10 +10,13 @@ import {
   type MutationReport,
   type Report,
   type CoverageReport,
-  type WorkflowAuditReport
+  type WorkflowAuditReport,
+  type BaselineApprovalLog,
+  type BaselineRejectionLog
 } from "@visual-hive/core";
 import { buildIssueBody, buildPrComment } from "@visual-hive/github-adapter";
 import {
+  buildBaselineReviewSummaryMarkdown,
   buildMissingCoverageReviewPrompt,
   buildMissingTestsMarkdown,
   buildMutationSurvivorReviewPrompt,
@@ -31,6 +34,7 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
   promptPath: string;
   repairPromptPath: string;
   missingTestsPath: string;
+  baselineReviewPath: string;
   issuePath: string;
   prCommentPath: string;
   llmUsagePath: string;
@@ -42,25 +46,30 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
   const mutationReport = await readOptionalJson<MutationReport>(path.join(loaded.rootDir, ".visual-hive", "mutation-report.json"));
   const coverageReport = await readOptionalJson<CoverageReport>(path.join(loaded.rootDir, ".visual-hive", "coverage.json"));
   const workflowAudit = await readOptionalJson<WorkflowAuditReport>(path.join(loaded.rootDir, ".visual-hive", "workflows.json"));
-  const findings = classifyOffline({ report, mutationReport, coverageReport });
+  const baselineApprovalLog = await readOptionalJson<BaselineApprovalLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-approvals.json"));
+  const baselineRejectionLog = await readOptionalJson<BaselineRejectionLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-rejections.json"));
+  const findings = classifyOffline({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog });
   const prompt = [
-    buildVisualFailureTriagePrompt({ report, mutationReport, coverageReport, findings }),
-    buildMutationSurvivorReviewPrompt({ report, mutationReport, coverageReport, findings }),
-    buildMissingCoverageReviewPrompt({ report, mutationReport, coverageReport, findings })
+    buildVisualFailureTriagePrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings }),
+    buildMutationSurvivorReviewPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings }),
+    buildMissingCoverageReviewPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings })
   ].join("\n---\n");
-  const repairPrompt = buildRepairPrompt({ report, mutationReport, coverageReport, findings });
-  const missingTests = buildMissingTestsMarkdown({ report, mutationReport, coverageReport, findings });
+  const repairPrompt = buildRepairPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
+  const missingTests = buildMissingTestsMarkdown({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
+  const baselineReview = buildBaselineReviewSummaryMarkdown({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
   const issue = buildIssueBody({ report, mutationReport, workflowAudit, findings });
   const prComment = buildPrComment({ marker: loaded.config.github.commentMarker, report, mutationReport, workflowAudit, findings });
   const promptPath = path.join(loaded.rootDir, ".visual-hive", "triage-prompt.md");
   const repairPromptPath = path.join(loaded.rootDir, ".visual-hive", "repair-prompt.md");
   const missingTestsPath = path.join(loaded.rootDir, ".visual-hive", "missing-tests.md");
+  const baselineReviewPath = path.join(loaded.rootDir, ".visual-hive", "baseline-review.md");
   const issuePath = path.join(loaded.rootDir, ".visual-hive", "issue.md");
   const prCommentPath = path.join(loaded.rootDir, ".visual-hive", "pr-comment.md");
   const llmUsagePath = path.join(loaded.rootDir, ".visual-hive", "llm-usage.json");
   await writeText(promptPath, prompt);
   await writeText(repairPromptPath, repairPrompt);
   await writeText(missingTestsPath, missingTests);
+  await writeText(baselineReviewPath, baselineReview);
   await writeText(issuePath, issue);
   await writeText(prCommentPath, prComment);
   await writeJson(
@@ -69,10 +78,11 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
       { task: "visual_failure_triage", path: path.relative(loaded.rootDir, promptPath), content: prompt },
       { task: "repair_prompt", path: path.relative(loaded.rootDir, repairPromptPath), content: repairPrompt },
       { task: "missing_tests", path: path.relative(loaded.rootDir, missingTestsPath), content: missingTests },
+      { task: "baseline_review_summary", path: path.relative(loaded.rootDir, baselineReviewPath), content: baselineReview },
       { task: "issue_draft", path: path.relative(loaded.rootDir, issuePath), content: issue }
     ])
   );
-  return { promptPath, repairPromptPath, missingTestsPath, issuePath, prCommentPath, llmUsagePath, findingCount: findings.length };
+  return { promptPath, repairPromptPath, missingTestsPath, baselineReviewPath, issuePath, prCommentPath, llmUsagePath, findingCount: findings.length };
 }
 
 async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {

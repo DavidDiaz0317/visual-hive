@@ -60,6 +60,7 @@ export interface RunHistoryFiles {
   triagePrompt?: string;
   repairPrompt?: string;
   missingTests?: string;
+  baselineReview?: string;
   llmUsage?: string;
   coverage?: string;
   contracts?: string;
@@ -96,6 +97,7 @@ const ARCHIVED_FILES: Array<{ key: keyof RunHistoryFiles; source: string; destin
   { key: "triagePrompt", source: "triage-prompt.md", destination: "triage-prompt.md", type: "text" },
   { key: "repairPrompt", source: "repair-prompt.md", destination: "repair-prompt.md", type: "text" },
   { key: "missingTests", source: "missing-tests.md", destination: "missing-tests.md", type: "text" },
+  { key: "baselineReview", source: "baseline-review.md", destination: "baseline-review.md", type: "text" },
   { key: "llmUsage", source: "llm-usage.json", destination: "llm-usage.json", type: "json" },
   { key: "coverage", source: "coverage.json", destination: "coverage.json", type: "json" },
   { key: "contracts", source: "contracts.json", destination: "contracts.json", type: "json" },

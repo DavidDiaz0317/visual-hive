@@ -136,7 +136,7 @@ function overview() {
     '</div><div class="grid" style="margin-top:14px">' +
     card("Next actions", list(o.nextActions)) +
     card("Why this score?", list(o.explanations)) +
-    card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown)) +
+    card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown) + "<br>Baseline review: " + yes(snapshot.baselineReviewMarkdown)) +
     '</div>';
 }
 
@@ -189,12 +189,12 @@ function runs() {
 
 function failures() {
   if (!snapshot.failures.length) return empty("No deterministic failures or mutation survivors found.");
-  return '<div class="section">' + snapshot.failures.map(f => card(f.contractId, '<p><b>Classification:</b> ' + esc(f.classification) + '</p><p><b>Target:</b> ' + esc(f.targetId) + '</p><pre>' + esc(f.errorExcerpt) + '</pre><p>' + esc(f.reproductionCommand || '') + '</p><p>' + f.artifacts.map(a => link(a)).join("<br>") + '</p>')).join("") + preview("Issue body", snapshot.issueMarkdown) + preview("PR comment", snapshot.prCommentMarkdown) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + '</div>';
+  return '<div class="section">' + snapshot.failures.map(f => card(f.contractId, '<p><b>Classification:</b> ' + esc(f.classification) + '</p><p><b>Target:</b> ' + esc(f.targetId) + '</p><pre>' + esc(f.errorExcerpt) + '</pre><p>' + esc(f.reproductionCommand || '') + '</p><p>' + f.artifacts.map(a => link(a)).join("<br>") + '</p>')).join("") + preview("Issue body", snapshot.issueMarkdown) + preview("PR comment", snapshot.prCommentMarkdown) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown) + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + '</div>';
 }
 
 function baselines() {
   if (!snapshot.screenshots.length) return empty("No screenshot assertions found.");
-  return '<div class="section">' + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p><p>Diff ratio: ' + esc(s.actualDiffPixelRatio ?? 0) + ' / ' + esc(s.maxDiffPixelRatio) + '</p>' + baselineDecisionStatus(s) + '<div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' + baselineActions(s))).join("") + '</div>';
+  return '<div class="section">' + preview("Baseline review", snapshot.baselineReviewMarkdown) + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p><p>Diff ratio: ' + esc(s.actualDiffPixelRatio ?? 0) + ' / ' + esc(s.maxDiffPixelRatio) + '</p>' + baselineDecisionStatus(s) + '<div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' + baselineActions(s))).join("") + '</div>';
 }
 
 function mutation() {
@@ -319,7 +319,7 @@ function llm() {
     card("Usage records", table(["Task", "Status", "Tokens", "Cost", "Prompt-only"], usage.records.map(r => [r.task, r.status, String(r.estimatedTokens), "$" + r.estimatedCostUsd, r.promptOnly ? "yes" : "no"]))) +
     card("Governance warnings", usage.warnings.length ? list(usage.warnings) : "No LLM governance warnings.") +
     card("Recommendations", usage.recommendations.length ? list(usage.recommendations) : "No LLM recommendations.") : card("LLM usage", '<p class="muted">No llm-usage.json found. Run visual-hive triage to generate prompt-only usage records.</p>');
-  return settings + usageBlock + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + preview("Missing tests", snapshot.missingTestsMarkdown);
+  return settings + usageBlock + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown);
 }
 
 function providers() {

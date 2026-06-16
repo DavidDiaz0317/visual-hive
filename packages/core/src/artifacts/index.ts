@@ -179,7 +179,10 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.includes("/screenshots/")) labels.add("screenshot");
   if (normalized.includes("/snapshots/")) labels.add("baseline");
   if (normalized.includes("/history/")) labels.add("history");
-  if (normalized.endsWith("triage-prompt.md") || normalized.endsWith("repair-prompt.md")) labels.add("prompt");
+  if (normalized.endsWith("triage-prompt.md") || normalized.endsWith("repair-prompt.md") || normalized.endsWith("baseline-review.md")) {
+    labels.add("prompt");
+  }
+  if (normalized.endsWith("baseline-review.md")) labels.add("baseline-review");
   if (normalized.endsWith("issue.md")) labels.add("issue");
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
   if (normalized.endsWith("report.json")) labels.add("report");

@@ -1218,6 +1218,7 @@ describe("run history", () => {
     );
     await writeFile(path.join(hiveRoot, "issue.md"), "token=abc123 should be redacted", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Authorization: Bearer pr-comment-secret", "utf8");
+    await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
 
     const history = await recordRunHistory({
       repoRoot: tempRoot,
@@ -1235,8 +1236,10 @@ describe("run history", () => {
     expect(history.entries[0]?.files.report).toBe(".visual-hive/history/run-one/report.json");
     expect(history.entries[0]?.files.issue).toBe(".visual-hive/history/run-one/issue.md");
     expect(history.entries[0]?.files.prComment).toBe(".visual-hive/history/run-one/pr-comment.md");
+    expect(history.entries[0]?.files.baselineReview).toBe(".visual-hive/history/run-one/baseline-review.md");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "issue.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "pr-comment.md"), "utf8")).resolves.toContain("[REDACTED]");
+    await expect(readFile(path.join(hiveRoot, "history", "run-one", "baseline-review.md"), "utf8")).resolves.toContain("[REDACTED]");
     const index = JSON.parse(await readFile(path.join(hiveRoot, "history.json"), "utf8")) as { entries: unknown[] };
     expect(index.entries).toHaveLength(1);
   });
@@ -1286,6 +1289,7 @@ describe("artifact index", () => {
     await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
+    await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('dashboard', async () => {});", "utf8").catch(async () => {
       await mkdir(path.join(hiveRoot, "generated"), { recursive: true });
@@ -1299,12 +1303,16 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(5);
+    expect(index.summary.artifactCount).toBe(6);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
     const prompt = index.artifacts.find((artifact) => artifact.path.endsWith("triage-prompt.md"));
     expect(prompt?.preview).toContain("[REDACTED]");
     expect(prompt?.labels).toContain("prompt");
+    const baselineReview = index.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"));
+    expect(baselineReview?.preview).toContain("[REDACTED]");
+    expect(baselineReview?.labels).toContain("baseline-review");
+    expect(baselineReview?.labels).toContain("prompt");
     const comment = index.artifacts.find((artifact) => artifact.path.endsWith("pr-comment.md"));
     expect(comment?.preview).toContain("[REDACTED]");
     expect(comment?.labels).toContain("pr-comment");

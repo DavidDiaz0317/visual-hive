@@ -620,6 +620,7 @@ contracts:
       generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
       results: [
         {
+          schemaVersion: 1,
           contractId: "dashboard",
           targetId: "local",
           status: "failed",
@@ -688,7 +689,7 @@ contracts:
     expect(listedAfterReject.entries[0]?.rejectedAt).toBeTruthy();
   });
 
-  it("triage writes issue, triage prompt, repair prompt, and missing-test artifacts", async () => {
+  it("triage writes issue, prompt, repair, missing-test, and baseline-review artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-triage-"));
     tempDirs.push(tempRoot);
     await writeFile(
@@ -838,6 +839,24 @@ contracts:
       ],
       recommendations: ["Keep PR workflows read-only and secret-free."]
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "baseline-rejections.json"), {
+      schemaVersion: 1,
+      project: "cli-triage",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      rejections: [
+        {
+          contractId: "dashboard",
+          screenshotName: "desktop",
+          route: "/",
+          viewport: "desktop",
+          rejectedAt: "2026-06-15T00:01:00.000Z",
+          sourceStatus: "failed",
+          baselinePath: ".visual-hive/snapshots/dashboard.png",
+          actualPath: ".visual-hive/artifacts/screenshots/dashboard.png",
+          reason: "token=secret-value"
+        }
+      ]
+    });
 
     const result = await runTriageCommand({ cwd: tempRoot });
 
@@ -846,6 +865,8 @@ contracts:
     await expect(readFile(result.repairPromptPath, "utf8")).resolves.toContain("Repair prompt");
     await expect(readFile(result.missingTestsPath, "utf8")).resolves.toContain("Mutation survived: api-500");
     await expect(readFile(result.missingTestsPath, "utf8")).resolves.toContain("changed_file_without_rule");
+    await expect(readFile(result.baselineReviewPath, "utf8")).resolves.toContain("Baseline Review Summary");
+    await expect(readFile(result.baselineReviewPath, "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("## Visual Hive report");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Workflow safety findings: 1");
     const issue = await readFile(result.issuePath, "utf8");
@@ -856,6 +877,7 @@ contracts:
     const llmUsage = await readJson<{ summary: { callsMade: number; promptOnly: boolean }; records: Array<{ task: string }> }>(result.llmUsagePath);
     expect(llmUsage.summary).toMatchObject({ callsMade: 0, promptOnly: true });
     expect(llmUsage.records.map((record) => record.task)).toContain("repair_prompt");
+    expect(llmUsage.records.map((record) => record.task)).toContain("baseline_review_summary");
   });
 
   it("inspects providers without printing secret values", async () => {

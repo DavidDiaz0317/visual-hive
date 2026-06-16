@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -68,7 +68,7 @@ Path: `.visual-hive/history.json`
 
 Schema: `schemas/visual-hive.history.schema.json`
 
-The run history index records archived run entries created by `visual-hive history --record`. Each entry summarizes deterministic status, selected contracts and targets, changed files, visual diff counts, baseline counts, console/page errors, mutation score, provider statuses, and links to archived artifacts. Text artifacts copied into history, including `issue.md` and `pr-comment.md`, are sanitized.
+The run history index records archived run entries created by `visual-hive history --record`. Each entry summarizes deterministic status, selected contracts and targets, changed files, visual diff counts, baseline counts, console/page errors, mutation score, provider statuses, and links to archived artifacts. Text artifacts copied into history, including `issue.md`, `pr-comment.md`, and `baseline-review.md`, are sanitized.
 
 ## LLM Usage
 
@@ -76,7 +76,7 @@ Path: `.visual-hive/llm-usage.json`
 
 Schema: `schemas/visual-hive.llm-usage.schema.json`
 
-The LLM usage artifact is written by `visual-hive triage`. It records prompt tasks, token estimates, cost estimates, budget status, advisory-only policy, and `callsMade: 0`. It is governance evidence for future trusted LLM integrations; it is not a model response log.
+The LLM usage artifact is written by `visual-hive triage`. It records prompt tasks, token estimates, cost estimates, budget status, advisory-only policy, and `callsMade: 0`. The task enum includes `baseline_review_summary` for `.visual-hive/baseline-review.md`, which summarizes screenshot review evidence and baseline approval/rejection decisions without changing baselines. It is governance evidence for future trusted LLM integrations; it is not a model response log.
 
 ## Artifact Index
 

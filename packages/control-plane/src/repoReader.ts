@@ -86,6 +86,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triagePrompt,
     repairPrompt,
     missingTestsMarkdown,
+    baselineReviewMarkdown,
     llmUsage,
     artifacts,
     connections
@@ -102,6 +103,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readTextIfExists(path.join(hiveRoot, "triage-prompt.md")),
     readTextIfExists(path.join(hiveRoot, "repair-prompt.md")),
     readTextIfExists(path.join(hiveRoot, "missing-tests.md")),
+    readTextIfExists(path.join(hiveRoot, "baseline-review.md")),
     readJsonIfExists<LLMUsageReport>(path.join(hiveRoot, "llm-usage.json")),
     indexArtifacts({ repoRoot: resolved.repoRoot, hiveRoot, project: config?.project.name }).then((index) => index.artifacts),
     listConnections({ repoRoot: base.repoRoot })
@@ -151,6 +153,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triagePrompt,
     repairPrompt,
     missingTestsMarkdown,
+    baselineReviewMarkdown,
     llmUsage,
     overview,
     failures,

@@ -54,6 +54,88 @@ export function buildRepairPrompt(input: PromptInput): string {
   ]);
 }
 
+export function buildBaselineReviewSummaryMarkdown(input: PromptInput): string {
+  const screenshots = input.report?.results.flatMap((result) => result.screenshotAssertions ?? []) ?? [];
+  const reviewable = screenshots.filter((screenshot) => ["created", "failed", "missing_baseline"].includes(screenshot.status));
+  const approvals = input.baselineApprovalLog?.approvals ?? [];
+  const rejections = input.baselineRejectionLog?.rejections ?? [];
+  const lines = [
+    "# Baseline Review Summary",
+    "",
+    ORACLE_NOTICE,
+    "",
+    "This artifact summarizes deterministic screenshot evidence and local baseline review decisions. It does not approve or reject anything by itself.",
+    "",
+    "## Summary",
+    "",
+    `- Screenshots in latest report: ${screenshots.length}`,
+    `- Screenshots needing review: ${reviewable.length}`,
+    `- Approved review decisions: ${approvals.length}`,
+    `- Rejected review decisions: ${rejections.length}`,
+    "",
+    "## Screenshots Needing Review",
+    "",
+    reviewable.length
+      ? reviewable
+          .map((screenshot) =>
+            [
+              `- ${sanitizeText(screenshot.contractId)}/${sanitizeText(screenshot.screenshotName || screenshot.name)} ` +
+                `route=${sanitizeText(screenshot.route)} viewport=${sanitizeText(screenshot.viewport)} status=${sanitizeText(screenshot.status)}`,
+              `  - baseline: ${sanitizeText(screenshot.baselinePath)}`,
+              `  - actual: ${sanitizeText(screenshot.actualPath)}`,
+              screenshot.diffPath ? `  - diff: ${sanitizeText(screenshot.diffPath)}` : "",
+              screenshot.actualDiffPixelRatio !== undefined ? `  - diff ratio: ${screenshot.actualDiffPixelRatio}` : "",
+              screenshot.actualDiffPixels !== undefined ? `  - diff pixels: ${screenshot.actualDiffPixels}` : ""
+            ]
+              .filter(Boolean)
+              .join("\n")
+          )
+          .join("\n")
+      : "No created, failed, or missing-baseline screenshots need review in the latest report.",
+    "",
+    "## Approved Decisions",
+    "",
+    approvals.length
+      ? approvals
+          .map((approval) =>
+            [
+              `- ${sanitizeText(approval.contractId)}/${sanitizeText(approval.screenshotName)} approved=${sanitizeText(approval.approvedAt)}`,
+              `  - source status: ${sanitizeText(approval.sourceStatus)}`,
+              `  - baseline: ${sanitizeText(approval.baselinePath)}`,
+              `  - actual: ${sanitizeText(approval.actualPath)}`
+            ].join("\n")
+          )
+          .join("\n")
+      : "No baseline approvals have been recorded.",
+    "",
+    "## Rejected Decisions",
+    "",
+    rejections.length
+      ? rejections
+          .map((rejection) =>
+            [
+              `- ${sanitizeText(rejection.contractId)}/${sanitizeText(rejection.screenshotName)} rejected=${sanitizeText(rejection.rejectedAt)}`,
+              `  - source status: ${sanitizeText(rejection.sourceStatus)}`,
+              `  - baseline unchanged: ${sanitizeText(rejection.baselinePath)}`,
+              `  - actual: ${sanitizeText(rejection.actualPath)}`,
+              rejection.reason ? `  - reason: ${sanitizeText(rejection.reason)}` : ""
+            ]
+              .filter(Boolean)
+              .join("\n")
+          )
+          .join("\n")
+      : "No baseline rejections have been recorded.",
+    "",
+    "## Recommended Next Steps",
+    "",
+    "- Review screenshots in the Control Plane Baselines page before changing baselines.",
+    "- Approve intentional changes explicitly, reject unintended changes with a reason, then rerun `visual-hive run --ci`.",
+    "- Keep deterministic Playwright results as the pass/fail source; LLM output may only explain or summarize the evidence.",
+    ""
+  ];
+  return lines.join("\n");
+}
+
 function buildPrompt(title: string, input: PromptInput, tasks: string[]): string {
   return [
     `# ${title}`,
@@ -76,6 +158,16 @@ function buildPrompt(title: string, input: PromptInput, tasks: string[]): string
     "## Coverage report JSON",
     "```json",
     safeJson(input.coverageReport ?? null),
+    "```",
+    "",
+    "## Baseline approval log JSON",
+    "```json",
+    safeJson(input.baselineApprovalLog ?? null),
+    "```",
+    "",
+    "## Baseline rejection log JSON",
+    "```json",
+    safeJson(input.baselineRejectionLog ?? null),
     "```",
     "",
     "## Offline findings",

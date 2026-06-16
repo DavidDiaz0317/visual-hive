@@ -110,6 +110,7 @@ export interface ControlPlaneSnapshot {
   triagePrompt?: string;
   repairPrompt?: string;
   missingTestsMarkdown?: string;
+  baselineReviewMarkdown?: string;
   llmUsage?: LLMUsageReport;
   overview: ControlPlaneOverview;
   failures: ControlPlaneFailure[];

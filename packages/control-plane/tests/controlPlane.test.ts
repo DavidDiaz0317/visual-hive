@@ -138,6 +138,7 @@ viewports:
   await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "missing-tests.md"), "# Missing Test Suggestions\n", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "baseline-review.md"), "# Baseline Review Summary\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "results", "console.log"), "authorization: Bearer secret-token", "utf8");
   await writeFile(
     path.join(repoRoot, ".visual-hive", "llm-usage.json"),
@@ -157,8 +158,8 @@ viewports:
           callsMade: 0
         },
         summary: {
-          promptCount: 1,
-          totalEstimatedTokens: 10,
+          promptCount: 2,
+          totalEstimatedTokens: 25,
           totalEstimatedCostUsd: 0,
           blockedPrompts: 0,
           promptOnly: true,
@@ -178,6 +179,22 @@ viewports:
             status: "disabled",
             promptChars: 40,
             estimatedTokens: 10,
+            estimatedCostUsd: 0,
+            budget: { maxPromptTokens: 50000, maxEstimatedCostUsd: 0 },
+            notes: ["No LLM API call was made."]
+          },
+          {
+            task: "baseline_review_summary",
+            path: ".visual-hive/baseline-review.md",
+            provider: "none",
+            model: "offline-heuristics",
+            enabled: false,
+            promptOnly: true,
+            advisoryOnly: true,
+            callsMade: 0,
+            status: "disabled",
+            promptChars: 60,
+            estimatedTokens: 15,
             estimatedCostUsd: 0,
             budget: { maxPromptTokens: 50000, maxEstimatedCostUsd: 0 },
             notes: ["No LLM API call was made."]
@@ -365,6 +382,8 @@ describe("control plane", () => {
     expect(snapshot.issueMarkdown).toContain("Issue");
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
+    expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
   });
 
   it("loads a selected connected repository by connection id", async () => {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { CoverageReport, MutationReport, Report } from "@visual-hive/core";
 import { classifyOffline } from "../src/offlineHeuristics.js";
-import { buildMissingTestsMarkdown, buildRepairPrompt, buildVisualFailureTriagePrompt } from "../src/promptBuilders.js";
+import {
+  buildBaselineReviewSummaryMarkdown,
+  buildMissingTestsMarkdown,
+  buildRepairPrompt,
+  buildVisualFailureTriagePrompt
+} from "../src/promptBuilders.js";
 
 const sampleRepository = {
   provider: "local" as const,
@@ -239,6 +244,54 @@ describe("classifyOffline", () => {
     expect(markdown).toContain("# Missing Test Suggestions");
     expect(markdown).toContain("Mutation survived: api-500");
     expect(markdown).toContain("Add an assertion that detects api-500");
+  });
+
+  it("builds a sanitized baseline review summary", () => {
+    const report = sampleReport({ errors: [] });
+    report.results[0].screenshotAssertions = [
+      {
+        contractId: "dashboard",
+        screenshotName: "desktop",
+        name: "desktop",
+        route: "/",
+        viewport: "desktop",
+        status: "failed",
+        baselinePath: ".visual-hive/snapshots/dashboard.png",
+        actualPath: ".visual-hive/artifacts/screenshots/dashboard.png?token=abc",
+        diffPath: ".visual-hive/artifacts/screenshots/dashboard.diff.png",
+        maxDiffPixelRatio: 0.01,
+        actualDiffPixelRatio: 0.12,
+        actualDiffPixels: 12,
+        diffPixels: 12,
+        totalPixels: 100
+      }
+    ];
+    const markdown = buildBaselineReviewSummaryMarkdown({
+      report,
+      baselineRejectionLog: {
+        schemaVersion: 1,
+        rejections: [
+          {
+            schemaVersion: 1,
+            rejectedAt: "2026-06-15T00:00:00.000Z",
+            contractId: "dashboard",
+            screenshotName: "desktop",
+            route: "/",
+            viewport: "desktop",
+            sourceStatus: "failed",
+            baselinePath: ".visual-hive/snapshots/dashboard.png",
+            actualPath: ".visual-hive/artifacts/screenshots/dashboard.png",
+            reason: "secret=do-not-print"
+          }
+        ]
+      }
+    });
+
+    expect(markdown).toContain("# Baseline Review Summary");
+    expect(markdown).toContain("Screenshots needing review: 1");
+    expect(markdown).toContain("Rejected Decisions");
+    expect(markdown).not.toContain("do-not-print");
+    expect(markdown).toContain("[REDACTED]");
   });
 });
 

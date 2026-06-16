@@ -150,6 +150,7 @@ program
       console.log(`Wrote ${result.promptPath}`);
       console.log(`Wrote ${result.repairPromptPath}`);
       console.log(`Wrote ${result.missingTestsPath}`);
+      console.log(`Wrote ${result.baselineReviewPath}`);
       console.log(`Wrote ${result.issuePath}`);
       console.log(`Wrote ${result.prCommentPath}`);
       console.log(`Wrote ${result.llmUsagePath}`);
