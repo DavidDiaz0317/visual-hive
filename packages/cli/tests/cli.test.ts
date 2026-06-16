@@ -36,6 +36,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artif
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
+import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
@@ -186,6 +187,7 @@ contracts:
       "demo:report",
       "demo:risk",
       "demo:security",
+      "demo:costs",
       "demo:history",
       "demo:artifacts"
     ];
@@ -199,6 +201,7 @@ contracts:
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:security"]).toContain("security --config");
+    expect(packageJson.scripts["demo:costs"]).toContain("costs --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
@@ -642,6 +645,92 @@ jobs:
     expect(summary).toContain("Security Audit: cli-security");
     expect(summary).toContain("npm audit: npm_audit_json");
     await expect(access(path.join(tempRoot, ".visual-hive", "security.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes a cost audit from plan, report, mutation, and provider evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-costs-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-costs
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+    screenshots:
+      - name: dashboard
+        route: /
+        viewport: desktop
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+providers:
+  argos:
+    enabled: true
+    mode: mock
+costPolicy:
+  maxExternalScreenshotsPerRun: 5
+  maxMonthlyExternalScreenshots: 50
+`,
+      "utf8"
+    );
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(tempRoot, ".visual-hive", "plan.json"), {
+      schemaVersion: 1,
+      project: "cli-costs",
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      changedFiles: ["src/App.tsx"],
+      effectiveChangedFiles: ["src/App.tsx"],
+      ignoredChangedFiles: [],
+      targets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      items: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          targetUrl: "http://127.0.0.1:4173",
+          severity: "medium",
+          cost: "cheap",
+          reasons: ["runOn.pullRequest=true"],
+          screenshots: ["dashboard:/:desktop"]
+        }
+      ],
+      excluded: [],
+      mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+      providerPolicy: []
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "cli-costs",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      minScore: 0.7,
+      score: 0,
+      killed: 0,
+      total: 0,
+      results: []
+    });
+
+    const result = await runCostsCommand({ cwd: tempRoot });
+    const written = await readJson<typeof result.report>(result.reportPath);
+    const summary = formatCostsReport(written, result.reportPath);
+
+    expect(written.schemaVersion).toBe(1);
+    expect(written.summary.selectedContracts).toBe(1);
+    expect(written.summary.localScreenshots).toBe(1);
+    expect(written.summary.externalCallsPlanned).toBe(0);
+    expect(written.providers.find((provider) => provider.providerId === "argos")?.mode).toBe("mock");
+    expect(summary).toContain("Cost Audit: cli-costs");
+    await expect(access(path.join(tempRoot, ".visual-hive", "costs.json"))).resolves.toBeUndefined();
   });
 
   it("history records the latest report and mutation artifacts", async () => {

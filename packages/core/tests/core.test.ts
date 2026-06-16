@@ -22,6 +22,7 @@ import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
+import { analyzeCosts } from "../src/costs/analyze.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
 import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usage.js";
@@ -1616,6 +1617,52 @@ jobs:
   });
 });
 
+describe("cost audit", () => {
+  it("explains local/external cost posture without planning external calls", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      providers: {
+        argos: {
+          enabled: true,
+          mode: "external",
+          requiredEnv: ["ARGOS_TOKEN"]
+        }
+      },
+      costPolicy: {
+        maxExternalScreenshotsPerRun: 0,
+        maxMonthlyExternalScreenshots: 20,
+        externalUpload: {
+          pullRequest: true,
+          schedule: true,
+          manual: true,
+          canary: false,
+          mutation: false,
+          full: true,
+          onFailureOnly: false,
+          criticalContractsOnly: false
+        }
+      }
+    });
+    const cost = analyzeCosts(config, {
+      plan: createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"], now: new Date("2026-06-15T00:00:00.000Z") }),
+      env: {}
+    });
+
+    expect(cost.schemaVersion).toBe(1);
+    expect(cost.summary.externalCallsPlanned).toBe(0);
+    expect(cost.summary.localScreenshots).toBeGreaterThan(0);
+    expect(cost.summary.maxExternalScreenshotsPerRun).toBe(0);
+    expect(cost.providers.find((provider) => provider.providerId === "argos")).toMatchObject({
+      enabled: true,
+      availability: "missing_credentials",
+      externalCallsPlanned: 0,
+      missingEnv: ["ARGOS_TOKEN"]
+    });
+    expect(cost.risks.map((risk) => risk.id)).toEqual(expect.arrayContaining(["external-upload-pr", "screenshot-budget-exceeded"]));
+    expect(JSON.stringify(cost)).not.toContain("abc123");
+  });
+});
+
 describe("mutation score", () => {
   it("calculates killed over total", () => {
     expect(calculateMutationScore([{ killed: true }, { killed: false }, { killed: true }])).toEqual({
@@ -1968,6 +2015,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "security.json"), '{"findings":[{"evidence":["authorization: bearer abc123"]}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "costs.json"), '{"providers":[{"blockedReasons":["client_secret=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
@@ -1983,7 +2031,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(12);
+    expect(index.summary.artifactCount).toBe(13);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2010,6 +2058,9 @@ describe("artifact index", () => {
     const securityAudit = index.artifacts.find((artifact) => artifact.path.endsWith("security.json"));
     expect(securityAudit?.preview).toContain("[REDACTED]");
     expect(securityAudit?.labels).toContain("security-audit");
+    const costAudit = index.artifacts.find((artifact) => artifact.path.endsWith("costs.json"));
+    expect(costAudit?.preview).toContain("[REDACTED]");
+    expect(costAudit?.labels).toContain("cost-audit");
     const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");

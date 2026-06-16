@@ -75,6 +75,7 @@ const tabs = [
   ["actions", "Actions"],
   ["risk", "Risk"],
   ["security", "Security"],
+  ["costs", "Costs"],
   ["setup", "Setup"],
   ["runs", "Runs / Reports"],
   ["failures", "Failure Inbox"],
@@ -135,7 +136,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, profiles, actions, risk, security, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, profiles, actions, risk, security, costs, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -318,7 +319,7 @@ function runbookActions(command) {
 }
 
 function runbookExecuteButton(command) {
-  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate", "security"].includes(command.id);
+  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate", "security", "costs"].includes(command.id);
   if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
   if (!executable || command.safety === "trusted_only" || command.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
   return '<button class="button link-button runbook-execute" data-command="' + escAttr(command.id) + '">Run</button>';
@@ -397,6 +398,50 @@ function security() {
       ["npm audit error", report.npmAudit?.error || "none"]
     ])) +
     '</div>';
+}
+
+function costs() {
+  const report = snapshot.costAudit;
+  if (!report) {
+    return empty("No cost audit available. Run visual-hive costs to create .visual-hive/costs.json.");
+  }
+  const summary = report.summary || {};
+  return '<div class="grid">' +
+    metric("Budget status", summary.budgetStatus || "unknown", summary.budgetStatus === "ok" ? "ok" : (summary.budgetStatus === "warning" ? "warn" : "bad")) +
+    metric("Local screenshots", summary.localScreenshots ?? 0, "") +
+    metric("External estimate", summary.estimatedExternalScreenshots ?? 0, summary.estimatedExternalScreenshots ? "warn" : "ok") +
+    metric("External calls", (summary.externalCallsMade || 0) + "/" + (summary.externalCallsPlanned || 0), summary.externalCallsMade ? "warn" : "ok") +
+    '</div><div class="section" style="margin-top:14px">' +
+    card("Provider cost policy", table(["Provider", "Availability", "External", "Estimate", "Blocked reasons"], (report.providers || []).map(provider => [
+      '<b>' + esc(provider.label) + '</b><p class="muted">' + esc(provider.providerId) + '</p>',
+      esc(provider.availability),
+      provider.externalUploadAllowed ? '<span class="ok">allowed</span>' : '<span class="warn">blocked</span>',
+      esc(provider.estimatedExternalScreenshots ?? 0),
+      list(provider.blockedReasons || [])
+    ]))) +
+    card("Target cost", table(["Target", "Kind", "Cost", "Selected", "Contracts", "Screenshots"], (report.targets || []).map(target => [
+      esc(target.targetId),
+      esc(target.kind),
+      costBadge(target.cost),
+      target.selected ? '<span class="ok">yes</span>' : '<span class="muted">no</span>',
+      esc(target.contractCount),
+      esc(target.screenshotCount)
+    ]))) +
+    card("Cost risks", report.risks?.length ? table(["Severity", "Category", "Title", "Evidence", "Recommendation"], report.risks.map(risk => [
+      severity(risk.severity),
+      esc(risk.category),
+      esc(risk.title),
+      list(risk.evidence || []),
+      esc(risk.recommendation)
+    ])) : '<p class="ok">No immediate cost posture risks.</p>') +
+    card("Recommendations", list(report.recommendations || [])) +
+    '</div>';
+}
+
+function costBadge(value) {
+  if (value === "expensive") return '<span class="bad">expensive</span>';
+  if (value === "medium") return '<span class="warn">medium</span>';
+  return '<span class="ok">' + esc(value || "cheap") + '</span>';
 }
 
 function severity(value) {

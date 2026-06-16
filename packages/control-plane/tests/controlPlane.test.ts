@@ -587,6 +587,79 @@ jobs:
     ),
     "utf8"
   );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "costs.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        mode: "pr",
+        summary: {
+          selectedContracts: 1,
+          selectedTargets: 1,
+          localScreenshots: 1,
+          estimatedExternalScreenshots: 0,
+          externalCallsPlanned: 0,
+          externalCallsMade: 0,
+          enabledExternalProviders: 0,
+          policyBlockedProviders: 0,
+          missingCredentialProviders: 0,
+          expensiveTargetsSelected: 0,
+          mutationOperators: 1,
+          maxExternalScreenshotsPerRun: 0,
+          maxMonthlyExternalScreenshots: 5000,
+          budgetStatus: "blocked"
+        },
+        costPolicy: {
+          maxExternalScreenshotsPerRun: 0,
+          maxMonthlyExternalScreenshots: 5000,
+          externalUpload: {
+            pullRequest: false,
+            schedule: true,
+            manual: true,
+            canary: false,
+            mutation: false,
+            full: true,
+            onFailureOnly: true,
+            criticalContractsOnly: true
+          }
+        },
+        targets: [
+          {
+            targetId: "localPreview",
+            kind: "command",
+            cost: "cheap",
+            prSafe: true,
+            selected: true,
+            contractCount: 1,
+            screenshotCount: 1
+          }
+        ],
+        providers: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            enabled: true,
+            mode: "external",
+            availability: "available",
+            deterministicRole: "oracle",
+            externalUploadAllowed: true,
+            blockedReasons: [],
+            estimatedExternalScreenshots: 0,
+            externalCallsPlanned: 0,
+            externalCallsMade: 0,
+            missingEnv: []
+          }
+        ],
+        risks: [],
+        recommendations: ["Keep default PR runs local-only."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"), "actual-dashboard", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "old-dashboard", "utf8");
   return { repoRoot, configPath };
@@ -661,15 +734,23 @@ describe("control plane", () => {
       safety: "local_only"
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
       commandIds: ["doctor", "security", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "cost-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "costs", "triage-report"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.summary.score).toBe(96);
+    expect(snapshot.costAudit?.project).toBe("ui-fixture");
+    expect(snapshot.costAudit?.summary.localScreenshots).toBe(1);
     expect(snapshot.riskReport?.inputs.report).toBe(true);
     expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
     expect(snapshot.riskReport?.risks[0]?.contractIds).toEqual(["dashboard"]);
@@ -682,6 +763,7 @@ describe("control plane", () => {
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
   });
 
   it("adds trusted protected-lane runbook commands with secret names only", async () => {
@@ -1204,6 +1286,8 @@ contracts:
       expect(appJs).toContain("function risk");
       expect(appJs).toContain("Security findings");
       expect(appJs).toContain("function security");
+      expect(appJs).toContain("Provider cost policy");
+      expect(appJs).toContain("function costs");
       expect(appJs).toContain("function severityBadge");
       expect(appJs).toContain("function riskNavigation");
       expect(appJs).toContain("risk-nav");

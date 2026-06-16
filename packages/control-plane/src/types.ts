@@ -1,6 +1,7 @@
 import type {
   ContractAuditReport,
   ContractConfig,
+  CostAuditReport,
   CoverageImprovementReport,
   CoverageReport,
   RepoConnectionIndex,
@@ -215,6 +216,7 @@ export interface ControlPlaneSnapshot {
   runHistory?: RunHistoryReport;
   riskReport?: RiskRegisterReport;
   securityAudit?: SecurityAuditReport;
+  costAudit?: CostAuditReport;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;

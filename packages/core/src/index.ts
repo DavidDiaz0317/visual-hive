@@ -17,6 +17,7 @@ export * from "./setup/docs.js";
 export * from "./history/record.js";
 export * from "./risk/analyze.js";
 export * from "./security/audit.js";
+export * from "./costs/analyze.js";
 export * from "./github/workflowAudit.js";
 export * from "./github/workflowTemplates.js";
 export * from "./github/workflowWriter.js";

@@ -6,6 +6,7 @@ import {
   listBaselines,
   inspectProviders,
   analyzeCoverage,
+  analyzeCosts,
   analyzeRisk,
   auditContracts,
   auditSchedules,
@@ -22,6 +23,7 @@ import {
   resolveConnection,
   sanitizeText,
   type ContractConfig,
+  type CostAuditReport,
   type CoverageImprovementReport,
   type CoverageReport,
   type LLMUsageReport,
@@ -100,6 +102,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     runHistoryArtifact,
     riskArtifact,
     securityAudit,
+    costAuditArtifact,
     issueMarkdown,
     prCommentMarkdown,
     triagePrompt,
@@ -124,6 +127,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
     readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
+    readJsonIfExists<CostAuditReport>(path.join(hiveRoot, "costs.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
     readTextIfExists(path.join(hiveRoot, "triage-prompt.md")),
@@ -153,6 +157,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const contracts = collectContracts(config, report, mutationReport);
   const overview = buildOverview(report, mutationReport, configError);
   const providers = config ? inspectProviders(config) : [];
+  const costAudit = config ? costAuditArtifact ?? analyzeCosts(config, { plan: isPlan(plan) ? plan : undefined, report, mutationReport, providerRunReport }) : undefined;
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
   const runbook = buildRunbook(resolved, config, plan, report, mutationReport);
   const runProfiles = buildRunProfiles(runbook);
@@ -188,6 +193,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     runHistory,
     riskReport,
     securityAudit,
+    costAudit,
     mutationReport,
     providerRunReport,
     providerDecisionLog,
@@ -246,6 +252,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       label: "Security posture audit",
       description: "Validate readiness, audit workflow/config/provider/LLM security posture, then refresh the markdown report.",
       commandIds: ["doctor", "security", "triage-report"]
+    },
+    {
+      id: "cost-audit",
+      label: "Cost policy audit",
+      description: "Validate readiness, audit local/external cost posture and provider budget policy, then refresh the markdown report.",
+      commandIds: ["doctor", "costs", "triage-report"]
     },
     {
       id: "protected-schedule-preview",
@@ -364,6 +376,17 @@ function buildRunbook(
       description: "Audit workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence without making external provider or model calls.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/security.json"]
+    },
+    {
+      id: "costs",
+      label: "Audit cost posture",
+      lane: "local",
+      command: `visual-hive costs ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Explain selected contract volume, screenshot volume, external provider policy, and cost budget posture without making external calls.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/costs.json"]
     },
     {
       id: "control-plane",

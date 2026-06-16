@@ -8,7 +8,7 @@ Visual Hive is split into small packages:
 - `@visual-hive/github-adapter`: sanitized PR comments and issue bodies.
 - `@visual-hive/llm-adapter`: offline findings and LLM-ready prompts.
 
-Tracked JSON Schemas live in `schemas/` for config, plan, deterministic reports, mutation reports, security audits, and the other management artifacts written under `.visual-hive`.
+Tracked JSON Schemas live in `schemas/` for config, plan, deterministic reports, mutation reports, security audits, cost audits, and the other management artifacts written under `.visual-hive`.
 
 The core flow is:
 

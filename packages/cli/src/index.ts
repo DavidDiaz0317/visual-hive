@@ -35,6 +35,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
+import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
@@ -556,6 +557,31 @@ program
         format: options.format
       });
       console.log(formatSecurityAudit(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("costs")
+  .description("Audit Visual Hive local/external visual QA cost posture and provider budget policy")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan artifact path", ".visual-hive/plan.json")
+  .option("--report <path>", "deterministic report artifact path", ".visual-hive/report.json")
+  .option("--mutation-report <path>", "mutation report artifact path", ".visual-hive/mutation-report.json")
+  .option("--provider-results <path>", "provider results artifact path", ".visual-hive/provider-results.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runCostsCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mutationReport: options.mutationReport,
+        providerResults: options.providerResults,
+        format: options.format
+      });
+      console.log(formatCostsReport(result.report, result.reportPath, options.format));
     } catch (error) {
       fail(error);
     }

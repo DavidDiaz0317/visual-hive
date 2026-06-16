@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `security.json`, `history.json`, `triage.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -91,6 +91,16 @@ Schema: `schemas/visual-hive.security.schema.json`
 The security audit is written by `visual-hive security`. By default it is local/offline: it audits Visual Hive config posture, workflow safety, protected target setup, provider governance, and LLM governance without running npm audit or making provider/LLM calls. Pass `--audit-json <path>` to ingest an existing `npm audit --json` artifact, or `--npm-audit` in a trusted environment to run npm audit directly.
 
 Top-level fields include project, generated timestamp, summary score, finding counts, input flags, npm audit summary, findings, and recommendations. Findings use categories such as workflow, secrets, protected_target, provider, llm, dependency, artifact, and policy. Evidence is sanitized before writing. Secret values are never required; protected targets and providers should expose required environment variable names only.
+
+## Cost Audit
+
+Path: `.visual-hive/costs.json`
+
+Schema: `schemas/visual-hive.costs.schema.json`
+
+The cost audit is written by `visual-hive costs`. It turns config, plan, deterministic report, mutation report, and provider result artifacts into a budget posture report. It does not call external providers or change pass/fail behavior.
+
+Top-level fields include selected contract/target counts, local screenshot volume, estimated external screenshot volume, external calls planned/made, provider budget status, expensive selected targets, mutation operator count, configured cost policy, per-target rows, per-provider rows, cost risks, and recommendations. The default path should report `externalCallsPlanned: 0`; any future adapter that makes calls must make those calls explicit in provider artifacts and cost reports.
 
 ## Triage Report
 
