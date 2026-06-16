@@ -726,7 +726,7 @@ contracts:
           targetId: "local",
           status: "failed",
           durationMs: 1,
-          errors: ["Expected selector to exist"],
+          errors: ["Expected selector to exist", "Authorization: Bearer secret-value"],
           artifacts: [],
           consoleErrors: [],
           pageErrors: [],
@@ -860,6 +860,17 @@ contracts:
 
     const result = await runTriageCommand({ cwd: tempRoot });
 
+    const triageReport = await readJson<{
+      schemaVersion: 1;
+      summary: { findingCount: number; classifications: Record<string, number> };
+      findings: Array<{ classification: string; evidence: string[]; suggestedFiles?: string[]; suggestedNextTests: string[] }>;
+    }>(result.triageReportPath);
+    expect(triageReport.schemaVersion).toBe(1);
+    expect(triageReport.summary.findingCount).toBeGreaterThan(0);
+    expect(triageReport.summary.classifications.missing_element).toBe(1);
+    expect(triageReport.findings[0]?.suggestedFiles).toContain("src/App.tsx");
+    expect(JSON.stringify(triageReport)).not.toContain("secret-value");
+    expect(JSON.stringify(triageReport)).toContain("[REDACTED]");
     await expect(readFile(result.promptPath, "utf8")).resolves.toContain("Visual failure triage");
     await expect(readFile(result.promptPath, "utf8")).resolves.toContain("Coverage report JSON");
     await expect(readFile(result.repairPromptPath, "utf8")).resolves.toContain("Repair prompt");

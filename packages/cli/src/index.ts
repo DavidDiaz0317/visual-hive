@@ -147,6 +147,7 @@ program
   .action(async (options) => {
     try {
       const result = await runTriageCommand({ config: options.config });
+      console.log(`Wrote ${result.triageReportPath}`);
       console.log(`Wrote ${result.promptPath}`);
       console.log(`Wrote ${result.repairPromptPath}`);
       console.log(`Wrote ${result.missingTestsPath}`);

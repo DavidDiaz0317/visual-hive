@@ -14,6 +14,7 @@ Every prompt states that LLM output is advisory only. Deterministic Playwright c
 
 `visual-hive triage` writes local artifacts:
 
+- `.visual-hive/triage.json`
 - `.visual-hive/triage-prompt.md`
 - `.visual-hive/repair-prompt.md`
 - `.visual-hive/missing-tests.md`
@@ -23,6 +24,8 @@ Every prompt states that LLM output is advisory only. Deterministic Playwright c
 - `.visual-hive/llm-usage.json`
 
 The prompt and markdown artifacts are sanitized before writing. They are inputs for a human, a PR comment step, or a separately governed LLM workflow; they do not call an LLM and they do not affect pass/fail status.
+
+`triage.json` is the machine-readable offline finding report. It includes classifications, severity, evidence, related contract/target IDs, suggested files, and suggested next tests for the Control Plane and trusted artifact workflows.
 
 `baseline-review.md` summarizes created, failed, and missing-baseline screenshots plus any local baseline approval or rejection decisions. It is advisory context for human review; it never approves a baseline or changes pass/fail status.
 

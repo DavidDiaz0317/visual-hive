@@ -189,7 +189,7 @@ function runs() {
 
 function failures() {
   if (!snapshot.failures.length) return empty("No deterministic failures or mutation survivors found.");
-  return '<div class="section">' + snapshot.failures.map(f => card(f.contractId, '<p><b>Classification:</b> ' + esc(f.classification) + '</p><p><b>Target:</b> ' + esc(f.targetId) + '</p><pre>' + esc(f.errorExcerpt) + '</pre><p>' + esc(f.reproductionCommand || '') + '</p><p>' + f.artifacts.map(a => link(a)).join("<br>") + '</p>')).join("") + preview("Issue body", snapshot.issueMarkdown) + preview("PR comment", snapshot.prCommentMarkdown) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown) + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + '</div>';
+  return '<div class="section">' + snapshot.failures.map(f => card(f.contractId, '<p><b>Classification:</b> ' + esc(f.classification) + (f.severity ? ' <b>Severity:</b> ' + esc(f.severity) : '') + '</p><p><b>Target:</b> ' + esc(f.targetId) + '</p><pre>' + esc(f.errorExcerpt) + '</pre>' + failureList("Evidence", f.evidence) + failureList("Suggested files", f.suggestedFiles) + failureList("Suggested tests", f.suggestedNextTests) + '<p>' + esc(f.reproductionCommand || '') + '</p><p>' + f.artifacts.map(a => link(a)).join("<br>") + '</p>')).join("") + preview("Issue body", snapshot.issueMarkdown) + preview("PR comment", snapshot.prCommentMarkdown) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown) + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + '</div>';
 }
 
 function baselines() {
@@ -593,6 +593,7 @@ function empty(text) { return '<div class="empty">' + esc(text) + '</div>'; }
 function list(items) { return '<ul>' + items.map(item => '<li>' + esc(item) + '</li>').join("") + '</ul>'; }
 function yes(value) { return value ? '<span class="ok">available</span>' : '<span class="muted">missing</span>'; }
 function preview(title, text) { return text ? card(title, '<pre>' + esc(text) + '</pre>') : ""; }
+function failureList(title, items) { return items && items.length ? '<h3>' + esc(title) + '</h3>' + list(items) : ""; }
 function table(headers, rows) { return '<table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join("") + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join("") + '</tr>').join("") + '</tbody></table>'; }
 function rel(path) { if (!path) return ""; const root = snapshot.repoRoot.replaceAll('\\\\', '/'); const value = String(path).replaceAll('\\\\', '/'); return value.startsWith(root) ? value.slice(root.length + 1) : value; }
 function escAttr(value) { return esc(value).replaceAll('"', "&quot;"); }

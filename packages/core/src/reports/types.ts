@@ -196,5 +196,32 @@ export interface TriageFinding {
   severity: "low" | "medium" | "high" | "critical";
   title: string;
   evidence: string[];
+  contractIds?: string[];
+  targetIds?: string[];
+  suggestedFiles?: string[];
   suggestedNextTests: string[];
+}
+
+export interface TriageReportSummary {
+  findingCount: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  classifications: Record<string, number>;
+}
+
+export interface TriageReport {
+  schemaVersion: 1;
+  project: string;
+  generatedAt: string;
+  sourceArtifacts: {
+    report?: string;
+    mutationReport?: string;
+    coverageReport?: string;
+    baselineApprovals?: string;
+    baselineRejections?: string;
+  };
+  summary: TriageReportSummary;
+  findings: TriageFinding[];
 }

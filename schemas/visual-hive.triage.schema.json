@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.triage.schema.json",
+  "title": "Visual Hive Triage Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "project", "generatedAt", "sourceArtifacts", "summary", "findings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "report": { "type": "string" },
+        "mutationReport": { "type": "string" },
+        "coverageReport": { "type": "string" },
+        "baselineApprovals": { "type": "string" },
+        "baselineRejections": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findingCount", "critical", "high", "medium", "low", "classifications"],
+      "properties": {
+        "findingCount": { "type": "number" },
+        "critical": { "type": "number" },
+        "high": { "type": "number" },
+        "medium": { "type": "number" },
+        "low": { "type": "number" },
+        "classifications": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["classification", "severity", "title", "evidence", "suggestedNextTests"],
+        "properties": {
+          "classification": {
+            "enum": [
+              "visual_diff",
+              "created_baseline",
+              "missing_element",
+              "unexpected_element",
+              "login_regression",
+              "api_contract_regression",
+              "console_error",
+              "page_error",
+              "target_startup_failure",
+              "missing_baseline",
+              "no_contracts_selected",
+              "possible_flake",
+              "environment_failure",
+              "coverage_gap",
+              "mutation_survivor",
+              "provider_failure",
+              "flaky_baseline",
+              "protected_target_missing_secret",
+              "insufficient_coverage"
+            ]
+          },
+          "severity": { "enum": ["low", "medium", "high", "critical"] },
+          "title": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "contractIds": { "type": "array", "items": { "type": "string" } },
+          "targetIds": { "type": "array", "items": { "type": "string" } },
+          "suggestedFiles": { "type": "array", "items": { "type": "string" } },
+          "suggestedNextTests": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

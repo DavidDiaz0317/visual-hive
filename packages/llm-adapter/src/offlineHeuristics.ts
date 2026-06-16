@@ -4,32 +4,34 @@ import type { TriageInput } from "./types.js";
 export function classifyOffline(input: TriageInput): TriageFinding[] {
   const findings: TriageFinding[] = [];
   const failures = input.report?.results.filter((result) => result.status === "failed") ?? [];
+  const changedFiles = input.report?.changedFiles ?? [];
 
   for (const failure of failures) {
     const evidence = failure.errors;
     const joined = evidence.join("\n").toLowerCase();
+    const context = { contractIds: [failure.contractId], targetIds: [failure.targetId], suggestedFiles: changedFiles };
     if ((failure.pageErrors?.length ?? 0) > 0 || joined.includes("page error")) {
-      findings.push(finding("page_error", "high", `Unexpected page error in ${failure.contractId}`, evidence));
+      findings.push(finding("page_error", "high", `Unexpected page error in ${failure.contractId}`, evidence, context));
     } else if ((failure.consoleErrors?.length ?? 0) > 0 || joined.includes("console")) {
-      findings.push(finding("console_error", "high", `Unexpected console error in ${failure.contractId}`, evidence));
+      findings.push(finding("console_error", "high", `Unexpected console error in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("target server failed") || joined.includes("failed to start")) {
-      findings.push(finding("target_startup_failure", "critical", `Target startup failed for ${failure.contractId}`, evidence));
+      findings.push(finding("target_startup_failure", "critical", `Target startup failed for ${failure.contractId}`, evidence, context));
     } else if (joined.includes("missing screenshot baseline") || joined.includes("missing baseline")) {
-      findings.push(finding("missing_baseline", "medium", `Missing visual baseline for ${failure.contractId}`, evidence));
+      findings.push(finding("missing_baseline", "medium", `Missing visual baseline for ${failure.contractId}`, evidence, context));
     } else if (joined.includes("login") || failure.contractId.includes("login")) {
-      findings.push(finding("login_regression", "critical", `Login state regression in ${failure.contractId}`, evidence));
+      findings.push(finding("login_regression", "critical", `Login state regression in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("api") || joined.includes("500") || joined.includes("response")) {
-      findings.push(finding("api_contract_regression", "high", `API contract regression in ${failure.contractId}`, evidence));
+      findings.push(finding("api_contract_regression", "high", `API contract regression in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("absent") || joined.includes("mustnotexist")) {
-      findings.push(finding("unexpected_element", "high", `Unexpected element in ${failure.contractId}`, evidence));
+      findings.push(finding("unexpected_element", "high", `Unexpected element in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("locator") || joined.includes("mustexist") || joined.includes("expected")) {
-      findings.push(finding("missing_element", "high", `Missing element in ${failure.contractId}`, evidence));
+      findings.push(finding("missing_element", "high", `Missing element in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("screenshot") || joined.includes("snapshot") || joined.includes("baseline") || joined.includes("diff")) {
-      findings.push(finding("visual_diff", "medium", `Visual snapshot difference in ${failure.contractId}`, evidence));
+      findings.push(finding("visual_diff", "medium", `Visual snapshot difference in ${failure.contractId}`, evidence, context));
     } else if (joined.includes("timeout") || joined.includes("navigation")) {
-      findings.push(finding("possible_flake", "medium", `Possible timing or navigation flake in ${failure.contractId}`, evidence));
+      findings.push(finding("possible_flake", "medium", `Possible timing or navigation flake in ${failure.contractId}`, evidence, context));
     } else {
-      findings.push(finding("environment_failure", "medium", `Execution failure in ${failure.contractId}`, evidence));
+      findings.push(finding("environment_failure", "medium", `Execution failure in ${failure.contractId}`, evidence, context));
     }
   }
 
@@ -41,6 +43,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
       severity: "low",
       title: `Created visual baseline: ${screenshot.name}`,
       evidence: [`Baseline path: ${screenshot.baselinePath}`],
+      contractIds: [screenshot.contractId],
       suggestedNextTests: ["Review the created baseline before relying on CI-mode visual comparisons."]
     });
   }
@@ -60,6 +63,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
         `Actual path: ${screenshot.actualPath}`,
         screenshot.diffPath ? `Diff path: ${screenshot.diffPath}` : "No diff artifact path was reported."
       ],
+      contractIds: [screenshot.contractId],
       suggestedNextTests: [
         "Review the diff image before changing thresholds.",
         "Mask dynamic regions or stabilize fixture data if the diff is nondeterministic."
@@ -79,6 +83,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
         provider.missingEnv.length ? `Missing env names: ${provider.missingEnv.join(", ")}` : "No missing env names reported.",
         `Deterministic role: ${provider.deterministicRole}`
       ],
+      suggestedFiles: changedFiles,
       suggestedNextTests: [
         "Keep Playwright deterministic contracts as the pass/fail oracle.",
         "Configure optional provider credentials only in trusted workflows if this provider is required."
@@ -93,6 +98,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
       severity: "high",
       title: `Protected target ${target.id} is missing required secret names`,
       evidence: [`Missing env names: ${target.missingSecrets?.join(", ")}`],
+      targetIds: [target.id],
       suggestedNextTests: [
         "Run protected target checks only from scheduled or manual trusted workflows.",
         "Configure the missing environment variables without exposing their values in PR logs."
@@ -113,6 +119,9 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
         gap.route ? `Route: ${gap.route}` : "",
         gap.changedFile ? `Changed file: ${gap.changedFile}` : ""
       ].filter(Boolean),
+      contractIds: gap.contractId ? [gap.contractId] : undefined,
+      targetIds: gap.targetId ? [gap.targetId] : undefined,
+      suggestedFiles: gap.changedFile ? [gap.changedFile] : changedFiles,
       suggestedNextTests: coverageSuggestionFor(gap.kind)
     });
   }
@@ -124,6 +133,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
       severity: "high",
       title: `Mutation survived: ${result.operator}`,
       evidence: result.errors.length ? result.errors : [`Operator ${result.operator} did not fail any selected contract.`],
+      contractIds: result.contractIds,
       suggestedNextTests: [`Add an assertion that detects ${result.operator}.`, "Review whether the selected contracts cover the changed UI state."]
     });
   }
@@ -134,6 +144,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
       severity: "medium",
       title: "No contracts were executed",
       evidence: ["The deterministic report contains no contract results."],
+      suggestedFiles: changedFiles,
       suggestedNextTests: ["Add at least one route screenshot and one selector contract for the main user-visible page."]
     });
   }
@@ -169,13 +180,15 @@ function finding(
   classification: TriageFinding["classification"],
   severity: TriageFinding["severity"],
   title: string,
-  evidence: string[]
+  evidence: string[],
+  context: Pick<TriageFinding, "contractIds" | "targetIds" | "suggestedFiles"> = {}
 ): TriageFinding {
   return {
     classification,
     severity,
     title,
     evidence,
+    ...context,
     suggestedNextTests: [
       "Add a selector contract around the failing user-visible state.",
       "Add a screenshot contract for the smallest route that reproduces the issue."

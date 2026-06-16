@@ -11,6 +11,7 @@ import type {
   RunHistoryReport,
   ScheduleAuditReport,
   TargetAuditReport,
+  TriageReport,
   TargetConfig,
   VisualHiveConfig,
   ArtifactIndexEntry,
@@ -77,7 +78,11 @@ export interface ControlPlaneFailure {
   targetId: string;
   status: string;
   classification: string;
+  severity?: string;
   errorExcerpt: string;
+  evidence?: string[];
+  suggestedFiles?: string[];
+  suggestedNextTests?: string[];
   reproductionCommand?: string;
   artifacts: string[];
 }
@@ -97,6 +102,7 @@ export interface ControlPlaneSnapshot {
   configError?: string;
   plan?: unknown;
   report?: Report;
+  triageReport?: TriageReport;
   runHistory?: RunHistoryReport;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;

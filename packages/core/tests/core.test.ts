@@ -20,6 +20,7 @@ import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { buildLLMUsageReport } from "../src/llm/usage.js";
+import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
 import { recommendSetup } from "../src/setup/recommend.js";
@@ -1219,6 +1220,20 @@ describe("run history", () => {
     await writeFile(path.join(hiveRoot, "issue.md"), "token=abc123 should be redacted", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Authorization: Bearer pr-comment-secret", "utf8");
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
+    await writeJson(path.join(hiveRoot, "triage.json"), buildTriageReport({
+      project: "baseline-fixture",
+      findings: [
+        {
+          classification: "visual_diff",
+          severity: "medium",
+          title: "Diff includes token=abc123",
+          evidence: ["Authorization: Bearer history-secret"],
+          suggestedFiles: ["src/App.tsx"],
+          suggestedNextTests: ["Add a focused screenshot contract."]
+        }
+      ],
+      now: new Date("2026-06-15T00:01:30.000Z")
+    }));
 
     const history = await recordRunHistory({
       repoRoot: tempRoot,
@@ -1237,6 +1252,7 @@ describe("run history", () => {
     expect(history.entries[0]?.files.issue).toBe(".visual-hive/history/run-one/issue.md");
     expect(history.entries[0]?.files.prComment).toBe(".visual-hive/history/run-one/pr-comment.md");
     expect(history.entries[0]?.files.baselineReview).toBe(".visual-hive/history/run-one/baseline-review.md");
+    expect(history.entries[0]?.files.triageReport).toBe(".visual-hive/history/run-one/triage.json");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "issue.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "pr-comment.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "baseline-review.md"), "utf8")).resolves.toContain("[REDACTED]");
@@ -1288,6 +1304,7 @@ describe("artifact index", () => {
     const hiveRoot = path.join(tempRoot, ".visual-hive");
     await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
+    await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
@@ -1303,12 +1320,15 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(6);
+    expect(index.summary.artifactCount).toBe(7);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
     const prompt = index.artifacts.find((artifact) => artifact.path.endsWith("triage-prompt.md"));
     expect(prompt?.preview).toContain("[REDACTED]");
     expect(prompt?.labels).toContain("prompt");
+    const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
+    expect(triageReport?.preview).toContain("[REDACTED]");
+    expect(triageReport?.labels).toContain("triage-report");
     const baselineReview = index.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"));
     expect(baselineReview?.preview).toContain("[REDACTED]");
     expect(baselineReview?.labels).toContain("baseline-review");

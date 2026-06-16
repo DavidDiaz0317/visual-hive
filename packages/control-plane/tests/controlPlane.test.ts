@@ -137,6 +137,38 @@ viewports:
   );
   await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "triage.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        sourceArtifacts: { report: ".visual-hive/report.json" },
+        summary: {
+          findingCount: 1,
+          critical: 0,
+          high: 0,
+          medium: 1,
+          low: 0,
+          classifications: { insufficient_coverage: 1 }
+        },
+        findings: [
+          {
+            classification: "insufficient_coverage",
+            severity: "medium",
+            title: "Coverage gap: changed_file_without_rule",
+            evidence: ["Changed file did not match any selection rule."],
+            suggestedFiles: ["src/unmapped.ts"],
+            suggestedNextTests: ["Add a changed-file selection rule."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "missing-tests.md"), "# Missing Test Suggestions\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "baseline-review.md"), "# Baseline Review Summary\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "results", "console.log"), "authorization: Bearer secret-token", "utf8");
@@ -359,6 +391,8 @@ describe("control plane", () => {
     expect(snapshot.contracts).toHaveLength(1);
     expect(snapshot.providers.find((provider) => provider.id === "playwright")?.availability).toBe("available");
     expect(snapshot.report?.providerResults?.[0]?.status).toBe("passed");
+    expect(snapshot.triageReport?.summary.findingCount).toBe(1);
+    expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
     expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
     expect(snapshot.runHistory?.summary.runCount).toBe(1);

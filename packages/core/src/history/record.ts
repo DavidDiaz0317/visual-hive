@@ -55,6 +55,7 @@ export interface RunHistoryFiles {
   plan?: string;
   report?: string;
   mutationReport?: string;
+  triageReport?: string;
   issue?: string;
   prComment?: string;
   triagePrompt?: string;
@@ -92,6 +93,7 @@ const ARCHIVED_FILES: Array<{ key: keyof RunHistoryFiles; source: string; destin
   { key: "plan", source: "plan.json", destination: "plan.json", type: "json" },
   { key: "report", source: "report.json", destination: "report.json", type: "json" },
   { key: "mutationReport", source: "mutation-report.json", destination: "mutation-report.json", type: "json" },
+  { key: "triageReport", source: "triage.json", destination: "triage.json", type: "json" },
   { key: "issue", source: "issue.md", destination: "issue.md", type: "text" },
   { key: "prComment", source: "pr-comment.md", destination: "pr-comment.md", type: "text" },
   { key: "triagePrompt", source: "triage-prompt.md", destination: "triage-prompt.md", type: "text" },

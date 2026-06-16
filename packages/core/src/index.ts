@@ -6,6 +6,7 @@ export * from "./coverage/analyze.js";
 export * from "./planner/createPlan.js";
 export * from "./planner/types.js";
 export * from "./reports/types.js";
+export * from "./reports/triageReport.js";
 export * from "./reports/repositoryMetadata.js";
 export * from "./targets/audit.js";
 export * from "./schedules/audit.js";

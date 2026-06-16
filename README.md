@@ -108,7 +108,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive history`: records or summarizes run history and trends in `.visual-hive/history.json`.
 - `visual-hive artifacts`: indexes `.visual-hive` files with classifications and sanitized previews in `.visual-hive/artifacts-index.json`.
 - `visual-hive connections`: manages local repository connections for the Control Plane in `.visual-hive/connections.json`.
-- `visual-hive triage`: builds offline findings, prompts, missing-test suggestions, baseline review summary, issue markdown, and `.visual-hive/llm-usage.json` governance records.
+- `visual-hive triage`: builds `.visual-hive/triage.json`, offline findings, prompts, missing-test suggestions, baseline review summary, issue markdown, and `.visual-hive/llm-usage.json` governance records.
 - `visual-hive report`: prints markdown or JSON and can append to `GITHUB_STEP_SUMMARY`.
 - `visual-hive baselines list|approve`: inspect screenshot baselines and explicitly approve an actual screenshot as the new baseline with an audit record.
 - `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.

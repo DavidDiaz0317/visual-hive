@@ -28,6 +28,8 @@ import {
   type RunHistoryReport,
   type SetupRecommendationReport,
   type TargetConfig,
+  type TriageFinding,
+  type TriageReport,
   type VisualHiveConfig,
   type WorkflowAuditReport
 } from "@visual-hive/core";
@@ -76,6 +78,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const [
     plan,
     report,
+    triageReport,
     mutationReport,
     providerRunReport,
     setupRecommendation,
@@ -93,6 +96,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   ] = await Promise.all([
     readJsonIfExists<unknown>(path.join(hiveRoot, "plan.json")),
     readJsonIfExists<Report>(path.join(hiveRoot, "report.json")),
+    readJsonIfExists<TriageReport>(path.join(hiveRoot, "triage.json")),
     readJsonIfExists<MutationReport>(path.join(hiveRoot, "mutation-report.json")),
     readJsonIfExists<MockProviderRunReport>(path.join(hiveRoot, "provider-results.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
@@ -110,7 +114,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   ]);
 
   const screenshots = await collectScreenshots(resolved.repoRoot, path.join(hiveRoot, "report.json"), report);
-  const failures = collectFailures(resolved.repoRoot, report, mutationReport);
+  const failures = collectFailures(resolved.repoRoot, report, mutationReport, triageReport);
   const targets = collectTargets(config, report);
   const coverage = config
     ? analyzeCoverage(config, { plan: isPlan(plan) ? plan : undefined, selectedContractIds: report?.selectedContracts })
@@ -140,6 +144,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     configError,
     plan,
     report,
+    triageReport,
     runHistory,
     mutationReport,
     providerRunReport,
@@ -306,29 +311,65 @@ async function collectScreenshots(repoRoot: string, reportPath: string, report?:
   );
 }
 
-function collectFailures(repoRoot: string, report?: Report, mutationReport?: MutationReport): ControlPlaneFailure[] {
+function collectFailures(repoRoot: string, report?: Report, mutationReport?: MutationReport, triageReport?: TriageReport): ControlPlaneFailure[] {
+  const findings = triageReport?.findings ?? [];
+  const usedFindings = new Set<TriageFinding>();
   const deterministic = (report?.results ?? [])
     .filter((result) => result.status === "failed")
-    .map((result) => ({
-      contractId: result.contractId,
-      targetId: result.targetId,
-      status: result.status,
-      classification: classifyResult(result),
-      errorExcerpt: sanitizeText(result.errors[0] ?? "Contract failed without an error excerpt."),
-      reproductionCommand: result.reproductionCommand,
-      artifacts: result.artifacts.map((artifact) => pathIfInside(repoRoot, artifact))
-    }));
+    .map((result) => {
+      const relatedFindings = findings.filter((finding) => findingMatchesResult(finding, result.contractId, result.targetId));
+      for (const finding of relatedFindings) usedFindings.add(finding);
+      return {
+        contractId: result.contractId,
+        targetId: result.targetId,
+        status: result.status,
+        classification: relatedFindings[0]?.classification ?? classifyResult(result),
+        severity: relatedFindings[0]?.severity,
+        errorExcerpt: sanitizeText(relatedFindings[0]?.title ?? result.errors[0] ?? "Contract failed without an error excerpt."),
+        evidence: uniqueStrings(relatedFindings.flatMap((finding) => finding.evidence)),
+        suggestedFiles: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedFiles ?? [])),
+        suggestedNextTests: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedNextTests)),
+        reproductionCommand: result.reproductionCommand,
+        artifacts: result.artifacts.map((artifact) => pathIfInside(repoRoot, artifact))
+      };
+    });
   const mutation = (mutationReport?.results ?? [])
     .filter((result) => result.status === "survived")
-    .map((result) => ({
-      contractId: result.contractIds.join(", ") || "unmapped",
-      targetId: "mutation",
-      status: result.status,
-      classification: "mutation_survivor",
-      errorExcerpt: `Mutation survived: ${result.operator}. Add or strengthen contracts for ${result.expectedFailureKinds?.join(", ") || "this behavior"}.`,
-      artifacts: (result.artifacts ?? []).map((artifact) => pathIfInside(repoRoot, artifact))
+    .map((result) => {
+      const relatedFindings = findings.filter((finding) => finding.classification === "mutation_survivor" && finding.title.includes(result.operator));
+      for (const finding of relatedFindings) usedFindings.add(finding);
+      return {
+        contractId: result.contractIds.join(", ") || "unmapped",
+        targetId: "mutation",
+        status: result.status,
+        classification: "mutation_survivor",
+        severity: relatedFindings[0]?.severity ?? "high",
+        errorExcerpt: sanitizeText(
+          relatedFindings[0]?.title ?? `Mutation survived: ${result.operator}. Add or strengthen contracts for ${result.expectedFailureKinds?.join(", ") || "this behavior"}.`
+        ),
+        evidence: uniqueStrings(relatedFindings.flatMap((finding) => finding.evidence)),
+        suggestedFiles: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedFiles ?? [])),
+        suggestedNextTests: uniqueStrings(
+          relatedFindings.flatMap((finding) => finding.suggestedNextTests).concat(`Add an assertion that detects ${result.operator}.`)
+        ),
+        artifacts: (result.artifacts ?? []).map((artifact) => pathIfInside(repoRoot, artifact))
+      };
+    });
+  const findingOnly = findings
+    .filter((finding) => !usedFindings.has(finding))
+    .map((finding) => ({
+      contractId: finding.contractIds?.join(", ") || "triage",
+      targetId: finding.targetIds?.join(", ") || "triage",
+      status: "finding",
+      classification: finding.classification,
+      severity: finding.severity,
+      errorExcerpt: sanitizeText(finding.title),
+      evidence: finding.evidence.map((item) => sanitizeText(item)),
+      suggestedFiles: (finding.suggestedFiles ?? []).map((item) => sanitizeText(item)),
+      suggestedNextTests: finding.suggestedNextTests.map((item) => sanitizeText(item)),
+      artifacts: []
     }));
-  return [...deterministic, ...mutation];
+  return [...deterministic, ...mutation, ...findingOnly];
 }
 
 function collectTargets(config?: VisualHiveConfig, report?: Report): ControlPlaneSnapshot["targets"] {
@@ -455,6 +496,14 @@ function classifyResult(result: Report["results"][number]): string {
 function pathIfInside(repoRoot: string, maybePath: string): string {
   const resolved = path.resolve(maybePath);
   return isInsidePath(repoRoot, resolved) ? toRepoRelativePath(repoRoot, resolved) : sanitizeText(maybePath);
+}
+
+function findingMatchesResult(finding: TriageFinding, contractId: string, targetId: string): boolean {
+  return Boolean(finding.contractIds?.includes(contractId) || finding.targetIds?.includes(targetId) || finding.title.includes(contractId));
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => sanitizeText(value)).filter(Boolean))].sort();
 }
 
 function isPlan(value: unknown): value is Plan {
