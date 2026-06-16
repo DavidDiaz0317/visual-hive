@@ -13,7 +13,7 @@ visual-hive baselines reject --config visual-hive.config.yaml --contract <contra
 visual-hive run --ci
 ```
 
-The Control Plane Baselines page exposes the same actions unless it was started with `--read-only`. Approvals are recorded in `.visual-hive/baseline-approvals.json`; rejections are recorded in `.visual-hive/baseline-rejections.json` without changing the baseline image.
+The Control Plane Baselines page exposes the same actions unless it was started with `--read-only`. It also shows baseline, actual, and diff artifact paths with copy buttons so reviewers can attach exact files to design review or issue discussions. Approvals are recorded in `.visual-hive/baseline-approvals.json`; rejections are recorded in `.visual-hive/baseline-rejections.json` without changing the baseline image.
 
 ## Target Server Failed To Start
 

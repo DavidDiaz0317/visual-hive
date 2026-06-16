@@ -196,7 +196,7 @@ function failures() {
 
 function baselines() {
   if (!snapshot.screenshots.length) return empty("No screenshot assertions found.");
-  return '<div class="section">' + preview("Baseline review", snapshot.baselineReviewMarkdown) + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p><p>Diff ratio: ' + esc(s.actualDiffPixelRatio ?? 0) + ' / ' + esc(s.maxDiffPixelRatio) + '</p>' + baselineDecisionStatus(s) + '<div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' + baselineActions(s))).join("") + '</div>';
+  return '<div class="section">' + preview("Baseline review", snapshot.baselineReviewMarkdown) + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, baselineCardBody(s))).join("") + '</div>';
 }
 
 function mutation() {
@@ -482,6 +482,25 @@ function providerMetadataSummary(provider) {
   return normalized.notes?.join("; ") || "none";
 }
 
+function baselineCardBody(s) {
+  return '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p>' +
+    baselineDecisionStatus(s) +
+    table(["Field", "Value", "Copy"], [
+      ["Diff ratio", esc(s.actualDiffPixelRatio ?? "n/a") + " / " + esc(s.maxDiffPixelRatio ?? "n/a"), copyButton(String(s.actualDiffPixelRatio ?? "n/a"), "diff ratio")],
+      ["Diff pixels", esc(s.actualDiffPixels ?? "n/a"), copyButton(String(s.actualDiffPixels ?? "n/a"), "diff pixels")],
+      ["Baseline path", link(s.baselinePath, s.baselinePath), copyButton(s.baselinePath, "baseline path")],
+      ["Actual path", link(s.actualPath, s.actualPath), copyButton(s.actualPath, "actual path")],
+      ["Diff path", s.diffPath ? link(s.diffPath, s.diffPath) : '<span class="muted">No diff artifact</span>', s.diffPath ? copyButton(s.diffPath, "diff path") : ""]
+    ]) +
+    '<div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' +
+    baselineActions(s);
+}
+
+function copyButton(value, label) {
+  if (!value) return "";
+  return '<button class="button copy-button" data-copy="' + escAttr(value) + '" title="Copy ' + escAttr(label) + '">Copy</button>';
+}
+
 function baselineActions(s) {
   if (snapshot.readOnly) return '<div class="actions"><button class="button" disabled>Read-only mode</button></div>';
   if (!s.canApprove && !s.canReject) return '<div class="actions"><button class="button" disabled>No review action needed</button></div>';
@@ -549,6 +568,13 @@ function wireActions() {
   const save = document.querySelector("#config-save");
   if (validate) validate.addEventListener("click", () => validateConfigDraft(false));
   if (save) save.addEventListener("click", () => validateConfigDraft(true));
+  document.querySelectorAll(".copy-button").forEach((button) => button.addEventListener("click", async () => {
+    const value = button.dataset.copy || "";
+    await copyText(value);
+    const original = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = original || "Copy"; }, 1200);
+  }));
   document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {
     const key = select.dataset.filter;
     if (key) contractFilters[key] = select.value || "all";
@@ -657,6 +683,22 @@ function failureList(title, items) { return items && items.length ? '<h3>' + esc
 function table(headers, rows) { return '<table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join("") + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join("") + '</tr>').join("") + '</tbody></table>'; }
 function rel(path) { if (!path) return ""; const root = snapshot.repoRoot.replaceAll('\\\\', '/'); const value = String(path).replaceAll('\\\\', '/'); return value.startsWith(root) ? value.slice(root.length + 1) : value; }
 function escAttr(value) { return esc(value).replaceAll('"', "&quot;"); }
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
 
 fetch(apiUrl("/api/snapshot")).then(r => r.json()).then(data => { snapshot = data; render(); }).catch(error => { app.innerHTML = '<pre>' + esc(error.stack || error.message) + '</pre>'; });
 `;

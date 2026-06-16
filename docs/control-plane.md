@@ -20,7 +20,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup recommendations from `.visual-hive/recommendations.json`
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
-- Baseline review with baseline, actual, and diff images
+- Baseline review with baseline, actual, diff images, diff pixel metadata, artifact path links, and copy buttons
 - Mutation adequacy score and operator outcomes
 - Coverage map from `.visual-hive/coverage.json` or the same core analyzer over configured targets, contracts, routes, viewports, changed-file rules, selected contracts, and gaps
 - Target Manager from `.visual-hive/targets.json` or the same core audit model over URL/command/commandGroup/protected targets, services, readiness checks, required secret names, lifecycle evidence, and recommendations
@@ -40,7 +40,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Repository switching is restricted to connection IDs already present in `.visual-hive/connections.json`; the browser cannot request arbitrary local paths.
 - Connection add/remove actions update only `.visual-hive/connections.json`; they do not delete target repositories or artifact directories.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
-- Baseline approval is explicit: the user reviews baseline/actual/diff images, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
+- Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
 - Baseline rejection is explicit: the user records a reason in `.visual-hive/baseline-rejections.json`; the baseline image is not changed.
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
 - `--read-only` disables write actions such as baseline review decisions, config saving, and connection add/remove.

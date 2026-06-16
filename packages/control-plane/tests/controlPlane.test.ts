@@ -535,6 +535,9 @@ describe("control plane", () => {
       expect(appJs).toContain("contract-filter-status");
       expect(appJs).toContain("contract-filter-route");
       expect(appJs).toContain("contract-filter-viewport");
+      expect(appJs).toContain("copy-button");
+      expect(appJs).toContain("function copyText");
+      expect(appJs).toContain("Diff pixels");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
@@ -547,6 +550,8 @@ describe("control plane", () => {
     expect(controlPlaneJs).toContain("function filterContracts");
     expect(controlPlaneJs).toContain("contractTargetPrSafe");
     expect(controlPlaneJs).toContain("Filters are local to the browser");
+    expect(controlPlaneJs).toContain("function baselineCardBody");
+    expect(controlPlaneJs).toContain("navigator.clipboard");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {
