@@ -9,6 +9,7 @@ import {
   writeJson,
   writeText,
   type MutationReport,
+  type MockProviderRunReport,
   type Report,
   type CoverageReport,
   type WorkflowAuditReport,
@@ -47,10 +48,11 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
   const report = await readOptionalJson<Report>(path.join(loaded.rootDir, ".visual-hive", "report.json"));
   const mutationReport = await readOptionalJson<MutationReport>(path.join(loaded.rootDir, ".visual-hive", "mutation-report.json"));
   const coverageReport = await readOptionalJson<CoverageReport>(path.join(loaded.rootDir, ".visual-hive", "coverage.json"));
+  const providerRunReport = await readOptionalJson<MockProviderRunReport>(path.join(loaded.rootDir, ".visual-hive", "provider-results.json"));
   const workflowAudit = await readOptionalJson<WorkflowAuditReport>(path.join(loaded.rootDir, ".visual-hive", "workflows.json"));
   const baselineApprovalLog = await readOptionalJson<BaselineApprovalLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-approvals.json"));
   const baselineRejectionLog = await readOptionalJson<BaselineRejectionLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-rejections.json"));
-  const findings = classifyOffline({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog });
+  const findings = classifyOffline({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog });
   const triageReport = buildTriageReport({
     project: loaded.config.project.name,
     findings,
@@ -58,20 +60,21 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
       report: report ? ".visual-hive/report.json" : undefined,
       mutationReport: mutationReport ? ".visual-hive/mutation-report.json" : undefined,
       coverageReport: coverageReport ? ".visual-hive/coverage.json" : undefined,
+      providerResults: providerRunReport ? ".visual-hive/provider-results.json" : undefined,
       baselineApprovals: baselineApprovalLog ? ".visual-hive/baseline-approvals.json" : undefined,
       baselineRejections: baselineRejectionLog ? ".visual-hive/baseline-rejections.json" : undefined
     }
   });
   const prompt = [
-    buildVisualFailureTriagePrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings }),
-    buildMutationSurvivorReviewPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings }),
-    buildMissingCoverageReviewPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings })
+    buildVisualFailureTriagePrompt({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings }),
+    buildMutationSurvivorReviewPrompt({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings }),
+    buildMissingCoverageReviewPrompt({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings })
   ].join("\n---\n");
-  const repairPrompt = buildRepairPrompt({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
-  const missingTests = buildMissingTestsMarkdown({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
-  const baselineReview = buildBaselineReviewSummaryMarkdown({ report, mutationReport, coverageReport, baselineApprovalLog, baselineRejectionLog, findings });
-  const issue = buildIssueBody({ report, mutationReport, workflowAudit, findings });
-  const prComment = buildPrComment({ marker: loaded.config.github.commentMarker, report, mutationReport, workflowAudit, findings });
+  const repairPrompt = buildRepairPrompt({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
+  const missingTests = buildMissingTestsMarkdown({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
+  const baselineReview = buildBaselineReviewSummaryMarkdown({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
+  const issue = buildIssueBody({ report, mutationReport, providerRunReport, workflowAudit, findings });
+  const prComment = buildPrComment({ marker: loaded.config.github.commentMarker, report, mutationReport, providerRunReport, workflowAudit, findings });
   const triageReportPath = path.join(loaded.rootDir, ".visual-hive", "triage.json");
   const promptPath = path.join(loaded.rootDir, ".visual-hive", "triage-prompt.md");
   const repairPromptPath = path.join(loaded.rootDir, ".visual-hive", "repair-prompt.md");

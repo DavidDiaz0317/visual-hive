@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import type { MockProviderRunReport, MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { buildIssueBody } from "../src/issueBody.js";
 import { buildPrComment } from "../src/prComment.js";
 import { sanitizeText } from "../src/sanitize.js";
@@ -47,6 +47,16 @@ describe("sanitizeText", () => {
     expect(output).not.toContain("abc");
     expect(output).not.toContain("def");
     expect(output).not.toContain("ghi");
+  });
+
+  it("preserves JSON string quotes when redacting URL query secrets", () => {
+    const output = sanitizeText(JSON.stringify({ reviewUrl: "https://example.com/review?token=secret-token", nested: { client_secret: "json-secret" } }));
+
+    expect(() => JSON.parse(output)).not.toThrow();
+    expect(output).toContain("token=[REDACTED]");
+    expect(output).toContain("\"client_secret\":\"[REDACTED]\"");
+    expect(output).not.toContain("secret-token");
+    expect(output).not.toContain("json-secret");
   });
 });
 
@@ -185,6 +195,7 @@ describe("buildIssueBody", () => {
     const body = buildIssueBody({
       report,
       mutationReport,
+      providerRunReport: sampleProviderRunReport(),
       workflowAudit,
       findings: [finding],
       reproductionCommands: ["visual-hive run --ci"]
@@ -199,6 +210,9 @@ describe("buildIssueBody", () => {
     expect(body).toContain("Visual diffs");
     expect(body).toContain("Suggested files to inspect");
     expect(body).toContain("Provider results");
+    expect(body).toContain("Provider adapter evidence");
+    expect(body).toContain("Missing credential providers: 1");
+    expect(body).toContain("availability=missing_credentials");
     expect(body).toContain("Playwright built-in");
     expect(body).toContain("Workflow safety");
     expect(body).toContain("pull_request_target workflows: 1");
@@ -245,6 +259,7 @@ describe("buildPrComment", () => {
         reproductionCommands: [],
         results: []
       },
+      providerRunReport: sampleProviderRunReport(),
       workflowAudit: {
         schemaVersion: 1,
         project: "sample",
@@ -281,7 +296,86 @@ describe("buildPrComment", () => {
 
     expect(body).toContain("<!-- visual-hive-report -->");
     expect(body).toContain("Workflow safety findings: 1");
+    expect(body).toContain("Provider adapter evidence: 1 providers, 1 failed operations, 1 missing credentials");
     expect(body).toContain("token=[REDACTED]");
     expect(body).not.toContain("secret-token");
   });
 });
+
+function sampleProviderRunReport(): MockProviderRunReport {
+  return {
+    schemaVersion: 1,
+    project: "sample",
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    deterministicStatus: "failed",
+    artifactCount: 1,
+    providers: [
+      {
+        providerId: "argos",
+        label: "Argos",
+        enabled: true,
+        mode: "external",
+        availability: "missing_credentials",
+        deterministicRole: "supplemental",
+        operations: [
+          {
+            operation: "availability",
+            status: "failed",
+            message: "Missing credential environment variable names: ARGOS_TOKEN"
+          }
+        ],
+        result: {
+          providerId: "argos",
+          label: "Argos",
+          status: "missing_credentials",
+          deterministicRole: "supplemental",
+          message: "Provider enabled but missing credential names: ARGOS_TOKEN",
+          requiredEnv: ["ARGOS_TOKEN"],
+          missingEnv: ["ARGOS_TOKEN"],
+          artifactCount: 1,
+          normalizedAt: "2026-01-01T00:00:00.000Z"
+        },
+        normalized: {
+          providerId: "argos",
+          category: "hosted-visual",
+          status: "missing_credentials",
+          deterministicRole: "supplemental",
+          networkMode: "missing_credentials",
+          externalCallsMade: 0,
+          artifactSummary: {
+            localArtifacts: 1,
+            uploadedArtifacts: 0,
+            comparedArtifacts: 0,
+            uploadMode: "blocked"
+          },
+          costPolicy: {
+            externalUploadAllowed: false,
+            blockedReasons: [],
+            estimatedExternalScreenshots: 1,
+            maxExternalScreenshotsPerRun: 0,
+            maxMonthlyExternalScreenshots: 5000
+          },
+          hostedVisual: {
+            provider: "argos",
+            reviewUrl: "https://app.argos-ci.com/review?token=secret-token",
+            baselinePolicy: "provider-owned-future"
+          },
+          notes: ["Missing credential names: ARGOS_TOKEN"]
+        },
+        artifacts: [".visual-hive/artifacts/screenshots/dashboard.png?token=secret-token"],
+        missingEnv: ["ARGOS_TOKEN"],
+        warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+      }
+    ],
+    summary: {
+      providerCount: 1,
+      enabledProviders: 1,
+      mockProviders: 0,
+      missingCredentialProviders: 1,
+      externalDeferredProviders: 0,
+      skippedProviders: 0,
+      failedProviders: 1
+    },
+    warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+  };
+}

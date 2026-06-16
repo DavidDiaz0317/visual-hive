@@ -31,6 +31,8 @@ The prompt and markdown artifacts are sanitized before writing. They are inputs 
 
 If `.visual-hive/coverage.json` exists, triage includes it in the missing-coverage prompt and converts coverage gaps into `insufficient_coverage` findings. The offline classifier also recognizes:
 
+If `.visual-hive/provider-results.json` exists, triage includes sanitized provider adapter evidence in prompts, issue markdown, and PR comments. Provider missing-credential rows become `provider_failure` findings; cost-policy upload blocks become `provider_cost_policy_skipped` or `external_upload_blocked` findings. No provider upload or external model call is made by triage.
+
 - `visual_diff`
 - `missing_baseline`
 - `created_baseline`

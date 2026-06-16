@@ -16,6 +16,7 @@
         "report": { "type": "string" },
         "mutationReport": { "type": "string" },
         "coverageReport": { "type": "string" },
+        "providerResults": { "type": "string" },
         "baselineApprovals": { "type": "string" },
         "baselineRejections": { "type": "string" }
       }

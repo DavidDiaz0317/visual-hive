@@ -224,6 +224,7 @@ export interface TriageReport {
     report?: string;
     mutationReport?: string;
     coverageReport?: string;
+    providerResults?: string;
     baselineApprovals?: string;
     baselineRejections?: string;
   };

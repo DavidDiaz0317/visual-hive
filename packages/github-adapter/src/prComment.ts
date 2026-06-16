@@ -1,10 +1,11 @@
-import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import type { MockProviderRunReport, MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface PrCommentInput {
   marker?: string;
   report?: Report;
   mutationReport?: MutationReport;
+  providerRunReport?: MockProviderRunReport;
   workflowAudit?: WorkflowAuditReport;
   findings?: TriageFinding[];
 }
@@ -30,6 +31,7 @@ export function buildPrComment(input: PrCommentInput): string {
     `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
     `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
+    `- Provider adapter evidence: ${formatProviderAdapterEvidence(input.providerRunReport)}`,
     `- Workflow safety findings: ${input.workflowAudit ? input.workflowAudit.findings.length : "not available"}`,
     `- Artifacts: ${report?.artifacts.length ?? 0}`,
     "",
@@ -54,4 +56,9 @@ export function buildPrComment(input: PrCommentInput): string {
   }
 
   return sanitizeMarkdown(`${lines.join("\n")}\n`);
+}
+
+function formatProviderAdapterEvidence(report?: MockProviderRunReport): string {
+  if (!report) return "not available";
+  return `${report.summary.providerCount} providers, ${report.summary.failedProviders} failed operations, ${report.summary.missingCredentialProviders} missing credentials`;
 }

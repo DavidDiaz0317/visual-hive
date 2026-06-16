@@ -1001,6 +1001,81 @@ contracts:
         }
       ]
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "provider-results.json"), {
+      schemaVersion: 1,
+      project: "cli-triage",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      deterministicStatus: "failed",
+      artifactCount: 1,
+      providers: [
+        {
+          providerId: "argos",
+          label: "Argos",
+          enabled: true,
+          mode: "external",
+          availability: "missing_credentials",
+          deterministicRole: "supplemental",
+          operations: [
+            {
+              operation: "availability",
+              status: "failed",
+              message: "Missing credential environment variable names: ARGOS_TOKEN"
+            }
+          ],
+          result: {
+            providerId: "argos",
+            label: "Argos",
+            status: "missing_credentials",
+            deterministicRole: "supplemental",
+            message: "Provider enabled but missing credential names: ARGOS_TOKEN",
+            requiredEnv: ["ARGOS_TOKEN"],
+            missingEnv: ["ARGOS_TOKEN"],
+            artifactCount: 1,
+            normalizedAt: "2026-06-15T00:00:00.000Z"
+          },
+          normalized: {
+            providerId: "argos",
+            category: "hosted-visual",
+            status: "missing_credentials",
+            deterministicRole: "supplemental",
+            networkMode: "missing_credentials",
+            externalCallsMade: 0,
+            artifactSummary: {
+              localArtifacts: 1,
+              uploadedArtifacts: 0,
+              comparedArtifacts: 0,
+              uploadMode: "blocked"
+            },
+            costPolicy: {
+              externalUploadAllowed: false,
+              blockedReasons: [],
+              estimatedExternalScreenshots: 1,
+              maxExternalScreenshotsPerRun: 0,
+              maxMonthlyExternalScreenshots: 5000
+            },
+            hostedVisual: {
+              provider: "argos",
+              reviewUrl: "https://app.argos-ci.com/review?token=secret-value",
+              baselinePolicy: "provider-owned-future"
+            },
+            notes: ["Missing credential names: ARGOS_TOKEN"]
+          },
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png?token=secret-value"],
+          missingEnv: ["ARGOS_TOKEN"],
+          warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+        }
+      ],
+      summary: {
+        providerCount: 1,
+        enabledProviders: 1,
+        mockProviders: 0,
+        missingCredentialProviders: 1,
+        externalDeferredProviders: 0,
+        skippedProviders: 0,
+        failedProviders: 1
+      },
+      warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "workflows.json"), {
       schemaVersion: 1,
       project: "cli-triage",
@@ -1056,17 +1131,21 @@ contracts:
 
     const triageReport = await readJson<{
       schemaVersion: 1;
+      sourceArtifacts: { providerResults?: string };
       summary: { findingCount: number; classifications: Record<string, number> };
       findings: Array<{ classification: string; evidence: string[]; suggestedFiles?: string[]; suggestedNextTests: string[] }>;
     }>(result.triageReportPath);
     expect(triageReport.schemaVersion).toBe(1);
     expect(triageReport.summary.findingCount).toBeGreaterThan(0);
     expect(triageReport.summary.classifications.missing_element).toBe(1);
+    expect(triageReport.summary.classifications.provider_failure).toBe(1);
+    expect(triageReport.sourceArtifacts.providerResults).toBe(".visual-hive/provider-results.json");
     expect(triageReport.findings[0]?.suggestedFiles).toContain("src/App.tsx");
     expect(JSON.stringify(triageReport)).not.toContain("secret-value");
     expect(JSON.stringify(triageReport)).toContain("[REDACTED]");
     await expect(readFile(result.promptPath, "utf8")).resolves.toContain("Visual failure triage");
     await expect(readFile(result.promptPath, "utf8")).resolves.toContain("Coverage report JSON");
+    await expect(readFile(result.promptPath, "utf8")).resolves.toContain("Provider adapter results JSON");
     await expect(readFile(result.repairPromptPath, "utf8")).resolves.toContain("Repair prompt");
     await expect(readFile(result.missingTestsPath, "utf8")).resolves.toContain("Mutation survived: api-500");
     await expect(readFile(result.missingTestsPath, "utf8")).resolves.toContain("changed_file_without_rule");
@@ -1074,9 +1153,12 @@ contracts:
     await expect(readFile(result.baselineReviewPath, "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("## Visual Hive report");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Workflow safety findings: 1");
+    await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Provider adapter evidence: 1 providers");
     const issue = await readFile(result.issuePath, "utf8");
     expect(issue).toContain("dashboard");
     expect(issue).toContain("Workflow safety");
+    expect(issue).toContain("Provider adapter evidence");
+    expect(issue).toContain("Argos");
     expect(issue).toContain("high/pr_secrets");
     expect(issue).not.toContain("secret-value");
     const llmUsage = await readJson<{ summary: { callsMade: number; promptOnly: boolean }; records: Array<{ task: string }> }>(result.llmUsagePath);

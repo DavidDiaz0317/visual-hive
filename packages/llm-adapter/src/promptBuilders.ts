@@ -34,6 +34,7 @@ export function buildMissingTestsMarkdown(input: PromptInput): string {
     `- Deterministic report: ${input.report ? `${input.report.status} (${input.report.results.length} contract results)` : "missing"}`,
     `- Mutation report: ${input.mutationReport ? `${Math.round(input.mutationReport.score * 100)}% (${input.mutationReport.killed}/${input.mutationReport.total})` : "missing"}`,
     `- Coverage report: ${input.coverageReport ? `${input.coverageReport.uncoveredAreas.length} uncovered areas` : "missing"}`,
+    `- Provider adapter report: ${input.providerRunReport ? `${input.providerRunReport.providers.length} provider rows, ${input.providerRunReport.summary.failedProviders} failed` : "missing"}`,
     `- Offline findings: ${input.findings?.length ?? 0}`,
     ""
   ].join("\n");
@@ -158,6 +159,11 @@ function buildPrompt(title: string, input: PromptInput, tasks: string[]): string
     "## Coverage report JSON",
     "```json",
     safeJson(input.coverageReport ?? null),
+    "```",
+    "",
+    "## Provider adapter results JSON",
+    "```json",
+    safeJson(input.providerRunReport ?? null),
     "```",
     "",
     "## Baseline approval log JSON",

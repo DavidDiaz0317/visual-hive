@@ -52,6 +52,8 @@ Schema: `schemas/visual-hive.provider-results.schema.json`
 
 The provider-results artifact is written by `visual-hive providers --mock-results` after a deterministic run. It exercises the provider adapter lifecycle without making paid-provider or external network calls. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Playwright remains the deterministic oracle; mock provider output is supplemental evidence only.
 
+When this artifact exists before `visual-hive triage`, `.visual-hive/triage.json` records it under `sourceArtifacts.providerResults`, offline findings include provider credential failures and cost-policy upload blocks, `triage-prompt.md` includes the sanitized provider adapter JSON, and `issue.md` / `pr-comment.md` include provider adapter operation evidence.
+
 ## Schedule Audit
 
 Path: `.visual-hive/schedules.json`
@@ -86,7 +88,7 @@ Path: `.visual-hive/triage.json`
 
 Schema: `schemas/visual-hive.triage.schema.json`
 
-The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but deterministic reports remain the pass/fail oracle.
+The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but deterministic reports remain the pass/fail oracle. Source artifacts can include deterministic report, mutation report, coverage report, provider-results report, and baseline approval/rejection logs.
 
 ## Run History
 

@@ -112,6 +112,51 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
     });
   }
 
+  const providerRunProviders = input.providerRunReport?.providers ?? [];
+  for (const provider of providerRunProviders) {
+    const failedOperations = provider.operations.filter((operation) => operation.status === "failed");
+    if (provider.result.status === "failed" || provider.result.status === "missing_credentials" || failedOperations.length > 0) {
+      findings.push({
+        classification: "provider_failure",
+        severity: provider.result.status === "failed" || failedOperations.length > 0 ? "high" : "medium",
+        title: `Provider adapter attention needed: ${provider.label}`,
+        evidence: [
+          provider.result.message,
+          provider.missingEnv.length ? `Missing env names: ${provider.missingEnv.join(", ")}` : "No missing env names reported.",
+          failedOperations.length
+            ? `Failed operations: ${failedOperations.map((operation) => `${operation.operation}:${operation.message}`).join("; ")}`
+            : "No failed adapter operation was reported.",
+          `Network mode: ${provider.normalized.networkMode}`,
+          `External calls made: ${provider.normalized.externalCallsMade}`
+        ],
+        suggestedFiles: changedFiles,
+        suggestedNextTests: [
+          "Keep Playwright deterministic contracts as the pass/fail oracle.",
+          "If this optional provider is required, configure credential names only in trusted workflows and rerun provider mock validation."
+        ]
+      });
+    }
+    const blockedReasons = provider.normalized.costPolicy.blockedReasons;
+    if (blockedReasons.length > 0 || provider.normalized.networkMode === "policy_blocked") {
+      findings.push({
+        classification: provider.result.status === "skipped" ? "provider_cost_policy_skipped" : "external_upload_blocked",
+        severity: "low",
+        title: `Provider adapter upload blocked: ${provider.label}`,
+        evidence: [
+          provider.result.message,
+          ...blockedReasons,
+          `Upload mode: ${provider.normalized.artifactSummary.uploadMode}`,
+          `Estimated external screenshots: ${provider.normalized.costPolicy.estimatedExternalScreenshots}`
+        ],
+        suggestedFiles: changedFiles,
+        suggestedNextTests: [
+          "Keep provider uploads disabled on PRs unless a trusted workflow explicitly opts in.",
+          "Review costPolicy before enabling external artifact upload."
+        ]
+      });
+    }
+  }
+
   const protectedTargets = input.report?.selectedTargets.filter((target) => target.missingSecrets?.length) ?? [];
   for (const target of protectedTargets) {
     findings.push({

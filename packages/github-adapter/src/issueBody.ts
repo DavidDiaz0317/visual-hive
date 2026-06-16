@@ -1,9 +1,10 @@
-import type { MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import type { MockProviderRunReport, MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface IssueBodyInput {
   report?: Report;
   mutationReport?: MutationReport;
+  providerRunReport?: MockProviderRunReport;
   workflowAudit?: WorkflowAuditReport;
   findings?: TriageFinding[];
   reproductionCommands?: string[];
@@ -106,6 +107,9 @@ export function buildIssueBody(input: IssueBodyInput): string {
     }
   }
 
+  lines.push("", "## Provider adapter evidence");
+  appendProviderAdapterEvidence(lines, input.providerRunReport);
+
   lines.push("", "## Workflow safety");
   appendWorkflowSafety(lines, input.workflowAudit);
 
@@ -157,6 +161,31 @@ export function buildIssueBody(input: IssueBodyInput): string {
   }
 
   return sanitizeMarkdown(`${lines.join("\n")}\n`);
+}
+
+function appendProviderAdapterEvidence(lines: string[], providerRunReport?: MockProviderRunReport): void {
+  if (!providerRunReport) {
+    lines.push("- No provider adapter mock-results artifact was reported.");
+    lines.push("- Run `visual-hive providers --mock-results` after deterministic checks to include adapter operation evidence.");
+    return;
+  }
+
+  lines.push(`- Providers inspected: ${providerRunReport.summary.providerCount}`);
+  lines.push(`- Mock providers: ${providerRunReport.summary.mockProviders}`);
+  lines.push(`- Missing credential providers: ${providerRunReport.summary.missingCredentialProviders}`);
+  lines.push(`- External deferred providers: ${providerRunReport.summary.externalDeferredProviders}`);
+  lines.push(`- Failed provider operations: ${providerRunReport.summary.failedProviders}`);
+
+  for (const provider of providerRunReport.providers.slice(0, 8)) {
+    const operations = provider.operations.map((operation) => `${operation.operation}:${operation.status}`).join(", ") || "none";
+    const missing = provider.missingEnv.length ? `, missingEnv=${provider.missingEnv.join(",")}` : "";
+    lines.push(
+      `- ${provider.label}: availability=${provider.availability}, result=${provider.result.status}, network=${provider.normalized.networkMode}, upload=${provider.normalized.artifactSummary.uploadMode}${missing}, operations=${operations}`
+    );
+  }
+  if (providerRunReport.providers.length > 8) {
+    lines.push(`- ${providerRunReport.providers.length - 8} additional provider rows omitted from issue summary.`);
+  }
 }
 
 function formatMutationScore(report?: MutationReport): string {

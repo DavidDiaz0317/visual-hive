@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CoverageReport, MutationReport, Report } from "@visual-hive/core";
+import type { CoverageReport, MockProviderRunReport, MutationReport, Report } from "@visual-hive/core";
 import { classifyOffline } from "../src/offlineHeuristics.js";
 import {
   buildBaselineReviewSummaryMarkdown,
@@ -218,7 +218,8 @@ describe("classifyOffline", () => {
       ]
     };
 
-    const findings = classifyOffline({ report, coverageReport });
+    const providerRunReport: MockProviderRunReport = sampleProviderRunReport();
+    const findings = classifyOffline({ report, coverageReport, providerRunReport });
     const classifications = findings.map((finding) => finding.classification);
 
     expect(classifications).toContain("provider_failure");
@@ -227,9 +228,12 @@ describe("classifyOffline", () => {
     expect(classifications).toContain("flaky_baseline");
     expect(classifications).toContain("insufficient_coverage");
 
-    const coveragePrompt = buildVisualFailureTriagePrompt({ report, coverageReport, findings });
+    const coveragePrompt = buildVisualFailureTriagePrompt({ report, coverageReport, providerRunReport, findings });
     expect(coveragePrompt).toContain("Coverage report JSON");
     expect(coveragePrompt).toContain("changed_file_without_rule");
+    expect(coveragePrompt).toContain("Provider adapter results JSON");
+    expect(coveragePrompt).toContain("\"providerId\": \"argos\"");
+    expect(coveragePrompt).not.toContain("secret-provider-token");
   });
 
   it("builds missing-test markdown from mutation survivors", () => {
@@ -354,5 +358,141 @@ function sampleReport(options: { errors: string[] }): Report {
     pageErrors: [],
     artifacts: [],
     reproductionCommands: ["visual-hive run --ci"]
+  };
+}
+
+function sampleProviderRunReport(): MockProviderRunReport {
+  return {
+    schemaVersion: 1,
+    project: "sample",
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    deterministicStatus: "failed",
+    artifactCount: 2,
+    providers: [
+      {
+        providerId: "argos",
+        label: "Argos",
+        enabled: true,
+        mode: "external",
+        availability: "missing_credentials",
+        deterministicRole: "supplemental",
+        operations: [
+          {
+            operation: "availability",
+            status: "failed",
+            message: "Missing credential environment variable names: ARGOS_TOKEN"
+          }
+        ],
+        result: {
+          providerId: "argos",
+          label: "Argos",
+          status: "missing_credentials",
+          deterministicRole: "supplemental",
+          message: "Provider enabled but missing credential names: ARGOS_TOKEN",
+          requiredEnv: ["ARGOS_TOKEN"],
+          missingEnv: ["ARGOS_TOKEN"],
+          artifactCount: 2,
+          normalizedAt: "2026-01-01T00:00:00.000Z"
+        },
+        normalized: {
+          providerId: "argos",
+          category: "hosted-visual",
+          status: "missing_credentials",
+          deterministicRole: "supplemental",
+          networkMode: "missing_credentials",
+          externalCallsMade: 0,
+          artifactSummary: {
+            localArtifacts: 2,
+            uploadedArtifacts: 0,
+            comparedArtifacts: 0,
+            uploadMode: "blocked"
+          },
+          costPolicy: {
+            externalUploadAllowed: false,
+            blockedReasons: [],
+            estimatedExternalScreenshots: 2,
+            maxExternalScreenshotsPerRun: 0,
+            maxMonthlyExternalScreenshots: 5000
+          },
+          hostedVisual: {
+            provider: "argos",
+            reviewUrl: "https://app.argos-ci.com/review?token=secret-provider-token",
+            baselinePolicy: "provider-owned-future"
+          },
+          notes: ["Missing credential names: ARGOS_TOKEN"]
+        },
+        artifacts: [".visual-hive/artifacts/screenshots/dashboard.png?token=secret-provider-token"],
+        missingEnv: ["ARGOS_TOKEN"],
+        warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+      },
+      {
+        providerId: "percy",
+        label: "Percy",
+        enabled: true,
+        mode: "external",
+        availability: "policy_blocked",
+        deterministicRole: "supplemental",
+        operations: [
+          {
+            operation: "upload_artifact",
+            status: "skipped",
+            message: "External upload skipped by cost policy."
+          }
+        ],
+        result: {
+          providerId: "percy",
+          label: "Percy",
+          status: "skipped",
+          deterministicRole: "supplemental",
+          message: "Provider enabled but external upload is blocked by cost policy.",
+          requiredEnv: ["PERCY_TOKEN"],
+          missingEnv: [],
+          artifactCount: 2,
+          externalUploadAllowed: false,
+          externalUploadBlockedReasons: ["costPolicy.externalUpload.pullRequest=false for pr mode."],
+          estimatedExternalScreenshots: 2,
+          normalizedAt: "2026-01-01T00:00:00.000Z"
+        },
+        normalized: {
+          providerId: "percy",
+          category: "hosted-visual",
+          status: "skipped",
+          deterministicRole: "supplemental",
+          networkMode: "policy_blocked",
+          externalCallsMade: 0,
+          artifactSummary: {
+            localArtifacts: 2,
+            uploadedArtifacts: 0,
+            comparedArtifacts: 0,
+            uploadMode: "blocked"
+          },
+          costPolicy: {
+            externalUploadAllowed: false,
+            blockedReasons: ["costPolicy.externalUpload.pullRequest=false for pr mode."],
+            estimatedExternalScreenshots: 2,
+            maxExternalScreenshotsPerRun: 0,
+            maxMonthlyExternalScreenshots: 5000
+          },
+          hostedVisual: {
+            provider: "percy",
+            baselinePolicy: "provider-owned-future"
+          },
+          notes: ["External upload blocked by cost policy."]
+        },
+        artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+        missingEnv: [],
+        warnings: ["Percy external upload is blocked by cost policy."]
+      }
+    ],
+    summary: {
+      providerCount: 2,
+      enabledProviders: 2,
+      mockProviders: 0,
+      missingCredentialProviders: 1,
+      externalDeferredProviders: 0,
+      skippedProviders: 1,
+      failedProviders: 1
+    },
+    warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
   };
 }
