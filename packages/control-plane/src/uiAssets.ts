@@ -44,6 +44,7 @@ p { color: #aebcca; margin: 4px 0 0; }
 .warn { color: #ffd27d; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0c1014; border: 1px solid #28313a; border-radius: 8px; padding: 12px; color: #dce7f2; }
 textarea.editor { width: 100%; min-height: 420px; box-sizing: border-box; resize: vertical; border: 1px solid #303b46; border-radius: 8px; background: #0c1014; color: #dce7f2; padding: 12px; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+input.text-input { width: 100%; box-sizing: border-box; border: 1px solid #303b46; border-radius: 6px; background: #0c1014; color: #dce7f2; padding: 9px 10px; font: 13px ui-sans-serif, system-ui, sans-serif; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; border-bottom: 1px solid #28313a; padding: 9px; vertical-align: top; }
 th { color: #b9c6d3; font-size: 12px; text-transform: uppercase; }
@@ -357,15 +358,30 @@ function connections() {
     metric("Needs attention", index.summary.missingConfigConnections + index.summary.invalidConfigConnections + index.summary.missingRepoConnections, index.warnings.length ? "warn" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
     card("Connected repositories", table(["ID", "Label", "Project", "Status", "Latest", "Tags", "Action"], index.connections.map(c => [esc(c.id), esc(c.label), esc(c.projectName || "unknown"), esc(c.status), esc(c.latestDeterministicStatus || "no report"), esc((c.tags || []).join(", ") || "none"), connectionAction(c)]))) +
+    connectionForm() +
     card("Local connection file", '<p>' + esc(index.connectionsPath) + '</p><p class="muted">Connections store local paths only. Secret values are not stored. Only IDs from this file can be selected through the Control Plane.</p>') +
     card("Warnings", index.warnings.length ? list(index.warnings) : "No connection warnings.") +
     '</div>';
 }
 
 function connectionAction(connection) {
+  const remove = connection.stored && !snapshot.readOnly ? ' <button class="button connection-remove" data-connection="' + escAttr(connection.id) + '">Remove</button>' : "";
   if (connection.status !== "ready") return '<span class="muted">Not ready</span>';
-  if ((snapshot.activeConnectionId || "current") === connection.id) return '<span class="ok">Active</span>';
-  return '<button class="button connection-switch" data-connection="' + escAttr(connection.id) + '">Switch</button>';
+  if ((snapshot.activeConnectionId || "current") === connection.id) return '<span class="ok">Active</span>' + remove;
+  return '<button class="button connection-switch" data-connection="' + escAttr(connection.id) + '">Switch</button>' + remove;
+}
+
+function connectionForm() {
+  if (snapshot.readOnly) {
+    return card("Add repository", '<p class="muted">Read-only mode disables connection changes. Restart without <code>--read-only</code> to add or remove local repositories.</p>');
+  }
+  return card("Add repository", '<div class="grid">' +
+    '<label>Repo path<input id="connection-repo-path" class="text-input" placeholder="C:/path/to/repo" /></label>' +
+    '<label>Config path<input id="connection-config-path" class="text-input" value="visual-hive.config.yaml" /></label>' +
+    '<label>ID<input id="connection-id" class="text-input" placeholder="optional-stable-id" /></label>' +
+    '<label>Label<input id="connection-label" class="text-input" placeholder="Optional label" /></label>' +
+    '<label>Tags<input id="connection-tags" class="text-input" placeholder="dogfood,team-a" /></label>' +
+    '</div><div class="actions"><button id="connection-add" class="button">Add connection</button><span id="connection-status" class="muted">Only local paths are stored. Secret values are never stored.</span></div>');
 }
 
 function artifacts() {
@@ -451,6 +467,64 @@ function wireActions() {
     active = "overview";
     render();
   }));
+  document.querySelectorAll(".connection-remove").forEach((button) => button.addEventListener("click", async () => {
+    const id = button.dataset.connection;
+    if (!id || !confirm("Remove connection " + id + "?")) return;
+    button.disabled = true;
+    const response = await fetch("/api/connections/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
+    if (!response.ok) {
+      alert(await response.text());
+      button.disabled = false;
+      return;
+    }
+    if (activeConnectionId === id) {
+      activeConnectionId = "current";
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    render();
+  }));
+  const addConnection = document.querySelector("#connection-add");
+  if (addConnection) addConnection.addEventListener("click", async () => {
+    const status = document.querySelector("#connection-status");
+    const repoPath = document.querySelector("#connection-repo-path")?.value || "";
+    const configPath = document.querySelector("#connection-config-path")?.value || "visual-hive.config.yaml";
+    const id = document.querySelector("#connection-id")?.value || "";
+    const label = document.querySelector("#connection-label")?.value || "";
+    const tags = document.querySelector("#connection-tags")?.value || "";
+    if (!repoPath.trim()) {
+      if (status) {
+        status.className = "bad";
+        status.textContent = "Repo path is required.";
+      }
+      return;
+    }
+    addConnection.disabled = true;
+    if (status) {
+      status.className = "muted";
+      status.textContent = "Adding connection...";
+    }
+    const response = await fetch("/api/connections/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repoPath, configPath, id, label, tags })
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      if (status) {
+        status.className = "bad";
+        status.textContent = text;
+      }
+      addConnection.disabled = false;
+      return;
+    }
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    render();
+  });
 }
 
 async function validateConfigDraft(saveAfterValidation) {

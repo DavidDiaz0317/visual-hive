@@ -20,6 +20,8 @@ visual-hive connections add --repo ../console --id kubestellar-console --label "
 visual-hive connections list
 ```
 
-The Control Plane `Connections` page reads the same store. Switching repositories uses a connection ID already present in `.visual-hive/connections.json`; the browser cannot switch to arbitrary paths.
+The Control Plane `Connections` page reads and can manage the same store in write mode. It can add a local repo path, optional config path, stable ID, label, and tags, then switch only to stored ready connection IDs. Removing a connection deletes only the local connection record; it does not delete the target repository or any Visual Hive artifacts inside that repository.
+
+`visual-hive ui --read-only` disables connection add/remove actions. Switching repositories still uses a connection ID already present in `.visual-hive/connections.json`; the browser cannot switch to arbitrary paths.
 
 Schema: `schemas/visual-hive.connections.schema.json`.

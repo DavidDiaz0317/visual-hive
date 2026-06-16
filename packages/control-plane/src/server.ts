@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { approveBaseline, sanitizeText } from "@visual-hive/core";
+import { addConnection, approveBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
 import { saveConfigDraft, validateConfigDraft } from "./configEditor.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
@@ -100,6 +100,40 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       }
       const result = await saveConfigDraft(await optionsForRequest(options, url), requiredString(body.content, "content"), true);
       sendJson(response, result);
+      return;
+    }
+    if (url.pathname === "/api/connections/add") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const resolved = resolveControlPlaneOptions(options);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to add connections." }, 403);
+        return;
+      }
+      const body = await readJsonBody(request);
+      const index = await addConnection({
+        repoRoot: resolved.repoRoot,
+        repoPath: requiredString(body.repoPath, "repoPath"),
+        configPath: optionalString(body.configPath),
+        id: optionalString(body.id),
+        label: optionalString(body.label),
+        tags: optionalStringArray(body.tags)
+      });
+      sendJson(response, { ok: true, index });
+      return;
+    }
+    if (url.pathname === "/api/connections/remove") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const resolved = resolveControlPlaneOptions(options);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to remove connections." }, 403);
+        return;
+      }
+      const body = await readJsonBody(request);
+      const index = await removeConnection({
+        repoRoot: resolved.repoRoot,
+        id: requiredString(body.id, "id")
+      });
+      sendJson(response, { ok: true, index });
       return;
     }
     if (url.pathname === "/assets/app.js") {
@@ -200,6 +234,20 @@ function requiredString(value: unknown, fieldName: string): string {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function optionalStringArray(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  return undefined;
 }
 
 function openBrowser(url: string): void {

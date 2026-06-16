@@ -30,7 +30,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Config editing with validation, diff preview, explicit save confirmation, and audit logging
 - Target and contract managers
 - Schedule, GitHub, LLM, and provider settings
-- Local repository connections from `.visual-hive/connections.json`
+- Local repository connections from `.visual-hive/connections.json`, including write-mode add/remove controls
 - Safe raw artifact browser for `.visual-hive`, with image previews and redacted text previews from the shared artifact index
 
 ## Safety Boundaries
@@ -38,10 +38,11 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - The UI reads local files only.
 - Raw artifact access is restricted to the selected repository's `.visual-hive` directory.
 - Repository switching is restricted to connection IDs already present in `.visual-hive/connections.json`; the browser cannot request arbitrary local paths.
+- Connection add/remove actions update only `.visual-hive/connections.json`; they do not delete target repositories or artifact directories.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
 - Baseline approval is explicit: the user reviews baseline/actual/diff images, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
-- `--read-only` disables write actions such as baseline approval and config saving.
+- `--read-only` disables write actions such as baseline approval, config saving, and connection add/remove.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 
 ## Baseline Approval

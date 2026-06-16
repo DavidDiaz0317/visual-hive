@@ -395,6 +395,72 @@ describe("control plane", () => {
     );
   });
 
+  it("adds and removes local repository connections through the local API", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const connectedConfig = await readFile(connected.configPath, "utf8");
+    await writeFile(connected.configPath, connectedConfig.replace("name: ui-fixture", "name: api-connected-fixture"), "utf8");
+    const server = await startControlPlaneServer({ repo: manager.repoRoot, config: manager.configPath, port: 0 });
+    try {
+      const add = await fetch(`${server.url}/api/connections/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoPath: connected.repoRoot,
+          configPath: "visual-hive.config.yaml",
+          id: "api-connected",
+          label: "API Connected",
+          tags: "dogfood,ui"
+        })
+      });
+      const addPayload = await add.json();
+      expect(add.status).toBe(200);
+      expect(addPayload.index.connections.find((connection: { id: string }) => connection.id === "api-connected")?.projectName).toBe(
+        "api-connected-fixture"
+      );
+
+      const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath }, "api-connected");
+      expect(snapshot.config?.project.name).toBe("api-connected-fixture");
+
+      const remove = await fetch(`${server.url}/api/connections/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "api-connected" })
+      });
+      const removePayload = await remove.json();
+      expect(remove.status).toBe(200);
+      expect(removePayload.index.connections.map((connection: { id: string }) => connection.id)).not.toContain("api-connected");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks connection writes in read-only mode", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const server = await startControlPlaneServer({ repo: manager.repoRoot, config: manager.configPath, port: 0, readOnly: true });
+    try {
+      const add = await fetch(`${server.url}/api/connections/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoPath: connected.repoRoot, id: "blocked" })
+      });
+      expect(add.status).toBe(403);
+
+      const remove = await fetch(`${server.url}/api/connections/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "blocked" })
+      });
+      expect(remove.status).toBe(403);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath, readOnly: true });
+      expect(snapshot.connections?.connections.map((connection) => connection.id)).not.toContain("blocked");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects artifact path traversal", async () => {
     const fixture = await makeFixture();
     await expect(readControlPlaneArtifact({ repo: fixture.repoRoot, config: fixture.configPath }, "../visual-hive.config.yaml")).rejects.toThrow(

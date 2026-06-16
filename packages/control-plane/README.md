@@ -8,4 +8,7 @@ artifacts, serves a safe browser UI, and exposes JSON/image endpoints used by
 provider accounts.
 
 The UI renders the same core models as the CLI for coverage, contracts, targets,
-schedules, baselines, providers, mutation adequacy, failures, and raw artifacts.
+schedules, baselines, providers, mutation adequacy, failures, local repository
+connections, and raw artifacts. In write mode it can approve reviewed baselines,
+save validated config drafts after diff review, and add/remove local connection
+records. `--read-only` disables those write actions.
