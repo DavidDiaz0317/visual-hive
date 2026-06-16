@@ -59,6 +59,9 @@ a { color: #8bc7ff; }
 .button:hover { background: #2c3b49; }
 .button:disabled { cursor: not-allowed; opacity: 0.55; }
 .focus-hit { outline: 2px solid #8bc7ff; outline-offset: 3px; border-radius: 5px; background: rgba(139, 199, 255, 0.12); }
+.status-ready { color: #8ee1bd; font-weight: 700; }
+.status-review { color: #ffd27d; font-weight: 700; }
+.status-blocked { color: #ffaaa5; font-weight: 700; }
 .section { display: grid; gap: 14px; }
 .empty { border: 1px dashed #3b4652; border-radius: 8px; padding: 18px; color: #98a8b8; }
 `;
@@ -269,6 +272,7 @@ function setup() {
     metric("PR runtime", cost.estimatedPrMinutes == null ? "unknown" : cost.estimatedPrMinutes + "m", cost.ciRuntimeClass === "expensive" ? "bad" : "") +
     metric("External screenshots", cost.externalScreenshotsPerRun == null ? "unknown" : cost.externalScreenshotsPerRun + "/run", cost.externalScreenshotsPerRun ? "warn" : "ok") +
     '</div>' +
+    setupChecklist(recommendation) +
     card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
     card("Provider recommendation", recommendation.providerRecommendations?.length ? table(["Provider", "Recommendation", "External by default", "Required env names", "Reason"], recommendation.providerRecommendations.map(p => [p.label, p.recommendation, p.externalUploadAllowedByDefault ? "yes" : "no", p.requiredEnv?.join(", ") || "none", p.reason])) : '<p class="muted">No provider recommendation found. Run a newer visual-hive recommend.</p>') +
     card("Cost and permissions", table(["Area", "Value"], [
@@ -287,6 +291,83 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupChecklist(recommendation) {
+  const prSecrets = recommendation.permissions?.pullRequest?.secretsRequired || [];
+  const providers = recommendation.providerRecommendations || [];
+  const externalByDefault = providers.filter(provider => provider.externalUploadAllowedByDefault);
+  const contractCount = recommendation.recommendedContracts?.length || 0;
+  const screenshotCount = (recommendation.recommendedContracts || []).flatMap(contract => contract.screenshots || []).length;
+  const selectorCount = recommendation.detectedSelectors?.length || 0;
+  const target = recommendation.recommendedTarget || {};
+  const setupPr = recommendation.setupPullRequest || {};
+  const validationCommands = recommendation.recommendedCommands || [];
+  const rows = [
+    setupChecklistRow(
+      "Inspect repository",
+      recommendation.project?.scripts?.length ? "ready" : "review",
+      [
+        "project=" + (recommendation.project?.name || "unknown"),
+        "frameworks=" + ((recommendation.project?.detectedFrameworks || []).join(", ") || "none"),
+        "scripts=" + ((recommendation.project?.scripts || []).join(", ") || "none")
+      ],
+      copyButton("visual-hive recommend --repo .", "recommend command")
+    ),
+    setupChecklistRow(
+      "Choose PR-safe local target",
+      target.confidence === "low" ? "review" : "ready",
+      ["target=" + (target.id || "unknown"), "kind=" + (target.kind || "unknown"), "confidence=" + (target.confidence || "unknown"), "url=" + (target.url || "n/a")],
+      navButton("targets", "open targets", target.id ? { target: target.id } : {})
+    ),
+    setupChecklistRow(
+      "Seed starter contracts",
+      contractCount ? "ready" : "review",
+      ["contracts=" + contractCount, "selectors=" + selectorCount, "screenshots=" + screenshotCount],
+      navButton("contracts", "open contracts")
+    ),
+    setupChecklistRow(
+      "Verify PR safety",
+      prSecrets.length || externalByDefault.length ? "blocked" : "ready",
+      [
+        "pull_request permissions=" + ((recommendation.permissions?.pullRequest?.permissions || []).join(", ") || "unknown"),
+        "PR secrets=" + (prSecrets.join(", ") || "none"),
+        "external providers by default=" + (externalByDefault.map(provider => provider.label).join(", ") || "none")
+      ],
+      navButton("github", "open GitHub / CI")
+    ),
+    setupChecklistRow(
+      "Generate setup files",
+      setupPr.recommended ? "review" : "ready",
+      ["files=" + ((setupPr.files || []).join(", ") || "none"), "title=" + (setupPr.title || "n/a")],
+      snapshot.readOnly ? '<span class="muted">restart without --read-only to write</span>' : '<span class="muted">use Setup actions below after reviewing YAML</span>'
+    ),
+    setupChecklistRow(
+      "Validate locally",
+      validationCommands.length ? "ready" : "review",
+      ["commands=" + (validationCommands.join(" && ") || "none")],
+      validationCommands.map(command => copyButton(command, command)).join(" ")
+    )
+  ];
+  return card(
+    "Guided setup checklist",
+    '<p class="muted">Driven by <code>.visual-hive/recommendations.json</code>. Complete these steps in order before opening a setup PR in another repository.</p>' +
+      table(["Step", "Status", "Evidence", "Operator action"], rows)
+  );
+}
+
+function setupChecklistRow(step, status, evidence, action) {
+  return [
+    '<b>' + esc(step) + '</b>',
+    setupStatusBadge(status),
+    (evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+    action || '<span class="muted">review</span>'
+  ];
+}
+
+function setupStatusBadge(status) {
+  const labels = { ready: "ready", review: "needs review", blocked: "blocked" };
+  return '<span class="status-' + escAttr(status) + '">' + esc(labels[status] || status) + '</span>';
 }
 
 function setupActions() {
@@ -1053,18 +1134,28 @@ function scrollToFocusedElement() {
 
 async function copyText(value) {
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return;
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Browser automation and some local contexts deny clipboard writes.
+      // Fall back to the textarea path without surfacing noisy console errors.
+    }
   }
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  } catch {
+    // Copy is a convenience action; failed clipboard permission should not
+    // degrade Control Plane health or deterministic QA evidence.
+  }
 }
 
 fetch(apiUrl("/api/snapshot")).then(r => r.json()).then(data => { snapshot = data; render(); }).catch(error => { app.innerHTML = '<pre>' + esc(error.stack || error.message) + '</pre>'; });

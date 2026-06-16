@@ -767,6 +767,11 @@ contracts:
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Provider plan policy");
       expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("Guided setup checklist");
+      expect(appJs).toContain("function setupChecklist");
+      expect(appJs).toContain("function setupStatusBadge");
+      expect(appJs).toContain("Inspect repository");
+      expect(appJs).toContain("Verify PR safety");
       expect(appJs).toContain("Risk Register");
       expect(appJs).toContain("function risk");
       expect(appJs).toContain("function severityBadge");
@@ -796,7 +801,10 @@ contracts:
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
     expect(controlPlaneJs).toContain("navigator.clipboard");
+    expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");
     expect(controlPlaneJs).toContain("function runbook");
+    expect(controlPlaneJs).toContain("function setupChecklist");
+    expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function risk");
     expect(controlPlaneJs).toContain("function navButton");
     expect(controlPlaneJs).toContain("function scrollToFocusedElement");
