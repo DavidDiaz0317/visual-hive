@@ -521,9 +521,9 @@ jobs:
             title: "Coverage gap: viewport_without_screenshots",
             message: "Tablet viewport is configured but has no screenshot coverage.",
             evidence: ["tablet"],
-            contractIds: [],
-            targetIds: [],
-            artifacts: [".visual-hive/coverage.json"],
+            contractIds: ["dashboard"],
+            targetIds: ["localPreview"],
+            artifacts: [".visual-hive/coverage.json", ".visual-hive/report.json"],
             suggestedActions: ["Add a tablet screenshot if this viewport matters."],
             prBlocking: false,
             trustedOnly: false
@@ -594,6 +594,8 @@ describe("control plane", () => {
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.riskReport?.inputs.report).toBe(true);
     expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
+    expect(snapshot.riskReport?.risks[0]?.contractIds).toEqual(["dashboard"]);
+    expect(snapshot.riskReport?.risks[0]?.targetIds).toEqual(["localPreview"]);
     expect(snapshot.screenshots[0]?.name).toBe("dashboard");
     expect(snapshot.issueMarkdown).toContain("Issue");
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
@@ -754,6 +756,7 @@ contracts:
       expect(appJs).toContain("contract-filter-status");
       expect(appJs).toContain("contract-filter-route");
       expect(appJs).toContain("contract-filter-viewport");
+      expect(appJs).toContain("contract-filter-contract");
       expect(appJs).toContain("copy-button");
       expect(appJs).toContain("function copyText");
       expect(appJs).toContain("Diff pixels");
@@ -767,6 +770,9 @@ contracts:
       expect(appJs).toContain("Risk Register");
       expect(appJs).toContain("function risk");
       expect(appJs).toContain("function severityBadge");
+      expect(appJs).toContain("function riskNavigation");
+      expect(appJs).toContain("risk-nav");
+      expect(appJs).toContain("data-focus-key");
       expect(appJs).toContain("trusted only");
       expect(appJs).toContain("visual-hive run");
       expect(appJs).toContain("Setup PR guidance");
@@ -792,6 +798,8 @@ contracts:
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("function runbook");
     expect(controlPlaneJs).toContain("function risk");
+    expect(controlPlaneJs).toContain("function navButton");
+    expect(controlPlaneJs).toContain("function scrollToFocusedElement");
     expect(controlPlaneJs).toContain("function safetyBadge");
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");

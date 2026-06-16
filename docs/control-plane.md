@@ -18,7 +18,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 
 - Overview health score with explainable next actions
 - Runbook commands for local readiness, PR planning, CI deterministic checks, mutation adequacy, triage/reporting, protected scheduled lanes, and opening the Control Plane
-- Risk Register from `.visual-hive/risk.json` or the same core analyzer over loaded artifacts, ranking deterministic failures, baseline review needs, mutation adequacy, coverage gaps, target safety, workflow safety, environment gaps, and provider policy
+- Risk Register from `.visual-hive/risk.json` or the same core analyzer over loaded artifacts, ranking deterministic failures, baseline review needs, mutation adequacy, coverage gaps, target safety, workflow safety, environment gaps, and provider policy. Each risk row links into the related Contracts, Targets, Failure Inbox, Baselines, Coverage, GitHub/CI, Providers, or Raw Artifacts view.
 - Setup recommendations from `.visual-hive/recommendations.json`, including setup profile, provider posture, cost estimate, permission guidance, setup PR guidance, and guarded actions to write the recommended config and repo setup docs
 - Runs/reports with target lifecycle, generated spec links, run history, and mutation/visual trend summaries
 - Failure inbox from deterministic failures and mutation survivors
@@ -74,6 +74,6 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over setup recommendations, provider/cost guidance, runbook commands, risk ranking, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over setup recommendations, provider/cost guidance, runbook commands, actionable risk ranking, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
 
 The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `risk.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.

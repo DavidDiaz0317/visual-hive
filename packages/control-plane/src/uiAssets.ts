@@ -53,9 +53,12 @@ a { color: #8bc7ff; }
 .image-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
 .image-row img { width: 100%; border: 1px solid #303b46; border-radius: 6px; background: #0c1014; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.actions.compact { margin-top: 0; gap: 6px; }
 .button { border: 1px solid #3f5368; border-radius: 6px; padding: 8px 10px; background: #22303c; color: #f0f6fc; cursor: pointer; font-weight: 650; }
+.link-button { padding: 5px 8px; font-size: 12px; }
 .button:hover { background: #2c3b49; }
 .button:disabled { cursor: not-allowed; opacity: 0.55; }
+.focus-hit { outline: 2px solid #8bc7ff; outline-offset: 3px; border-radius: 5px; background: rgba(139, 199, 255, 0.12); }
 .section { display: grid; gap: 14px; }
 .empty { border: 1px dashed #3b4652; border-radius: 8px; padding: 18px; color: #98a8b8; }
 `;
@@ -84,7 +87,9 @@ const tabs = [
 let snapshot;
 let active = "overview";
 let activeConnectionId = new URLSearchParams(window.location.search).get("connection") || "current";
-let contractFilters = { target: "all", severity: "all", prSafe: "all", status: "all", route: "all", viewport: "all" };
+let contractFilters = { contract: "all", target: "all", severity: "all", prSafe: "all", status: "all", route: "all", viewport: "all" };
+let focusKind = "";
+let focusValue = "";
 
 const app = document.querySelector("#app");
 const tabRoot = document.querySelector("#tabs");
@@ -126,6 +131,7 @@ function render() {
   const views = { overview, runbook, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
+  scrollToFocusedElement();
 }
 
 function overview() {
@@ -182,11 +188,11 @@ function risk() {
     '</div>' +
     card("Recommendations", list(report.recommendations || [])) +
     card("Inputs", table(["Artifact", "Loaded"], Object.entries(report.inputs || {}).map(([key, value]) => [esc(key), value ? '<span class="ok">yes</span>' : '<span class="muted">no</span>']))) +
-    card("Risk Register", report.risks?.length ? table(["Severity", "Category", "Title", "Scope", "Evidence", "Actions", "Artifacts"], report.risks.map(r => [
+    card("Risk Register", report.risks?.length ? table(["Severity", "Category", "Title", "Open", "Evidence", "Actions", "Artifacts"], report.risks.map(r => [
       severityBadge(r.severity),
       esc(r.category),
       '<b>' + esc(r.title) + '</b><p class="muted">' + esc(r.message) + '</p>',
-      [...(r.contractIds || []).map(id => "contract:" + id), ...(r.targetIds || []).map(id => "target:" + id)].map(esc).join("<br>") || '<span class="muted">global</span>',
+      riskNavigation(r),
       (r.evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>',
       (r.suggestedActions || []).map(esc).join("<br>") || '<span class="muted">none</span>',
       (r.artifacts || []).map(a => link(a)).join("<br>") || '<span class="muted">none</span>'
@@ -198,6 +204,28 @@ function severityBadge(severity) {
   if (severity === "critical" || severity === "high") return '<span class="bad">' + esc(severity) + '</span>';
   if (severity === "medium") return '<span class="warn">' + esc(severity) + '</span>';
   return '<span class="ok">' + esc(severity) + '</span>';
+}
+
+function riskNavigation(risk) {
+  const buttons = [];
+  (risk.contractIds || []).forEach(id => buttons.push(navButton("contracts", "contract:" + id, { contract: id })));
+  (risk.targetIds || []).forEach(id => buttons.push(navButton("targets", "target:" + id, { target: id })));
+  if (risk.category === "deterministic_failure" || risk.category === "mutation_adequacy") buttons.push(navButton("failures", "failure inbox"));
+  if (risk.category === "baseline_review") buttons.push(navButton("baselines", "baseline review"));
+  if (risk.category === "coverage_gap") buttons.push(navButton("coverage", "coverage"));
+  if (risk.category === "workflow_safety") buttons.push(navButton("github", "GitHub / CI"));
+  if (risk.category === "provider_policy") buttons.push(navButton("providers", "providers"));
+  if (risk.category === "planning") buttons.push(navButton("runbook", "runbook"));
+  if ((risk.artifacts || []).length) buttons.push(navButton("artifacts", "artifact", { artifact: risk.artifacts[0] }));
+  return buttons.length ? '<div class="actions compact">' + buttons.join("") + '</div>' : '<span class="muted">global</span>';
+}
+
+function navButton(tab, label, data = {}) {
+  const attrs = Object.entries(data)
+    .filter(([, value]) => value)
+    .map(([key, value]) => ' data-' + escAttr(key) + '="' + escAttr(value) + '"')
+    .join("");
+  return '<button class="button link-button risk-nav" data-tab="' + escAttr(tab) + '"' + attrs + '>' + esc(label) + '</button>';
 }
 
 function laneLabel(lane) {
@@ -354,7 +382,7 @@ function targets() {
   if (!snapshot.targets.length) return empty("No targets found.");
   const audit = snapshot.targetAudit;
   if (!audit) {
-    return card("Targets", table(["ID", "Kind", "URL", "PR safe", "Cost", "Contracts", "Latest"], snapshot.targets.map(t => [t.id, t.config.kind, t.config.url || "", t.config.prSafe ? "yes" : "no", t.config.cost, t.contractIds.join(", "), t.latestStatus || "not run"])));
+    return card("Targets", table(["ID", "Kind", "URL", "PR safe", "Cost", "Contracts", "Latest"], snapshot.targets.map(t => [focusWrapper("target", t.id, esc(t.id)), t.config.kind, t.config.url || "", t.config.prSafe ? "yes" : "no", t.config.cost, t.contractIds.join(", "), t.latestStatus || "not run"])));
   }
   const s = audit.summary;
   return '<div class="grid">' +
@@ -368,7 +396,7 @@ function targets() {
     metric("Failed lifecycle", s.targetsWithFailedLifecycle, s.targetsWithFailedLifecycle ? "bad" : "ok") +
     metric("Without contracts", s.targetsWithoutContracts, s.targetsWithoutContracts ? "bad" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Target audit", table(["ID", "Kind", "URL", "Safety", "Cost", "Contracts", "Selected", "Latest", "Labels", "Gaps"], audit.targets.map(t => [t.id, t.kind, t.url || "n/a", t.prSafe ? "PR-safe" : "not PR-safe", t.cost, t.contractIds.join(", ") || "none", t.selected ? "yes" : "no", t.latestStatus, t.labels.join(", ") || "none", t.gaps.map(g => g.kind).join(", ") || "none"]))) +
+    card("Target audit", table(["ID", "Kind", "URL", "Safety", "Cost", "Contracts", "Selected", "Latest", "Labels", "Gaps"], audit.targets.map(t => [focusWrapper("target", t.id, esc(t.id)), t.kind, t.url || "n/a", t.prSafe ? "PR-safe" : "not PR-safe", t.cost, t.contractIds.join(", ") || "none", t.selected ? "yes" : "no", t.latestStatus, t.labels.join(", ") || "none", t.gaps.map(g => g.kind).join(", ") || "none"]))) +
     card("Services and readiness", table(["Target", "Service", "Readiness URL", "Timeout"], audit.targets.flatMap(t => t.services.map(service => [t.id, service.name, service.readinessUrl, service.readinessTimeoutMs ? service.readinessTimeoutMs + "ms" : "default"])))) +
     card("Lifecycle events", table(["Target", "Phase", "Status", "Duration", "Message"], audit.targets.flatMap(t => t.lifecycleEvents.map(e => [t.id, e.phase, e.status, e.durationMs + "ms", e.message || e.url || ""])))) +
     card("Recommendations", audit.targets.flatMap(t => t.recommendations.map(r => t.id + ": " + r)).length ? list(audit.targets.flatMap(t => t.recommendations.map(r => t.id + ": " + r))) : "No target recommendations from the current audit.") +
@@ -381,7 +409,7 @@ function contracts() {
   if (!audit) {
     const rows = snapshot.contracts.map(c => ({ id: c.config.id, targetId: c.config.target, severity: c.config.severity, selected: false, latestStatus: c.latestStatus || "not_run", routes: (c.config.screenshots || []).map(s => s.route), viewports: (c.config.screenshots || []).map(s => s.viewport), mutationMappings: c.mutationOperators.map(operator => ({ operator })), gaps: [], recommendations: [], flowStepCount: c.config.flow?.length || 0, consoleRules: { failOnConsoleError: Boolean(c.config.failOnConsoleError), expectedConsoleErrors: c.config.expectedConsoleErrors || [] } }));
     const filtered = filterContracts(rows);
-    return contractFilterCard(rows, filtered.length) + card("Contracts", table(["ID", "Target", "Severity", "Run on PR", "Routes", "Viewports", "Latest", "Mutations"], filtered.map(c => [c.id, c.targetId, c.severity, snapshot.config?.contracts?.find(contract => contract.id === c.id)?.runOn?.pullRequest ? "yes" : "no", c.routes.join(", ") || "none", c.viewports.join(", ") || "none", statusLabel(c), c.mutationMappings.map(m => m.operator).join(", ")])));
+    return contractFilterCard(rows, filtered.length) + card("Contracts", table(["ID", "Target", "Severity", "Run on PR", "Routes", "Viewports", "Latest", "Mutations"], filtered.map(c => [focusWrapper("contract", c.id, esc(c.id)), c.targetId, c.severity, snapshot.config?.contracts?.find(contract => contract.id === c.id)?.runOn?.pullRequest ? "yes" : "no", c.routes.join(", ") || "none", c.viewports.join(", ") || "none", statusLabel(c), c.mutationMappings.map(m => m.operator).join(", ")])));
   }
   const s = audit.summary;
   const filteredContracts = filterContracts(audit.contracts);
@@ -397,18 +425,20 @@ function contracts() {
     metric("Mutation mapped", s.mutationMappedContracts, "") +
     '</div><div class="section" style="margin-top:14px">' +
     contractFilterCard(audit.contracts, filteredContracts.length) +
-    card("Contract audit", table(["ID", "Target", "Severity", "PR safe", "Selected", "Latest", "Flow", "Routes", "Viewports", "Mutations", "Gaps"], filteredContracts.map(c => [c.id, c.targetId, c.severity, contractTargetPrSafe(c.targetId) ? "yes" : "no", c.selected ? "yes" : "no", statusLabel(c), String(c.flowStepCount ?? 0), c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
+    card("Contract audit", table(["ID", "Target", "Severity", "PR safe", "Selected", "Latest", "Flow", "Routes", "Viewports", "Mutations", "Gaps"], filteredContracts.map(c => [focusWrapper("contract", c.id, esc(c.id)), c.targetId, c.severity, contractTargetPrSafe(c.targetId) ? "yes" : "no", c.selected ? "yes" : "no", statusLabel(c), String(c.flowStepCount ?? 0), c.routes.join(", ") || "none", c.viewports.join(", ") || "none", c.mutationMappings.map(m => m.operator).join(", ") || "none", c.gaps.map(g => g.kind).join(", ") || "none"]))) +
     card("Recommendations", filteredContracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r)).length ? list(filteredContracts.flatMap(c => c.recommendations.map(r => c.id + ": " + r))) : "No contract recommendations match the current filters.") +
     card("Console rules", table(["ID", "Fail on console", "Expected errors"], filteredContracts.map(c => [c.id, c.consoleRules.failOnConsoleError ? "yes" : "no", c.consoleRules.expectedConsoleErrors.join(", ") || "none"]))) +
     '</div>';
 }
 
 function contractFilterCard(contracts, filteredCount) {
+  const contractIds = uniqueValues(contracts.map(c => c.id));
   const targets = uniqueValues(contracts.map(c => c.targetId));
   const severities = uniqueValues(contracts.map(c => c.severity));
   const routes = uniqueValues(contracts.flatMap(c => c.routes || []));
   const viewports = uniqueValues(contracts.flatMap(c => c.viewports || []));
   return card("Contract filters", '<div class="grid">' +
+    filterSelect("contract-filter-contract", "Contract", contractFilters.contract, [["all", "All contracts"]].concat(contractIds.map(value => [value, value]))) +
     filterSelect("contract-filter-target", "Target", contractFilters.target, [["all", "All targets"]].concat(targets.map(value => [value, value]))) +
     filterSelect("contract-filter-severity", "Severity", contractFilters.severity, [["all", "All severities"]].concat(severities.map(value => [value, value]))) +
     filterSelect("contract-filter-prsafe", "PR safety", contractFilters.prSafe, [["all", "Any safety"], ["safe", "PR-safe targets"], ["unsafe", "Not PR-safe/protected"]]) +
@@ -420,6 +450,7 @@ function contractFilterCard(contracts, filteredCount) {
 
 function filterContracts(contracts) {
   return contracts.filter(c => {
+    if (contractFilters.contract !== "all" && c.id !== contractFilters.contract) return false;
     if (contractFilters.target !== "all" && c.targetId !== contractFilters.target) return false;
     if (contractFilters.severity !== "all" && c.severity !== contractFilters.severity) return false;
     if (contractFilters.prSafe === "safe" && !contractTargetPrSafe(c.targetId)) return false;
@@ -602,7 +633,7 @@ function artifacts() {
     metric("Images", counts.image || 0, "") +
     metric("Redacted previews", snapshot.artifacts.filter(a => a.previewRedacted).length, snapshot.artifacts.some(a => a.previewRedacted) ? "warn" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Artifact inventory", table(["Path", "Kind", "Bytes", "Labels", "Preview"], snapshot.artifacts.map(a => [link(a.path), esc(a.kind), String(a.bytes), esc((a.labels || []).join(", ") || "none"), artifactPreview(a)]))) +
+    card("Artifact inventory", table(["Path", "Kind", "Bytes", "Labels", "Preview"], snapshot.artifacts.map(a => [focusWrapper("artifact", a.path, link(a.path)), esc(a.kind), String(a.bytes), esc((a.labels || []).join(", ") || "none"), artifactPreview(a)]))) +
     '</div>';
 }
 
@@ -756,6 +787,24 @@ function wireActions() {
   document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {
     const key = select.dataset.filter;
     if (key) contractFilters[key] = select.value || "all";
+    render();
+  }));
+  document.querySelectorAll(".risk-nav").forEach((button) => button.addEventListener("click", () => {
+    active = button.dataset.tab || active;
+    if (button.dataset.contract) {
+      contractFilters = { contract: button.dataset.contract, target: "all", severity: "all", prSafe: "all", status: "all", route: "all", viewport: "all" };
+      focusKind = "contract";
+      focusValue = button.dataset.contract;
+    } else if (button.dataset.target) {
+      focusKind = "target";
+      focusValue = button.dataset.target;
+    } else if (button.dataset.artifact) {
+      focusKind = "artifact";
+      focusValue = button.dataset.artifact;
+    } else {
+      focusKind = "";
+      focusValue = "";
+    }
     render();
   }));
   document.querySelectorAll(".connection-switch").forEach((button) => button.addEventListener("click", async () => {
@@ -984,6 +1033,23 @@ function failureList(title, items) { return items && items.length ? '<h3>' + esc
 function table(headers, rows) { return '<table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join("") + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join("") + '</tr>').join("") + '</tbody></table>'; }
 function rel(path) { if (!path) return ""; const root = snapshot.repoRoot.replaceAll('\\\\', '/'); const value = String(path).replaceAll('\\\\', '/'); return value.startsWith(root) ? value.slice(root.length + 1) : value; }
 function escAttr(value) { return esc(value).replaceAll('"', "&quot;"); }
+
+function focusKey(kind, value) {
+  return kind + ":" + String(value ?? "");
+}
+
+function focusWrapper(kind, value, html) {
+  const key = focusKey(kind, value);
+  const cls = focusKind === kind && focusValue === String(value ?? "") ? "focus-hit" : "";
+  return '<span data-focus-key="' + escAttr(key) + '" class="' + cls + '">' + html + '</span>';
+}
+
+function scrollToFocusedElement() {
+  if (!focusKind || !focusValue) return;
+  const key = focusKey(focusKind, focusValue);
+  const element = [...document.querySelectorAll("[data-focus-key]")].find((candidate) => candidate.dataset.focusKey === key);
+  if (element) element.scrollIntoView({ block: "center", behavior: "smooth" });
+}
 
 async function copyText(value) {
   if (navigator.clipboard?.writeText) {
