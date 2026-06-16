@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `triage.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `history.json`, `triage.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -69,6 +69,16 @@ Schema: `schemas/visual-hive.workflows.schema.json`
 The workflow safety audit scans GitHub Actions YAML and records actual workflow evidence: triggers, permissions, PR secret usage, `pull_request_target`, artifact upload, hidden-file upload settings, step-summary usage, issue creation, artifact download, checkout usage, trusted issue `issue.md` artifact discovery, defensive issue-body redaction, and Visual Hive command usage. It flags unsafe PR workflows, trusted issue workflows that checkout code, missing artifact upload, brittle fixed-path issue artifact reads, missing trusted issue redaction, and missing dedupe patterns.
 
 When `.visual-hive/workflows.json` exists before `visual-hive triage` runs, `.visual-hive/issue.md` includes a sanitized "Workflow safety" section with the audit summary and highest-priority findings. `.visual-hive/pr-comment.md` also records the workflow finding count for PR review context. This keeps trusted issue workflows focused on uploaded artifacts and avoids checking out or executing untrusted PR code.
+
+## Risk Register
+
+Path: `.visual-hive/risk.json`
+
+Schema: `schemas/visual-hive.risk.schema.json`
+
+The risk register is written by `visual-hive risk`. It prioritizes evidence from the current plan, deterministic report, mutation report, coverage, target audit, contract audit, schedule audit, workflow audit, and provider policy. It records a bounded risk score, severity counts, PR-blocking count, trusted-only count, loaded input artifacts, and one row per risk.
+
+Risk categories include deterministic failures, baseline review needs, mutation adequacy gaps, coverage gaps, target safety, workflow safety, provider policy, environment gaps, and planning gaps. Risk rows include sanitized evidence, related contract/target IDs, artifact paths, suggested actions, and whether the issue blocks the PR-safe lane or belongs in a trusted lane. The risk register is a prioritization layer only; deterministic Playwright contracts and mutation adequacy remain the evidence source.
 
 ## Triage Report
 

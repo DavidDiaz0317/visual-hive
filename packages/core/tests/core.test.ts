@@ -18,6 +18,7 @@ import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../sr
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
+import { analyzeRisk } from "../src/risk/analyze.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
 import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usage.js";
@@ -724,6 +725,132 @@ describe("coverage analysis", () => {
       selectedContracts: ["changed-contract"]
     });
     expect(coverage.uncoveredAreas.map((gap) => gap.kind)).not.toContain("changed_file_without_rule");
+  });
+});
+
+describe("risk register", () => {
+  it("prioritizes deterministic, baseline, mutation, coverage, target, workflow, and provider risks", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const report: Report = {
+      schemaVersion: 2,
+      project: "sample",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "safe", kind: "url", url: "https://safe.example.com", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["safe-contract", "changed-contract"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "safe-contract",
+          targetId: "safe",
+          status: "failed",
+          durationMs: 12,
+          errors: ["mustExist main failed with token=secret-value"],
+          artifacts: [".visual-hive/artifacts/results/safe-contract.json"],
+          selectorAssertions: [{ kind: "mustExist", value: "main", status: "failed" }],
+          screenshotAssertions: [
+            {
+              contractId: "safe-contract",
+              screenshotName: "home",
+              name: "home",
+              route: "/",
+              viewport: "desktop",
+              status: "missing_baseline",
+              baselinePath: ".visual-hive/snapshots/home.png",
+              actualPath: ".visual-hive/artifacts/screenshots/home.png",
+              maxDiffPixelRatio: 0.01,
+              totalPixels: 100
+            }
+          ],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 1,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 1,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      providerResults: [
+        {
+          providerId: "argos",
+          label: "Argos",
+          status: "missing_credentials",
+          deterministicRole: "supplemental",
+          message: "Missing ARGOS_TOKEN",
+          requiredEnv: ["ARGOS_TOKEN"],
+          missingEnv: ["ARGOS_TOKEN"],
+          artifactCount: 0,
+          normalizedAt: "2026-06-15T00:00:00.000Z"
+        }
+      ],
+      reproductionCommands: ["visual-hive run --ci"]
+    };
+    const coverage = analyzeCoverage(config, { plan });
+    const targets = auditTargets(config, { plan, report, env: {} });
+    const workflows = auditWorkflows(config, [
+      {
+        path: ".github/workflows/visual-hive-pr.yml",
+        content: "on: pull_request_target\npermissions:\n  contents: write\njobs:\n  test:\n    steps:\n      - run: echo broken"
+      }
+    ]);
+    const risk = analyzeRisk(config, {
+      plan,
+      report,
+      mutationReport: {
+        schemaVersion: 2,
+        project: "sample",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        minScore: 0.7,
+        score: 0.5,
+        killed: 1,
+        total: 2,
+        results: [
+          {
+            operator: "force-login-on-demo",
+            status: "survived",
+            killed: false,
+            applicable: true,
+            contractIds: ["safe-contract"],
+            expectedFailureKinds: ["login_regression"],
+            durationMs: 5,
+            errors: [],
+            artifacts: [".visual-hive/mutation-report.json"]
+          }
+        ]
+      },
+      coverageReport: coverage,
+      targetAudit: targets,
+      workflowAudit: workflows,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(risk.schemaVersion).toBe(1);
+    expect(risk.summary.total).toBeGreaterThan(0);
+    expect(risk.summary.prBlocking).toBeGreaterThan(0);
+    expect(risk.risks.map((item) => item.category)).toEqual(
+      expect.arrayContaining(["deterministic_failure", "baseline_review", "mutation_adequacy", "target_safety", "workflow_safety", "provider_policy"])
+    );
+    expect(risk.risks.find((item) => item.category === "deterministic_failure")?.message).toContain("[REDACTED]");
+    expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
   });
 });
 

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.risk.schema.json",
+  "title": "Visual Hive risk register",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "inputs", "risks", "recommendations"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["total", "critical", "high", "medium", "low", "riskScore", "highestSeverity", "prBlocking", "trustedOnly"],
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "critical": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "medium": { "type": "integer", "minimum": 0 },
+        "low": { "type": "integer", "minimum": 0 },
+        "riskScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "highestSeverity": { "enum": ["none", "low", "medium", "high", "critical"] },
+        "prBlocking": { "type": "integer", "minimum": 0 },
+        "trustedOnly": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["plan", "report", "mutationReport", "coverageReport", "targetAudit", "contractAudit", "scheduleAudit", "workflowAudit"],
+      "additionalProperties": false,
+      "properties": {
+        "plan": { "type": "boolean" },
+        "report": { "type": "boolean" },
+        "mutationReport": { "type": "boolean" },
+        "coverageReport": { "type": "boolean" },
+        "targetAudit": { "type": "boolean" },
+        "contractAudit": { "type": "boolean" },
+        "scheduleAudit": { "type": "boolean" },
+        "workflowAudit": { "type": "boolean" }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/risk" }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "risk": {
+      "type": "object",
+      "required": [
+        "id",
+        "category",
+        "severity",
+        "title",
+        "message",
+        "evidence",
+        "contractIds",
+        "targetIds",
+        "artifacts",
+        "suggestedActions",
+        "prBlocking",
+        "trustedOnly"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "category": {
+          "enum": [
+            "deterministic_failure",
+            "baseline_review",
+            "mutation_adequacy",
+            "coverage_gap",
+            "target_safety",
+            "workflow_safety",
+            "provider_policy",
+            "environment",
+            "planning"
+          ]
+        },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "contractIds": { "type": "array", "items": { "type": "string" } },
+        "targetIds": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "suggestedActions": { "type": "array", "items": { "type": "string" } },
+        "prBlocking": { "type": "boolean" },
+        "trustedOnly": { "type": "boolean" }
+      }
+    }
+  }
+}

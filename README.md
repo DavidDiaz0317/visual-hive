@@ -23,7 +23,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
 
 Initialize Visual Hive in another repo:
 
@@ -112,6 +112,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
 - `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.
+- `visual-hive risk`: builds `.visual-hive/risk.json`, a prioritized register across deterministic failures, baselines, mutation adequacy, coverage, target safety, workflow safety, environment gaps, and provider policy.
 - `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.
 - `visual-hive targets`: audits target safety, commands, services, secrets, lifecycle evidence, and gaps in `.visual-hive/targets.json`.
 - `visual-hive schedules`: audits PR, scheduled, protected, mutation, and trusted issue lanes in `.visual-hive/schedules.json`.
@@ -149,7 +150,7 @@ Local development without publishing:
 node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only
 ```
 
-The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can generate a recommended config and `docs/visual-hive.md` from `.visual-hive/recommendations.json`, generate a setup PR bundle with config/docs/workflows after preflight checks, write built-in safe workflow templates into `.github/workflows`, explicitly approve or reject reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
+The UI reads `.visual-hive` artifacts and shows overview health, runbooks, risk ranking, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can generate a recommended config and `docs/visual-hive.md` from `.visual-hive/recommendations.json`, generate a setup PR bundle with config/docs/workflows after preflight checks, write built-in safe workflow templates into `.github/workflows`, explicitly approve or reject reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
 
 ## GitHub Actions
 

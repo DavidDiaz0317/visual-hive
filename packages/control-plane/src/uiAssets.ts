@@ -64,6 +64,7 @@ export const controlPlaneJs = `
 const tabs = [
   ["overview", "Overview"],
   ["runbook", "Runbook"],
+  ["risk", "Risk"],
   ["setup", "Setup"],
   ["runs", "Runs / Reports"],
   ["failures", "Failure Inbox"],
@@ -122,7 +123,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, runbook, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, runbook, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
 }
@@ -165,6 +166,38 @@ function runbook() {
     card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. These commands are explicit operator guidance; the Control Plane does not execute trusted or secret-bearing lanes for you.</p>' + list(rb.notes || [])) +
     laneCards.join("") +
     '</div>';
+}
+
+function risk() {
+  const report = snapshot.riskReport;
+  if (!report) return empty("No risk register available. Run visual-hive risk or load enough artifacts to compute one.");
+  const summary = report.summary;
+  return '<div class="section">' +
+    '<div class="grid">' +
+    metric("Risk score", summary.riskScore + "/100", summary.riskScore >= 50 ? "bad" : (summary.riskScore ? "warn" : "ok")) +
+    metric("Total risks", summary.total, summary.total ? "warn" : "ok") +
+    metric("Critical/high", summary.critical + summary.high, summary.critical || summary.high ? "bad" : "ok") +
+    metric("PR blocking", summary.prBlocking, summary.prBlocking ? "bad" : "ok") +
+    metric("Trusted-only", summary.trustedOnly, summary.trustedOnly ? "warn" : "ok") +
+    '</div>' +
+    card("Recommendations", list(report.recommendations || [])) +
+    card("Inputs", table(["Artifact", "Loaded"], Object.entries(report.inputs || {}).map(([key, value]) => [esc(key), value ? '<span class="ok">yes</span>' : '<span class="muted">no</span>']))) +
+    card("Risk Register", report.risks?.length ? table(["Severity", "Category", "Title", "Scope", "Evidence", "Actions", "Artifacts"], report.risks.map(r => [
+      severityBadge(r.severity),
+      esc(r.category),
+      '<b>' + esc(r.title) + '</b><p class="muted">' + esc(r.message) + '</p>',
+      [...(r.contractIds || []).map(id => "contract:" + id), ...(r.targetIds || []).map(id => "target:" + id)].map(esc).join("<br>") || '<span class="muted">global</span>',
+      (r.evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+      (r.suggestedActions || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+      (r.artifacts || []).map(a => link(a)).join("<br>") || '<span class="muted">none</span>'
+    ])) : '<p class="ok">No immediate visual QA risks were found.</p>') +
+    '</div>';
+}
+
+function severityBadge(severity) {
+  if (severity === "critical" || severity === "high") return '<span class="bad">' + esc(severity) + '</span>';
+  if (severity === "medium") return '<span class="warn">' + esc(severity) + '</span>';
+  return '<span class="ok">' + esc(severity) + '</span>';
 }
 
 function laneLabel(lane) {

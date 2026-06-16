@@ -6,6 +6,7 @@ import {
   listBaselines,
   inspectProviders,
   analyzeCoverage,
+  analyzeRisk,
   auditContracts,
   auditSchedules,
   auditTargets,
@@ -26,6 +27,7 @@ import {
   type MutationReport,
   type Plan,
   type Report,
+  type RiskRegisterReport,
   type RunHistoryReport,
   type SetupRecommendationReport,
   type TargetConfig,
@@ -87,6 +89,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     setupRecommendation,
     workflowAuditArtifact,
     runHistoryArtifact,
+    riskArtifact,
     issueMarkdown,
     prCommentMarkdown,
     triagePrompt,
@@ -105,6 +108,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
+    readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
     readTextIfExists(path.join(hiveRoot, "triage-prompt.md")),
@@ -133,6 +137,19 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const providers = config ? inspectProviders(config) : [];
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
   const runbook = buildRunbook(resolved, config, plan, report, mutationReport);
+  const riskReport = config
+    ? riskArtifact ??
+      analyzeRisk(config, {
+        plan: isPlan(plan) ? plan : undefined,
+        report,
+        mutationReport,
+        coverageReport: coverage,
+        targetAudit,
+        contractAudit,
+        scheduleAudit,
+        workflowAudit
+      })
+    : undefined;
 
   return {
     schemaVersion: 1,
@@ -150,6 +167,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     report,
     triageReport,
     runHistory,
+    riskReport,
     mutationReport,
     providerRunReport,
     setupRecommendation,

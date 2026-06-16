@@ -26,6 +26,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { formatLLMUsage, runLLMCommand } from "../src/commands/llm.js";
+import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
@@ -93,6 +94,7 @@ describe("CLI commands", () => {
       "demo:triage",
       "demo:llm",
       "demo:report",
+      "demo:risk",
       "demo:history",
       "demo:artifacts"
     ];
@@ -107,6 +109,7 @@ describe("CLI commands", () => {
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+    expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });
 
   it("passes explicit include and exclude options through plan command", async () => {
@@ -1016,6 +1019,17 @@ contracts:
     expect(llmSummary).toContain("LLM Governance: cli-triage");
     expect(llmSummary).toContain("External LLM calls made: 0");
     expect(llmSummary).not.toContain("secret-value");
+
+    const riskResult = await runRiskCommand({ cwd: tempRoot });
+    const riskSummary = formatRiskRegister(riskResult.report, riskResult.reportPath);
+    expect(riskResult.report.summary.total).toBeGreaterThan(0);
+    expect(riskResult.report.risks.map((risk) => risk.category)).toEqual(
+      expect.arrayContaining(["deterministic_failure", "mutation_adequacy", "coverage_gap", "workflow_safety"])
+    );
+    expect(JSON.stringify(riskResult.report)).not.toContain("secret-value");
+    expect(JSON.stringify(riskResult.report)).toContain("[REDACTED]");
+    expect(riskSummary).toContain("Risk Register: cli-triage");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "risk.json"), "utf8")).resolves.toContain("workflow_safety");
   });
 
   it("inspects providers without printing secret values", async () => {

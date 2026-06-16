@@ -8,6 +8,7 @@ import type {
   MockProviderRunReport,
   ProviderInspection,
   Report,
+  RiskRegisterReport,
   RunHistoryReport,
   ScheduleAuditReport,
   TargetAuditReport,
@@ -124,6 +125,7 @@ export interface ControlPlaneSnapshot {
   report?: Report;
   triageReport?: TriageReport;
   runHistory?: RunHistoryReport;
+  riskReport?: RiskRegisterReport;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   targetAudit?: TargetAuditReport;

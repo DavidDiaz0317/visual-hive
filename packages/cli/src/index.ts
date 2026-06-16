@@ -26,6 +26,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatLLMUsage, runLLMCommand } from "./commands/llm.js";
+import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import {
   formatConnectionsIndex,
@@ -421,6 +422,41 @@ program
         format: options.format
       });
       console.log(formatLLMUsage(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("risk")
+  .description("Build a prioritized visual QA risk register from Visual Hive artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan path override")
+  .option("--report <path>", "report path override")
+  .option("--mutation-report <path>", "mutation report path override")
+  .option("--coverage <path>", "coverage artifact path override")
+  .option("--targets <path>", "targets audit artifact path override")
+  .option("--contracts <path>", "contracts audit artifact path override")
+  .option("--schedules <path>", "schedules audit artifact path override")
+  .option("--workflows <path>", "workflow audit artifact path override")
+  .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runRiskCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mutationReport: options.mutationReport,
+        coverage: options.coverage,
+        targets: options.targets,
+        contracts: options.contracts,
+        schedules: options.schedules,
+        workflows: options.workflows,
+        workflowDir: options.workflowDir,
+        format: options.format
+      });
+      console.log(formatRiskRegister(result.report, result.reportPath, options.format));
     } catch (error) {
       fail(error);
     }

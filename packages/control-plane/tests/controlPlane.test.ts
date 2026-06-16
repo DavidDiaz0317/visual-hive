@@ -485,6 +485,57 @@ jobs:
 `,
     "utf8"
   );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "risk.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          total: 1,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 1,
+          riskScore: 2,
+          highestSeverity: "low",
+          prBlocking: 0,
+          trustedOnly: 0
+        },
+        inputs: {
+          plan: true,
+          report: true,
+          mutationReport: false,
+          coverageReport: true,
+          targetAudit: true,
+          contractAudit: true,
+          scheduleAudit: true,
+          workflowAudit: true
+        },
+        risks: [
+          {
+            id: "coverage:viewport:tablet",
+            category: "coverage_gap",
+            severity: "low",
+            title: "Coverage gap: viewport_without_screenshots",
+            message: "Tablet viewport is configured but has no screenshot coverage.",
+            evidence: ["tablet"],
+            contractIds: [],
+            targetIds: [],
+            artifacts: [".visual-hive/coverage.json"],
+            suggestedActions: ["Add a tablet screenshot if this viewport matters."],
+            prBlocking: false,
+            trustedOnly: false
+          }
+        ],
+        recommendations: ["Add contracts or changed-file rules for uncovered high-risk areas."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"), "actual-dashboard", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "old-dashboard", "utf8");
   return { repoRoot, configPath };
@@ -540,12 +591,16 @@ describe("control plane", () => {
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
+    expect(snapshot.riskReport?.project).toBe("ui-fixture");
+    expect(snapshot.riskReport?.inputs.report).toBe(true);
+    expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
     expect(snapshot.screenshots[0]?.name).toBe("dashboard");
     expect(snapshot.issueMarkdown).toContain("Issue");
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
   });
 
   it("adds trusted protected-lane runbook commands with secret names only", async () => {
@@ -709,6 +764,9 @@ contracts:
       expect(appJs).toContain("Provider recommendation");
       expect(appJs).toContain("Provider plan policy");
       expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("Risk Register");
+      expect(appJs).toContain("function risk");
+      expect(appJs).toContain("function severityBadge");
       expect(appJs).toContain("trusted only");
       expect(appJs).toContain("visual-hive run");
       expect(appJs).toContain("Setup PR guidance");
@@ -733,6 +791,7 @@ contracts:
     expect(controlPlaneJs).toContain("function baselineCardBody");
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("function runbook");
+    expect(controlPlaneJs).toContain("function risk");
     expect(controlPlaneJs).toContain("function safetyBadge");
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
