@@ -24,8 +24,10 @@ It does not run target code, call LLMs, contact paid visual providers, or decide
 ```bash
 visual-hive recommend
 visual-hive recommend --write-config --write-docs
+visual-hive recommend --write-setup-bundle
 visual-hive recommend --write-config --force
 visual-hive recommend --write-docs --force
+visual-hive recommend --write-setup-bundle --force
 visual-hive recommend --format json
 ```
 
@@ -33,7 +35,9 @@ visual-hive recommend --format json
 
 `--write-docs` creates `docs/visual-hive.md` from the same deterministic recommendation data. It explains the PR lane, scheduled/protected lane, recommended contracts, provider posture, cost guardrails, baseline review commands, setup PR checklist, and security rules. Existing docs are protected unless `--force` is passed.
 
-The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate a setup PR bundle that writes the recommended config, repo docs, and built-in workflow templates after preflighting every output path; that aggregate action records `.visual-hive/setup-bundle-edits.json`. `--read-only` disables these actions.
+`--write-setup-bundle` creates the recommended config, repo docs, and built-in PR, scheduled, and trusted failure-issue workflow templates in one guarded operation. It preflights every output path and refuses to overwrite existing files unless `--force` is passed after review. The bundle records `.visual-hive/config-edits.json`, `.visual-hive/setup-doc-edits.json`, `.visual-hive/workflow-edits.json`, and `.visual-hive/setup-bundle-edits.json`.
+
+The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate the same setup PR bundle after preflighting every output path. `--read-only` disables these actions.
 
 ## Artifact
 

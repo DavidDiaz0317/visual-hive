@@ -1,5 +1,6 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { writeSetupBundleFromRecommendation, type SetupBundleWriteResult } from "@visual-hive/control-plane";
 import { buildSetupDocsMarkdown, recommendSetup, writeJson, type SetupRecommendationReport } from "@visual-hive/core";
 
 export interface RecommendCommandOptions {
@@ -7,13 +8,22 @@ export interface RecommendCommandOptions {
   repo?: string;
   writeConfig?: boolean;
   writeDocs?: boolean;
+  writeSetupBundle?: boolean;
   force?: boolean;
   format?: "markdown" | "json";
 }
 
+export interface RecommendCommandResult {
+  report: SetupRecommendationReport;
+  reportPath: string;
+  configWritten?: string;
+  docsWritten?: string;
+  setupBundle?: SetupBundleWriteResult;
+}
+
 export async function runRecommendCommand(
   options: RecommendCommandOptions = {}
-): Promise<{ report: SetupRecommendationReport; reportPath: string; configWritten?: string; docsWritten?: string }> {
+): Promise<RecommendCommandResult> {
   const cwd = options.cwd ?? process.cwd();
   const repoRoot = path.resolve(cwd, options.repo ?? ".");
   const configPath = path.join(repoRoot, "visual-hive.config.yaml");
@@ -23,7 +33,21 @@ export async function runRecommendCommand(
   await writeJson(reportPath, report);
   let configWritten: string | undefined;
   let docsWritten: string | undefined;
-  if (options.writeConfig) {
+  let setupBundle: SetupBundleWriteResult | undefined;
+  if (options.writeSetupBundle) {
+    setupBundle = await writeSetupBundleFromRecommendation(
+      {
+        repo: repoRoot,
+        config: configPath
+      },
+      {
+        confirm: true,
+        force: options.force
+      }
+    );
+    configWritten = path.join(repoRoot, setupBundle.config.configPath);
+    docsWritten = path.join(repoRoot, setupBundle.docs.docsPath);
+  } else if (options.writeConfig) {
     if (!options.force && (await exists(configPath))) {
       throw new Error(`Refusing to overwrite existing Visual Hive config: ${configPath}. Pass --force to replace it.`);
     }
@@ -38,11 +62,11 @@ export async function runRecommendCommand(
     await writeFile(docsPath, buildSetupDocsMarkdown(report), "utf8");
     docsWritten = docsPath;
   }
-  return { report, reportPath, configWritten, docsWritten };
+  return { report, reportPath, configWritten, docsWritten, setupBundle };
 }
 
 export function formatSetupRecommendation(
-  result: { report: SetupRecommendationReport; reportPath: string; configWritten?: string; docsWritten?: string },
+  result: RecommendCommandResult,
   format: "markdown" | "json" = "markdown"
 ): string {
   if (format === "json") {
@@ -65,6 +89,7 @@ export function formatSetupRecommendation(
     `- External screenshots/run: ${report.costEstimate.externalScreenshotsPerRun}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
     `- Docs written: ${result.docsWritten ?? "no, pass --write-docs to create docs/visual-hive.md"}`,
+    `- Setup bundle written: ${result.setupBundle ? `yes, audit ${result.setupBundle.auditPath}` : "no, pass --write-setup-bundle to create config, docs, and workflows"}`,
     "",
     "## Why",
     ...report.recommendedTarget.reasons.map((reason) => `- ${reason}`),
@@ -94,6 +119,18 @@ export function formatSetupRecommendation(
       `- Title: ${report.setupPullRequest.title}`,
       ...report.setupPullRequest.files.map((file) => `- File: ${file}`),
       ...report.setupPullRequest.securityNotes.map((note) => `- Security: ${note}`)
+    );
+  }
+  if (result.setupBundle) {
+    lines.push(
+      "",
+      "## Setup Bundle",
+      `- Audit: ${result.setupBundle.auditPath}`,
+      `- Config: ${result.setupBundle.config.configPath}`,
+      `- Docs: ${result.setupBundle.docs.docsPath}`,
+      `- Workflows written: ${result.setupBundle.workflows.written.length}`,
+      `- Workflows skipped: ${result.setupBundle.workflows.skipped.length}`,
+      ...result.setupBundle.workflows.written.map((entry) => `- Workflow: ${entry.path}${entry.overwritten ? " (overwritten)" : ""}`)
     );
   }
   if (report.warnings.length) {

@@ -490,7 +490,8 @@ program
   .option("--repo <path>", "repository path to inspect")
   .option("--write-config", "write visual-hive.config.yaml from the recommendation")
   .option("--write-docs", "write docs/visual-hive.md from the recommendation")
-  .option("--force", "overwrite generated setup files when used with --write-config or --write-docs")
+  .option("--write-setup-bundle", "write config, repo docs, safe GitHub workflow templates, and setup audit from the recommendation")
+  .option("--force", "overwrite generated setup files when used with --write-config, --write-docs, or --write-setup-bundle")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -498,6 +499,7 @@ program
         repo: options.repo,
         writeConfig: options.writeConfig,
         writeDocs: options.writeDocs,
+        writeSetupBundle: options.writeSetupBundle,
         force: options.force,
         format: options.format
       });

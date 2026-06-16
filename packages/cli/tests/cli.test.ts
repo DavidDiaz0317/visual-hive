@@ -703,6 +703,48 @@ contracts:
     await expect(readFile(docsPath, "utf8")).resolves.toContain("# Visual Hive");
   });
 
+  it("recommend writes a complete setup bundle with safe workflows and audit logging", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-recommend-bundle-"));
+    tempDirs.push(tempRoot);
+    await writeJson(path.join(tempRoot, "package.json"), {
+      name: "recommend-bundle-fixture",
+      scripts: {
+        build: "vite build",
+        preview: "vite preview",
+        test: "vitest"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const result = await runRecommendCommand({ cwd: tempRoot, writeSetupBundle: true });
+    const summary = formatSetupRecommendation(result);
+
+    expect(result.setupBundle?.ok).toBe(true);
+    expect(result.setupBundle?.workflows.written.map((entry) => entry.path).sort()).toEqual([
+      ".github/workflows/visual-hive-failure-issue.yml",
+      ".github/workflows/visual-hive-pr.yml",
+      ".github/workflows/visual-hive-scheduled.yml"
+    ]);
+    expect(summary).toContain("Setup bundle written: yes");
+    expect(summary).toContain("## Setup Bundle");
+    await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
+    await expect(readFile(path.join(tempRoot, "docs", "visual-hive.md"), "utf8")).resolves.toContain("PR checks should run with read-only permissions");
+    await expect(readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8")).resolves.toContain("pull_request");
+    await expect(readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8")).resolves.not.toContain("pull_request_target");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "setup-bundle-edits.json"), "utf8")).resolves.toContain("setup-recommendation");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "workflow-edits.json"), "utf8")).resolves.toContain("visual-hive-pr.yml");
+    await expect(runRecommendCommand({ cwd: tempRoot, writeSetupBundle: true })).rejects.toThrow(/Refusing to write setup bundle/);
+
+    const forced = await runRecommendCommand({ cwd: tempRoot, writeSetupBundle: true, force: true });
+    expect(forced.setupBundle?.overwritten).toBe(true);
+    expect(forced.setupBundle?.workflows.written.every((entry) => entry.overwritten)).toBe(true);
+  });
+
   it("connections adds, lists, and removes local repos", async () => {
     const managerRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-connections-manager-"));
     const connectedRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-connections-target-"));

@@ -30,6 +30,7 @@ Initialize Visual Hive in another repo:
 ```bash
 npx visual-hive recommend
 npx visual-hive recommend --write-config --write-docs
+npx visual-hive recommend --write-setup-bundle
 npx visual-hive init
 npx visual-hive doctor
 npx visual-hive plan --mode pr --changed-files changed-files.txt
@@ -106,7 +107,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 ## CLI commands
 
 - `visual-hive init`: creates config, workflow templates, and `.visual-hive/generated`.
-- `visual-hive recommend`: inspects package scripts, framework hints, stable selectors, setup profile, provider posture, cost/permission guidance, and setup PR steps, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config and `--write-docs` to create `docs/visual-hive.md`.
+- `visual-hive recommend`: inspects package scripts, framework hints, stable selectors, setup profile, provider posture, cost/permission guidance, and setup PR steps, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config, `--write-docs` to create `docs/visual-hive.md`, or `--write-setup-bundle` to create config, repo docs, safe workflow templates, and `.visual-hive/setup-bundle-edits.json` after overwrite preflight.
 - `visual-hive doctor`: validates config, Node 22, Playwright availability, and target settings.
 - `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, cost, mutation applicability, and provider cost-policy evidence.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
