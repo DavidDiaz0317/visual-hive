@@ -1,7 +1,8 @@
 import { minimatch } from "minimatch";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { selectContractsForMutation } from "../mutations/operators.js";
-import type { CreatePlanOptions, ExcludedPlanItem, MutationPlan, Plan, PlanItem } from "./types.js";
+import { inspectProviders } from "../providers/inspect.js";
+import type { CreatePlanOptions, ExcludedPlanItem, MutationPlan, Plan, PlanItem, PlanProviderPolicy } from "./types.js";
 
 export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions): Plan {
   const changedFiles = [...(options.changedFiles ?? [])].sort();
@@ -132,7 +133,8 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
       }),
     items,
     excluded,
-    mutation: createMutationPlan(config, options)
+    mutation: createMutationPlan(config, options),
+    providerPolicy: createProviderPolicyPlan(config, options, items)
   };
 }
 
@@ -251,6 +253,63 @@ function createMutationPlan(config: VisualHiveConfig, options: CreatePlanOptions
     minScore: config.mutation.minScore,
     reasons: [`mode=${options.mode}`, "mutation not selected for this mode"]
   };
+}
+
+function createProviderPolicyPlan(config: VisualHiveConfig, options: CreatePlanOptions, items: PlanItem[]): PlanProviderPolicy[] {
+  const selectedSeverities = items.map((item) => item.severity);
+  const estimatedExternalScreenshots = items.reduce((total, item) => total + item.screenshots.length, 0);
+  return inspectProviders(config, options.env ?? process.env, {
+    mode: options.mode,
+    deterministicStatus: "passed",
+    artifactCount: estimatedExternalScreenshots,
+    selectedContractSeverities: selectedSeverities
+  }).map((provider) => ({
+    providerId: provider.id,
+    label: provider.label,
+    enabled: provider.enabled,
+    mode: provider.mode,
+    availability: provider.availability,
+    deterministicRole: provider.deterministicRole,
+    requiredEnv: provider.requiredEnv,
+    missingEnv: provider.missingEnv,
+    externalUploadAllowed: providerExternalUploadAllowed(provider),
+    externalUploadBlockedReasons: providerExternalUploadBlockedReasons(provider),
+    estimatedExternalScreenshots,
+    externalCallsPlanned: 0,
+    reasons: providerPolicyReasons(provider)
+  }));
+}
+
+function providerExternalUploadAllowed(provider: ReturnType<typeof inspectProviders>[number]): boolean {
+  if (provider.id === "playwright") return true;
+  if (!provider.enabled) return false;
+  if (provider.mode === "mock") return true;
+  return provider.costPolicy.externalUploadAllowed;
+}
+
+function providerExternalUploadBlockedReasons(provider: ReturnType<typeof inspectProviders>[number]): string[] {
+  if (provider.id === "playwright") return [];
+  if (!provider.enabled) return ["provider.enabled=false"];
+  if (provider.mode === "mock") return [];
+  return provider.costPolicy.blockedReasons;
+}
+
+function providerPolicyReasons(provider: ReturnType<typeof inspectProviders>[number]): string[] {
+  const reasons = [provider.message];
+  if (provider.id === "playwright") {
+    reasons.push("Playwright remains the deterministic pass/fail oracle.");
+  } else if (!provider.enabled) {
+    reasons.push("Provider is disabled in config.");
+  } else if (provider.mode === "mock") {
+    reasons.push("Mock mode records local metadata only.");
+  } else if (provider.missingEnv.length > 0) {
+    reasons.push(`Missing credential names: ${provider.missingEnv.join(", ")}`);
+  }
+  if (provider.costPolicy.blockedReasons.length > 0 && provider.id !== "playwright" && provider.mode !== "mock") {
+    reasons.push(...provider.costPolicy.blockedReasons);
+  }
+  reasons.push("No external provider network calls are planned by the default Visual Hive planner.");
+  return unique(reasons);
 }
 
 function unique<T>(values: T[]): T[] {

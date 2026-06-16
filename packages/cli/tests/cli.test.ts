@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
-import { parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
+import { formatPlanSummary, parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
 import { runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
@@ -72,6 +72,11 @@ describe("CLI commands", () => {
 
     expect(written.items.map((item) => item.contractId)).toContain("dashboard-visual-stability");
     expect(written.excluded.map((item) => item.contractId)).toContain("live-cluster-protected-lane");
+    expect(written.providerPolicy.find((provider) => provider.providerId === "playwright")).toMatchObject({
+      availability: "available",
+      externalCallsPlanned: 0
+    });
+    expect(formatPlanSummary(written)).toContain("Provider policy: Playwright built-in=available/local/calls=0");
   });
 
   it("demo acceptance scripts exercise management-plane artifacts", async () => {
@@ -1313,7 +1318,8 @@ mutation:
         }
       ],
       excluded: [],
-      mutation: { enabled: true, operators: ["remove-demo-badge"], minScore: 0.9, reasons: ["test"] }
+      mutation: { enabled: true, operators: ["remove-demo-badge"], minScore: 0.9, reasons: ["test"] },
+      providerPolicy: []
     };
     const planPath = path.join(tempRoot, "plan.json");
     await writeJson(planPath, plan);

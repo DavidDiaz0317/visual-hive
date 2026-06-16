@@ -505,6 +505,33 @@ describe("planner", () => {
     expect(plan.items.map((item) => item.contractId)).toContain("safe-contract");
   });
 
+  it("records provider availability and cost policy in plans without planning external calls", () => {
+    const config = sampleConfig();
+    config.providers.argos = {
+      ...config.providers.argos,
+      enabled: true
+    };
+
+    const plan = createPlan(config, { mode: "pr", changedFiles: [], env: { ARGOS_TOKEN: "secret-value" } });
+    const playwright = plan.providerPolicy.find((provider) => provider.providerId === "playwright");
+    const argos = plan.providerPolicy.find((provider) => provider.providerId === "argos");
+
+    expect(playwright).toMatchObject({
+      availability: "available",
+      externalUploadAllowed: true,
+      externalCallsPlanned: 0
+    });
+    expect(argos).toMatchObject({
+      availability: "policy_blocked",
+      missingEnv: [],
+      externalUploadAllowed: false,
+      estimatedExternalScreenshots: 1,
+      externalCallsPlanned: 0
+    });
+    expect(argos?.externalUploadBlockedReasons.join(" ")).toContain("pullRequest=false");
+    expect(JSON.stringify(plan.providerPolicy)).not.toContain("secret-value");
+  });
+
   it("excludes unsafe targets unless allowed", () => {
     const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: [] });
     expect(plan.items.map((item) => item.contractId)).not.toContain("unsafe-contract");

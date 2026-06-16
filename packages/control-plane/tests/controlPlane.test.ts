@@ -133,6 +133,69 @@ viewports:
     ),
     "utf8"
   );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        mode: "pr",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        changedFiles: ["src/App.tsx"],
+        effectiveChangedFiles: ["src/App.tsx"],
+        ignoredChangedFiles: [],
+        targets: [{ id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+        items: [
+          {
+            contractId: "dashboard",
+            targetId: "localPreview",
+            targetUrl: "http://127.0.0.1:4173",
+            severity: "high",
+            cost: "cheap",
+            reasons: ["runOn.pullRequest=true"],
+            screenshots: ["dashboard:/:desktop"]
+          }
+        ],
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: ["mode=pr", "mutation not selected for this mode"] },
+        providerPolicy: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            enabled: true,
+            mode: "external",
+            availability: "available",
+            deterministicRole: "oracle",
+            requiredEnv: [],
+            missingEnv: [],
+            externalUploadAllowed: true,
+            externalUploadBlockedReasons: [],
+            estimatedExternalScreenshots: 1,
+            externalCallsPlanned: 0,
+            reasons: ["Playwright remains the deterministic pass/fail oracle."]
+          },
+          {
+            providerId: "argos",
+            label: "Argos",
+            enabled: false,
+            mode: "external",
+            availability: "disabled",
+            deterministicRole: "supplemental",
+            requiredEnv: ["ARGOS_TOKEN"],
+            missingEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowed: false,
+            externalUploadBlockedReasons: ["costPolicy.externalUpload.pullRequest=false for pr mode."],
+            estimatedExternalScreenshots: 1,
+            externalCallsPlanned: 0,
+            reasons: ["Provider is disabled in config.", "No external provider network calls are planned by the default Visual Hive planner."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
   await writeFile(
@@ -441,6 +504,10 @@ describe("control plane", () => {
     expect(snapshot.triageReport?.summary.findingCount).toBe(1);
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
+      providerId: "playwright",
+      externalCallsPlanned: 0
+    });
     expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
     expect(snapshot.setupRecommendation?.setupProfile).toBe("free-local");
     expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
@@ -595,6 +662,7 @@ describe("control plane", () => {
       expect(appJs).toContain("/api/workflows/write-templates");
       expect(appJs).toContain("workflow-write-all");
       expect(appJs).toContain("Provider recommendation");
+      expect(appJs).toContain("Provider plan policy");
       expect(appJs).toContain("Setup PR guidance");
       expect(appJs).toContain("setup-write-config");
       expect(appJs).toContain("/api/setup/write-config");

@@ -38,6 +38,22 @@ export interface MutationPlan {
   reasons: string[];
 }
 
+export interface PlanProviderPolicy {
+  providerId: string;
+  label: string;
+  enabled: boolean;
+  mode: "mock" | "external";
+  availability: "available" | "disabled" | "missing_credentials" | "mock" | "policy_blocked";
+  deterministicRole: "oracle" | "supplemental";
+  requiredEnv: string[];
+  missingEnv: string[];
+  externalUploadAllowed: boolean;
+  externalUploadBlockedReasons: string[];
+  estimatedExternalScreenshots: number;
+  externalCallsPlanned: 0;
+  reasons: string[];
+}
+
 export interface IgnoredChangedFile {
   file: string;
   pattern: string;
@@ -56,6 +72,7 @@ export interface Plan {
   items: PlanItem[];
   excluded: ExcludedPlanItem[];
   mutation: MutationPlan;
+  providerPolicy: PlanProviderPolicy[];
 }
 
 export interface CreatePlanOptions {
@@ -67,4 +84,5 @@ export interface CreatePlanOptions {
   includeTargets?: string[];
   excludeTargets?: string[];
   now?: Date;
+  env?: NodeJS.ProcessEnv;
 }

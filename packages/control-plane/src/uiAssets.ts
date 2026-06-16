@@ -418,9 +418,24 @@ function llm() {
 function providers() {
   if (!snapshot.providers.length) return empty("No provider config loaded.");
   return card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Missing env", "Supports"], snapshot.providers.map(p => [p.label, p.enabled ? "yes" : "no", p.availability, p.mode, p.deterministicRole, p.missingEnv.join(", ") || "none", p.supports.join(", ")]))) +
+    providerPlanPolicyCard(snapshot.plan?.providerPolicy) +
     providerResultsCard(snapshot.report?.providerResults) +
     providerRunResultsCard(snapshot.providerRunReport) +
     '<div class="grid" style="margin-top:14px">' + snapshot.providers.map(p => card(p.label, '<p><b>Status:</b> ' + esc(p.availability) + '</p><p>' + esc(p.message) + '</p><p class="muted">' + esc(p.docs) + '</p>')).join("") + '</div>';
+}
+
+function providerPlanPolicyCard(policy) {
+  if (!policy || !policy.length) return card("Provider plan policy", '<p class="muted">No provider policy found in plan.json. Run visual-hive plan with a current CLI.</p>');
+  return card("Provider plan policy", '<p class="muted">Planner evidence only. External calls planned should remain 0 unless a future trusted adapter explicitly changes that.</p>' +
+    table(["Provider", "Availability", "Upload", "Estimated screenshots", "External calls", "Missing env", "Reasons"], policy.map(p => [
+      p.label,
+      p.availability,
+      p.providerId === "playwright" ? "local" : (p.externalUploadAllowed ? "allowed" : "blocked"),
+      String(p.estimatedExternalScreenshots),
+      String(p.externalCallsPlanned),
+      (p.missingEnv || []).join(", ") || "none",
+      (p.reasons || []).join("; ")
+    ])));
 }
 
 function github() {

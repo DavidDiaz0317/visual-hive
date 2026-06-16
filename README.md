@@ -108,7 +108,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive init`: creates config, workflow templates, and `.visual-hive/generated`.
 - `visual-hive recommend`: inspects package scripts, framework hints, stable selectors, setup profile, provider posture, cost/permission guidance, and setup PR steps, then writes `.visual-hive/recommendations.json`; add `--write-config` to create a starter config and `--write-docs` to create `docs/visual-hive.md`.
 - `visual-hive doctor`: validates config, Node 22, Playwright availability, and target settings.
-- `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, and cost.
+- `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, cost, mutation applicability, and provider cost-policy evidence.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
 - `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.

@@ -14,7 +14,8 @@
     "targets",
     "items",
     "excluded",
-    "mutation"
+    "mutation",
+    "providerPolicy"
   ],
   "additionalProperties": false,
   "properties": {
@@ -28,6 +29,10 @@
     "targets": { "type": "array" },
     "items": { "type": "array" },
     "excluded": { "type": "array" },
+    "providerPolicy": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerPolicy" }
+    },
     "mutation": {
       "type": "object",
       "required": ["enabled", "operators", "minScore", "reasons"],
@@ -81,6 +86,40 @@
         "theme-token-drift",
         "stale-loading-state"
       ]
+    },
+    "providerPolicy": {
+      "type": "object",
+      "required": [
+        "providerId",
+        "label",
+        "enabled",
+        "mode",
+        "availability",
+        "deterministicRole",
+        "requiredEnv",
+        "missingEnv",
+        "externalUploadAllowed",
+        "externalUploadBlockedReasons",
+        "estimatedExternalScreenshots",
+        "externalCallsPlanned",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "providerId": { "type": "string" },
+        "label": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "mode": { "enum": ["mock", "external"] },
+        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
+        "deterministicRole": { "enum": ["oracle", "supplemental"] },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "missingEnv": { "type": "array", "items": { "type": "string" } },
+        "externalUploadAllowed": { "type": "boolean" },
+        "externalUploadBlockedReasons": { "type": "array", "items": { "type": "string" } },
+        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "externalCallsPlanned": { "const": 0 },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
     }
   }
 }

@@ -55,7 +55,8 @@ export function formatPlanSummary(plan: Plan): string {
     `Mode: ${plan.mode}`,
     `Contracts selected: ${plan.items.length}`,
     `Targets selected: ${plan.targets.map((target) => target.id).join(", ") || "none"}`,
-    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.map((operator) => mutationOperatorId(operator)).join(", ")})` : "disabled"}`
+    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.map((operator) => mutationOperatorId(operator)).join(", ")})` : "disabled"}`,
+    `Provider policy: ${formatProviderPolicyLine(plan)}`
   ];
   if (plan.mode === "pr" && plan.ignoredChangedFiles.length > 0) {
     lines.push(`Ignored changed files: ${plan.ignoredChangedFiles.length}`);
@@ -73,6 +74,25 @@ export function formatPlanSummary(plan: Plan): string {
     }
   }
   return lines.join("\n");
+}
+
+function formatProviderPolicyLine(plan: Plan): string {
+  if (!plan.providerPolicy.length) return "none";
+  return plan.providerPolicy
+    .map((provider) => {
+      const external =
+        provider.providerId === "playwright"
+          ? "local"
+          : !provider.enabled
+            ? "external-disabled"
+          : provider.externalUploadAllowed
+            ? "external-allowed"
+            : provider.externalUploadBlockedReasons.length
+              ? "external-blocked"
+              : "external-disabled";
+      return `${provider.label}=${provider.availability}/${external}/calls=${provider.externalCallsPlanned}`;
+    })
+    .join(", ");
 }
 
 export function isIntentionalIgnoredFilesPlan(plan: Plan): boolean {
