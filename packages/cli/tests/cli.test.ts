@@ -25,6 +25,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/sched
 import { formatWorkflowsAudit, runWorkflowsCommand } from "../src/commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
+import { formatLLMUsage, runLLMCommand } from "../src/commands/llm.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
@@ -85,6 +86,7 @@ describe("CLI commands", () => {
       "demo:workflows",
       "demo:providers",
       "demo:triage",
+      "demo:llm",
       "demo:report",
       "demo:history",
       "demo:artifacts"
@@ -96,6 +98,7 @@ describe("CLI commands", () => {
     }
     expect(packageJson.scripts["demo:providers"]).toContain("providers --config");
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
+    expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
@@ -924,6 +927,22 @@ contracts:
     expect(llmUsage.summary).toMatchObject({ callsMade: 0, promptOnly: true });
     expect(llmUsage.records.map((record) => record.task)).toContain("repair_prompt");
     expect(llmUsage.records.map((record) => record.task)).toContain("baseline_review_summary");
+
+    const llmResult = await runLLMCommand({ cwd: tempRoot });
+    const llmSummary = formatLLMUsage(llmResult);
+    expect(llmResult.promptArtifactCount).toBe(5);
+    expect(llmResult.report.summary.callsMade).toBe(0);
+    expect(llmResult.report.summary.promptOnly).toBe(true);
+    expect(llmResult.report.records.map((record) => record.task)).toEqual([
+      "visual_failure_triage",
+      "repair_prompt",
+      "missing_tests",
+      "baseline_review_summary",
+      "issue_draft"
+    ]);
+    expect(llmSummary).toContain("LLM Governance: cli-triage");
+    expect(llmSummary).toContain("External LLM calls made: 0");
+    expect(llmSummary).not.toContain("secret-value");
   });
 
   it("inspects providers without printing secret values", async () => {

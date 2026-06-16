@@ -25,6 +25,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.
 import { formatWorkflowsAudit, runWorkflowsCommand } from "./commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
+import { formatLLMUsage, runLLMCommand } from "./commands/llm.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import {
   formatConnectionsIndex,
@@ -389,6 +390,23 @@ program
         format: options.format
       });
       console.log(formatArtifactsIndex(result.index, result.indexPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("llm")
+  .description("Audit prompt-only LLM governance, budgets, and generated prompt artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLLMCommand({
+        config: options.config,
+        format: options.format
+      });
+      console.log(formatLLMUsage(result, options.format));
     } catch (error) {
       fail(error);
     }

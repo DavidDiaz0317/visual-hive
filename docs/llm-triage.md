@@ -52,4 +52,6 @@ If `.visual-hive/coverage.json` exists, triage includes it in the missing-covera
 
 `llm-usage.json` records prompt tasks, estimated tokens, estimated input cost, prompt-only status, budget status, and `callsMade: 0`. It includes `baseline_review_summary` when `visual-hive triage` writes `baseline-review.md`, and uses the config values under `ai.model`, `ai.maxPromptTokens`, and `ai.maxEstimatedCostUsd`.
 
+Run `visual-hive llm` to re-audit the existing prompt artifacts without regenerating triage. It reads known `.visual-hive` prompt/markdown artifacts, rewrites `.visual-hive/llm-usage.json`, prints budget status, and still records `callsMade: 0`.
+
 The Control Plane LLM page reads the same artifact and shows prompt availability, budget warnings, and governance recommendations. It never performs a model call.

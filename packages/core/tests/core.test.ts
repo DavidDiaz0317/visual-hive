@@ -20,7 +20,7 @@ import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
-import { buildLLMUsageReport } from "../src/llm/usage.js";
+import { buildLLMUsageReport, KNOWN_LLM_PROMPT_ARTIFACTS } from "../src/llm/usage.js";
 import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
@@ -1356,6 +1356,23 @@ describe("run history", () => {
 });
 
 describe("LLM usage governance", () => {
+  it("defines the default prompt artifacts used by CLI and Control Plane governance", () => {
+    expect(KNOWN_LLM_PROMPT_ARTIFACTS.map((artifact) => artifact.path)).toEqual([
+      ".visual-hive/triage-prompt.md",
+      ".visual-hive/repair-prompt.md",
+      ".visual-hive/missing-tests.md",
+      ".visual-hive/baseline-review.md",
+      ".visual-hive/issue.md"
+    ]);
+    expect(KNOWN_LLM_PROMPT_ARTIFACTS.map((artifact) => artifact.task)).toEqual([
+      "visual_failure_triage",
+      "repair_prompt",
+      "missing_tests",
+      "baseline_review_summary",
+      "issue_draft"
+    ]);
+  });
+
   it("records prompt-only token and cost estimates without API calls", () => {
     const config = VisualHiveConfigSchema.parse({
       ...sampleConfig(),

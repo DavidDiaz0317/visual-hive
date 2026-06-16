@@ -16,6 +16,40 @@ export interface LLMPromptArtifact {
   content: string;
 }
 
+export interface KnownLLMPromptArtifact {
+  task: LLMTaskType;
+  path: string;
+  description: string;
+}
+
+export const KNOWN_LLM_PROMPT_ARTIFACTS: KnownLLMPromptArtifact[] = [
+  {
+    task: "visual_failure_triage",
+    path: ".visual-hive/triage-prompt.md",
+    description: "Visual failure, mutation survivor, and missing coverage triage prompt."
+  },
+  {
+    task: "repair_prompt",
+    path: ".visual-hive/repair-prompt.md",
+    description: "Repair-planning prompt grounded in deterministic evidence."
+  },
+  {
+    task: "missing_tests",
+    path: ".visual-hive/missing-tests.md",
+    description: "Missing deterministic test suggestions."
+  },
+  {
+    task: "baseline_review_summary",
+    path: ".visual-hive/baseline-review.md",
+    description: "Baseline review evidence summary."
+  },
+  {
+    task: "issue_draft",
+    path: ".visual-hive/issue.md",
+    description: "Sanitized GitHub issue draft."
+  }
+];
+
 export interface LLMUsageReport {
   schemaVersion: 1;
   project: string;
