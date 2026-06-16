@@ -23,7 +23,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
 
 Initialize Visual Hive in another repo:
 
@@ -118,6 +118,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive security`: builds `.visual-hive/security.json`, an offline security posture report across workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence.
 - `visual-hive costs`: builds `.visual-hive/costs.json`, a local/external cost posture report across selected contracts, screenshot volume, provider upload policy, and budgets.
 - `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.
+- `visual-hive flows`: audits deterministic user-flow coverage, latest flow failures, and gaps in `.visual-hive/flows.json`.
 - `visual-hive targets`: audits target safety, commands, services, secrets, lifecycle evidence, and gaps in `.visual-hive/targets.json`.
 - `visual-hive schedules`: audits PR, scheduled, protected, mutation, and trusted issue lanes in `.visual-hive/schedules.json`.
 - `visual-hive workflows`: audits GitHub Actions YAML for PR secret safety, `pull_request_target`, artifact upload, and trusted issue patterns in `.visual-hive/workflows.json`. Add `--write-templates` to write the built-in PR, scheduled, and trusted issue workflow templates; existing files are protected unless `--force` is passed after review.
@@ -132,7 +133,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
 - `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive providers decision`: records a local sanitized provider governance decision in `.visual-hive/provider-decisions.json` without enabling credentials, billing, uploads, or provider network calls.
-- `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, mutation, failures, and raw artifacts.
+- `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, flows, mutation, failures, and raw artifacts.
 
 Target kinds are `url`, `deployPreview`, `storybook`, `command`, `commandGroup`, and `protected`. Deploy-preview targets resolve PR preview URLs from safe env-var names and default to cheap PR-safe checks; Storybook targets model component-library coverage without requiring Chromatic; protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
 

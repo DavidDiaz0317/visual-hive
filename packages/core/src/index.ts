@@ -4,6 +4,7 @@ export * from "./contracts/audit.js";
 export * from "./connections/manage.js";
 export * from "./coverage/analyze.js";
 export * from "./coverage/improve.js";
+export * from "./flows/audit.js";
 export * from "./planner/createPlan.js";
 export * from "./planner/types.js";
 export * from "./reports/types.js";

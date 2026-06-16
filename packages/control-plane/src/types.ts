@@ -4,6 +4,7 @@ import type {
   CostAuditReport,
   CoverageImprovementReport,
   CoverageReport,
+  FlowAuditReport,
   RepoConnectionIndex,
   LLMUsageReport,
   MutationReport,
@@ -222,6 +223,7 @@ export interface ControlPlaneSnapshot {
   providerDecisionLog?: ProviderDecisionLog;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
+  flowAudit?: FlowAuditReport;
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
   setupRecommendation?: SetupRecommendationReport;

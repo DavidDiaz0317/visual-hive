@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `provider-results.json`, `provider-decisions.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `provider-results.json`, `provider-decisions.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -69,6 +69,14 @@ Path: `.visual-hive/schedules.json`
 Schema: `schemas/visual-hive.schedules.schema.json`
 
 The schedule audit records the pull request, scheduled, protected, mutation, and trusted issue lanes. It includes lane commands, triggers, contract IDs, target IDs, required secret names, missing secret names, safety gaps, and recommendations. It is used by the Control Plane Schedule Manager and should not contain secret values.
+
+## Flow Audit
+
+Path: `.visual-hive/flows.json`
+
+Schema: `schemas/visual-hive.flows.schema.json`
+
+The flow audit is written by `visual-hive flows`. It records deterministic user-flow coverage per contract, classifies steps as navigation, interaction, wait, or assertion, connects latest report flow-step failures back to contracts, and highlights gaps such as critical contracts without flows, flows without explicit navigation, flows with interactions but no flow assertions, and selected flow contracts with latest failures.
 
 ## Workflow Safety Audit
 

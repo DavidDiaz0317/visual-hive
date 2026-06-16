@@ -36,6 +36,8 @@ jobs:
         if: always()
       - run: npx visual-hive contracts --mode pr --base origin/main
         if: always()
+      - run: npx visual-hive flows --mode pr --base origin/main
+        if: always()
       - run: npx visual-hive schedules --base origin/main
         if: always()
       - run: npx visual-hive workflows
@@ -223,6 +225,8 @@ jobs:
       - run: npx visual-hive targets --mode schedule
         if: always()
       - run: npx visual-hive contracts --mode schedule
+        if: always()
+      - run: npx visual-hive flows --mode schedule
         if: always()
       - run: npx visual-hive schedules
         if: always()

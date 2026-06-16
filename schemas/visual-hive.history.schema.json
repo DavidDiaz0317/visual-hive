@@ -78,6 +78,7 @@
               "llmUsage": { "type": "string" },
               "coverage": { "type": "string" },
               "contracts": { "type": "string" },
+              "flows": { "type": "string" },
               "targets": { "type": "string" },
               "schedules": { "type": "string" }
             }

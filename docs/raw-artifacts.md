@@ -8,6 +8,7 @@ It records:
 - matching `schemas/visual-hive.*.schema.json` path and schema ID for known JSON artifacts
 - JSON, Markdown, text, log, YAML, TypeScript/generated spec, image, and other classifications
 - setup recommendation artifacts labeled as `setup-recommendations`
+- flow audit artifacts labeled as `flow-audit`
 - sanitized previews for text-like artifacts
 - redaction and truncation flags
 

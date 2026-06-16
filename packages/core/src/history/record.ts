@@ -65,6 +65,7 @@ export interface RunHistoryFiles {
   llmUsage?: string;
   coverage?: string;
   contracts?: string;
+  flows?: string;
   targets?: string;
   schedules?: string;
 }
@@ -103,6 +104,7 @@ const ARCHIVED_FILES: Array<{ key: keyof RunHistoryFiles; source: string; destin
   { key: "llmUsage", source: "llm-usage.json", destination: "llm-usage.json", type: "json" },
   { key: "coverage", source: "coverage.json", destination: "coverage.json", type: "json" },
   { key: "contracts", source: "contracts.json", destination: "contracts.json", type: "json" },
+  { key: "flows", source: "flows.json", destination: "flows.json", type: "json" },
   { key: "targets", source: "targets.json", destination: "targets.json", type: "json" },
   { key: "schedules", source: "schedules.json", destination: "schedules.json", type: "json" }
 ];

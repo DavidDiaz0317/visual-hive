@@ -27,6 +27,7 @@ import {
 } from "./commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "./commands/coverage.js";
 import { formatContractsAudit, runContractsCommand } from "./commands/contracts.js";
+import { formatFlowsAudit, runFlowsCommand } from "./commands/flows.js";
 import { formatTargetsAudit, runTargetsCommand } from "./commands/targets.js";
 import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.js";
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "./commands/workflows.js";
@@ -324,6 +325,43 @@ program
         format: options.format
       });
       console.log(formatContractsAudit(result.audit, result.auditPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("flows")
+  .description("Audit deterministic user-flow coverage, latest flow failures, and actionable flow gaps")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan path override")
+  .option("--report <path>", "report path override")
+  .option("--mode <mode>", "plan mode to use when no plan exists: pr, schedule, manual, canary, mutation, or full", "pr")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for changed-file selection")
+  .option("--allow-unsafe-targets", "include non-prSafe targets in PR-mode selection")
+  .option("--include-contract <id>", "explicitly include a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-contract <id>", "explicitly exclude a contract when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--include-target <id>", "explicitly include contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--exclude-target <id>", "explicitly exclude contracts for a target when creating an in-memory plan (repeatable)", collectRepeatable, [])
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runFlowsCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        allowUnsafeTargets: options.allowUnsafeTargets,
+        includeContracts: options.includeContract,
+        excludeContracts: options.excludeContract,
+        includeTargets: options.includeTarget,
+        excludeTargets: options.excludeTarget,
+        format: options.format
+      });
+      console.log(formatFlowsAudit(result.audit, result.auditPath, options.format));
     } catch (error) {
       fail(error);
     }

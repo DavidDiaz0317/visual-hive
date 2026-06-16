@@ -28,6 +28,7 @@ import {
 import { formatCoverageSummary, runCoverageCommand } from "../src/commands/coverage.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "../src/commands/improve.js";
 import { formatContractsAudit, runContractsCommand } from "../src/commands/contracts.js";
+import { formatFlowsAudit, runFlowsCommand } from "../src/commands/flows.js";
 import { formatTargetsAudit, runTargetsCommand } from "../src/commands/targets.js";
 import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/schedules.js";
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "../src/commands/workflows.js";
@@ -179,6 +180,7 @@ contracts:
       "demo:improve",
       "demo:targets",
       "demo:contracts",
+      "demo:flows",
       "demo:schedules",
       "demo:workflows",
       "demo:providers",
@@ -425,6 +427,24 @@ viewports:
     expect(written.contracts.map((contract) => contract.id)).toContain("dashboard-visual-stability");
     expect(summary).toContain("Contract Audit: demo-react-app");
     await expect(access(path.join(demoRoot, ".visual-hive", "contracts.json"))).resolves.toBeUndefined();
+  });
+
+  it("flows writes a user-flow audit artifact", async () => {
+    const demoRoot = path.join(repoRoot, "examples/demo-react-app");
+    const result = await runFlowsCommand({
+      config: path.join(demoRoot, "visual-hive.config.yaml"),
+      cwd: repoRoot,
+      mode: "pr",
+      changedFiles: path.join(demoRoot, "changed-files.txt")
+    });
+    const written = await readJson<typeof result.audit>(result.auditPath);
+    const summary = formatFlowsAudit(written, result.auditPath);
+
+    expect(written.schemaVersion).toBe(1);
+    expect(written.summary.contractCount).toBeGreaterThan(0);
+    expect(written.flows.map((flow) => flow.contractId)).toContain("hosted-demo-never-login");
+    expect(summary).toContain("Flow Audit: demo-react-app");
+    await expect(access(path.join(demoRoot, ".visual-hive", "flows.json"))).resolves.toBeUndefined();
   });
 
   it("targets writes a target audit artifact", async () => {

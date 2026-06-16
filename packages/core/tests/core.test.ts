@@ -8,6 +8,7 @@ import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/sch
 import { auditContracts } from "../src/contracts/audit.js";
 import { analyzeCoverage } from "../src/coverage/analyze.js";
 import { buildCoverageImprovementReport } from "../src/coverage/improve.js";
+import { auditFlows } from "../src/flows/audit.js";
 import { auditTargets } from "../src/targets/audit.js";
 import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
@@ -581,6 +582,7 @@ describe("schema catalog", () => {
 
     expect(schemaNames).toContain("visual-hive.provider-decisions.schema.json");
     expect(schemaNames).toContain("visual-hive.llm-decisions.schema.json");
+    expect(schemaNames).toContain("visual-hive.flows.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -1102,6 +1104,102 @@ describe("contract audit", () => {
   });
 });
 
+describe("flow audit", () => {
+  it("reports user-flow coverage, latest flow failures, and critical gaps", () => {
+    const base = sampleConfig();
+    const config = VisualHiveConfigSchema.parse({
+      ...base,
+      contracts: base.contracts.map((contract) =>
+        contract.id === "safe-contract"
+          ? {
+              ...contract,
+              steps: [
+                { action: "goto", route: "/" },
+                { action: "click", selector: "[data-testid='critical-action-button']" },
+                { action: "assertText", selector: "main", text: "Ready" }
+              ]
+            }
+          : contract
+      )
+    });
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"], allowUnsafeTargets: true });
+    const report: Report = {
+      schemaVersion: 2,
+      project: "sample",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [],
+      selectedContracts: ["safe-contract"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "safe-contract",
+          targetId: "safe",
+          status: "failed",
+          durationMs: 10,
+          errors: ["flow failed"],
+          artifacts: [],
+          flowSteps: [
+            { action: "goto", route: "/", status: "passed", durationMs: 1 },
+            {
+              action: "click",
+              selector: "[data-testid='critical-action-button']",
+              status: "failed",
+              durationMs: 2,
+              message: "button was disabled"
+            }
+          ],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0,
+        flowStepsPassed: 1,
+        flowStepsFailed: 1
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      reproductionCommands: []
+    };
+
+    const audit = auditFlows(config, { plan, report, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(audit.schemaVersion).toBe(1);
+    expect(audit.summary).toMatchObject({
+      contractCount: 3,
+      flowContractCount: 1,
+      flowStepCount: 3,
+      navigationSteps: 1,
+      interactionSteps: 1,
+      assertionSteps: 1,
+      failedFlowSteps: 1,
+      criticalContractsWithoutFlow: 1
+    });
+    const safe = audit.flows.find((flow) => flow.contractId === "safe-contract");
+    expect(safe?.steps.map((step) => step.category)).toEqual(["navigation", "interaction", "assertion"]);
+    expect(safe?.gaps.map((gap) => gap.kind)).toContain("failed_latest_flow");
+    expect(safe?.latestFailedMessages).toContain("button was disabled");
+    const unsafe = audit.flows.find((flow) => flow.contractId === "unsafe-contract");
+    expect(unsafe?.gaps.map((gap) => gap.kind)).toContain("no_flow_steps");
+    expect(audit.recommendations.join(" ")).toContain("critical contracts");
+  });
+});
+
 describe("target audit", () => {
   it("reports target safety, services, missing secret names, lifecycle, and gaps", () => {
     const config = VisualHiveConfigSchema.parse({
@@ -1561,10 +1659,10 @@ jobs:
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
-    for (const command of ["coverage", "targets", "contracts", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
       expect(prTemplate).toContain(`npx visual-hive ${command}`);
     }
-    for (const command of ["mutate --enforce-min-score", "coverage", "targets", "contracts", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
       expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
     }
     expect(audit.summary).toMatchObject({
@@ -1968,6 +2066,7 @@ describe("run history", () => {
     await writeFile(path.join(hiveRoot, "issue.md"), "token=abc123 should be redacted", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Authorization: Bearer pr-comment-secret", "utf8");
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
+    await writeFile(path.join(hiveRoot, "flows.json"), '{"schemaVersion":1,"flows":[]}', "utf8");
     await writeJson(path.join(hiveRoot, "triage.json"), buildTriageReport({
       project: "baseline-fixture",
       findings: [
@@ -2001,6 +2100,7 @@ describe("run history", () => {
     expect(history.entries[0]?.files.prComment).toBe(".visual-hive/history/run-one/pr-comment.md");
     expect(history.entries[0]?.files.baselineReview).toBe(".visual-hive/history/run-one/baseline-review.md");
     expect(history.entries[0]?.files.triageReport).toBe(".visual-hive/history/run-one/triage.json");
+    expect(history.entries[0]?.files.flows).toBe(".visual-hive/history/run-one/flows.json");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "issue.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "pr-comment.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "baseline-review.md"), "utf8")).resolves.toContain("[REDACTED]");
@@ -2099,6 +2199,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "flows.json"), '{"schemaVersion":1,"flows":[{"latestFailedMessages":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "security.json"), '{"findings":[{"evidence":["authorization: bearer abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "costs.json"), '{"providers":[{"blockedReasons":["client_secret=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
@@ -2116,7 +2217,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(13);
+    expect(index.summary.artifactCount).toBe(14);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2143,6 +2244,10 @@ describe("artifact index", () => {
     expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
     expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
     expect(coverageRecommendations?.schemaPath).toBe("schemas/visual-hive.coverage-recommendations.schema.json");
+    const flowAudit = index.artifacts.find((artifact) => artifact.path.endsWith("flows.json"));
+    expect(flowAudit?.preview).toContain("[REDACTED]");
+    expect(flowAudit?.labels).toContain("flow-audit");
+    expect(flowAudit?.schemaPath).toBe("schemas/visual-hive.flows.schema.json");
     const securityAudit = index.artifacts.find((artifact) => artifact.path.endsWith("security.json"));
     expect(securityAudit?.preview).toContain("[REDACTED]");
     expect(securityAudit?.labels).toContain("security-audit");

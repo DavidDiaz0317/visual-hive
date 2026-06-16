@@ -16,7 +16,7 @@ npm run demo:ci
 npm run smoke:cli
 ```
 
-The demo flow writes plan, report, mutation, coverage, target audit, contract audit, schedule audit, workflow-safety, no-network provider adapter results, triage, LLM-governance, issue, PR-comment, run history, and artifact-index outputs under `examples/demo-react-app/.visual-hive`.
+The demo flow writes plan, report, mutation, coverage, target audit, contract audit, flow audit, schedule audit, workflow-safety, no-network provider adapter results, triage, LLM-governance, issue, PR-comment, run history, and artifact-index outputs under `examples/demo-react-app/.visual-hive`.
 
 ## Future npm Package Path
 

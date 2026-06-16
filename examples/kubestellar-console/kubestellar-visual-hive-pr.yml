@@ -27,6 +27,8 @@ jobs:
         if: always()
       - run: npx visual-hive contracts --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --base origin/main
         if: always()
+      - run: npx visual-hive flows --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --base origin/main
+        if: always()
       - run: npx visual-hive schedules --config examples/kubestellar-console/visual-hive.config.yaml --base origin/main
         if: always()
       - run: npx visual-hive workflows --config examples/kubestellar-console/visual-hive.config.yaml

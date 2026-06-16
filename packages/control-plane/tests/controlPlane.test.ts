@@ -709,6 +709,9 @@ describe("control plane", () => {
     expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
     expect(snapshot.contractAudit?.summary.contractCount).toBe(1);
     expect(snapshot.contractAudit?.contracts[0]?.latestStatus).toBe("passed");
+    expect(snapshot.flowAudit?.summary.contractCount).toBe(1);
+    expect(snapshot.flowAudit?.summary.contractsWithoutFlow).toBe(1);
+    expect(snapshot.flowAudit?.recommendations.join(" ")).toContain("flow");
     expect(snapshot.scheduleAudit?.summary.pullRequestContracts).toBe(1);
     expect(snapshot.scheduleAudit?.lanes.map((lane) => lane.id)).toContain("trusted_issue");
     expect(snapshot.workflowAudit?.summary.pullRequestWorkflows).toBe(1);
@@ -1323,6 +1326,9 @@ contracts:
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
     expect(controlPlaneJs).toContain("function coverageImprovementCard");
+    expect(controlPlaneJs).toContain('["flows", "Flows"]');
+    expect(controlPlaneJs).toContain("function flows");
+    expect(controlPlaneJs).toContain("Critical without flow");
     expect(controlPlaneJs).toContain("visual-hive improve-coverage");
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");

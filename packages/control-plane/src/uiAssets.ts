@@ -82,6 +82,7 @@ const tabs = [
   ["baselines", "Baselines"],
   ["mutation", "Mutation"],
   ["coverage", "Coverage"],
+  ["flows", "Flows"],
   ["config", "Config"],
   ["targets", "Targets"],
   ["contracts", "Contracts"],
@@ -136,7 +137,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, profiles, actions, risk, security, costs, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, profiles, actions, risk, security, costs, setup, runs, failures, baselines, mutation, coverage, flows, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -730,6 +731,34 @@ function coverageImprovementCard(report) {
       r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' + copyButton(r.suggestedConfigYaml, r.title + " config snippet") : '<span class="muted">none</span>'
     ])) +
     (report.recommendations.length > 10 ? '<p class="muted">Showing 10 of ' + esc(report.recommendations.length) + ' recommendations.</p>' : ''));
+}
+
+function flows() {
+  const audit = snapshot.flowAudit;
+  if (!audit) return empty("No flow audit found. Run visual-hive flows.");
+  const s = audit.summary;
+  return '<div class="grid">' +
+    metric("Flow contracts", s.flowContractCount, s.flowContractCount ? "ok" : "warn") +
+    metric("Selected flows", s.selectedFlowContracts, "") +
+    metric("Flow steps", s.flowStepCount, "") +
+    metric("Failed steps", s.failedFlowSteps, s.failedFlowSteps ? "bad" : "ok") +
+    '</div><div class="grid" style="margin-top:14px">' +
+    metric("Navigation", s.navigationSteps, "") +
+    metric("Interactions", s.interactionSteps, "") +
+    metric("Assertions", s.assertionSteps, s.assertionSteps ? "ok" : "warn") +
+    metric("Critical without flow", s.criticalContractsWithoutFlow, s.criticalContractsWithoutFlow ? "bad" : "ok") +
+    '</div><div class="section" style="margin-top:14px">' +
+    card("Flow contracts", table(["Contract", "Target", "Selected", "Latest", "Steps", "Failed", "Gaps"], audit.flows.map(f => [
+      focusWrapper("contract", f.contractId, esc(f.contractId)),
+      focusWrapper("target", f.targetId, esc(f.targetId)),
+      f.selected ? "yes" : "no",
+      f.latestStatus,
+      f.steps.length ? f.steps.map(step => (step.index + 1) + "." + step.action + " (" + step.category + ")").join("<br>") : '<span class="muted">none</span>',
+      f.latestFailedMessages.length ? '<span class="bad">' + esc(f.latestFailedMessages.join(" ")) + '</span>' : '<span class="ok">0</span>',
+      f.gaps.map(g => g.kind).join(", ") || "none"
+    ]))) +
+    card("Recommendations", audit.recommendations.length ? list(audit.recommendations) : "No flow recommendations from the current audit.") +
+    '</div>';
 }
 
 function config() {

@@ -9,7 +9,7 @@ It records:
 - failed contracts, visual diffs, created/missing baselines, console errors, and page errors
 - mutation score, killed count, and total applicable mutations
 - provider result statuses
-- links to archived plan, report, mutation report, issue body, PR comment, triage, coverage, contract, target, and schedule artifacts when present
+- links to archived plan, report, mutation report, issue body, PR comment, triage, coverage, contract, flow, target, and schedule artifacts when present
 
 Example:
 
@@ -20,6 +20,7 @@ visual-hive mutate
 visual-hive triage
 visual-hive coverage
 visual-hive contracts
+visual-hive flows
 visual-hive targets
 visual-hive schedules
 visual-hive history --record

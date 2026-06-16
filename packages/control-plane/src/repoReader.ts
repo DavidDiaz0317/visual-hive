@@ -9,6 +9,7 @@ import {
   analyzeCosts,
   analyzeRisk,
   auditContracts,
+  auditFlows,
   auditSchedules,
   auditTargets,
   auditWorkflows,
@@ -26,6 +27,7 @@ import {
   type CostAuditReport,
   type CoverageImprovementReport,
   type CoverageReport,
+  type FlowAuditReport,
   type LLMUsageReport,
   type MockProviderRunReport,
   type MutationReport,
@@ -97,6 +99,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerRunReport,
     providerDecisionLog,
     coverageImprovementArtifact,
+    flowAuditArtifact,
     setupRecommendation,
     workflowAuditArtifact,
     runHistoryArtifact,
@@ -122,6 +125,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<MockProviderRunReport>(path.join(hiveRoot, "provider-results.json")),
     readProviderDecisionLog(path.join(hiveRoot, "provider-decisions.json")),
     readJsonIfExists<CoverageImprovementReport>(path.join(hiveRoot, "coverage-recommendations.json")),
+    readJsonIfExists<FlowAuditReport>(path.join(hiveRoot, "flows.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
@@ -151,6 +155,9 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const targetAudit = config ? auditTargets(config, { plan: isPlan(plan) ? plan : undefined, report }) : undefined;
   const contractAudit = config
     ? auditContracts(config, { plan: isPlan(plan) ? plan : undefined, report, mutationReport, selectedContractIds: report?.selectedContracts })
+    : undefined;
+  const flowAudit = config
+    ? (flowAuditArtifact ?? auditFlows(config, { plan: isPlan(plan) ? plan : undefined, report, selectedContractIds: report?.selectedContracts }))
     : undefined;
   const scheduleAudit = config ? auditSchedules(config, { changedFiles: isPlan(plan) ? plan.changedFiles : report?.changedFiles }) : undefined;
   const workflowAudit = config ? (workflowAuditArtifact ?? (await auditWorkflowFilesIfPresent(config, resolved.repoRoot))) : undefined;
@@ -200,6 +207,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     setupRecommendation,
     targetAudit,
     contractAudit,
+    flowAudit,
     scheduleAudit,
     workflowAudit,
     issueMarkdown,

@@ -27,6 +27,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Baseline review with baseline, actual, diff images, diff pixel metadata, artifact path links, and copy buttons
 - Mutation adequacy score and operator outcomes
 - Coverage map from `.visual-hive/coverage.json` or the same core analyzer over configured targets, contracts, routes, viewports, changed-file rules, selected contracts, gaps, and deterministic coverage-improvement recommendations from `.visual-hive/coverage-recommendations.json`
+- Flow Manager from `.visual-hive/flows.json` or the same core analyzer over deterministic user-flow steps, latest flow failures, critical contracts without flows, and recommendations for stronger user journey coverage
 - Target Manager from `.visual-hive/targets.json` or the same core audit model over URL/deploy-preview/Storybook/command/commandGroup/protected targets, services, readiness checks, required secret names, lifecycle evidence, and recommendations
 - Contract Manager from `.visual-hive/contracts.json` or the same core audit model over wait selectors, assertions, screenshots, console rules, latest results, mutation mappings, and recommendations
 - Schedule Manager from `.visual-hive/schedules.json` or the same core audit model over PR, scheduled, protected, mutation, and trusted issue lanes, including secret-name-only readiness and workflow safety gaps
@@ -91,4 +92,4 @@ Approving or rejecting a baseline does not change the historical run result. Re-
 
 This is an early local Control Plane slice. It is a real management layer over guided setup recommendations, setup profile selection, provider/cost guidance and decisions, runbook commands, actionable risk ranking, artifacts, baseline review decisions, guarded setup/config/docs edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
 
-The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `risk.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.
+The default dogfood command, `npm run demo:all`, now generates the management artifacts this UI consumes: `targets.json`, `contracts.json`, `flows.json`, `schedules.json`, `workflows.json`, `provider-results.json`, `risk.json`, `history.json`, `artifacts-index.json`, prompt artifacts, issue/PR markdown, reports, mutation results, and coverage.

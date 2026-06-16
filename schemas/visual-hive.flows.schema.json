@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.flows.schema.json",
+  "title": "Visual Hive Flow Audit Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "flows", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "summary": {
+      "type": "object",
+      "required": [
+        "contractCount",
+        "flowContractCount",
+        "selectedFlowContracts",
+        "flowStepCount",
+        "navigationSteps",
+        "interactionSteps",
+        "assertionSteps",
+        "failedFlowSteps",
+        "contractsWithoutFlow",
+        "criticalContractsWithoutFlow",
+        "highSeverityFlowGaps"
+      ],
+      "properties": {
+        "contractCount": { "type": "integer", "minimum": 0 },
+        "flowContractCount": { "type": "integer", "minimum": 0 },
+        "selectedFlowContracts": { "type": "integer", "minimum": 0 },
+        "flowStepCount": { "type": "integer", "minimum": 0 },
+        "navigationSteps": { "type": "integer", "minimum": 0 },
+        "interactionSteps": { "type": "integer", "minimum": 0 },
+        "assertionSteps": { "type": "integer", "minimum": 0 },
+        "failedFlowSteps": { "type": "integer", "minimum": 0 },
+        "contractsWithoutFlow": { "type": "integer", "minimum": 0 },
+        "criticalContractsWithoutFlow": { "type": "integer", "minimum": 0 },
+        "highSeverityFlowGaps": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "contractId",
+          "targetId",
+          "targetKind",
+          "severity",
+          "selected",
+          "runOn",
+          "steps",
+          "latestStatus",
+          "latestPassedSteps",
+          "latestFailedSteps",
+          "latestFailedMessages",
+          "gaps",
+          "recommendations"
+        ],
+        "properties": {
+          "contractId": { "type": "string" },
+          "targetId": { "type": "string" },
+          "targetKind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
+          "severity": { "enum": ["low", "medium", "high", "critical"] },
+          "selected": { "type": "boolean" },
+          "runOn": {
+            "type": "object",
+            "required": ["pullRequest", "schedule"],
+            "properties": {
+              "pullRequest": { "type": "boolean" },
+              "schedule": { "type": "boolean" }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index", "action", "timeoutMs", "category"],
+              "properties": {
+                "index": { "type": "integer", "minimum": 0 },
+                "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
+                "description": { "type": "string" },
+                "selector": { "type": "string" },
+                "route": { "type": "string" },
+                "value": { "type": "string" },
+                "timeoutMs": { "type": "integer", "minimum": 1 },
+                "category": { "enum": ["navigation", "interaction", "assertion", "wait"] }
+              }
+            }
+          },
+          "latestStatus": { "enum": ["passed", "failed", "created", "skipped", "not_run"] },
+          "latestPassedSteps": { "type": "integer", "minimum": 0 },
+          "latestFailedSteps": { "type": "integer", "minimum": 0 },
+          "latestFailedMessages": { "type": "array", "items": { "type": "string" } },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "severity", "message"],
+              "properties": {
+                "kind": {
+                  "enum": ["no_flow_steps", "no_navigation_step", "no_assertion_step", "failed_latest_flow", "flow_not_selected"]
+                },
+                "severity": { "enum": ["low", "medium", "high"] },
+                "message": { "type": "string" }
+              }
+            }
+          },
+          "recommendations": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "recommendations": { "type": "array", "items": { "type": "string" } }
+  }
+}

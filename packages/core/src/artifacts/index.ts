@@ -201,6 +201,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("control-plane-actions.json")) labels.add("control-plane-actions");
   if (normalized.endsWith("report.json")) labels.add("report");
   if (normalized.endsWith("mutation-report.json")) labels.add("mutation");
+  if (normalized.endsWith("flows.json")) labels.add("flow-audit");
   if (normalized.endsWith("provider-results.json")) labels.add("provider-results");
   if (normalized.endsWith("provider-decisions.json")) labels.add("provider-decisions");
   if (normalized.endsWith("llm-decisions.json")) labels.add("llm-decisions");
@@ -218,6 +219,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "coverage.json": "visual-hive.coverage.schema.json",
     "coverage-recommendations.json": "visual-hive.coverage-recommendations.schema.json",
     "contracts.json": "visual-hive.contracts.schema.json",
+    "flows.json": "visual-hive.flows.schema.json",
     "targets.json": "visual-hive.targets.schema.json",
     "schedules.json": "visual-hive.schedules.schema.json",
     "workflows.json": "visual-hive.workflows.schema.json",
