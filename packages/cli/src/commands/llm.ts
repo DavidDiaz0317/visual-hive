@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import { recordLLMDecision, type LLMDecision, type LLMDecisionEntry } from "@visual-hive/control-plane";
 import {
   buildLLMUsageReport,
   KNOWN_LLM_PROMPT_ARTIFACTS,
@@ -17,11 +18,25 @@ export interface LLMCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface LLMDecisionCommandOptions {
+  config?: string;
+  cwd?: string;
+  decision: LLMDecision;
+  reason?: string;
+  format?: "markdown" | "json";
+}
+
 export interface LLMCommandResult {
   report: LLMUsageReport;
   reportPath: string;
   promptArtifactCount: number;
   missingPromptArtifacts: string[];
+}
+
+export interface LLMDecisionCommandResult {
+  decision: LLMDecisionEntry;
+  decisionPath: string;
+  summary: LLMDecisionEntry[];
 }
 
 export async function runLLMCommand(options: LLMCommandOptions = {}): Promise<LLMCommandResult> {
@@ -39,6 +54,15 @@ export async function runLLMCommand(options: LLMCommandOptions = {}): Promise<LL
       (artifactPath) => !promptArtifacts.some((prompt) => prompt.path === artifactPath)
     )
   };
+}
+
+export async function runLLMDecisionCommand(options: LLMDecisionCommandOptions): Promise<LLMDecisionCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  return recordLLMDecision(path.join(loaded.rootDir, ".visual-hive", "llm-decisions.json"), {
+    decision: options.decision,
+    reason: options.reason
+  });
 }
 
 export function formatLLMUsage(result: LLMCommandResult, format: "markdown" | "json" = "markdown"): string {
@@ -79,6 +103,30 @@ export function formatLLMUsage(result: LLMCommandResult, format: "markdown" | "j
   }
   lines.push("", "LLM output is advisory only. Deterministic Playwright contracts and mutation adequacy remain the pass/fail oracle.");
   return lines.join("\n");
+}
+
+export function formatLLMDecision(result: LLMDecisionCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        decision: result.decision,
+        decisionPath: result.decisionPath,
+        summary: result.summary
+      },
+      null,
+      2
+    );
+  }
+  return [
+    `Wrote ${result.decisionPath}`,
+    "# LLM Decision",
+    "",
+    `- Decision: ${result.decision.decision}`,
+    `- External calls made: ${result.decision.externalCallsMade}`,
+    `- Reason: ${result.decision.reason}`,
+    "",
+    "This records local governance only. It does not enable API keys, billing, model calls, uploads, or pass/fail authority."
+  ].join("\n");
 }
 
 async function readKnownPromptArtifacts(rootDir: string): Promise<LLMPromptArtifact[]> {

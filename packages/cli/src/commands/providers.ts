@@ -1,4 +1,5 @@
 import path from "node:path";
+import { recordProviderDecision, type ProviderDecision, type ProviderDecisionEntry } from "@visual-hive/control-plane";
 import {
   inspectProviders,
   loadConfig,
@@ -17,9 +18,24 @@ export interface ProvidersCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface ProviderDecisionCommandOptions {
+  config?: string;
+  cwd?: string;
+  providerId: string;
+  decision: ProviderDecision;
+  reason?: string;
+  format?: "markdown" | "json";
+}
+
 export interface ProvidersMockCommandResult {
   report: MockProviderRunReport;
   reportPath: string;
+}
+
+export interface ProviderDecisionCommandResult {
+  decision: ProviderDecisionEntry;
+  decisionPath: string;
+  summary: ProviderDecisionEntry[];
 }
 
 export async function runProvidersCommand(options: ProvidersCommandOptions = {}): Promise<ProviderInspection[]> {
@@ -61,6 +77,21 @@ export async function runProvidersMockCommand(options: ProvidersCommandOptions =
   const reportPath = path.join(hiveRoot, "provider-results.json");
   await writeJson(reportPath, report);
   return { report, reportPath };
+}
+
+export async function runProviderDecisionCommand(options: ProviderDecisionCommandOptions): Promise<ProviderDecisionCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
+  const provider = inspectProviders(loaded.config).find((candidate) => candidate.id === options.providerId);
+  if (!provider) {
+    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers" to list configured providers.`);
+  }
+  return recordProviderDecision(path.join(loaded.rootDir, ".visual-hive", "provider-decisions.json"), {
+    providerId: provider.id,
+    label: provider.label,
+    decision: options.decision,
+    reason: options.reason
+  });
 }
 
 export function formatProvidersSummary(providers: ProviderInspection[]): string {
@@ -129,6 +160,31 @@ export function formatProvidersMockSummary(report: MockProviderRunReport, report
     lines.push("", "## Warnings", "", ...report.warnings.map((warning) => `- ${warning}`));
   }
   return lines.join("\n");
+}
+
+export function formatProviderDecision(result: ProviderDecisionCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        decision: result.decision,
+        decisionPath: result.decisionPath,
+        summary: result.summary
+      },
+      null,
+      2
+    );
+  }
+  return [
+    `Wrote ${result.decisionPath}`,
+    "# Provider Decision",
+    "",
+    `- Provider: ${result.decision.label ?? result.decision.providerId} (${result.decision.providerId})`,
+    `- Decision: ${result.decision.decision}`,
+    `- External calls made: ${result.decision.externalCallsMade}`,
+    `- Reason: ${result.decision.reason}`,
+    "",
+    "This records local governance only. It does not enable credentials, billing, uploads, or provider network calls."
+  ].join("\n");
 }
 
 function pad(value: string, width: number): string {

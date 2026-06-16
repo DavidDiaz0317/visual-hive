@@ -60,12 +60,20 @@ Run `visual-hive llm` to re-audit the existing prompt artifacts without regenera
 
 The Control Plane LLM page reads the same artifact and shows prompt availability, budget warnings, and governance recommendations. It never performs a model call.
 
-## Control Plane Decisions
+## Governance Decisions
 
-The Control Plane can record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
+The Control Plane and CLI can record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
 
 - `keep_disabled`: keep the default offline/prompt-only posture.
 - `review_later`: leave LLM usage for a future review.
 - `approve_trusted_prompt_only`: approve a future trusted workflow to review prompts, while preserving deterministic pass/fail.
+
+CLI-only example:
+
+```bash
+visual-hive llm decision --decision keep_disabled --reason "PRs should stay offline"
+visual-hive llm decision --decision review_later
+visual-hive llm decision --decision approve_trusted_prompt_only
+```
 
 Recording a decision does not create API keys, enable billing, call a model, upload artifacts, or change CI pass/fail behavior. Every entry records `externalCallsMade: 0`.

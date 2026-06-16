@@ -17,7 +17,14 @@ import {
   runBaselineListCommand,
   runBaselineRejectCommand
 } from "./commands/baselines.js";
-import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "./commands/providers.js";
+import {
+  formatProviderDecision,
+  formatProvidersMockSummary,
+  formatProvidersSummary,
+  runProviderDecisionCommand,
+  runProvidersCommand,
+  runProvidersMockCommand
+} from "./commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "./commands/coverage.js";
 import { formatContractsAudit, runContractsCommand } from "./commands/contracts.js";
 import { formatTargetsAudit, runTargetsCommand } from "./commands/targets.js";
@@ -25,7 +32,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "./commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
-import { formatLLMUsage, runLLMCommand } from "./commands/llm.js";
+import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
@@ -183,7 +190,7 @@ program
     }
   });
 
-program
+const providersCommand = program
   .command("providers")
   .description("Inspect optional provider adapters and credential-name readiness")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
@@ -199,6 +206,29 @@ program
       }
       const providers = await runProvidersCommand({ config: options.config });
       console.log(options.format === "json" ? JSON.stringify(providers, null, 2) : formatProvidersSummary(providers));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+providersCommand
+  .command("decision")
+  .description("Record a local provider governance decision without making external calls")
+  .requiredOption("--provider <id>", "provider id, for example argos, percy, chromatic, or applitools")
+  .requiredOption("--decision <decision>", "skip, review_later, or approve_trusted_setup")
+  .option("--reason <text>", "human-readable reason for the decision")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runProviderDecisionCommand({
+        config: options.config,
+        providerId: options.provider,
+        decision: options.decision,
+        reason: options.reason,
+        format: options.format
+      });
+      console.log(formatProviderDecision(result, options.format));
     } catch (error) {
       fail(error);
     }
@@ -432,7 +462,7 @@ program
     }
   });
 
-program
+const llmCommand = program
   .command("llm")
   .description("Audit prompt-only LLM governance, budgets, and generated prompt artifacts")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
@@ -444,6 +474,27 @@ program
         format: options.format
       });
       console.log(formatLLMUsage(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+llmCommand
+  .command("decision")
+  .description("Record a local LLM governance decision without making model calls")
+  .requiredOption("--decision <decision>", "keep_disabled, review_later, or approve_trusted_prompt_only")
+  .option("--reason <text>", "human-readable reason for the decision")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLLMDecisionCommand({
+        config: options.config,
+        decision: options.decision,
+        reason: options.reason,
+        format: options.format
+      });
+      console.log(formatLLMDecision(result, options.format));
     } catch (error) {
       fail(error);
     }

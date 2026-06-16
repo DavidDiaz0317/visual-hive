@@ -17,7 +17,14 @@ import {
   runBaselineRejectCommand
 } from "../src/commands/baselines.js";
 import { runTriageCommand } from "../src/commands/triage.js";
-import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "../src/commands/providers.js";
+import {
+  formatProviderDecision,
+  formatProvidersMockSummary,
+  formatProvidersSummary,
+  runProviderDecisionCommand,
+  runProvidersCommand,
+  runProvidersMockCommand
+} from "../src/commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "../src/commands/coverage.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "../src/commands/improve.js";
 import { formatContractsAudit, runContractsCommand } from "../src/commands/contracts.js";
@@ -26,7 +33,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/sched
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "../src/commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
-import { formatLLMUsage, runLLMCommand } from "../src/commands/llm.js";
+import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
@@ -1414,6 +1421,98 @@ providers:
     expect(summary).toContain("ARGOS_TOKEN");
     expect(summary).toContain("Mock mode");
     expect(summary).not.toContain("secret");
+  });
+
+  it("records provider governance decisions from the CLI without external calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-provider-decision-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: provider-decision
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+providers:
+  argos:
+    enabled: false
+`,
+      "utf8"
+    );
+
+    const result = await runProviderDecisionCommand({
+      cwd: tempRoot,
+      providerId: "argos",
+      decision: "skip",
+      reason: "No hosted review yet; token=secret-value"
+    });
+    const summary = formatProviderDecision(result);
+    const written = await readJson<{ decisions: Array<{ providerId: string; reason: string; externalCallsMade: number }> }>(
+      path.join(tempRoot, ".visual-hive", "provider-decisions.json")
+    );
+
+    expect(result.decisionPath).toBe(".visual-hive/provider-decisions.json");
+    expect(result.decision.externalCallsMade).toBe(0);
+    expect(result.decision.reason).toContain("[REDACTED]");
+    expect(result.decision.reason).not.toContain("secret-value");
+    expect(written.decisions[0]).toMatchObject({ providerId: "argos", externalCallsMade: 0 });
+    expect(written.decisions[0]?.reason).not.toContain("secret-value");
+    expect(summary).toContain("Provider Decision");
+    expect(summary).toContain("does not enable credentials");
+    expect(summary).not.toContain("secret-value");
+    await expect(
+      runProviderDecisionCommand({ cwd: tempRoot, providerId: "not-real", decision: "skip" })
+    ).rejects.toThrow(/Unknown provider/);
+  });
+
+  it("records LLM governance decisions from the CLI without model calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-llm-decision-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: llm-decision
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+ai:
+  enabled: false
+  provider: none
+`,
+      "utf8"
+    );
+
+    const result = await runLLMDecisionCommand({
+      cwd: tempRoot,
+      decision: "keep_disabled",
+      reason: "No model calls for PRs; authorization: Bearer secret-value"
+    });
+    const summary = formatLLMDecision(result);
+    const written = await readJson<{ decisions: Array<{ decision: string; reason: string; externalCallsMade: number }> }>(
+      path.join(tempRoot, ".visual-hive", "llm-decisions.json")
+    );
+
+    expect(result.decisionPath).toBe(".visual-hive/llm-decisions.json");
+    expect(result.decision.externalCallsMade).toBe(0);
+    expect(result.decision.reason).toContain("[REDACTED]");
+    expect(result.decision.reason).not.toContain("secret-value");
+    expect(written.decisions[0]).toMatchObject({ decision: "keep_disabled", externalCallsMade: 0 });
+    expect(summary).toContain("LLM Decision");
+    expect(summary).toContain("does not enable API keys");
+    expect(summary).not.toContain("secret-value");
+    await expect(
+      runLLMDecisionCommand({ cwd: tempRoot, decision: "call_openai_now" as never })
+    ).rejects.toThrow(/Invalid LLM decision/);
   });
 
   it("writes provider mock results from the latest deterministic report", async () => {
