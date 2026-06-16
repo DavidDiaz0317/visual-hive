@@ -37,6 +37,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions and blocked reasons
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy/write buttons
 - Guarded workflow template generation into `.github/workflows`, with overwrite protection, explicit confirmation, and `.visual-hive/workflow-edits.json`
+- Portfolio queues for connected repositories, grouping repos into broken setup, deterministic failures, stale reports, missing coverage, coverage gaps, weak mutation, high risk, and healthy queues
 - Local repository connections from `.visual-hive/connections.json`, including write-mode add/remove controls and a health dashboard derived from each repo's report, mutation, coverage, and risk artifacts
 - Safe raw artifact browser for `.visual-hive`, with image previews and redacted text previews from the shared artifact index
 
@@ -47,6 +48,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Repository switching is restricted to connection IDs already present in `.visual-hive/connections.json`; the browser cannot request arbitrary local paths.
 - Connection add/remove actions update only `.visual-hive/connections.json`; they do not delete target repositories or artifact directories.
 - Connection health is derived from local artifacts only. It can show failed deterministic runs, stale reports, missing reports, missing coverage audits, coverage gaps, weak mutation scores, and high-risk registers across connected repos without storing or printing secret values.
+- Portfolio queues are read-only derived views over the same local connection index. They do not execute connected repo code or fetch remote repository data.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
 - Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
 - Baseline rejection is explicit: the user records a reason in `.visual-hive/baseline-rejections.json`; the baseline image is not changed.

@@ -1942,6 +1942,12 @@ describe("local repository connections", () => {
     expect(index.summary.highCoverageGapConnections).toBe(1);
     expect(index.summary.highRiskConnections).toBe(1);
     expect(index.summary.connectionsNeedingAttention).toBe(1);
+    expect(index.portfolio.queues.find((queue) => queue.id === "deterministic_failures")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "stale_reports")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "coverage_gaps")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "weak_mutation")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "high_risk")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.topAttention[0]).toMatchObject({ id: "risky-console", health: "attention" });
     expect(connection).toMatchObject({
       health: "attention",
       latestDeterministicStatus: "failed",

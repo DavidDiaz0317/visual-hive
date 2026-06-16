@@ -42,4 +42,20 @@ Health states:
 
 The summary counts failed deterministic reports, missing deterministic reports, stale deterministic reports, missing coverage audits, coverage gaps, high coverage gaps, weak mutation scores, high-risk registers, blocked repos, and repos needing attention. Secret values are never read from the target repos; protected target audits show required environment variable names only.
 
+## Portfolio queues
+
+The runtime connection index also derives portfolio queues for multi-repo triage:
+
+- `broken_setup`: repo/config paths or config validation block useful evidence
+- `deterministic_failures`: latest deterministic Playwright-backed run failed
+- `missing_reports`: config is valid but no deterministic report exists
+- `stale_reports`: latest deterministic report is older than the built-in freshness threshold
+- `missing_coverage`: a deterministic report exists but no coverage audit has been generated
+- `coverage_gaps`: coverage audit found uncovered areas
+- `weak_mutation`: mutation score is below the configured minimum
+- `high_risk`: risk register has high/critical risk or a high aggregate score
+- `healthy`: valid connected repos with no derived attention signals
+
+The Control Plane Portfolio page renders these queues as an operator view. `visual-hive connections list` prints the same queues in markdown so the CLI/core path remains usable without the UI.
+
 Schema: `schemas/visual-hive.connections.schema.json`.

@@ -9,6 +9,16 @@ import { sanitizeText } from "../utils/sanitize.js";
 
 export type ConnectionStatus = "ready" | "missing_repo" | "missing_config" | "invalid_config";
 export type ConnectionHealth = "ready" | "attention" | "blocked";
+export type ConnectionPortfolioQueueId =
+  | "broken_setup"
+  | "deterministic_failures"
+  | "missing_reports"
+  | "stale_reports"
+  | "missing_coverage"
+  | "coverage_gaps"
+  | "weak_mutation"
+  | "high_risk"
+  | "healthy";
 const STALE_REPORT_DAYS = 7;
 
 export interface RepoConnectionRecord {
@@ -72,8 +82,41 @@ export interface RepoConnectionIndex {
     coverageGapConnections: number;
     highCoverageGapConnections: number;
   };
+  portfolio: RepoConnectionPortfolio;
   connections: RepoConnectionEntry[];
   warnings: string[];
+}
+
+export interface RepoConnectionPortfolio {
+  queues: RepoConnectionPortfolioQueue[];
+  topAttention: RepoConnectionPortfolioItem[];
+}
+
+export interface RepoConnectionPortfolioQueue {
+  id: ConnectionPortfolioQueueId;
+  label: string;
+  description: string;
+  severity: "critical" | "warning" | "ok";
+  nextAction: string;
+  count: number;
+  connections: RepoConnectionPortfolioItem[];
+}
+
+export interface RepoConnectionPortfolioItem {
+  id: string;
+  label: string;
+  projectName?: string;
+  health: ConnectionHealth;
+  status: ConnectionStatus;
+  score: number;
+  reasons: string[];
+  latestDeterministicStatus?: "passed" | "failed";
+  latestReportAgeDays?: number;
+  latestMutationScore?: number;
+  coverageGapCount?: number;
+  highCoverageGapCount?: number;
+  latestRiskScore?: number;
+  latestRiskSeverity?: RiskSeverity | "none";
 }
 
 export interface ConnectionStoreFile {
@@ -129,6 +172,7 @@ export async function listConnections(options: ConnectionStoreOptions): Promise<
     rootRepo: resolved.repoRoot,
     connectionsPath: toRepoRelativePath(resolved.repoRoot, resolved.connectionsPath),
     summary: summarize(connections),
+    portfolio: buildPortfolio(connections),
     connections,
     warnings
   };
@@ -386,6 +430,148 @@ function summarize(connections: RepoConnectionEntry[]): RepoConnectionIndex["sum
     coverageGapConnections: connections.filter((connection) => (connection.coverageGapCount ?? 0) > 0).length,
     highCoverageGapConnections: connections.filter((connection) => (connection.highCoverageGapCount ?? 0) > 0).length
   };
+}
+
+function buildPortfolio(connections: RepoConnectionEntry[]): RepoConnectionPortfolio {
+  const queueDefinitions: Array<{
+    id: ConnectionPortfolioQueueId;
+    label: string;
+    description: string;
+    severity: RepoConnectionPortfolioQueue["severity"];
+    nextAction: string;
+    filter: (connection: RepoConnectionEntry) => boolean;
+  }> = [
+    {
+      id: "broken_setup",
+      label: "Broken setup",
+      description: "Repository path, config path, or config validation prevents Visual Hive from inspecting the repo.",
+      severity: "critical",
+      nextAction: "Fix the local repo/config path or repair the Visual Hive config before relying on this connection.",
+      filter: (connection) => connection.health === "blocked"
+    },
+    {
+      id: "deterministic_failures",
+      label: "Deterministic failures",
+      description: "Latest Playwright-backed deterministic run failed.",
+      severity: "critical",
+      nextAction: "Open the failed report, inspect artifacts, and keep deterministic tests as the pass/fail oracle.",
+      filter: (connection) => connection.latestDeterministicStatus === "failed"
+    },
+    {
+      id: "missing_reports",
+      label: "Missing reports",
+      description: "Config is valid, but no deterministic report is available yet.",
+      severity: "warning",
+      nextAction: "Run visual-hive plan and visual-hive run in the connected repo.",
+      filter: (connection) => connection.status === "ready" && !connection.latestDeterministicStatus
+    },
+    {
+      id: "stale_reports",
+      label: "Stale reports",
+      description: `Latest deterministic report is older than ${STALE_REPORT_DAYS} days.`,
+      severity: "warning",
+      nextAction: "Rerun deterministic checks or schedule a canary lane for this repo.",
+      filter: (connection) => connection.staleReport
+    },
+    {
+      id: "missing_coverage",
+      label: "Missing coverage audits",
+      description: "No coverage artifact exists for a repo with deterministic run evidence.",
+      severity: "warning",
+      nextAction: "Run visual-hive coverage so selection rules, routes, and viewports are visible.",
+      filter: (connection) => connection.status === "ready" && connection.missingCoverage && Boolean(connection.latestDeterministicStatus)
+    },
+    {
+      id: "coverage_gaps",
+      label: "Coverage gaps",
+      description: "Coverage audit found uncovered targets, contracts, routes, viewports, or changed-file rules.",
+      severity: "warning",
+      nextAction: "Review coverage gaps and add contracts or selection rules where risk justifies it.",
+      filter: (connection) => (connection.coverageGapCount ?? 0) > 0
+    },
+    {
+      id: "weak_mutation",
+      label: "Weak mutation adequacy",
+      description: "Mutation score is below the configured minimum.",
+      severity: "warning",
+      nextAction: "Inspect survived mutations and add deterministic contracts that kill them.",
+      filter: (connection) => mutationIsWeak(connection)
+    },
+    {
+      id: "high_risk",
+      label: "High risk register",
+      description: "Risk register contains high or critical risks, or a high aggregate score.",
+      severity: "critical",
+      nextAction: "Open the risk register and address PR-blocking or trusted-only risks first.",
+      filter: (connection) => riskIsHigh(connection)
+    },
+    {
+      id: "healthy",
+      label: "Healthy",
+      description: "Connected repos with valid config and no derived attention signals.",
+      severity: "ok",
+      nextAction: "Keep PR checks enabled and scheduled deeper validation running.",
+      filter: (connection) => connection.health === "ready"
+    }
+  ];
+
+  const queues = queueDefinitions.map((definition) => {
+    const items = connections.filter(definition.filter).map(toPortfolioItem).sort(comparePortfolioItems);
+    return {
+      id: definition.id,
+      label: definition.label,
+      description: definition.description,
+      severity: definition.severity,
+      nextAction: definition.nextAction,
+      count: items.length,
+      connections: items
+    };
+  });
+  const byId = new Map<string, RepoConnectionPortfolioItem>();
+  for (const connection of connections.filter((candidate) => candidate.health !== "ready").map(toPortfolioItem).sort(comparePortfolioItems)) {
+    byId.set(connection.id, connection);
+  }
+  return {
+    queues,
+    topAttention: [...byId.values()].slice(0, 10)
+  };
+}
+
+function toPortfolioItem(connection: RepoConnectionEntry): RepoConnectionPortfolioItem {
+  return {
+    id: connection.id,
+    label: connection.label,
+    projectName: connection.projectName,
+    health: connection.health,
+    status: connection.status,
+    score: portfolioScore(connection),
+    reasons: connection.attention.length ? [...connection.attention] : ["No attention required."],
+    latestDeterministicStatus: connection.latestDeterministicStatus,
+    latestReportAgeDays: connection.latestReportAgeDays,
+    latestMutationScore: connection.latestMutationScore,
+    coverageGapCount: connection.coverageGapCount,
+    highCoverageGapCount: connection.highCoverageGapCount,
+    latestRiskScore: connection.latestRiskScore,
+    latestRiskSeverity: connection.latestRiskSeverity
+  };
+}
+
+function comparePortfolioItems(a: RepoConnectionPortfolioItem, b: RepoConnectionPortfolioItem): number {
+  return b.score - a.score || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
+}
+
+function portfolioScore(connection: RepoConnectionEntry): number {
+  let score = 0;
+  if (connection.health === "blocked") score += 100;
+  if (connection.latestDeterministicStatus === "failed") score += 90;
+  if (riskIsHigh(connection)) score += 80;
+  if ((connection.highCoverageGapCount ?? 0) > 0) score += 75;
+  if (connection.staleReport) score += 65;
+  if (mutationIsWeak(connection)) score += 60;
+  if (connection.status === "ready" && !connection.latestDeterministicStatus) score += 55;
+  if (connection.missingCoverage && connection.latestDeterministicStatus) score += 45;
+  if ((connection.coverageGapCount ?? 0) > 0) score += 30;
+  return score;
 }
 
 function artifactPath(record: RepoConnectionRecord, artifactName: string): string {

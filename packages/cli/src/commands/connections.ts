@@ -95,6 +95,21 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
     );
     if (connection.attention.length) lines.push(`  attention: ${connection.attention.join(" ")}`);
   }
+  const activeQueues = index.portfolio.queues.filter((queue) => queue.count > 0);
+  if (activeQueues.length) {
+    lines.push("", "## Portfolio Queues");
+    for (const queue of activeQueues) {
+      const repos = queue.connections.map((connection) => `${connection.id}(${connection.score})`).join(", ");
+      lines.push(`- ${queue.label}: ${queue.count} - ${repos}`);
+      lines.push(`  next: ${queue.nextAction}`);
+    }
+  }
+  if (index.portfolio.topAttention.length) {
+    lines.push("", "## Top Attention");
+    for (const connection of index.portfolio.topAttention) {
+      lines.push(`- ${connection.id}: ${connection.label} score=${connection.score} reasons=${connection.reasons.join(" ")}`);
+    }
+  }
   if (index.warnings.length) {
     lines.push("", "## Warnings", ...index.warnings.map((warning) => `- ${warning}`));
   }

@@ -69,6 +69,7 @@ a { color: #8bc7ff; }
 export const controlPlaneJs = `
 const tabs = [
   ["overview", "Overview"],
+  ["portfolio", "Portfolio"],
   ["runbook", "Runbook"],
   ["risk", "Risk"],
   ["setup", "Setup"],
@@ -131,7 +132,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, runbook, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -151,6 +152,56 @@ function overview() {
     card("Why this score?", list(o.explanations)) +
     card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown) + "<br>Baseline review: " + yes(snapshot.baselineReviewMarkdown)) +
     '</div>';
+}
+
+function portfolio() {
+  const index = snapshot.connections;
+  if (!index?.portfolio) return empty("No connected repository portfolio found.");
+  const queues = index.portfolio.queues || [];
+  const activeQueues = queues.filter(queue => queue.count > 0 && queue.id !== "healthy");
+  const healthy = queues.find(queue => queue.id === "healthy");
+  return '<div class="grid">' +
+    metric("Connected repos", index.summary.connectionCount, "") +
+    metric("Attention queues", activeQueues.length, activeQueues.length ? "warn" : "ok") +
+    metric("Top attention", index.portfolio.topAttention.length, index.portfolio.topAttention.length ? "warn" : "ok") +
+    metric("Healthy", healthy?.count || 0, healthy?.count ? "ok" : "warn") +
+    '</div><div class="section" style="margin-top:14px">' +
+    card("Portfolio attention queue", index.portfolio.topAttention.length ? table(["Repository", "Score", "Evidence", "Switch"], index.portfolio.topAttention.map(portfolioItemRow)) : '<p class="ok">No connected repositories need attention.</p>') +
+    card("Queues", table(["Queue", "Count", "Severity", "Next action", "Repositories"], queues.map(queue => [
+      '<b>' + esc(queue.label) + '</b><p class="muted">' + esc(queue.description) + '</p>',
+      esc(queue.count),
+      portfolioSeverity(queue.severity),
+      esc(queue.nextAction),
+      queue.connections.length ? queue.connections.map(item => '<span class="' + (item.health === "blocked" ? "bad" : item.health === "attention" ? "warn" : "ok") + '">' + esc(item.label) + '</span> <span class="muted">(' + esc(item.score) + ')</span>').join("<br>") : '<span class="muted">none</span>'
+    ]))) +
+    card("How to use this", list([
+      "Fix broken setup first; those repos cannot produce trustworthy Visual Hive evidence.",
+      "Treat deterministic failures as the highest pass/fail queue.",
+      "Use stale, missing coverage, weak mutation, and high-risk queues to decide where deeper scheduled validation or new contracts are needed.",
+      "Switching repos only uses IDs from the local connection store; no arbitrary browser-supplied paths are accepted."
+    ])) +
+    '</div>';
+}
+
+function portfolioItemRow(item) {
+  return [
+    '<b>' + esc(item.label) + '</b><p class="muted">' + esc(item.projectName || item.id) + '</p><p class="muted">' + esc(item.health) + " / " + esc(item.status) + '</p>',
+    esc(item.score),
+    list(item.reasons || []),
+    portfolioSwitchAction(item)
+  ];
+}
+
+function portfolioSeverity(severity) {
+  if (severity === "critical") return '<span class="bad">critical</span>';
+  if (severity === "warning") return '<span class="warn">warning</span>';
+  return '<span class="ok">ok</span>';
+}
+
+function portfolioSwitchAction(item) {
+  if (item.status !== "ready") return '<span class="muted">Not ready</span>';
+  if ((snapshot.activeConnectionId || "current") === item.id) return '<span class="ok">Active</span>';
+  return '<button class="button connection-switch" data-connection="' + escAttr(item.id) + '">Switch</button>';
 }
 
 function runbook() {

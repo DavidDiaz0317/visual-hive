@@ -779,6 +779,9 @@ contracts:
     expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "deterministic_failures")?.count).toBe(1);
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "coverage_gaps")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.topAttention[0]?.id).toBe("attention-repo");
     expect(connection?.health).toBe("attention");
     expect(connection?.staleReport).toBe(true);
     expect(connection?.latestMutationScore).toBe(0.4);
@@ -914,6 +917,9 @@ contracts:
       expect(appJs).toContain("/api/setup/write-docs");
       expect(appJs).toContain("setup-write-bundle");
       expect(appJs).toContain("/api/setup/write-bundle");
+      expect(appJs).toContain("Portfolio");
+      expect(appJs).toContain("function portfolio");
+      expect(appJs).toContain("Portfolio attention queue");
       expect(appJs).toContain("Connection health dashboard");
       expect(appJs).toContain("function connectionHealthBadge");
       expect(appJs).toContain("function connectionMutation");
@@ -944,6 +950,8 @@ contracts:
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
     expect(controlPlaneJs).toContain("function writeSetupBundle");
+    expect(controlPlaneJs).toContain("function portfolio");
+    expect(controlPlaneJs).toContain("function portfolioItemRow");
     expect(controlPlaneJs).toContain("function connectionHealthBadge");
     expect(controlPlaneJs).toContain("function connectionCoverage");
     expect(controlPlaneJs).toContain("Connection health dashboard");
