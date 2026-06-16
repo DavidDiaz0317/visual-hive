@@ -168,6 +168,30 @@ export interface ControlPlaneRunbook {
   notes: string[];
 }
 
+export interface ControlPlaneRunProfile {
+  id: string;
+  label: string;
+  description: string;
+  commandIds: string[];
+  safety: ControlPlaneRunbookCommand["safety"];
+  enabled: boolean;
+  blockedReasons: string[];
+  expectedArtifacts: string[];
+  requiredSecrets: string[];
+}
+
+export interface ControlPlaneProfileExecution {
+  schemaVersion: 1;
+  profileId: string;
+  label: string;
+  status: "passed" | "failed" | "blocked";
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  commandExecutions: ControlPlaneCommandExecution[];
+  message: string;
+}
+
 export type ControlPlaneCoverage = CoverageReport;
 
 export interface ControlPlaneSnapshot {
@@ -204,6 +228,7 @@ export interface ControlPlaneSnapshot {
   overview: ControlPlaneOverview;
   failures: ControlPlaneFailure[];
   runbook: ControlPlaneRunbook;
+  runProfiles: ControlPlaneRunProfile[];
   screenshots: ControlPlaneScreenshot[];
   coverage: ControlPlaneCoverage;
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;

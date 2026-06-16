@@ -48,6 +48,7 @@ import type {
   ControlPlaneFailure,
   ControlPlaneOptions,
   ControlPlaneOverview,
+  ControlPlaneRunProfile,
   ControlPlaneRunbook,
   ControlPlaneRunbookCommand,
   ControlPlaneScreenshot,
@@ -140,6 +141,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const providers = config ? inspectProviders(config) : [];
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
   const runbook = buildRunbook(resolved, config, plan, report, mutationReport);
+  const runProfiles = buildRunProfiles(runbook);
   const riskReport = config
     ? riskArtifact ??
       analyzeRisk(config, {
@@ -189,6 +191,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     overview,
     failures,
     runbook,
+    runProfiles,
     screenshots,
     coverage,
     targets,
@@ -198,6 +201,68 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     artifacts,
     connections
   };
+}
+
+function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[] {
+  const definitions: Array<Omit<ControlPlaneRunProfile, "enabled" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">> = [
+    {
+      id: "pr-acceptance",
+      label: "PR acceptance",
+      description: "Check readiness, produce a PR plan, run deterministic CI contracts, then refresh triage and the markdown report.",
+      commandIds: ["doctor", "plan-pr", "run-ci", "triage-report"]
+    },
+    {
+      id: "triage-refresh",
+      label: "Triage refresh",
+      description: "Regenerate sanitized triage, repair prompts, issue/PR markdown, and the human-readable report from current artifacts.",
+      commandIds: ["triage-report"]
+    },
+    {
+      id: "mutation-audit",
+      label: "Mutation adequacy audit",
+      description: "Validate readiness, refresh the PR plan, run contract-aware mutation adequacy, then regenerate triage/report evidence.",
+      commandIds: ["doctor", "plan-pr", "mutate", "triage-report"]
+    },
+    {
+      id: "protected-schedule-preview",
+      label: "Protected scheduled lane preview",
+      description: "Show the trusted protected-lane command sequence when protected targets exist. This profile remains guidance-only in the local UI.",
+      commandIds: ["schedule-protected"]
+    }
+  ];
+  return definitions.map((definition) => materializeRunProfile(definition, runbook));
+}
+
+function materializeRunProfile(
+  definition: Omit<ControlPlaneRunProfile, "enabled" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">,
+  runbook: ControlPlaneRunbook
+): ControlPlaneRunProfile {
+  const commands = definition.commandIds
+    .map((id) => runbook.commands.find((command) => command.id === id))
+    .filter((command): command is ControlPlaneRunbookCommand => Boolean(command));
+  const missingCommands = definition.commandIds.filter((id) => !commands.some((command) => command.id === id));
+  const requiredSecrets = uniqueStrings(commands.flatMap((command) => command.requiredSecrets));
+  const blockedReasons = [
+    ...missingCommands.map((id) => `Runbook command "${id}" is not available for this repository.`),
+    ...commands
+      .filter((command) => command.safety === "trusted_only")
+      .map((command) => `Runbook command "${command.id}" is trusted-only and cannot be executed from the local Control Plane.`),
+    ...(requiredSecrets.length ? [`Profile requires protected environment variable names: ${requiredSecrets.join(", ")}.`] : [])
+  ];
+  return {
+    ...definition,
+    safety: mostRestrictiveSafety(commands.map((command) => command.safety)),
+    enabled: blockedReasons.length === 0,
+    blockedReasons,
+    expectedArtifacts: uniqueStrings(commands.flatMap((command) => command.expectedArtifacts)),
+    requiredSecrets
+  };
+}
+
+function mostRestrictiveSafety(safety: Array<ControlPlaneRunbookCommand["safety"]>): ControlPlaneRunbookCommand["safety"] {
+  if (safety.includes("trusted_only")) return "trusted_only";
+  if (safety.includes("local_only")) return "local_only";
+  return "pr_safe";
 }
 
 function buildRunbook(

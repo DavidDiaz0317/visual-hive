@@ -71,6 +71,7 @@ const tabs = [
   ["overview", "Overview"],
   ["portfolio", "Portfolio"],
   ["runbook", "Runbook"],
+  ["profiles", "Profiles"],
   ["actions", "Actions"],
   ["risk", "Risk"],
   ["setup", "Setup"],
@@ -133,7 +134,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, actions, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, profiles, actions, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -227,6 +228,33 @@ function runbook() {
     card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. The Control Plane can execute allowlisted local commands in write mode; trusted and secret-bearing lanes remain guidance-only.</p>' + list(rb.notes || [])) +
     laneCards.join("") +
     '</div>';
+}
+
+function profiles() {
+  const listProfiles = snapshot.runProfiles || [];
+  if (!listProfiles.length) return empty("No run profiles could be derived from the current runbook.");
+  return '<div class="section">' +
+    card("Run Profiles", '<p>Profiles are curated command sequences built from the same allowlisted runbook commands. They execute by profile ID, never arbitrary browser-supplied shell text.</p>' +
+      list([
+        "PR acceptance proves the local no-secret lane end to end.",
+        "Mutation audit measures whether contracts catch intentional UI/auth/API breakage.",
+        "Protected profiles remain guidance-only in the local UI."
+      ])) +
+    card("Available profiles", table(["Profile", "Safety", "Commands", "Artifacts", "Status", "Actions"], listProfiles.map(profile => [
+      '<b>' + esc(profile.label) + '</b><p class="muted">' + esc(profile.description) + '</p><p class="muted">' + esc(profile.id) + '</p>',
+      safetyBadge(profile.safety),
+      (profile.commandIds || []).map(id => '<code>' + esc(id) + '</code>').join("<br>"),
+      profile.expectedArtifacts?.length ? profile.expectedArtifacts.map(path => '<code>' + esc(path) + '</code>').join("<br>") : '<span class="muted">none</span>',
+      profile.enabled ? '<span class="ok">executable</span>' : '<span class="warn">guidance only</span>' + failureList("Blocked reasons", profile.blockedReasons || []),
+      profileActions(profile)
+    ]))) +
+    '</div>';
+}
+
+function profileActions(profile) {
+  if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
+  if (!profile.enabled || profile.safety === "trusted_only" || profile.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
+  return '<button class="button link-button profile-execute" data-profile="' + escAttr(profile.id) + '">Run profile</button>';
 }
 
 function actions() {
@@ -1142,6 +1170,32 @@ function wireActions() {
     snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
     active = "actions";
     setTimeout(() => { button.textContent = original || "Run"; render(); }, 800);
+  }));
+  document.querySelectorAll(".profile-execute").forEach((button) => button.addEventListener("click", async () => {
+    const profileId = button.dataset.profile;
+    if (!profileId) return;
+    if (!confirm("Run Visual Hive profile " + profileId + " locally? This executes each allowlisted runbook command in sequence.")) return;
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Running...";
+    const response = await fetch(apiUrl("/api/runbook/profile"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.execution?.status === "failed") {
+      button.textContent = "Failed";
+      alert(payload.execution?.message || payload.error || "Run profile failed.");
+      snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+      active = "actions";
+      render();
+      return;
+    }
+    button.textContent = "Done";
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    active = "actions";
+    setTimeout(() => { button.textContent = original || "Run profile"; render(); }, 800);
   }));
   document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {
     const key = select.dataset.filter;

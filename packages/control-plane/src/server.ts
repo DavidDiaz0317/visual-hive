@@ -3,7 +3,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import { addConnection, approveBaseline, rejectBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
-import { executeRunbookCommand } from "./commandExecutor.js";
+import { executeRunbookCommand, executeRunbookProfile } from "./commandExecutor.js";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { writeSetupBundleFromRecommendation } from "./setupBundle.js";
@@ -230,6 +230,32 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
           activeConnectionId: snapshot.activeConnectionId
         },
         command
+      });
+      sendJson(response, { ok: execution.status !== "blocked", execution }, execution.status === "blocked" ? 403 : 200);
+      return;
+    }
+    if (url.pathname === "/api/runbook/profile") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const profileId = requiredString(body.profileId, "profileId");
+      const snapshot = await createControlPlaneSnapshot(options, connectionIdFromUrl(url));
+      const profile = snapshot.runProfiles.find((candidate) => candidate.id === profileId);
+      if (!profile) {
+        sendJson(response, { ok: false, error: `Unknown run profile "${sanitizeText(profileId)}".` }, 404);
+        return;
+      }
+      const execution = await executeRunbookProfile({
+        options,
+        resolved: {
+          repoRoot: snapshot.repoRoot,
+          configPath: snapshot.configPath,
+          configRoot: snapshot.configRoot,
+          readOnly: snapshot.readOnly,
+          demo: snapshot.demo,
+          activeConnectionId: snapshot.activeConnectionId
+        },
+        profile,
+        commands: snapshot.runbook.commands
       });
       sendJson(response, { ok: execution.status !== "blocked", execution }, execution.status === "blocked" ? 403 : 200);
       return;

@@ -10,6 +10,8 @@ import type {
   ControlPlaneCommandRunnerResult,
   ControlPlaneCommandStepResult,
   ControlPlaneOptions,
+  ControlPlaneProfileExecution,
+  ControlPlaneRunProfile,
   ControlPlaneRunbookCommand,
   ResolvedControlPlaneOptions
 } from "./types.js";
@@ -27,6 +29,13 @@ interface ExecuteCommandInput {
   options: ControlPlaneOptions;
   resolved: ResolvedControlPlaneOptions;
   command: ControlPlaneRunbookCommand;
+}
+
+interface ExecuteProfileInput {
+  options: ControlPlaneOptions;
+  resolved: ResolvedControlPlaneOptions;
+  profile: ControlPlaneRunProfile;
+  commands: ControlPlaneRunbookCommand[];
 }
 
 export async function executeRunbookCommand(input: ExecuteCommandInput): Promise<ControlPlaneCommandExecution> {
@@ -70,6 +79,71 @@ export async function executeRunbookCommand(input: ExecuteCommandInput): Promise
   const execution = executionResult(input, startedAt, status, message, stepResults);
   await appendExecution(input.resolved, execution);
   return execution;
+}
+
+export async function executeRunbookProfile(input: ExecuteProfileInput): Promise<ControlPlaneProfileExecution> {
+  const startedAt = new Date();
+  const blocked = profileBlockReason(input);
+  if (blocked) {
+    return profileExecutionResult(input, startedAt, "blocked", blocked, []);
+  }
+
+  const commandExecutions: ControlPlaneCommandExecution[] = [];
+  let status: ControlPlaneProfileExecution["status"] = "passed";
+  let message = "Profile completed successfully.";
+  for (const commandId of input.profile.commandIds) {
+    const command = input.commands.find((candidate) => candidate.id === commandId);
+    if (!command) {
+      status = "failed";
+      message = `Runbook command "${commandId}" was not available.`;
+      break;
+    }
+    const execution = await executeRunbookCommand({ options: input.options, resolved: input.resolved, command });
+    commandExecutions.push(execution);
+    if (execution.status !== "passed") {
+      status = execution.status === "blocked" ? "blocked" : "failed";
+      message = `Profile stopped at "${command.id}": ${execution.message}`;
+      break;
+    }
+  }
+  return profileExecutionResult(input, startedAt, status, message, commandExecutions);
+}
+
+function profileBlockReason(input: ExecuteProfileInput): string | undefined {
+  if (input.resolved.readOnly) {
+    return "Control Plane is read-only. Restart without --read-only before executing local run profiles.";
+  }
+  if (!input.profile.enabled) {
+    return input.profile.blockedReasons.join(" ") || `Run profile "${input.profile.id}" is not executable.`;
+  }
+  if (input.profile.safety === "trusted_only") {
+    return "Trusted-only profiles require scheduled/manual protected automation and cannot be launched from the local Control Plane.";
+  }
+  if (input.profile.requiredSecrets.length > 0) {
+    return `Profile requires protected environment variable names: ${input.profile.requiredSecrets.join(", ")}.`;
+  }
+  return undefined;
+}
+
+function profileExecutionResult(
+  input: ExecuteProfileInput,
+  startedAt: Date,
+  status: ControlPlaneProfileExecution["status"],
+  message: string,
+  commandExecutions: ControlPlaneCommandExecution[]
+): ControlPlaneProfileExecution {
+  const completedAt = new Date();
+  return {
+    schemaVersion: 1,
+    profileId: input.profile.id,
+    label: input.profile.label,
+    status,
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    durationMs: completedAt.getTime() - startedAt.getTime(),
+    commandExecutions,
+    message: sanitizeText(message)
+  };
 }
 
 function blockReason(resolved: ResolvedControlPlaneOptions, command: ControlPlaneRunbookCommand): string | undefined {

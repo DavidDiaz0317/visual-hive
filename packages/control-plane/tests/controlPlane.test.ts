@@ -595,6 +595,17 @@ describe("control plane", () => {
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
+    expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-pr", "run-ci", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "mutation-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-pr", "mutate", "triage-report"],
+      safety: "local_only"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.riskReport?.inputs.report).toBe(true);
     expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
@@ -899,6 +910,69 @@ contracts:
     }
   });
 
+  it("executes run profiles as allowlisted runbook command sequences", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "pr-acceptance" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "doctor",
+        "plan-pr",
+        "run-ci",
+        "triage-report"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "doctor:doctor",
+        "plan-pr:plan-pr",
+        "run-ci:run-ci",
+        "triage-report:triage",
+        "triage-report:report"
+      ]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(4);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks guidance-only protected run profiles", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "protected-schedule-preview" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("not available");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("blocks runbook execution in read-only mode", async () => {
     const fixture = await makeFixture();
     let called = false;
@@ -1040,6 +1114,9 @@ contracts:
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("runbook-execute");
       expect(appJs).toContain("/api/runbook/execute");
+      expect(appJs).toContain("Profiles");
+      expect(appJs).toContain("function profiles");
+      expect(appJs).toContain("/api/runbook/profile");
       expect(appJs).toContain("Actions");
       expect(appJs).toContain("function actions");
       expect(appJs).toContain("Control Plane action history");
@@ -1089,6 +1166,9 @@ contracts:
     expect(controlPlaneJs).toContain("function runbook");
     expect(controlPlaneJs).toContain("function runbookExecuteButton");
     expect(controlPlaneJs).toContain("/api/runbook/execute");
+    expect(controlPlaneJs).toContain("function profiles");
+    expect(controlPlaneJs).toContain("function profileActions");
+    expect(controlPlaneJs).toContain("/api/runbook/profile");
     expect(controlPlaneJs).toContain("function actions");
     expect(controlPlaneJs).toContain("function actionOutput");
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
