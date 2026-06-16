@@ -7,6 +7,7 @@ import {
   inspectProviders,
   analyzeCoverage,
   analyzeCosts,
+  analyzeReadiness,
   analyzeRisk,
   auditContracts,
   auditFlows,
@@ -35,6 +36,7 @@ import {
   type Plan,
   type Report,
   type RiskRegisterReport,
+  type ReadinessReport,
   type SecurityAuditReport,
   type RunHistoryReport,
   type SetupRecommendationReport,
@@ -105,6 +107,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     workflowAuditArtifact,
     runHistoryArtifact,
     riskArtifact,
+    readinessArtifact,
     securityAudit,
     costAuditArtifact,
     issueMarkdown,
@@ -131,6 +134,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
+    readJsonIfExists<ReadinessReport>(path.join(hiveRoot, "readiness.json")),
     readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
     readJsonIfExists<CostAuditReport>(path.join(hiveRoot, "costs.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
@@ -184,6 +188,18 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         workflowAudit
       })
     : undefined;
+  const readinessReport = config
+    ? readinessArtifact ??
+      analyzeReadiness(config, {
+        plan: isPlan(plan) ? plan : undefined,
+        report,
+        mutationReport,
+        baselines: baselineList,
+        workflowAudit,
+        securityAudit,
+        costAudit
+      })
+    : undefined;
 
   return {
     schemaVersion: 1,
@@ -202,6 +218,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triageReport,
     runHistory,
     riskReport,
+    readinessReport,
     securityAudit,
     costAudit,
     mutationReport,
@@ -245,7 +262,7 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "pr-acceptance",
       label: "PR acceptance",
       description: "Check readiness, produce a PR plan, run deterministic CI contracts, then refresh triage and the markdown report.",
-      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report"]
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "readiness"]
     },
     {
       id: "triage-refresh",
@@ -263,13 +280,13 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "security-audit",
       label: "Security posture audit",
       description: "Validate readiness, audit workflow/config/provider/LLM security posture, then refresh the markdown report.",
-      commandIds: ["doctor", "security", "triage-report"]
+      commandIds: ["doctor", "security", "readiness", "triage-report"]
     },
     {
       id: "cost-audit",
       label: "Cost policy audit",
       description: "Validate readiness, audit local/external cost posture and provider budget policy, then refresh the markdown report.",
-      commandIds: ["doctor", "costs", "triage-report"]
+      commandIds: ["doctor", "costs", "readiness", "triage-report"]
     },
     {
       id: "protected-schedule-preview",
@@ -410,6 +427,17 @@ function buildRunbook(
       description: "Explain selected contract volume, screenshot volume, external provider policy, and cost budget posture without making external calls.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/costs.json"]
+    },
+    {
+      id: "readiness",
+      label: "Summarize readiness gate",
+      lane: "local",
+      command: `visual-hive readiness ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Combine plan, deterministic run, baselines, mutation, workflows, security, cost, provider, and LLM evidence into one beginner-friendly go/no-go artifact.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/readiness.json"]
     },
     {
       id: "control-plane",

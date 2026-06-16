@@ -73,6 +73,7 @@ const tabs = [
   ["runbook", "Runbook"],
   ["profiles", "Profiles"],
   ["actions", "Actions"],
+  ["readiness", "Readiness"],
   ["risk", "Risk"],
   ["security", "Security"],
   ["costs", "Costs"],
@@ -137,7 +138,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, profiles, actions, risk, security, costs, setup, runs, failures, baselines, mutation, coverage, flows, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, profiles, actions, readiness, risk, security, costs, setup, runs, failures, baselines, mutation, coverage, flows, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -320,7 +321,7 @@ function runbookActions(command) {
 }
 
 function runbookExecuteButton(command) {
-  const executable = ["doctor", "plan-pr", "run-ci", "triage-report", "mutate", "security", "costs"].includes(command.id);
+  const executable = ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "mutate", "security", "costs", "readiness"].includes(command.id);
   if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
   if (!executable || command.safety === "trusted_only" || command.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
   return '<button class="button link-button runbook-execute" data-command="' + escAttr(command.id) + '">Run</button>';
@@ -350,6 +351,37 @@ function risk() {
       (r.artifacts || []).map(a => link(a)).join("<br>") || '<span class="muted">none</span>'
     ])) : '<p class="ok">No immediate visual QA risks were found.</p>') +
     '</div>';
+}
+
+function readiness() {
+  const report = snapshot.readinessReport;
+  if (!report) return empty("No readiness gate available. Run visual-hive readiness to create .visual-hive/readiness.json.");
+  const summary = report.summary || {};
+  return '<div class="section">' +
+    '<div class="grid">' +
+    metric("Readiness", report.status || "unknown", report.status === "ready" ? "ok" : report.status === "blocked" ? "bad" : "warn") +
+    metric("Score", (report.score ?? 0) + "/100", report.score >= 90 ? "ok" : report.score >= 70 ? "warn" : "bad") +
+    metric("Blocked", summary.blocked ?? 0, summary.blocked ? "bad" : "ok") +
+    metric("Warnings", summary.warnings ?? 0, summary.warnings ? "warn" : "ok") +
+    metric("Missing evidence", summary.missing ?? 0, summary.missing ? "warn" : "ok") +
+    '</div>' +
+    card("Next actions", report.nextActions?.length ? list(report.nextActions) : '<p class="ok">No readiness actions are required.</p>') +
+    card("Evidence loaded", table(["Artifact", "Loaded"], Object.entries(report.inputs || {}).map(([key, value]) => [esc(key), value ? '<span class="ok">yes</span>' : '<span class="muted">no</span>']))) +
+    card("Readiness gates", table(["Status", "Category", "Gate", "Evidence", "Actions", "Artifacts"], (report.gates || []).map(gate => [
+      readinessBadge(gate.status),
+      esc(gate.category),
+      '<b>' + esc(gate.title) + '</b><p class="muted">' + esc(gate.message) + '</p>',
+      (gate.evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+      (gate.nextActions || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+      (gate.artifacts || []).map(a => link(a)).join("<br>") || '<span class="muted">none</span>'
+    ]))) +
+    '</div>';
+}
+
+function readinessBadge(status) {
+  if (status === "blocked") return '<span class="bad">blocked</span>';
+  if (status === "warning" || status === "missing") return '<span class="warn">' + esc(status) + '</span>';
+  return '<span class="ok">' + esc(status) + '</span>';
 }
 
 function severityBadge(severity) {

@@ -17,6 +17,7 @@ export * from "./setup/recommend.js";
 export * from "./setup/docs.js";
 export * from "./history/record.js";
 export * from "./risk/analyze.js";
+export * from "./readiness/analyze.js";
 export * from "./security/audit.js";
 export * from "./costs/analyze.js";
 export * from "./github/workflowAudit.js";

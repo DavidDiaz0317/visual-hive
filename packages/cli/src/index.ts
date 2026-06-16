@@ -35,6 +35,7 @@ import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
+import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
@@ -572,6 +573,42 @@ program
         format: options.format
       });
       console.log(formatRiskRegister(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("readiness")
+  .description("Summarize whether Visual Hive evidence is ready for CI enforcement and review")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--plan <path>", "plan artifact path", ".visual-hive/plan.json")
+  .option("--report <path>", "deterministic report artifact path", ".visual-hive/report.json")
+  .option("--mutation-report <path>", "mutation report artifact path", ".visual-hive/mutation-report.json")
+  .option("--baselines <path>", "baseline review artifact path", ".visual-hive/baselines.json")
+  .option("--workflows <path>", "workflow audit artifact path", ".visual-hive/workflows.json")
+  .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
+  .option("--security <path>", "security audit artifact path", ".visual-hive/security.json")
+  .option("--costs <path>", "cost audit artifact path", ".visual-hive/costs.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runReadinessCommand({
+        config: options.config,
+        plan: options.plan,
+        report: options.report,
+        mutationReport: options.mutationReport,
+        baselines: options.baselines,
+        workflows: options.workflows,
+        workflowDir: options.workflowDir,
+        security: options.security,
+        costs: options.costs,
+        format: options.format
+      });
+      console.log(formatReadinessReport(result.report, result.reportPath, options.format));
+      if (result.report.status === "blocked") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }

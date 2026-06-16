@@ -38,6 +38,8 @@ jobs:
         if: always()
       - run: npm run demo:costs
         if: always()
+      - run: npm run demo:readiness
+        if: always()
       - run: npm run demo:artifacts
         if: always()
       # A trusted workflow_run workflow can create an issue from .visual-hive/issue.md.

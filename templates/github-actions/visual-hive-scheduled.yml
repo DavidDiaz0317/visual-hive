@@ -52,6 +52,8 @@ jobs:
         if: always()
       - run: npx visual-hive costs
         if: always()
+      - run: npx visual-hive readiness
+        if: always()
       - run: npx visual-hive artifacts
         if: always()
       # This scheduled workflow may use protected secrets. A separate trusted

@@ -49,6 +49,8 @@ jobs:
         if: always()
       - run: npx visual-hive costs --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
+      - run: npx visual-hive readiness --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
       - run: npx visual-hive artifacts --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
       # Do not create issues from untrusted PR execution. Upload artifacts and let

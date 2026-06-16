@@ -37,6 +37,7 @@ import { formatHistorySummary, runHistoryCommand } from "../src/commands/history
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
+import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
@@ -1172,6 +1173,7 @@ contracts:
     expect(prWorkflow).toContain("npx visual-hive security");
     expect(prWorkflow).toContain("npx visual-hive costs");
     expect(prWorkflow).toContain("npx visual-hive artifacts");
+    expect(prWorkflow).toContain("npx visual-hive readiness");
     expect(prWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
     expect(scheduledWorkflow).toContain("npx visual-hive baselines list --write");
@@ -1181,6 +1183,7 @@ contracts:
     expect(scheduledWorkflow).toContain("npx visual-hive security");
     expect(scheduledWorkflow).toContain("npx visual-hive costs");
     expect(scheduledWorkflow).toContain("npx visual-hive artifacts");
+    expect(scheduledWorkflow).toContain("npx visual-hive readiness");
     expect(scheduledWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
     expect(failureWorkflow).toContain("function walkArtifacts");
     expect(failureWorkflow).toContain("function findIssueBody");
@@ -1877,6 +1880,97 @@ providers:
 
     expect(output).toContain("Providers: Playwright built-in=passed");
     expect(output).toContain("### Provider Results");
+  });
+
+  it("writes a readiness gate artifact from current evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-readiness-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: readiness-fixture
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: home
+    description: Home
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "main"
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "plan.json"), {
+      schemaVersion: 1,
+      project: "readiness-fixture",
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      changedFiles: ["src/App.tsx"],
+      effectiveChangedFiles: ["src/App.tsx"],
+      ignoredChangedFiles: [],
+      targets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "medium" }],
+      items: [
+        {
+          contractId: "home",
+          targetId: "local",
+          targetUrl: "http://127.0.0.1:4173",
+          severity: "medium",
+          cost: "medium",
+          reasons: ["runOn.pullRequest=true"],
+          screenshots: []
+        }
+      ],
+      excluded: [],
+      mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+      providerPolicy: []
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "readiness-fixture",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "passed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "medium" }],
+      selectedContracts: ["home"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [],
+      summary: {
+        passed: 1,
+        failed: 0,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    const result = await runReadinessCommand({ config: path.join(tempRoot, "visual-hive.config.yaml"), cwd: tempRoot });
+    const written = await readJson<typeof result.report>(result.reportPath);
+    const summary = formatReadinessReport(result.report, result.reportPath);
+
+    expect(written.project).toBe("readiness-fixture");
+    expect(written.gates.map((gate) => gate.id)).toContain("deterministic:status");
+    expect(summary).toContain("Readiness Gate: readiness-fixture");
+    await expect(access(path.join(tempRoot, ".visual-hive", "readiness.json"))).resolves.toBeUndefined();
   });
 
   it("integration: plans demo config and verifies fake mutation score output", async () => {

@@ -729,7 +729,7 @@ describe("control plane", () => {
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report"],
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "readiness"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "mutation-audit")).toMatchObject({
@@ -739,18 +739,19 @@ describe("control plane", () => {
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "readiness")?.expectedArtifacts).toContain(".visual-hive/readiness.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "baselines")).toMatchObject({
       safety: "pr_safe",
       expectedArtifacts: [".visual-hive/baselines.json"]
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "security", "triage-report"],
+      commandIds: ["doctor", "security", "readiness", "triage-report"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "cost-audit")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "costs", "triage-report"],
+      commandIds: ["doctor", "costs", "readiness", "triage-report"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")?.commandIds).toEqual([
@@ -758,8 +759,11 @@ describe("control plane", () => {
       "plan-pr",
       "run-ci",
       "baselines",
-      "triage-report"
+      "triage-report",
+      "readiness"
     ]);
+    expect(snapshot.readinessReport?.project).toBe("ui-fixture");
+    expect(snapshot.readinessReport?.gates.map((gate) => gate.id)).toContain("deterministic:status");
     expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.project).toBe("ui-fixture");
@@ -1112,7 +1116,8 @@ contracts:
         "plan-pr",
         "run-ci",
         "baselines",
-        "triage-report"
+        "triage-report",
+        "readiness"
       ]);
       expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
         "doctor:doctor",
@@ -1120,12 +1125,13 @@ contracts:
         "run-ci:run-ci",
         "baselines:baselines",
         "triage-report:triage",
-        "triage-report:report"
+        "triage-report:report",
+        "readiness:readiness"
       ]);
 
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
-      expect(snapshot.actionHistory?.summary.total).toBe(5);
-      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
+      expect(snapshot.actionHistory?.summary.total).toBe(6);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("readiness");
     } finally {
       await server.close();
     }

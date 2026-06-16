@@ -58,6 +58,8 @@ jobs:
         if: always()
       - run: npx visual-hive costs
         if: always()
+      - run: npx visual-hive readiness
+        if: always()
       - run: npx visual-hive artifacts
         if: always()
       # Do not create issues from untrusted PR execution. Upload artifacts and let
@@ -249,6 +251,8 @@ jobs:
       - run: npx visual-hive security
         if: always()
       - run: npx visual-hive costs
+        if: always()
+      - run: npx visual-hive readiness
         if: always()
       - run: npx visual-hive artifacts
         if: always()

@@ -23,6 +23,7 @@ import { inspectProviders, normalizeProviderResults } from "../src/providers/ins
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
+import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
 import { analyzeCosts } from "../src/costs/analyze.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
@@ -1701,10 +1702,10 @@ jobs:
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
-    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
       expect(prTemplate).toContain(`npx visual-hive ${command}`);
     }
-    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "artifacts"]) {
+    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
       expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
     }
     expect(audit.summary).toMatchObject({
@@ -1724,6 +1725,197 @@ jobs:
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
     expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
+  });
+});
+
+describe("readiness gate", () => {
+  it("marks complete clean evidence as ready", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const report: Report = {
+      schemaVersion: 2,
+      project: "sample",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "passed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "safe", kind: "url", url: "https://safe.example.com", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["safe-contract", "changed-contract"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "safe-contract",
+          targetId: "safe",
+          status: "passed",
+          durationMs: 12,
+          errors: [],
+          artifacts: [".visual-hive/artifacts/results/safe-contract.json"],
+          selectorAssertions: [{ kind: "mustExist", value: "main", status: "passed" }],
+          screenshotAssertions: [
+            {
+              contractId: "safe-contract",
+              screenshotName: "home",
+              name: "home",
+              route: "/",
+              viewport: "desktop",
+              status: "passed",
+              baselinePath: ".visual-hive/snapshots/home.png",
+              actualPath: ".visual-hive/artifacts/screenshots/home.png",
+              maxDiffPixelRatio: 0.01,
+              actualDiffPixelRatio: 0,
+              actualDiffPixels: 0,
+              totalPixels: 100
+            }
+          ],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 1,
+        failed: 0,
+        screenshotsPassed: 1,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      reproductionCommands: ["visual-hive run --ci"]
+    };
+    const workflows = auditWorkflows(config, [
+      {
+        path: ".github/workflows/visual-hive-pr.yml",
+        content: `on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    steps:
+      - run: npx visual-hive plan --mode pr --ci
+      - run: npx visual-hive run --ci
+      - run: npx visual-hive baselines list --write
+      - run: npx visual-hive report --github-step-summary
+      - uses: actions/upload-artifact@v4
+        with:
+          path: .visual-hive
+          include-hidden-files: true
+`
+      }
+    ]);
+    const baselines = {
+      schemaVersion: 1 as const,
+      project: "sample",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      reportGeneratedAt: report.generatedAt,
+      reportPath: ".visual-hive/report.json",
+      approvalLogPath: ".visual-hive/baseline-approvals.json",
+      rejectionLogPath: ".visual-hive/baseline-rejections.json",
+      summary: {
+        total: 1,
+        passed: 1,
+        failed: 0,
+        created: 0,
+        missingBaseline: 0,
+        approvable: 0,
+        approved: 0,
+        rejected: 0,
+        pendingReview: 0
+      },
+      entries: []
+    };
+    const mutationReport = {
+      schemaVersion: 2 as const,
+      project: "sample",
+      generatedAt: "2026-06-15T00:02:00.000Z",
+      minScore: 0.7,
+      score: 1,
+      killed: 2,
+      total: 2,
+      results: []
+    };
+    const securityAudit = analyzeSecurity(config, { workflowAudit: workflows });
+    const costAudit = analyzeCosts(config, { plan, report, mutationReport });
+
+    const readiness = analyzeReadiness(config, {
+      plan,
+      report,
+      baselines,
+      mutationReport,
+      workflowAudit: workflows,
+      securityAudit,
+      costAudit,
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(readiness.schemaVersion).toBe(1);
+    expect(readiness.status).toBe("attention");
+    expect(readiness.gates.find((gate) => gate.id === "deterministic:status")?.status).toBe("passed");
+    expect(readiness.gates.find((gate) => gate.id === "baselines:clean")?.status).toBe("passed");
+    expect(readiness.gates.find((gate) => gate.id === "security:posture")?.status).toBe("warning");
+    expect(JSON.stringify(readiness)).not.toContain("secret-value");
+  });
+
+  it("blocks readiness on deterministic failures and missing CI baselines", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const report: Report = {
+      schemaVersion: 2,
+      project: "sample",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "safe", kind: "url", url: "https://safe.example.com", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["safe-contract"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 1,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 1,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      reproductionCommands: ["visual-hive run --ci"]
+    };
+
+    const readiness = analyzeReadiness(config, { plan, report });
+
+    expect(readiness.status).toBe("blocked");
+    expect(readiness.gates.find((gate) => gate.id === "deterministic:status")?.status).toBe("blocked");
+    expect(readiness.gates.find((gate) => gate.id === "baselines:missing-baseline")?.status).toBe("blocked");
+    expect(readiness.nextActions.join(" ")).toContain("baselines");
+  });
+
+  it("calls out missing plan and report evidence", () => {
+    const readiness = analyzeReadiness(sampleConfig(), { now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(readiness.status).toBe("attention");
+    expect(readiness.summary.missing).toBeGreaterThanOrEqual(3);
+    expect(readiness.gates.map((gate) => gate.id)).toEqual(expect.arrayContaining(["planning:missing", "deterministic:missing", "workflow:missing"]));
   });
 });
 
@@ -2261,6 +2453,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "flows.json"), '{"schemaVersion":1,"flows":[{"latestFailedMessages":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "security.json"), '{"findings":[{"evidence":["authorization: bearer abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "costs.json"), '{"providers":[{"blockedReasons":["client_secret=abc123"]}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "readiness.json"), '{"gates":[{"evidence":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
@@ -2276,7 +2469,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(15);
+    expect(index.summary.artifactCount).toBe(16);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2317,6 +2510,10 @@ describe("artifact index", () => {
     const costAudit = index.artifacts.find((artifact) => artifact.path.endsWith("costs.json"));
     expect(costAudit?.preview).toContain("[REDACTED]");
     expect(costAudit?.labels).toContain("cost-audit");
+    const readinessGate = index.artifacts.find((artifact) => artifact.path.endsWith("readiness.json"));
+    expect(readinessGate?.preview).toContain("[REDACTED]");
+    expect(readinessGate?.labels).toContain("readiness-gate");
+    expect(readinessGate?.schemaPath).toBe("schemas/visual-hive.readiness.schema.json");
     const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");
