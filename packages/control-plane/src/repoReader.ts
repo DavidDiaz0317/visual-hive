@@ -36,6 +36,7 @@ import {
   type VisualHiveConfig,
   type WorkflowAuditReport
 } from "@visual-hive/core";
+import { readControlPlaneActionHistory } from "./commandExecutor.js";
 import {
   isInsidePath,
   normalizeRepoRelativePath,
@@ -97,6 +98,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     missingTestsMarkdown,
     baselineReviewMarkdown,
     llmUsage,
+    actionHistory,
     artifacts,
     connections
   ] = await Promise.all([
@@ -116,6 +118,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readTextIfExists(path.join(hiveRoot, "missing-tests.md")),
     readTextIfExists(path.join(hiveRoot, "baseline-review.md")),
     readJsonIfExists<LLMUsageReport>(path.join(hiveRoot, "llm-usage.json")),
+    readControlPlaneActionHistory(path.join(hiveRoot, "control-plane-actions.json")),
     indexArtifacts({ repoRoot: resolved.repoRoot, hiveRoot, project: config?.project.name }).then((index) => index.artifacts),
     listConnections({ repoRoot: base.repoRoot })
   ]);
@@ -182,6 +185,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     missingTestsMarkdown,
     baselineReviewMarkdown,
     llmUsage,
+    actionHistory,
     overview,
     failures,
     runbook,

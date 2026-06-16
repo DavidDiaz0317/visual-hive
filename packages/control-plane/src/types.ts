@@ -146,6 +146,21 @@ export interface ControlPlaneCommandExecution {
   expectedArtifacts: string[];
 }
 
+export interface ControlPlaneActionHistory {
+  schemaVersion: 1;
+  generatedAt?: string;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    blocked: number;
+    latestStatus?: ControlPlaneCommandExecution["status"];
+    latestCommandId?: string;
+    latestCompletedAt?: string;
+  };
+  actions: ControlPlaneCommandExecution[];
+}
+
 export interface ControlPlaneRunbook {
   generatedAt: string;
   configPath: string;
@@ -185,6 +200,7 @@ export interface ControlPlaneSnapshot {
   missingTestsMarkdown?: string;
   baselineReviewMarkdown?: string;
   llmUsage?: LLMUsageReport;
+  actionHistory?: ControlPlaneActionHistory;
   overview: ControlPlaneOverview;
   failures: ControlPlaneFailure[];
   runbook: ControlPlaneRunbook;

@@ -71,6 +71,7 @@ const tabs = [
   ["overview", "Overview"],
   ["portfolio", "Portfolio"],
   ["runbook", "Runbook"],
+  ["actions", "Actions"],
   ["risk", "Risk"],
   ["setup", "Setup"],
   ["runs", "Runs / Reports"],
@@ -132,7 +133,7 @@ function render() {
   pill.textContent = snapshot.overview.deterministicStatus + " / " + snapshot.overview.healthGrade;
   pill.className = "pill " + snapshot.overview.deterministicStatus;
   activeConnectionId = snapshot.activeConnectionId || activeConnectionId || "current";
-  const views = { overview, portfolio, runbook, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
+  const views = { overview, portfolio, runbook, actions, risk, setup, runs, failures, baselines, mutation, coverage, config, targets, contracts, schedule, llm, providers, github, connections, artifacts };
   app.innerHTML = views[active]();
   wireActions();
   scrollToFocusedElement();
@@ -226,6 +227,61 @@ function runbook() {
     card("Runbook", '<p>Generated from <code>' + esc(rb.configPath) + '</code>. The Control Plane can execute allowlisted local commands in write mode; trusted and secret-bearing lanes remain guidance-only.</p>' + list(rb.notes || [])) +
     laneCards.join("") +
     '</div>';
+}
+
+function actions() {
+  const history = snapshot.actionHistory;
+  if (!history || !history.actions?.length) {
+    return '<div class="section">' +
+      empty("No Control Plane action history yet. Run an allowlisted command from the Runbook in write mode to create .visual-hive/control-plane-actions.json.") +
+      card("Safety model", list([
+        "Actions are executed by command ID, not arbitrary browser-supplied shell text.",
+        "Read-only mode blocks execution.",
+        "Trusted and secret-bearing lanes remain guidance-only.",
+        "stdout and stderr are sanitized before they are written or displayed."
+      ])) +
+      '</div>';
+  }
+  const summary = history.summary || {};
+  const ordered = [...history.actions].reverse();
+  return '<div class="section">' +
+    '<div class="grid">' +
+    metric("Actions", summary.total ?? ordered.length, "") +
+    metric("Passed", summary.passed ?? 0, (summary.passed ?? 0) ? "ok" : "") +
+    metric("Failed", summary.failed ?? 0, (summary.failed ?? 0) ? "bad" : "ok") +
+    metric("Blocked", summary.blocked ?? 0, (summary.blocked ?? 0) ? "warn" : "ok") +
+    '</div>' +
+    card("Latest action", '<p><b>Command:</b> ' + esc(summary.latestCommandId || ordered[0]?.commandId || "n/a") + '</p><p><b>Status:</b> ' + actionStatus(summary.latestStatus || ordered[0]?.status) + '</p><p><b>Completed:</b> ' + esc(summary.latestCompletedAt || ordered[0]?.completedAt || "n/a") + '</p>') +
+    card("Action history", table(["Command", "Status", "When", "Duration", "Steps", "Output"], ordered.map(action => [
+      '<b>' + esc(action.label || action.commandId) + '</b><p class="muted">' + esc(action.commandId) + '</p><p class="muted">cwd: ' + esc(action.cwd || "n/a") + '</p>',
+      actionStatus(action.status) + '<p class="muted">' + esc(action.message || "") + '</p>' + safetyBadge(action.safety),
+      esc(action.completedAt || action.startedAt || "n/a"),
+      esc(action.durationMs ?? 0) + "ms",
+      actionSteps(action),
+      actionOutput(action)
+    ]))) +
+    '</div>';
+}
+
+function actionStatus(status) {
+  if (status === "passed") return '<span class="ok">passed</span>';
+  if (status === "failed") return '<span class="bad">failed</span>';
+  if (status === "blocked") return '<span class="warn">blocked</span>';
+  return '<span class="muted">unknown</span>';
+}
+
+function actionSteps(action) {
+  if (!action.steps?.length) return '<span class="muted">none</span>';
+  return action.steps.map(step => '<p><b>' + esc(step.stepId) + '</b> exit=' + esc(step.exitCode) + ' duration=' + esc(step.durationMs) + 'ms</p><pre>' + esc([step.command, ...(step.args || [])].join(" ")) + '</pre>').join("");
+}
+
+function actionOutput(action) {
+  if (!action.steps?.length) return '<span class="muted">no process output</span>';
+  return action.steps.map(step => {
+    const stdout = step.stdout ? '<h3>stdout</h3><pre>' + esc(step.stdout) + '</pre>' : '';
+    const stderr = step.stderr ? '<h3>stderr</h3><pre>' + esc(step.stderr) + '</pre>' : '';
+    return stdout || stderr ? stdout + stderr : '<span class="muted">empty</span>';
+  }).join("");
 }
 
 function runbookActions(command) {
@@ -1077,10 +1133,14 @@ function wireActions() {
     if (!response.ok || payload.execution?.status === "failed") {
       button.textContent = "Failed";
       alert(payload.execution?.message || payload.error || "Runbook command failed.");
+      snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+      active = "actions";
+      render();
       return;
     }
     button.textContent = "Done";
     snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    active = "actions";
     setTimeout(() => { button.textContent = original || "Run"; render(); }, 800);
   }));
   document.querySelectorAll(".contract-filter").forEach((select) => select.addEventListener("change", () => {

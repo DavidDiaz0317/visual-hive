@@ -884,8 +884,16 @@ contracts:
 
       const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "control-plane-actions.json"), "utf8");
       expect(audit).toContain('"commandId": "doctor"');
+      expect(audit).toContain('"summary"');
       expect(audit).toContain("[REDACTED]");
       expect(audit).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(1);
+      expect(snapshot.actionHistory?.summary.passed).toBe(1);
+      expect(snapshot.actionHistory?.actions[0]?.commandId).toBe("doctor");
+      expect(snapshot.actionHistory?.actions[0]?.steps[0]?.stdout).not.toContain("secret-token");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("control-plane-actions.json"))?.kind).toBe("json");
     } finally {
       await server.close();
     }
@@ -1032,6 +1040,9 @@ contracts:
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("runbook-execute");
       expect(appJs).toContain("/api/runbook/execute");
+      expect(appJs).toContain("Actions");
+      expect(appJs).toContain("function actions");
+      expect(appJs).toContain("Control Plane action history");
       expect(appJs).toContain("Guided setup checklist");
       expect(appJs).toContain("function setupChecklist");
       expect(appJs).toContain("function setupStatusBadge");
@@ -1078,6 +1089,9 @@ contracts:
     expect(controlPlaneJs).toContain("function runbook");
     expect(controlPlaneJs).toContain("function runbookExecuteButton");
     expect(controlPlaneJs).toContain("/api/runbook/execute");
+    expect(controlPlaneJs).toContain("function actions");
+    expect(controlPlaneJs).toContain("function actionOutput");
+    expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function risk");

@@ -3,6 +3,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { sanitizeText } from "@visual-hive/core";
 import type {
+  ControlPlaneActionHistory,
   ControlPlaneCommandExecution,
   ControlPlaneCommandRunner,
   ControlPlaneCommandRunnerInput,
@@ -198,15 +199,17 @@ async function appendExecution(resolved: ResolvedControlPlaneOptions, execution:
   const hiveRoot = path.join(resolved.configRoot, ".visual-hive");
   await mkdir(hiveRoot, { recursive: true });
   const actionPath = path.join(hiveRoot, "control-plane-actions.json");
-  const previous = await readExecutions(actionPath);
+  const previous = (await readControlPlaneActionHistory(actionPath))?.actions ?? [];
   previous.push(execution);
+  const actions = previous.slice(-50);
   await writeFile(
     actionPath,
     JSON.stringify(
       {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
-        actions: previous.slice(-50)
+        summary: summarizeActions(actions),
+        actions
       },
       null,
       2
@@ -215,14 +218,76 @@ async function appendExecution(resolved: ResolvedControlPlaneOptions, execution:
   );
 }
 
-async function readExecutions(actionPath: string): Promise<ControlPlaneCommandExecution[]> {
+export async function readControlPlaneActionHistory(actionPath: string): Promise<ControlPlaneActionHistory | undefined> {
   try {
     await access(actionPath);
-    const parsed = JSON.parse(await readFile(actionPath, "utf8")) as { actions?: ControlPlaneCommandExecution[] };
-    return Array.isArray(parsed.actions) ? parsed.actions : [];
+    const parsed = JSON.parse(await readFile(actionPath, "utf8")) as { generatedAt?: unknown; actions?: unknown };
+    const actions = Array.isArray(parsed.actions) ? parsed.actions.map(normalizeExecution).filter(isExecution) : [];
+    return {
+      schemaVersion: 1,
+      generatedAt: typeof parsed.generatedAt === "string" ? sanitizeText(parsed.generatedAt) : undefined,
+      summary: summarizeActions(actions),
+      actions
+    };
   } catch {
-    return [];
+    return undefined;
   }
+}
+
+function normalizeExecution(value: unknown): ControlPlaneCommandExecution | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Partial<ControlPlaneCommandExecution>;
+  const status = record.status === "passed" || record.status === "failed" || record.status === "blocked" ? record.status : undefined;
+  if (!status) return undefined;
+  const steps = Array.isArray(record.steps) ? record.steps.map(normalizeStep).filter((step): step is ControlPlaneCommandStepResult => Boolean(step)) : [];
+  return {
+    schemaVersion: 1,
+    commandId: sanitizeText(String(record.commandId ?? "unknown")),
+    label: sanitizeText(String(record.label ?? record.commandId ?? "Unknown command")),
+    status,
+    startedAt: sanitizeText(String(record.startedAt ?? "")),
+    completedAt: sanitizeText(String(record.completedAt ?? "")),
+    durationMs: typeof record.durationMs === "number" && Number.isFinite(record.durationMs) ? record.durationMs : 0,
+    cwd: sanitizeText(String(record.cwd ?? "")),
+    safety: record.safety === "trusted_only" || record.safety === "local_only" || record.safety === "pr_safe" ? record.safety : "local_only",
+    readOnly: Boolean(record.readOnly),
+    message: sanitizeText(String(record.message ?? "")),
+    steps,
+    expectedArtifacts: Array.isArray(record.expectedArtifacts)
+      ? record.expectedArtifacts.filter((entry): entry is string => typeof entry === "string").map(sanitizeText)
+      : []
+  };
+}
+
+function normalizeStep(value: unknown): ControlPlaneCommandStepResult | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const step = value as Partial<ControlPlaneCommandStepResult>;
+  return {
+    stepId: sanitizeText(String(step.stepId ?? "step")),
+    command: sanitizeText(String(step.command ?? "")),
+    args: Array.isArray(step.args) ? step.args.filter((entry): entry is string => typeof entry === "string").map(sanitizeText) : [],
+    exitCode: typeof step.exitCode === "number" && Number.isFinite(step.exitCode) ? step.exitCode : 1,
+    stdout: tail(sanitizeText(String(step.stdout ?? ""))),
+    stderr: tail(sanitizeText(String(step.stderr ?? ""))),
+    durationMs: typeof step.durationMs === "number" && Number.isFinite(step.durationMs) ? step.durationMs : 0
+  };
+}
+
+function isExecution(value: ControlPlaneCommandExecution | undefined): value is ControlPlaneCommandExecution {
+  return Boolean(value);
+}
+
+function summarizeActions(actions: ControlPlaneCommandExecution[]): ControlPlaneActionHistory["summary"] {
+  const latest = actions.at(-1);
+  return {
+    total: actions.length,
+    passed: actions.filter((action) => action.status === "passed").length,
+    failed: actions.filter((action) => action.status === "failed").length,
+    blocked: actions.filter((action) => action.status === "blocked").length,
+    latestStatus: latest?.status,
+    latestCommandId: latest?.commandId,
+    latestCompletedAt: latest?.completedAt
+  };
 }
 
 function appendBounded(current: string, next: string): string {
