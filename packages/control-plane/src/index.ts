@@ -5,5 +5,6 @@ export * from "./configEditor.js";
 export * from "./workflowWriter.js";
 export * from "./setupBundle.js";
 export * from "./providerDecisions.js";
+export * from "./llmDecisions.js";
 export * from "./commandExecutor.js";
 export * from "./server.js";

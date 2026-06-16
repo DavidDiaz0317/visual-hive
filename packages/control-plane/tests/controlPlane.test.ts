@@ -573,6 +573,7 @@ describe("control plane", () => {
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
     expect(snapshot.llmUsage?.summary.callsMade).toBe(0);
     expect(snapshot.llmUsage?.records[0]?.task).toBe("repair_prompt");
+    expect(snapshot.llmDecisionLog).toBeUndefined();
     const artifactPreview = snapshot.artifacts.find((artifact) => artifact.path.endsWith("console.log"));
     expect(artifactPreview?.kind).toBe("log");
     expect(artifactPreview?.preview).toContain("[REDACTED]");
@@ -1122,6 +1123,9 @@ contracts:
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("runbook-execute");
       expect(appJs).toContain("/api/runbook/execute");
+      expect(appJs).toContain("function llmDecisionCard");
+      expect(appJs).toContain("function recordLLMDecision");
+      expect(appJs).toContain("/api/llm/decision");
       expect(appJs).toContain("Profiles");
       expect(appJs).toContain("function profiles");
       expect(appJs).toContain("/api/runbook/profile");
@@ -1202,6 +1206,9 @@ contracts:
     expect(controlPlaneJs).toContain("function providerDecisionCard");
     expect(controlPlaneJs).toContain("function recordProviderDecision");
     expect(controlPlaneJs).toContain("/api/providers/decision");
+    expect(controlPlaneJs).toContain("function llmDecisionCard");
+    expect(controlPlaneJs).toContain("function recordLLMDecision");
+    expect(controlPlaneJs).toContain("/api/llm/decision");
     expect(controlPlaneJs).toContain("External upload guardrails");
     expect(controlPlaneJs).toContain("function portfolio");
     expect(controlPlaneJs).toContain("function portfolioItemRow");
@@ -1647,6 +1654,70 @@ contracts:
     }
   });
 
+  it("records LLM governance decisions without making model calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: "keep_disabled",
+          reason: "No LLM calls before review; token=secret-value",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.decisionPath).toBe(".visual-hive/llm-decisions.json");
+      expect(payload.decision).toMatchObject({
+        decision: "keep_disabled",
+        source: "control-plane",
+        externalCallsMade: 0
+      });
+      expect(payload.decision.reason).toContain("[REDACTED]");
+
+      const log = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "llm-decisions.json"), "utf8"));
+      expect(log.decisions[0]).toMatchObject({ decision: "keep_disabled", externalCallsMade: 0 });
+      expect(log.decisions[0].reason).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.llmDecisionLog?.decisions[0]?.decision).toBe("keep_disabled");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"))?.labels).toContain("llm-decisions");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects unconfirmed and invalid LLM decisions", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "keep_disabled" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const invalid = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "call_openai_now", confirm: true })
+      });
+      const invalidPayload = await invalid.json();
+      expect(invalid.status).toBe(400);
+      expect(invalidPayload.error).toContain("Invalid LLM decision");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "llm-decisions.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("protects existing workflow templates unless force is confirmed", async () => {
     const fixture = await makeFixture();
     const workflowPath = path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml");
@@ -1739,6 +1810,13 @@ contracts:
         body: JSON.stringify({ providerId: "argos", decision: "skip", confirm: true })
       });
       expect(providerDecisionBlocked.status).toBe(403);
+
+      const llmDecisionBlocked = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "keep_disabled", confirm: true })
+      });
+      expect(llmDecisionBlocked.status).toBe(403);
     } finally {
       await server.close();
     }

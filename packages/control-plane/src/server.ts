@@ -14,6 +14,7 @@ import {
 } from "@visual-hive/core";
 import { executeRunbookCommand, executeRunbookProfile } from "./commandExecutor.js";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
+import { recordLLMDecision, type LLMDecision } from "./llmDecisions.js";
 import { recordProviderDecision, type ProviderDecision } from "./providerDecisions.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { writeSetupBundleFromRecommendation } from "./setupBundle.js";
@@ -281,6 +282,29 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
           providerId,
           label: provider.label,
           decision,
+          reason: optionalString(body.reason)
+        });
+        sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/llm/decision") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to record LLM decisions." }, 403);
+        return;
+      }
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "LLM decision recording requires explicit confirmation. No model calls were made." }, 400);
+        return;
+      }
+      try {
+        const result = await recordLLMDecision(path.join(resolved.configRoot, ".visual-hive", "llm-decisions.json"), {
+          decision: requiredString(body.decision, "decision") as LLMDecision,
           reason: optionalString(body.reason)
         });
         sendJson(response, result);

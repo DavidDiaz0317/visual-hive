@@ -22,6 +22,7 @@ import type {
   WorkflowAuditReport
 } from "@visual-hive/core";
 import type { ProviderDecisionLog } from "./providerDecisions.js";
+import type { LLMDecisionLog } from "./llmDecisions.js";
 
 export interface ControlPlaneOptions {
   repo?: string;
@@ -227,6 +228,7 @@ export interface ControlPlaneSnapshot {
   missingTestsMarkdown?: string;
   baselineReviewMarkdown?: string;
   llmUsage?: LLMUsageReport;
+  llmDecisionLog?: LLMDecisionLog;
   actionHistory?: ControlPlaneActionHistory;
   overview: ControlPlaneOverview;
   failures: ControlPlaneFailure[];

@@ -59,3 +59,13 @@ If `.visual-hive/provider-results.json` exists, triage includes sanitized provid
 Run `visual-hive llm` to re-audit the existing prompt artifacts without regenerating triage. It reads known `.visual-hive` prompt/markdown artifacts, rewrites `.visual-hive/llm-usage.json`, prints budget status, and still records `callsMade: 0`.
 
 The Control Plane LLM page reads the same artifact and shows prompt availability, budget warnings, and governance recommendations. It never performs a model call.
+
+## Control Plane Decisions
+
+The Control Plane can record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
+
+- `keep_disabled`: keep the default offline/prompt-only posture.
+- `review_later`: leave LLM usage for a future review.
+- `approve_trusted_prompt_only`: approve a future trusted workflow to review prompts, while preserving deterministic pass/fail.
+
+Recording a decision does not create API keys, enable billing, call a model, upload artifacts, or change CI pass/fail behavior. Every entry records `externalCallsMade: 0`.

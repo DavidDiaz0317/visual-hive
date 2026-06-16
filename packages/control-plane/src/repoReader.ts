@@ -39,6 +39,7 @@ import {
   type WorkflowAuditReport
 } from "@visual-hive/core";
 import { readControlPlaneActionHistory } from "./commandExecutor.js";
+import { readLLMDecisionLog } from "./llmDecisions.js";
 import { readProviderDecisionLog } from "./providerDecisions.js";
 import {
   isInsidePath,
@@ -104,6 +105,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     missingTestsMarkdown,
     baselineReviewMarkdown,
     llmUsage,
+    llmDecisionLog,
     actionHistory,
     artifacts,
     connections
@@ -126,6 +128,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readTextIfExists(path.join(hiveRoot, "missing-tests.md")),
     readTextIfExists(path.join(hiveRoot, "baseline-review.md")),
     readJsonIfExists<LLMUsageReport>(path.join(hiveRoot, "llm-usage.json")),
+    readLLMDecisionLog(path.join(hiveRoot, "llm-decisions.json")),
     readControlPlaneActionHistory(path.join(hiveRoot, "control-plane-actions.json")),
     indexArtifacts({ repoRoot: resolved.repoRoot, hiveRoot, project: config?.project.name }).then((index) => index.artifacts),
     listConnections({ repoRoot: base.repoRoot })
@@ -196,6 +199,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     missingTestsMarkdown,
     baselineReviewMarkdown,
     llmUsage,
+    llmDecisionLog,
     actionHistory,
     overview,
     failures,

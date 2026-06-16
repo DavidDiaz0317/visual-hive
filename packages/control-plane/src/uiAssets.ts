@@ -803,7 +803,26 @@ function llm() {
     card("Usage records", table(["Task", "Status", "Tokens", "Cost", "Prompt-only"], usage.records.map(r => [r.task, r.status, String(r.estimatedTokens), "$" + r.estimatedCostUsd, r.promptOnly ? "yes" : "no"]))) +
     card("Governance warnings", usage.warnings.length ? list(usage.warnings) : "No LLM governance warnings.") +
     card("Recommendations", usage.recommendations.length ? list(usage.recommendations) : "No LLM recommendations.") : card("LLM usage", '<p class="muted">No llm-usage.json found. Run visual-hive triage to generate prompt-only usage records.</p>');
-  return settings + usageBlock + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown);
+  return settings + llmDecisionCard() + usageBlock + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown);
+}
+
+function llmDecisionCard() {
+  const log = snapshot.llmDecisionLog;
+  const latest = log?.decisions?.[0];
+  return card(
+    "LLM decisions",
+    '<p class="muted">Record local governance decisions without enabling API keys, billing, model calls, or pass/fail authority. Decisions are written to <code>.visual-hive/llm-decisions.json</code>.</p>' +
+      table(["Current decision", "Reason", "Actions"], [[
+        latest ? '<span class="' + (latest.decision === "keep_disabled" ? "warn" : latest.decision === "approve_trusted_prompt_only" ? "ok" : "muted") + '">' + esc(latest.decision) + '</span><p class="muted">' + esc(latest.decidedAt) + '</p>' : '<span class="muted">none recorded</span>',
+        latest ? esc(latest.reason) : "No LLM governance decision has been recorded yet.",
+        snapshot.readOnly
+          ? '<span class="muted">read-only</span>'
+          : '<button class="button link-button llm-decision" data-decision="keep_disabled">Keep disabled</button> ' +
+            '<button class="button link-button llm-decision" data-decision="review_later">Review later</button> ' +
+            '<button class="button link-button llm-decision" data-decision="approve_trusted_prompt_only">Approve trusted prompt-only review</button>'
+      ]]) +
+      '<p id="llm-decision-status" class="muted">' + (latest ? "Latest decision: " + esc(latest.decision) : "No LLM decisions recorded yet.") + '</p>'
+  );
 }
 
 function providers() {
@@ -1223,6 +1242,7 @@ function wireActions() {
   if (setupOverwriteBundle) setupOverwriteBundle.addEventListener("click", () => writeSetupBundle(true));
   document.querySelectorAll(".setup-profile-select").forEach((button) => button.addEventListener("click", () => regenerateSetupRecommendation(button.dataset.profile || "")));
   document.querySelectorAll(".provider-decision").forEach((button) => button.addEventListener("click", () => recordProviderDecision(button.dataset.provider || "", button.dataset.decision || "")));
+  document.querySelectorAll(".llm-decision").forEach((button) => button.addEventListener("click", () => recordLLMDecision(button.dataset.decision || "")));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -1456,6 +1476,33 @@ async function recordProviderDecision(providerId, decision) {
   }
   status.className = "ok";
   status.textContent = "Provider decision recorded: " + payload.decision.providerId + " -> " + payload.decision.decision + ". Artifact: " + payload.decisionPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function recordLLMDecision(decision) {
+  const status = document.querySelector("#llm-decision-status");
+  if (!decision || !status) return;
+  const reason = prompt("Reason for LLM decision " + decision + "?", "");
+  if (reason === null) return;
+  if (!confirm("Record LLM decision " + decision + "? This writes only .visual-hive/llm-decisions.json and makes no model calls.")) return;
+  status.className = "muted";
+  status.textContent = "Recording LLM decision...";
+  const response = await fetch(apiUrl("/api/llm/decision"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision, reason, confirm: true })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "LLM decision failed.";
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "LLM decision recorded: " + payload.decision.decision + ". Artifact: " + payload.decisionPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }
