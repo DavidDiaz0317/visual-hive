@@ -13,7 +13,11 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"], "default": "custom" },
-        "defaultBranch": { "type": "string", "default": "main" }
+        "defaultBranch": { "type": "string", "default": "main" },
+        "setupProfile": {
+          "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"],
+          "default": "free-local"
+        }
       }
     },
     "targets": {
@@ -103,6 +107,7 @@
         "github-checks": { "$ref": "#/$defs/providerConfig" }
       }
     },
+    "costPolicy": { "$ref": "#/$defs/costPolicy" },
     "github": {
       "type": "object",
       "additionalProperties": false,
@@ -369,6 +374,28 @@
         "requiredEnv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "projectId": { "type": "string", "minLength": 1 },
         "failOnProviderFailure": { "type": "boolean", "default": false }
+      }
+    },
+    "costPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0, "default": 0 },
+        "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0, "default": 5000 },
+        "externalUpload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pullRequest": { "type": "boolean", "default": false },
+            "schedule": { "type": "boolean", "default": true },
+            "manual": { "type": "boolean", "default": true },
+            "canary": { "type": "boolean", "default": false },
+            "mutation": { "type": "boolean", "default": false },
+            "full": { "type": "boolean", "default": true },
+            "onFailureOnly": { "type": "boolean", "default": true },
+            "criticalContractsOnly": { "type": "boolean", "default": true }
+          }
+        }
       }
     }
   }

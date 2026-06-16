@@ -212,7 +212,8 @@ async function buildReportFromPlaywrightOutput(input: {
     artifacts,
     providerResults: normalizeProviderResults(input.config, {
       deterministicStatus: status,
-      artifactCount: artifacts.length
+      artifactCount: artifacts.length,
+      mode: input.plan.mode
     }),
     reproductionCommands: [
       `visual-hive plan --mode ${input.plan.mode}`,
@@ -357,6 +358,7 @@ function sanitizeReport(report: Report): Report {
       message: sanitizeText(provider.message),
       requiredEnv: provider.requiredEnv.map((name) => sanitizeText(name)),
       missingEnv: provider.missingEnv.map((name) => sanitizeText(name)),
+      externalUploadBlockedReasons: provider.externalUploadBlockedReasons?.map((reason) => sanitizeText(reason)),
       externalUrl: provider.externalUrl ? sanitizeText(provider.externalUrl) : undefined
     })),
     reproductionCommands: report.reproductionCommands.map((command) => sanitizeText(command))

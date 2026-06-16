@@ -34,7 +34,15 @@ Top-level fields include project, repository metadata, mode, generated time, cha
 
 Per-contract fields include selector assertions, user-flow step results, screenshot assertions, console/page/network errors, artifacts, duration, and a reproduction command. Flow steps record action, selector/route/value metadata, status, duration, and an error message when the deterministic user-flow action failed. Screenshot assertions include contract ID, screenshot name, route, viewport, baseline path, actual path, optional diff path, max diff thresholds, actual diff ratio, diff pixel count, and `passed | failed | created | missing_baseline` status.
 
-`providerResults` normalizes provider adapter status. Playwright is the built-in deterministic oracle. Optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks are reported as skipped, mock, available/missing-credential metadata, or future external adapter output. Missing credentials are listed by environment variable name only.
+`providerResults` normalizes provider adapter status. Playwright is the built-in deterministic oracle. Optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks are reported as skipped, mock, available/missing-credential metadata, policy-blocked metadata, or future external adapter output. Missing credentials are listed by environment variable name only.
+
+Each provider result can include:
+
+- `externalUploadAllowed`: whether Visual Hive policy would allow external upload for the run context.
+- `externalUploadBlockedReasons`: human-readable reasons such as PR upload disabled, pass-only run blocked by `onFailureOnly`, or screenshot budget exceeded.
+- `estimatedExternalScreenshots`: the current run's local artifact count used as the conservative external screenshot estimate.
+
+These fields are governance evidence only. The default v0.2 path still makes no paid-provider network calls.
 
 ## Provider Adapter Mock Results
 

@@ -73,6 +73,9 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     lines.push("### Provider Results", "");
     for (const provider of report?.providerResults ?? []) {
       lines.push(`- ${provider.label}: ${provider.status} (${provider.deterministicRole}) - ${provider.message}`);
+      if (provider.externalUploadAllowed === false && provider.externalUploadBlockedReasons?.length) {
+        lines.push(`  - External upload blocked: ${provider.externalUploadBlockedReasons.join(" ")}`);
+      }
     }
     lines.push("");
   }

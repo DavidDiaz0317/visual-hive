@@ -41,7 +41,26 @@ Optional sections with defaults:
 - `mutation`: enables mutation adequacy checks.
 - `ai`: controls prompt generation, advisory-only governance, and token/cost estimate budgets.
 - `providers`: inspects optional provider adapter readiness without requiring paid accounts.
+- `costPolicy`: controls external provider upload budgets and run-mode policy.
 - `github`: controls generated markdown labels and PR marker.
+
+Setup profiles:
+
+- `free-local`: default profile. Uses Visual Hive, Playwright, GitHub Actions, and local artifacts with no external provider upload.
+- `hosted-review`: intended for teams that want a hosted visual review provider on trusted runs.
+- `component-storybook`: intended for Storybook-heavy design systems.
+- `enterprise-visual-ai`: intended for enterprise visual AI or device/browser-grid providers.
+- `complex-app`: intended for dashboards, auth flows, command groups, and protected environments such as KubeStellar Console.
+
+Example:
+
+```yaml
+project:
+  name: my-dashboard
+  type: react-vite
+  defaultBranch: main
+  setupProfile: free-local
+```
 
 Target kinds:
 
@@ -199,3 +218,22 @@ providers:
 Provider `projectId` is optional and sanitized before it appears in `provider-results.json`. In v0.2 it is used for mock/deferred review metadata only; Visual Hive still makes no external provider calls by default.
 
 `mode: mock` keeps inspection and report normalization local. `mode: external` requires the configured environment variable names to be present before an adapter can be treated as available. Visual Hive reports missing credential names only; it never prints values.
+
+Provider cost policy defaults:
+
+```yaml
+costPolicy:
+  maxExternalScreenshotsPerRun: 0
+  maxMonthlyExternalScreenshots: 5000
+  externalUpload:
+    pullRequest: false
+    schedule: true
+    manual: true
+    canary: false
+    mutation: false
+    full: true
+    onFailureOnly: true
+    criticalContractsOnly: true
+```
+
+The default `maxExternalScreenshotsPerRun: 0` blocks hosted provider uploads while keeping Playwright local checks fully enabled. This is intentional for open-source and early project setups: PRs remain free, no-secret, and local-only unless a trusted workflow explicitly raises the external screenshot budget and enables the intended run mode. Provider reports include `externalUploadAllowed`, `externalUploadBlockedReasons`, and `estimatedExternalScreenshots` so the Control Plane and GitHub artifacts can explain why external upload was skipped.

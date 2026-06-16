@@ -474,13 +474,25 @@ function artifactPreview(artifact) {
 
 function providerResultsCard(results) {
   if (!results || !results.length) return card("Provider results", '<p class="muted">No provider results found in the latest report.</p>');
-  return card("Provider results", table(["Provider", "Status", "Role", "Artifacts", "Missing env", "Message"], results.map(p => [p.label, p.status, p.deterministicRole, String(p.artifactCount), p.missingEnv?.join(", ") || "none", p.message])));
+  return card("Provider results", table(["Provider", "Status", "Role", "External", "Artifacts", "Missing env", "Message"], results.map(p => [p.label, p.status, p.deterministicRole, providerExternalPolicy(p), String(p.artifactCount), p.missingEnv?.join(", ") || "none", p.message])));
 }
 
 function providerRunResultsCard(report) {
   if (!report) return card("Provider adapter run", '<p class="muted">No provider-results.json found. Run visual-hive providers --mock-results after a deterministic run.</p>');
   return card("Provider adapter run", '<p><b>Source deterministic status:</b> ' + esc(report.deterministicStatus) + '</p><p><b>Artifacts:</b> ' + esc(report.artifactCount) + '</p>' +
-    table(["Provider", "Availability", "Result", "Network", "Upload", "Operations", "Metadata"], report.providers.map(p => [p.label, p.availability, p.result.status, p.normalized?.networkMode || "unknown", p.normalized?.artifactSummary?.uploadMode || "unknown", p.operations.map(o => o.operation + ":" + o.status).join(", "), providerMetadataSummary(p)])));
+    table(["Provider", "Availability", "Result", "Network", "Upload", "Policy", "Operations", "Metadata"], report.providers.map(p => [p.label, p.availability, p.result.status, p.normalized?.networkMode || "unknown", p.normalized?.artifactSummary?.uploadMode || "unknown", providerExternalPolicy(p.result, p.normalized), p.operations.map(o => o.operation + ":" + o.status).join(", "), providerMetadataSummary(p)])));
+}
+
+function providerExternalPolicy(provider, normalized) {
+  const policy = normalized?.costPolicy;
+  const allowed = provider.externalUploadAllowed ?? policy?.externalUploadAllowed;
+  if (provider.providerId === "playwright") return "local";
+  if (allowed === true) return "allowed";
+  if (allowed === false) {
+    const reasons = provider.externalUploadBlockedReasons || policy?.blockedReasons || [];
+    return "blocked" + (reasons.length ? ": " + reasons.join(" ") : "");
+  }
+  return "n/a";
 }
 
 function providerMetadataSummary(provider) {

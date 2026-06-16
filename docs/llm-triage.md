@@ -43,6 +43,8 @@ If `.visual-hive/coverage.json` exists, triage includes it in the missing-covera
 - `page_error`
 - `target_startup_failure`
 - `provider_failure`
+- `provider_cost_policy_skipped`
+- `external_upload_blocked`
 - `protected_target_missing_secret`
 - `mutation_survivor`
 - `possible_flake`

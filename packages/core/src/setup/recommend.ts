@@ -337,7 +337,8 @@ function configInput(input: {
     project: {
       name: input.projectName,
       type: input.projectType,
-      defaultBranch: "main"
+      defaultBranch: "main",
+      setupProfile: "free-local"
     },
     targets: {
       localPreview: input.target
@@ -381,6 +382,20 @@ function configInput(input: {
       neverSoleOracle: true,
       createIssuePrompt: true,
       maxDailyRuns: 5
+    },
+    costPolicy: {
+      maxExternalScreenshotsPerRun: 0,
+      maxMonthlyExternalScreenshots: 5000,
+      externalUpload: {
+        pullRequest: false,
+        schedule: true,
+        manual: true,
+        canary: false,
+        mutation: false,
+        full: true,
+        onFailureOnly: true,
+        criticalContractsOnly: true
+      }
     },
     github: {
       enabled: true,

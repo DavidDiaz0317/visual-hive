@@ -2,6 +2,7 @@ project:
   name: demo-react-app
   type: react-vite
   defaultBranch: main
+  setupProfile: free-local
 
 targets:
   localPreview:
@@ -180,6 +181,19 @@ ai:
   maxDailyRuns: 5
   maxPromptTokens: 50000
   maxEstimatedCostUsd: 0
+
+costPolicy:
+  maxExternalScreenshotsPerRun: 0
+  maxMonthlyExternalScreenshots: 5000
+  externalUpload:
+    pullRequest: false
+    schedule: true
+    manual: true
+    canary: false
+    mutation: false
+    full: true
+    onFailureOnly: true
+    criticalContractsOnly: true
 
 github:
   enabled: true

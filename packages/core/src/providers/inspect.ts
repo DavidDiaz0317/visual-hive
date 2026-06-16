@@ -1,7 +1,8 @@
 import type { ProviderConfig, ProviderId, VisualHiveConfig } from "../config/schema.js";
+import type { PlanMode } from "../planner/types.js";
 import type { ProviderResult } from "../reports/types.js";
 
-export type ProviderAvailability = "available" | "disabled" | "missing_credentials" | "mock";
+export type ProviderAvailability = "available" | "disabled" | "missing_credentials" | "mock" | "policy_blocked";
 
 export interface ProviderAdapterMetadata {
   id: ProviderId;
@@ -25,6 +26,23 @@ export interface ProviderInspection {
   supports: ProviderAdapterMetadata["supports"];
   docs: string;
   message: string;
+  costPolicy: ProviderCostPolicyEvaluation;
+}
+
+export interface ProviderInspectionContext {
+  mode?: PlanMode;
+  deterministicStatus?: "passed" | "failed";
+  artifactCount?: number;
+  selectedContractSeverities?: Array<VisualHiveConfig["contracts"][number]["severity"]>;
+}
+
+export interface ProviderCostPolicyEvaluation {
+  externalUploadAllowed: boolean;
+  blockedReasons: string[];
+  estimatedExternalScreenshots: number;
+  maxExternalScreenshotsPerRun: number;
+  maxMonthlyExternalScreenshots: number;
+  externalUploadPolicy: VisualHiveConfig["costPolicy"]["externalUpload"];
 }
 
 export const PROVIDER_ADAPTERS: ProviderAdapterMetadata[] = [
@@ -86,39 +104,60 @@ export const PROVIDER_ADAPTERS: ProviderAdapterMetadata[] = [
   }
 ];
 
-export function inspectProviders(config: VisualHiveConfig, env: NodeJS.ProcessEnv = process.env): ProviderInspection[] {
-  return PROVIDER_ADAPTERS.map((metadata) => inspectProvider(metadata, config.providers[metadata.id], env));
+export function inspectProviders(
+  config: VisualHiveConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  context: ProviderInspectionContext = {}
+): ProviderInspection[] {
+  return PROVIDER_ADAPTERS.map((metadata) => inspectProvider(metadata, config.providers[metadata.id], config, env, context));
 }
 
 export function normalizeProviderResults(
   config: VisualHiveConfig,
-  input: { deterministicStatus: "passed" | "failed"; artifactCount: number; generatedAt?: string },
+  input: { deterministicStatus: "passed" | "failed"; artifactCount: number; generatedAt?: string; mode?: PlanMode },
   env: NodeJS.ProcessEnv = process.env
 ): ProviderResult[] {
   const normalizedAt = input.generatedAt ?? new Date().toISOString();
-  return inspectProviders(config, env).map((provider) => ({
-    providerId: provider.id,
-    label: provider.label,
-    status: providerStatus(provider, input.deterministicStatus),
-    deterministicRole: provider.deterministicRole,
-    message: providerMessageForResult(provider, input.deterministicStatus),
-    requiredEnv: provider.requiredEnv,
-    missingEnv: provider.missingEnv,
-    artifactCount: provider.enabled || provider.id === "playwright" ? input.artifactCount : 0,
-    normalizedAt
-  }));
+  return inspectProviders(config, env, {
+    mode: input.mode,
+    deterministicStatus: input.deterministicStatus,
+    artifactCount: input.artifactCount
+  }).map((provider) => {
+    const policy = providerPolicyFields(provider);
+    return {
+      providerId: provider.id,
+      label: provider.label,
+      status: providerStatus(provider, input.deterministicStatus),
+      deterministicRole: provider.deterministicRole,
+      message: providerMessageForResult(provider, input.deterministicStatus),
+      requiredEnv: provider.requiredEnv,
+      missingEnv: provider.missingEnv,
+      artifactCount: provider.enabled || provider.id === "playwright" ? input.artifactCount : 0,
+      ...policy,
+      normalizedAt
+    };
+  });
 }
 
-function inspectProvider(metadata: ProviderAdapterMetadata, config: ProviderConfig, env: NodeJS.ProcessEnv): ProviderInspection {
+function inspectProvider(
+  metadata: ProviderAdapterMetadata,
+  config: ProviderConfig,
+  fullConfig: VisualHiveConfig,
+  env: NodeJS.ProcessEnv,
+  context: ProviderInspectionContext
+): ProviderInspection {
   const requiredEnv = config.requiredEnv;
   const missingEnv = requiredEnv.filter((name) => !env[name]);
+  const costPolicy = evaluateProviderCostPolicy(fullConfig, context);
   const availability: ProviderAvailability = !config.enabled
     ? "disabled"
     : config.mode === "mock"
       ? "mock"
       : missingEnv.length > 0
         ? "missing_credentials"
-        : "available";
+        : metadata.id !== "playwright" && !costPolicy.externalUploadAllowed
+          ? "policy_blocked"
+          : "available";
   return {
     id: metadata.id,
     label: metadata.label,
@@ -131,15 +170,22 @@ function inspectProvider(metadata: ProviderAdapterMetadata, config: ProviderConf
     missingEnv,
     supports: metadata.supports,
     docs: metadata.docs,
-    message: providerMessage(metadata, availability, missingEnv)
+    message: providerMessage(metadata, availability, missingEnv, costPolicy.blockedReasons),
+    costPolicy
   };
 }
 
-function providerMessage(metadata: ProviderAdapterMetadata, availability: ProviderAvailability, missingEnv: string[]): string {
+function providerMessage(
+  metadata: ProviderAdapterMetadata,
+  availability: ProviderAvailability,
+  missingEnv: string[],
+  blockedReasons: string[]
+): string {
   if (metadata.id === "playwright") return "Built-in deterministic oracle.";
   if (availability === "disabled") return "Disabled; Visual Hive will not call this provider.";
   if (availability === "mock") return "Mock mode; no external provider call will be made.";
   if (availability === "missing_credentials") return `Missing environment variables by name only: ${missingEnv.join(", ")}`;
+  if (availability === "policy_blocked") return `External upload blocked by cost policy: ${blockedReasons.join(" ")}`;
   return "Configured and credential names are present. External calls remain adapter-controlled and optional.";
 }
 
@@ -148,6 +194,7 @@ function providerStatus(provider: ProviderInspection, deterministicStatus: "pass
   if (!provider.enabled) return "skipped";
   if (provider.availability === "mock") return "mock";
   if (provider.availability === "missing_credentials") return "missing_credentials";
+  if (provider.availability === "policy_blocked") return "skipped";
   return "skipped";
 }
 
@@ -164,5 +211,73 @@ function providerMessageForResult(provider: ProviderInspection, deterministicSta
   if (provider.availability === "missing_credentials") {
     return `Provider enabled but missing credential names: ${provider.missingEnv.join(", ")}`;
   }
+  if (provider.availability === "policy_blocked") {
+    return `Provider enabled but external upload is blocked by cost policy: ${provider.costPolicy.blockedReasons.join(" ")}`;
+  }
   return "Provider is configured, but external upload/compare execution is deferred to a future adapter.";
+}
+
+function providerPolicyFields(
+  provider: ProviderInspection
+): Pick<ProviderResult, "externalUploadAllowed" | "externalUploadBlockedReasons" | "estimatedExternalScreenshots"> {
+  if (provider.id === "playwright" || provider.mode === "mock") {
+    return {
+      externalUploadAllowed: true,
+      externalUploadBlockedReasons: [],
+      estimatedExternalScreenshots: provider.costPolicy.estimatedExternalScreenshots
+    };
+  }
+  if (!provider.enabled) {
+    return {};
+  }
+  return {
+    externalUploadAllowed: provider.costPolicy.externalUploadAllowed,
+    externalUploadBlockedReasons: provider.costPolicy.blockedReasons,
+    estimatedExternalScreenshots: provider.costPolicy.estimatedExternalScreenshots
+  };
+}
+
+function evaluateProviderCostPolicy(config: VisualHiveConfig, context: ProviderInspectionContext): ProviderCostPolicyEvaluation {
+  const mode = context.mode ?? "manual";
+  const deterministicStatus = context.deterministicStatus ?? "passed";
+  const estimatedExternalScreenshots = context.artifactCount ?? 0;
+  const policy = config.costPolicy;
+  const blockedReasons: string[] = [];
+  const modeAllowed = externalUploadAllowedForMode(policy.externalUpload, mode);
+
+  if (!modeAllowed) {
+    blockedReasons.push(`costPolicy.externalUpload.${externalUploadModeKey(mode)}=false for ${mode} mode.`);
+  }
+  if (policy.externalUpload.onFailureOnly && deterministicStatus !== "failed") {
+    blockedReasons.push("costPolicy.externalUpload.onFailureOnly=true and deterministic status is passed.");
+  }
+  if (estimatedExternalScreenshots > policy.maxExternalScreenshotsPerRun) {
+    blockedReasons.push(
+      `estimated external screenshots ${estimatedExternalScreenshots} exceeds costPolicy.maxExternalScreenshotsPerRun ${policy.maxExternalScreenshotsPerRun}.`
+    );
+  }
+  if (policy.externalUpload.criticalContractsOnly && context.selectedContractSeverities?.length) {
+    const hasCritical = context.selectedContractSeverities.includes("critical");
+    if (!hasCritical) {
+      blockedReasons.push("costPolicy.externalUpload.criticalContractsOnly=true and no selected contract is critical.");
+    }
+  }
+
+  return {
+    externalUploadAllowed: blockedReasons.length === 0,
+    blockedReasons,
+    estimatedExternalScreenshots,
+    maxExternalScreenshotsPerRun: policy.maxExternalScreenshotsPerRun,
+    maxMonthlyExternalScreenshots: policy.maxMonthlyExternalScreenshots,
+    externalUploadPolicy: policy.externalUpload
+  };
+}
+
+function externalUploadAllowedForMode(policy: VisualHiveConfig["costPolicy"]["externalUpload"], mode: PlanMode): boolean {
+  return policy[externalUploadModeKey(mode)];
+}
+
+function externalUploadModeKey(mode: PlanMode): keyof VisualHiveConfig["costPolicy"]["externalUpload"] {
+  if (mode === "pr") return "pullRequest";
+  return mode;
 }

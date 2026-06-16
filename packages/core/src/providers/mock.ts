@@ -1,4 +1,5 @@
 import type { ProviderResult } from "../reports/types.js";
+import type { PlanMode } from "../planner/types.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { inspectProviders, normalizeProviderResults, type ProviderInspection } from "./inspect.js";
 import type { VisualHiveConfig } from "../config/schema.js";
@@ -48,6 +49,7 @@ export interface MockProviderAdapterInput {
   artifactCount: number;
   artifactPaths?: string[];
   generatedAt?: string;
+  mode?: PlanMode;
 }
 
 export function runMockProviderAdapters(
@@ -56,13 +58,18 @@ export function runMockProviderAdapters(
   env: NodeJS.ProcessEnv = process.env
 ): MockProviderRunReport {
   const generatedAt = input.generatedAt ?? new Date().toISOString();
-  const inspections = inspectProviders(config, env);
+  const inspections = inspectProviders(config, env, {
+    mode: input.mode,
+    deterministicStatus: input.deterministicStatus,
+    artifactCount: input.artifactCount
+  });
   const normalized = normalizeProviderResults(
     config,
     {
       deterministicStatus: input.deterministicStatus,
       artifactCount: input.artifactCount,
-      generatedAt
+      generatedAt,
+      mode: input.mode
     },
     env
   );
@@ -123,6 +130,8 @@ function buildMockProviderRun(
 
   if (provider.availability === "missing_credentials") {
     warnings.push(`${provider.label} is enabled but missing credential names: ${safeMissingEnv.join(", ")}`);
+  } else if (provider.availability === "policy_blocked") {
+    warnings.push(`${provider.label} external upload is blocked by cost policy: ${provider.costPolicy.blockedReasons.join(" ")}`);
   } else if (provider.enabled && provider.mode === "external" && provider.availability === "available" && provider.id !== "playwright") {
     warnings.push(`${provider.label} external execution is configured but deferred in this local adapter runner.`);
   }

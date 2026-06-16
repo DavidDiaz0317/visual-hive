@@ -22,6 +22,8 @@ Percy, Chromatic, Argos, and Applitools are valuable visual testing products. Vi
 
 Visual Hive can run first to decide which targets/contracts deserve attention. The v0.2 adapter surface can inspect optional provider readiness, report missing credential names, and run mock-mode adapters without external accounts. `visual-hive providers --mock-results` writes `.visual-hive/provider-results.json` with availability, artifact upload, compare, fetch, normalize, and report-metadata operation evidence. Future external adapters can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
 
+Visual Hive also owns external upload policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, and still report `externalCallsMade: 0` unless a future trusted adapter explicitly performs a network call.
+
 The default Visual Hive workflow does not require paid accounts or external visual providers.
 
 ## Adapter surface

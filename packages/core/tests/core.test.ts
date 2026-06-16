@@ -141,6 +141,7 @@ function sampleConfig(): VisualHiveConfig {
 describe("config validation", () => {
   it("accepts a valid config", () => {
     expect(sampleConfig().project.name).toBe("sample");
+    expect(sampleConfig().project.setupProfile).toBe("free-local");
   });
 
   it("applies visual config defaults", () => {
@@ -214,6 +215,23 @@ describe("config validation", () => {
     });
   });
 
+  it("applies provider cost policy defaults", () => {
+    expect(sampleConfig().costPolicy).toMatchObject({
+      maxExternalScreenshotsPerRun: 0,
+      maxMonthlyExternalScreenshots: 5000,
+      externalUpload: {
+        pullRequest: false,
+        schedule: true,
+        manual: true,
+        canary: false,
+        mutation: false,
+        full: true,
+        onFailureOnly: true,
+        criticalContractsOnly: true
+      }
+    });
+  });
+
   it("applies provider defaults and inspects credential names only", () => {
     const config = VisualHiveConfigSchema.parse({
       ...sampleConfig(),
@@ -244,9 +262,47 @@ describe("config validation", () => {
     expect(normalized.find((provider) => provider.providerId === "percy")?.status).toBe("mock");
   });
 
+  it("blocks external provider upload by default cost policy", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      providers: {
+        argos: { enabled: true }
+      }
+    });
+
+    const inspected = inspectProviders(config, { ARGOS_TOKEN: "secret-token" }, { mode: "pr", deterministicStatus: "passed", artifactCount: 3 });
+    const argos = inspected.find((provider) => provider.id === "argos");
+    expect(argos?.availability).toBe("policy_blocked");
+    expect(argos?.costPolicy.externalUploadAllowed).toBe(false);
+    expect(argos?.costPolicy.blockedReasons.join(" ")).toContain("pullRequest=false");
+    expect(argos?.costPolicy.blockedReasons.join(" ")).toContain("onFailureOnly=true");
+    expect(argos?.costPolicy.blockedReasons.join(" ")).toContain("maxExternalScreenshotsPerRun 0");
+
+    const normalized = normalizeProviderResults(config, { deterministicStatus: "passed", artifactCount: 3, mode: "pr" }, { ARGOS_TOKEN: "secret-token" });
+    expect(normalized.find((provider) => provider.providerId === "argos")).toMatchObject({
+      status: "skipped",
+      externalUploadAllowed: false,
+      estimatedExternalScreenshots: 3
+    });
+  });
+
   it("runs mock provider adapter operations without leaking credential values", () => {
     const config = VisualHiveConfigSchema.parse({
       ...sampleConfig(),
+      costPolicy: {
+        maxExternalScreenshotsPerRun: 25,
+        maxMonthlyExternalScreenshots: 5000,
+        externalUpload: {
+          pullRequest: false,
+          schedule: true,
+          manual: true,
+          canary: false,
+          mutation: false,
+          full: true,
+          onFailureOnly: false,
+          criticalContractsOnly: false
+        }
+      },
       providers: {
         argos: { enabled: true, projectId: "visual-hive/demo" },
         percy: { enabled: true },
@@ -261,7 +317,8 @@ describe("config validation", () => {
         deterministicStatus: "passed",
         artifactCount: 2,
         artifactPaths: [".visual-hive/report.json", ".visual-hive/artifacts/screenshots/dashboard.png"],
-        generatedAt: "2026-06-15T00:00:00.000Z"
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        mode: "manual"
       },
       { ARGOS_TOKEN: "super-secret-token-value" }
     );

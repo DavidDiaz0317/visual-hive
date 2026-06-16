@@ -91,6 +91,27 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
     });
   }
 
+  const policyBlockedProviders =
+    input.report?.providerResults?.filter((provider) => provider.externalUploadAllowed === false && provider.externalUploadBlockedReasons?.length) ?? [];
+  for (const provider of policyBlockedProviders) {
+    const blockedReasons = provider.externalUploadBlockedReasons ?? [];
+    findings.push({
+      classification: provider.status === "skipped" ? "provider_cost_policy_skipped" : "external_upload_blocked",
+      severity: "low",
+      title: `Provider ${provider.label} external upload is blocked by policy`,
+      evidence: [
+        provider.message,
+        ...blockedReasons,
+        `Estimated external screenshots: ${provider.estimatedExternalScreenshots ?? 0}`
+      ],
+      suggestedFiles: changedFiles,
+      suggestedNextTests: [
+        "Keep the default no-external-upload policy for PRs unless a trusted workflow explicitly opts in.",
+        "If hosted review is needed, raise costPolicy.maxExternalScreenshotsPerRun and enable the intended run mode only."
+      ]
+    });
+  }
+
   const protectedTargets = input.report?.selectedTargets.filter((target) => target.missingSecrets?.length) ?? [];
   for (const target of protectedTargets) {
     findings.push({

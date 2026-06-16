@@ -43,6 +43,7 @@ project:
   name: demo-react-app
   type: react-vite
   defaultBranch: main
+  setupProfile: free-local
 
 targets:
   localPreview:
@@ -59,6 +60,16 @@ visual:
   failOnMissingBaselineInCI: true
   snapshotDir: ".visual-hive/snapshots"
   artifactDir: ".visual-hive/artifacts"
+
+costPolicy:
+  maxExternalScreenshotsPerRun: 0
+  maxMonthlyExternalScreenshots: 5000
+  externalUpload:
+    pullRequest: false
+    schedule: true
+    manual: true
+    onFailureOnly: true
+    criticalContractsOnly: true
 
 contracts:
   - id: dashboard-visual-stability
@@ -113,7 +124,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive report`: prints markdown or JSON and can append to `GITHUB_STEP_SUMMARY`.
 - `visual-hive baselines list|approve`: inspect screenshot baselines and explicitly approve an actual screenshot as the new baseline with an audit record.
 - `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
-- `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence and provider-specific normalized metadata.
+- `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, mutation, failures, and raw artifacts.
 
 Target kinds are `url`, `command`, `commandGroup`, and `protected`. Protected targets default to PR-unsafe and report missing secret environment variable names without printing values.

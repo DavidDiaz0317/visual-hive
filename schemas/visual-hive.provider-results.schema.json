@@ -73,7 +73,7 @@
         "label": { "type": "string" },
         "enabled": { "type": "boolean" },
         "mode": { "enum": ["mock", "external"] },
-        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock"] },
+        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
         "deterministicRole": { "enum": ["oracle", "supplemental"] },
         "operations": {
           "type": "array",
@@ -137,6 +137,12 @@
           "items": { "type": "string" }
         },
         "artifactCount": { "type": "integer", "minimum": 0 },
+        "externalUploadAllowed": { "type": "boolean" },
+        "externalUploadBlockedReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
         "externalUrl": { "type": "string" },
         "normalizedAt": { "type": "string", "format": "date-time" }
       },
@@ -152,6 +158,7 @@
         "networkMode",
         "externalCallsMade",
         "artifactSummary",
+        "costPolicy",
         "notes"
       ],
       "properties": {
@@ -159,7 +166,7 @@
         "category": { "enum": ["built-in", "hosted-visual", "component", "ci"] },
         "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
         "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "networkMode": { "enum": ["local", "mock", "deferred", "disabled", "missing_credentials"] },
+        "networkMode": { "enum": ["local", "mock", "deferred", "disabled", "missing_credentials", "policy_blocked"] },
         "externalCallsMade": { "const": 0 },
         "artifactSummary": {
           "type": "object",
@@ -169,6 +176,27 @@
             "uploadedArtifacts": { "type": "integer", "minimum": 0 },
             "comparedArtifacts": { "type": "integer", "minimum": 0 },
             "uploadMode": { "enum": ["local-only", "mock", "deferred", "not-supported", "disabled", "blocked"] }
+          },
+          "additionalProperties": false
+        },
+        "costPolicy": {
+          "type": "object",
+          "required": [
+            "externalUploadAllowed",
+            "blockedReasons",
+            "estimatedExternalScreenshots",
+            "maxExternalScreenshotsPerRun",
+            "maxMonthlyExternalScreenshots"
+          ],
+          "properties": {
+            "externalUploadAllowed": { "type": "boolean" },
+            "blockedReasons": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
+            "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+            "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0 }
           },
           "additionalProperties": false
         },

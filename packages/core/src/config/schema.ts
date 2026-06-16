@@ -3,6 +3,7 @@ import { z } from "zod";
 export const CostSchema = z.enum(["cheap", "medium", "expensive"]);
 export const SeveritySchema = z.enum(["low", "medium", "high", "critical"]);
 export const ProjectTypeSchema = z.enum(["react-vite", "nextjs", "static", "dashboard", "custom"]);
+export const SetupProfileSchema = z.enum(["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"]);
 export const ProviderIdSchema = z.enum(["playwright", "argos", "percy", "chromatic", "applitools", "storybook", "github-checks"]);
 export const ProviderModeSchema = z.enum(["mock", "external"]);
 export const MutationOperatorSchema = z.enum([
@@ -73,6 +74,49 @@ export const ProvidersConfigSchema = z
     applitools: { enabled: false, mode: "external", requiredEnv: ["APPLITOOLS_API_KEY"], failOnProviderFailure: false },
     storybook: { enabled: false, mode: "mock", requiredEnv: [], failOnProviderFailure: false },
     "github-checks": { enabled: false, mode: "external", requiredEnv: ["GITHUB_TOKEN"], failOnProviderFailure: false }
+  });
+
+const ExternalUploadPolicySchema = z
+  .object({
+    pullRequest: z.boolean().default(false),
+    schedule: z.boolean().default(true),
+    manual: z.boolean().default(true),
+    canary: z.boolean().default(false),
+    mutation: z.boolean().default(false),
+    full: z.boolean().default(true),
+    onFailureOnly: z.boolean().default(true),
+    criticalContractsOnly: z.boolean().default(true)
+  })
+  .default({
+    pullRequest: false,
+    schedule: true,
+    manual: true,
+    canary: false,
+    mutation: false,
+    full: true,
+    onFailureOnly: true,
+    criticalContractsOnly: true
+  });
+
+export const CostPolicySchema = z
+  .object({
+    maxExternalScreenshotsPerRun: z.number().int().nonnegative().default(0),
+    maxMonthlyExternalScreenshots: z.number().int().nonnegative().default(5000),
+    externalUpload: ExternalUploadPolicySchema
+  })
+  .default({
+    maxExternalScreenshotsPerRun: 0,
+    maxMonthlyExternalScreenshots: 5000,
+    externalUpload: {
+      pullRequest: false,
+      schedule: true,
+      manual: true,
+      canary: false,
+      mutation: false,
+      full: true,
+      onFailureOnly: true,
+      criticalContractsOnly: true
+    }
   });
 
 const RunOnSchema = z
@@ -231,7 +275,8 @@ export const VisualHiveConfigSchema = z.object({
   project: z.object({
     name: z.string().min(1),
     type: ProjectTypeSchema.default("custom"),
-    defaultBranch: z.string().min(1).default("main")
+    defaultBranch: z.string().min(1).default("main"),
+    setupProfile: SetupProfileSchema.default("free-local")
   }),
   targets: z.record(TargetSchema).refine((targets) => Object.keys(targets).length > 0, {
     message: "At least one target is required"
@@ -292,6 +337,7 @@ export const VisualHiveConfigSchema = z.object({
       maxEstimatedCostUsd: 0
     }),
   providers: ProvidersConfigSchema,
+  costPolicy: CostPolicySchema,
   github: z
     .object({
       enabled: z.boolean().default(false),

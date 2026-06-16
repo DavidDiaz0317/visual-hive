@@ -226,6 +226,9 @@
         "requiredEnv": { "type": "array", "items": { "type": "string" } },
         "missingEnv": { "type": "array", "items": { "type": "string" } },
         "artifactCount": { "type": "number", "minimum": 0 },
+        "externalUploadAllowed": { "type": "boolean" },
+        "externalUploadBlockedReasons": { "type": "array", "items": { "type": "string" } },
+        "estimatedExternalScreenshots": { "type": "number", "minimum": 0 },
         "externalUrl": { "type": "string" },
         "normalizedAt": { "type": "string" }
       }

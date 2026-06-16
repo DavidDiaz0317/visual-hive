@@ -55,7 +55,8 @@ export async function runProvidersMockCommand(options: ProvidersCommandOptions =
   const report = runMockProviderAdapters(loaded.config, {
     deterministicStatus: deterministicReport.status,
     artifactCount: artifactPaths.length,
-    artifactPaths
+    artifactPaths,
+    mode: deterministicReport.mode
   });
   const reportPath = path.join(hiveRoot, "provider-results.json");
   await writeJson(reportPath, report);
@@ -67,13 +68,15 @@ export function formatProvidersSummary(providers: ProviderInspection[]): string 
     provider: Math.max("Provider".length, ...providers.map((provider) => provider.label.length)),
     status: Math.max("Status".length, ...providers.map((provider) => provider.availability.length)),
     mode: Math.max("Mode".length, ...providers.map((provider) => provider.mode.length)),
-    role: Math.max("Role".length, ...providers.map((provider) => provider.deterministicRole.length))
+    role: Math.max("Role".length, ...providers.map((provider) => provider.deterministicRole.length)),
+    external: Math.max("External".length, ...providers.map((provider) => externalUploadLabel(provider).length))
   };
   const header = [
     pad("Provider", widths.provider),
     pad("Status", widths.status),
     pad("Mode", widths.mode),
     pad("Role", widths.role),
+    pad("External", widths.external),
     "Message"
   ].join("  ");
   const separator = [
@@ -81,6 +84,7 @@ export function formatProvidersSummary(providers: ProviderInspection[]): string 
     "-".repeat(widths.status),
     "-".repeat(widths.mode),
     "-".repeat(widths.role),
+    "-".repeat(widths.external),
     "-------"
   ].join("  ");
   const rows = providers.map((provider) =>
@@ -89,6 +93,7 @@ export function formatProvidersSummary(providers: ProviderInspection[]): string 
       pad(provider.availability, widths.status),
       pad(provider.mode, widths.mode),
       pad(provider.deterministicRole, widths.role),
+      pad(externalUploadLabel(provider), widths.external),
       provider.message
     ].join("  ")
   );
@@ -110,12 +115,12 @@ export function formatProvidersMockSummary(report: MockProviderRunReport, report
     `- Artifact count: ${report.artifactCount}`,
     `- Wrote: ${reportPath}`,
     "",
-    "| Provider | Availability | Result | Network | Upload | Operations | Message |",
-    "| --- | --- | --- | --- | --- | --- | --- |"
+    "| Provider | Availability | Result | Network | Upload | External policy | Operations | Message |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |"
   ];
   for (const provider of report.providers) {
     lines.push(
-      `| ${provider.label} | ${provider.availability} | ${provider.result.status} | ${provider.normalized.networkMode} | ${provider.normalized.artifactSummary.uploadMode} | ${provider.operations
+      `| ${provider.label} | ${provider.availability} | ${provider.result.status} | ${provider.normalized.networkMode} | ${provider.normalized.artifactSummary.uploadMode} | ${mockExternalPolicyLabel(provider)} | ${provider.operations
         .map((operation) => `${operation.operation}:${operation.status}`)
         .join(", ")} | ${provider.result.message} |`
     );
@@ -128,4 +133,18 @@ export function formatProvidersMockSummary(report: MockProviderRunReport, report
 
 function pad(value: string, width: number): string {
   return value.padEnd(width, " ");
+}
+
+function externalUploadLabel(provider: ProviderInspection): string {
+  if (provider.id === "playwright") return "local";
+  if (!provider.enabled) return "disabled";
+  if (provider.mode === "mock") return "mock";
+  return provider.costPolicy.externalUploadAllowed ? "allowed" : "blocked";
+}
+
+function mockExternalPolicyLabel(provider: MockProviderRunReport["providers"][number]): string {
+  if (provider.providerId === "playwright") return "local";
+  if (!provider.enabled) return "disabled";
+  if (provider.mode === "mock") return "mock";
+  return provider.normalized.costPolicy.externalUploadAllowed ? "allowed" : "blocked";
 }

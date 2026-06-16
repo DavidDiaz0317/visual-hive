@@ -20,7 +20,7 @@ export interface ProviderAdapterOperationResult {
   artifactCount?: number;
 }
 
-export type ProviderNetworkMode = "local" | "mock" | "deferred" | "disabled" | "missing_credentials";
+export type ProviderNetworkMode = "local" | "mock" | "deferred" | "disabled" | "missing_credentials" | "policy_blocked";
 
 export interface ProviderNormalizedMetadata {
   providerId: ProviderId;
@@ -34,6 +34,13 @@ export interface ProviderNormalizedMetadata {
     uploadedArtifacts: number;
     comparedArtifacts: number;
     uploadMode: "local-only" | "mock" | "deferred" | "not-supported" | "disabled" | "blocked";
+  };
+  costPolicy: {
+    externalUploadAllowed: boolean;
+    blockedReasons: string[];
+    estimatedExternalScreenshots: number;
+    maxExternalScreenshotsPerRun: number;
+    maxMonthlyExternalScreenshots: number;
   };
   hostedVisual?: {
     provider: "argos" | "percy" | "chromatic" | "applitools";
@@ -162,6 +169,9 @@ function uploadOperation(metadata: ProviderAdapterMetadata, context: ProviderAda
   if (context.provider.availability === "missing_credentials") {
     return operation("upload_artifact", "skipped", "External upload skipped because credentials are missing.");
   }
+  if (context.provider.availability === "policy_blocked") {
+    return operation("upload_artifact", "skipped", `External upload skipped by cost policy: ${context.provider.costPolicy.blockedReasons.join(" ")}`);
+  }
   if (!metadata.supports.includes("artifact_upload")) {
     return operation("upload_artifact", "skipped", `${metadata.label} does not upload external artifacts in the built-in adapter.`);
   }
@@ -183,6 +193,9 @@ function compareOperation(metadata: ProviderAdapterMetadata, context: ProviderAd
   if (context.provider.availability === "missing_credentials") {
     return operation("compare", "skipped", "External compare skipped because credentials are missing.");
   }
+  if (context.provider.availability === "policy_blocked") {
+    return operation("compare", "skipped", "External compare skipped because external upload is blocked by cost policy.");
+  }
   return operation("compare", "skipped", "External compare is deferred; deterministic Playwright remains the oracle.");
 }
 
@@ -195,6 +208,9 @@ function fetchOperation(metadata: ProviderAdapterMetadata, context: ProviderAdap
   }
   if (context.provider.availability === "missing_credentials") {
     return operation("fetch_result", "skipped", "External result fetch skipped because credentials are missing.");
+  }
+  if (context.provider.availability === "policy_blocked") {
+    return operation("fetch_result", "skipped", "External result fetch skipped because provider upload is policy-blocked.");
   }
   return operation("fetch_result", "skipped", "External result fetch is deferred; no network call was made.");
 }
@@ -209,6 +225,9 @@ function normalizeOperation(metadata: ProviderAdapterMetadata, context: Provider
   if (context.provider.availability === "missing_credentials") {
     return operation("normalize_result", "passed", "Missing-credential status normalized without external calls.");
   }
+  if (context.provider.availability === "policy_blocked") {
+    return operation("normalize_result", "passed", "Cost-policy blocked status normalized without external calls.");
+  }
   return operation("normalize_result", "passed", "Deferred external provider status normalized as skipped.");
 }
 
@@ -221,6 +240,9 @@ function metadataOperation(metadata: ProviderAdapterMetadata, context: ProviderA
   }
   if (context.provider.availability === "missing_credentials") {
     return operation("emit_report_metadata", "passed", "Missing-credential metadata emitted with names only.");
+  }
+  if (context.provider.availability === "policy_blocked") {
+    return operation("emit_report_metadata", "passed", "Cost-policy metadata emitted for auditability.");
   }
   return operation("emit_report_metadata", "passed", "Deferred provider metadata emitted for auditability.");
 }
@@ -258,6 +280,17 @@ function normalizeProviderMetadata(
       comparedArtifacts: metadata.id === "playwright" || networkMode === "mock" ? context.artifactCount : 0,
       uploadMode: uploadMode(metadata, networkMode)
     },
+    costPolicy: {
+      externalUploadAllowed:
+        metadata.id === "playwright" || context.provider.mode === "mock" || !context.provider.enabled
+          ? true
+          : context.provider.costPolicy.externalUploadAllowed,
+      blockedReasons:
+        metadata.id === "playwright" || context.provider.mode === "mock" || !context.provider.enabled ? [] : context.provider.costPolicy.blockedReasons,
+      estimatedExternalScreenshots: context.provider.costPolicy.estimatedExternalScreenshots,
+      maxExternalScreenshotsPerRun: context.provider.costPolicy.maxExternalScreenshotsPerRun,
+      maxMonthlyExternalScreenshots: context.provider.costPolicy.maxMonthlyExternalScreenshots
+    },
     notes: providerNotes(metadata, context.provider, networkMode)
   };
 
@@ -292,12 +325,14 @@ function providerNetworkMode(metadata: ProviderAdapterMetadata, provider: Provid
   if (!provider.enabled) return "disabled";
   if (provider.availability === "mock") return "mock";
   if (provider.availability === "missing_credentials") return "missing_credentials";
+  if (provider.availability === "policy_blocked") return "policy_blocked";
   return "deferred";
 }
 
 function uploadMode(metadata: ProviderAdapterMetadata, networkMode: ProviderNetworkMode): ProviderNormalizedMetadata["artifactSummary"]["uploadMode"] {
   if (networkMode === "disabled") return "disabled";
   if (networkMode === "missing_credentials") return "blocked";
+  if (networkMode === "policy_blocked") return "blocked";
   if (networkMode === "mock") return "mock";
   if (metadata.id === "playwright") return "local-only";
   if (!metadata.supports.includes("artifact_upload")) return "not-supported";
@@ -308,6 +343,7 @@ function providerNotes(metadata: ProviderAdapterMetadata, provider: ProviderInsp
   if (metadata.id === "playwright") return ["Playwright is the deterministic pass/fail oracle."];
   if (networkMode === "disabled") return ["Provider is disabled in config."];
   if (networkMode === "missing_credentials") return [`Missing credential names: ${provider.missingEnv.join(", ")}`];
+  if (networkMode === "policy_blocked") return [`External upload blocked by cost policy: ${provider.costPolicy.blockedReasons.join(" ")}`];
   if (networkMode === "mock") return ["Mock mode records adapter behavior without external calls."];
   return ["External provider execution is deferred; no network call was made."];
 }

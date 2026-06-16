@@ -148,6 +148,20 @@ describe("classifyOffline", () => {
         missingEnv: ["ARGOS_TOKEN"],
         artifactCount: 0,
         normalizedAt: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        providerId: "percy",
+        label: "Percy",
+        status: "skipped",
+        deterministicRole: "supplemental",
+        message: "Provider enabled but external upload is blocked by cost policy.",
+        requiredEnv: ["PERCY_TOKEN"],
+        missingEnv: [],
+        artifactCount: 2,
+        externalUploadAllowed: false,
+        externalUploadBlockedReasons: ["costPolicy.externalUpload.pullRequest=false for pr mode."],
+        estimatedExternalScreenshots: 2,
+        normalizedAt: "2026-01-01T00:00:00.000Z"
       }
     ];
     report.results[0].screenshotAssertions = [
@@ -208,6 +222,7 @@ describe("classifyOffline", () => {
     const classifications = findings.map((finding) => finding.classification);
 
     expect(classifications).toContain("provider_failure");
+    expect(classifications).toContain("provider_cost_policy_skipped");
     expect(classifications).toContain("protected_target_missing_secret");
     expect(classifications).toContain("flaky_baseline");
     expect(classifications).toContain("insufficient_coverage");

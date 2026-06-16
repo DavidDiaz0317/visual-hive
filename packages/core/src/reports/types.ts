@@ -21,7 +21,9 @@ export type TriageClassification =
   | "provider_failure"
   | "flaky_baseline"
   | "protected_target_missing_secret"
-  | "insufficient_coverage";
+  | "insufficient_coverage"
+  | "provider_cost_policy_skipped"
+  | "external_upload_blocked";
 
 export interface SelectorAssertionResult {
   kind: "mustExist" | "mustNotExist" | "textMustExist" | "textMustNotExist" | "waitFor";
@@ -92,6 +94,9 @@ export interface ProviderResult {
   requiredEnv: string[];
   missingEnv: string[];
   artifactCount: number;
+  externalUploadAllowed?: boolean;
+  externalUploadBlockedReasons?: string[];
+  estimatedExternalScreenshots?: number;
   externalUrl?: string;
   normalizedAt: string;
 }

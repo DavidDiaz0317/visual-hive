@@ -84,7 +84,7 @@ async function createIgnoredFilesReport(config: VisualHiveConfig, plan: Plan, ro
     consoleErrors: [],
     pageErrors: [],
     artifacts: [],
-    providerResults: normalizeProviderResults(config, { deterministicStatus: "passed", artifactCount: 0 }),
+    providerResults: normalizeProviderResults(config, { deterministicStatus: "passed", artifactCount: 0, mode: plan.mode }),
     reproductionCommands: [`visual-hive plan --mode ${plan.mode}`, "No run needed; ignored changed files produced an empty PR plan."],
     noContractsReason: reason
   };
