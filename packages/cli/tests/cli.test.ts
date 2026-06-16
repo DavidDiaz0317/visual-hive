@@ -19,6 +19,7 @@ import {
 import { runTriageCommand } from "../src/commands/triage.js";
 import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "../src/commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "../src/commands/coverage.js";
+import { formatCoverageImprovementReport, runImproveCoverageCommand } from "../src/commands/improve.js";
 import { formatContractsAudit, runContractsCommand } from "../src/commands/contracts.js";
 import { formatTargetsAudit, runTargetsCommand } from "../src/commands/targets.js";
 import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/schedules.js";
@@ -166,6 +167,7 @@ contracts:
     };
     const expectedCommands = [
       "demo:coverage",
+      "demo:improve",
       "demo:targets",
       "demo:contracts",
       "demo:schedules",
@@ -184,6 +186,7 @@ contracts:
       expect(packageJson.scripts["demo:ci"]).toContain(command);
     }
     expect(packageJson.scripts["demo:providers"]).toContain("providers --config");
+    expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
@@ -279,6 +282,118 @@ contracts:
 
     expect(result.report.summary.selectedContracts).toBe(1);
     await expect(access(path.join(tempRoot, ".visual-hive", "coverage.json"))).resolves.toBeUndefined();
+  });
+
+  it("improve-coverage writes recommendations from coverage gaps and mutation survivors", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-improve-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: improve-fixture
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    severity: high
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+    screenshots:
+      - name: dashboard
+        route: "/"
+        viewport: desktop
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+  mobile:
+    width: 390
+    height: 844
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "coverage.json"), {
+      schemaVersion: 1,
+      project: "improve-fixture",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      summary: {
+        targetCount: 1,
+        contractCount: 1,
+        selectedContracts: 1,
+        unselectedContracts: 0,
+        prSafeContracts: 1,
+        protectedContracts: 0,
+        scheduleOnlyContracts: 0,
+        routesCovered: 1,
+        viewportsCovered: 2,
+        uncoveredTargets: 0,
+        uncoveredContracts: 0,
+        changedFileRules: 0,
+        matchedChangedFileRules: 0,
+        unmatchedChangedFiles: 1
+      },
+      targets: [],
+      contracts: [],
+      routes: [],
+      viewports: [],
+      changedFileCoverage: [],
+      unmatchedChangedFiles: ["src/auth/Login.tsx"],
+      uncoveredAreas: [
+        {
+          kind: "changed_file_without_rule",
+          severity: "low",
+          changedFile: "src/auth/Login.tsx",
+          message: "Changed file did not match any selection rule."
+        },
+        {
+          kind: "viewport_without_screenshots",
+          severity: "medium",
+          viewport: "mobile",
+          message: "Mobile viewport has no screenshot coverage."
+        }
+      ]
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "improve-fixture",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      minScore: 0.7,
+      score: 0,
+      killed: 0,
+      total: 1,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          durationMs: 10,
+          errors: []
+        }
+      ]
+    });
+
+    const result = await runImproveCoverageCommand({ config: path.join(tempRoot, "visual-hive.config.yaml") });
+    const written = await readJson<typeof result.report>(result.reportPath);
+    const summary = formatCoverageImprovementReport(written, result.reportPath);
+
+    expect(written.schemaVersion).toBe(1);
+    expect(written.summary.fromMutationSurvivors).toBe(1);
+    expect(written.recommendations.map((recommendation) => recommendation.kind)).toEqual(
+      expect.arrayContaining(["add_changed_file_rule", "add_screenshot", "map_mutation_operator"])
+    );
+    expect(summary).toContain("Coverage Improvement Plan: improve-fixture");
+    await expect(access(path.join(tempRoot, ".visual-hive", "coverage-recommendations.json"))).resolves.toBeUndefined();
   });
 
   it("contracts writes a contract audit artifact", async () => {

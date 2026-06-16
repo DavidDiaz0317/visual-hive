@@ -11,6 +11,7 @@ import {
   auditSchedules,
   auditTargets,
   auditWorkflows,
+  buildCoverageImprovementReport,
   artifactContentType,
   artifactKind,
   createRunHistoryEntry,
@@ -21,6 +22,7 @@ import {
   resolveConnection,
   sanitizeText,
   type ContractConfig,
+  type CoverageImprovementReport,
   type CoverageReport,
   type LLMUsageReport,
   type MockProviderRunReport,
@@ -88,6 +90,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     triageReport,
     mutationReport,
     providerRunReport,
+    coverageImprovementArtifact,
     setupRecommendation,
     workflowAuditArtifact,
     runHistoryArtifact,
@@ -108,6 +111,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<TriageReport>(path.join(hiveRoot, "triage.json")),
     readJsonIfExists<MutationReport>(path.join(hiveRoot, "mutation-report.json")),
     readJsonIfExists<MockProviderRunReport>(path.join(hiveRoot, "provider-results.json")),
+    readJsonIfExists<CoverageImprovementReport>(path.join(hiveRoot, "coverage-recommendations.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
@@ -130,6 +134,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const coverage = config
     ? analyzeCoverage(config, { plan: isPlan(plan) ? plan : undefined, selectedContractIds: report?.selectedContracts })
     : emptyCoverage();
+  const coverageImprovementReport = config ? (coverageImprovementArtifact ?? buildCoverageImprovementReport(config, coverage, mutationReport)) : undefined;
   const targetAudit = config ? auditTargets(config, { plan: isPlan(plan) ? plan : undefined, report }) : undefined;
   const contractAudit = config
     ? auditContracts(config, { plan: isPlan(plan) ? plan : undefined, report, mutationReport, selectedContractIds: report?.selectedContracts })
@@ -194,6 +199,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     runProfiles,
     screenshots,
     coverage,
+    coverageImprovementReport,
     targets,
     contracts,
     providers,

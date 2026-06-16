@@ -1,6 +1,7 @@
 import type {
   ContractAuditReport,
   ContractConfig,
+  CoverageImprovementReport,
   CoverageReport,
   RepoConnectionIndex,
   LLMUsageReport,
@@ -231,6 +232,7 @@ export interface ControlPlaneSnapshot {
   runProfiles: ControlPlaneRunProfile[];
   screenshots: ControlPlaneScreenshot[];
   coverage: ControlPlaneCoverage;
+  coverageImprovementReport?: CoverageImprovementReport;
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;
   contracts: Array<{ config: ContractConfig; latestStatus?: string; mutationOperators: string[] }>;
   providers: ProviderInspection[];

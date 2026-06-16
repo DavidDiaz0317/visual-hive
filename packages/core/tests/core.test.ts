@@ -7,6 +7,7 @@ import { parse as parseYaml } from "yaml";
 import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/schema.js";
 import { auditContracts } from "../src/contracts/audit.js";
 import { analyzeCoverage } from "../src/coverage/analyze.js";
+import { buildCoverageImprovementReport } from "../src/coverage/improve.js";
 import { auditTargets } from "../src/targets/audit.js";
 import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
@@ -806,6 +807,51 @@ describe("coverage analysis", () => {
       selectedContracts: ["changed-contract"]
     });
     expect(coverage.uncoveredAreas.map((gap) => gap.kind)).not.toContain("changed_file_without_rule");
+  });
+
+  it("builds deterministic coverage improvement recommendations from gaps and mutation survivors", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["scripts/build.js"] });
+    const coverage = analyzeCoverage(config, { plan, changedFiles: ["scripts/build.js"], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(
+      config,
+      coverage,
+      {
+        schemaVersion: 2,
+        project: "sample",
+        generatedAt: "2026-06-15T00:01:00.000Z",
+        minScore: 0.7,
+        score: 0,
+        killed: 0,
+        total: 1,
+        results: [
+          {
+            operator: "hide-critical-button",
+            status: "survived",
+            killed: false,
+            contractIds: ["safe-contract"],
+            applicable: true,
+            expectedFailureKinds: ["missing_element"],
+            durationMs: 25,
+            errors: ["critical button remained uncovered"]
+          }
+        ]
+      },
+      { now: new Date("2026-06-15T00:02:00.000Z") }
+    );
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.project).toBe("sample");
+    expect(report.summary.total).toBeGreaterThan(0);
+    expect(report.summary.fromMutationSurvivors).toBe(1);
+    expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("map_mutation_operator");
+    expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
+    expect(report.recommendations.find((recommendation) => recommendation.kind === "map_mutation_operator")?.suggestedConfigYaml).toContain(
+      "hide-critical-button"
+    );
+    expect(report.recommendations.find((recommendation) => recommendation.id === "changed-file-rule:scripts/build.js")?.suggestedConfigYaml).toContain(
+      "scripts/**"
+    );
   });
 });
 
@@ -1826,6 +1872,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
     await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('dashboard', async () => {});", "utf8").catch(async () => {
       await mkdir(path.join(hiveRoot, "generated"), { recursive: true });
@@ -1839,7 +1886,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(8);
+    expect(index.summary.artifactCount).toBe(9);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -1859,6 +1906,10 @@ describe("artifact index", () => {
     const actions = index.artifacts.find((artifact) => artifact.path.endsWith("control-plane-actions.json"));
     expect(actions?.preview).toContain("[REDACTED]");
     expect(actions?.labels).toContain("control-plane-actions");
+    const coverageRecommendations = index.artifacts.find((artifact) => artifact.path.endsWith("coverage-recommendations.json"));
+    expect(coverageRecommendations?.preview).toContain("[REDACTED]");
+    expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
+    expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
     const spec = index.artifacts.find((artifact) => artifact.kind === "typescript");
     expect(spec?.labels).toContain("generated-spec");
   });

@@ -28,6 +28,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.
 import { formatLLMUsage, runLLMCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
+import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
   formatConnectionsIndex,
   runConnectionsAddCommand,
@@ -231,6 +232,27 @@ program
         excludeTargets: options.excludeTarget
       });
       console.log(formatCoverageSummary(result.report, result.reportPath));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("improve-coverage")
+  .description("Generate deterministic coverage improvement recommendations from coverage gaps and mutation survivors")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--coverage <path>", "coverage artifact path override", ".visual-hive/coverage.json")
+  .option("--mutation-report <path>", "mutation report path override", ".visual-hive/mutation-report.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runImproveCoverageCommand({
+        config: options.config,
+        coverage: options.coverage,
+        mutationReport: options.mutationReport,
+        format: options.format
+      });
+      console.log(formatCoverageImprovementReport(result.report, result.reportPath, options.format));
     } catch (error) {
       fail(error);
     }

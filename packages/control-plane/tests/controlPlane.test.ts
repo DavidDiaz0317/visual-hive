@@ -579,6 +579,8 @@ describe("control plane", () => {
     expect(snapshot.targetAudit?.targets[0]?.latestStatus).toBe("passed");
     expect(snapshot.coverage.summary.contractCount).toBe(1);
     expect(snapshot.coverage.routes[0]?.selectedContracts).toEqual(["dashboard"]);
+    expect(snapshot.coverageImprovementReport?.summary.total).toBeGreaterThan(0);
+    expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
     expect(snapshot.contractAudit?.summary.contractCount).toBe(1);
     expect(snapshot.contractAudit?.contracts[0]?.latestStatus).toBe("passed");
     expect(snapshot.scheduleAudit?.summary.pullRequestContracts).toBe(1);
@@ -1100,6 +1102,8 @@ contracts:
       expect(appJs).toContain("copy-button");
       expect(appJs).toContain("function copyText");
       expect(appJs).toContain("Diff pixels");
+      expect(appJs).toContain("Coverage improvement plan");
+      expect(appJs).toContain("function coverageImprovementCard");
       expect(appJs).toContain("Workflow templates");
       expect(appJs).toContain("trusted workflow_run lane");
       expect(appJs).toContain("/api/workflows/write-templates");
@@ -1161,6 +1165,8 @@ contracts:
     expect(controlPlaneJs).toContain("contractTargetPrSafe");
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
+    expect(controlPlaneJs).toContain("function coverageImprovementCard");
+    expect(controlPlaneJs).toContain("visual-hive improve-coverage");
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");
     expect(controlPlaneJs).toContain("function runbook");

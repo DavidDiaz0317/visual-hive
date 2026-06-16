@@ -578,6 +578,7 @@ function mutation() {
 function coverage() {
   const c = snapshot.coverage;
   const s = c.summary;
+  const improvements = snapshot.coverageImprovementReport;
   return '<div class="grid">' +
     metric("Targets", s.targetCount, "") +
     metric("Contracts", s.contractCount, "") +
@@ -594,7 +595,36 @@ function coverage() {
     card("Viewports", table(["Viewport", "Size", "Routes", "Contracts"], c.viewports.map(v => [v.viewport, v.width + "x" + v.height, v.routes.join(", ") || "none", v.contracts.join(", ") || "none"]))) +
     card("Changed-file coverage", c.changedFileCoverage.length ? table(["Pattern", "Risk", "Matches", "Selected contracts", "Unselected contracts"], c.changedFileCoverage.map(r => [r.pattern, r.risk, r.matchedFiles.join(", ") || "none", r.selectedContracts.join(", ") || "none", r.unselectedContracts.join(", ") || "none"])) : "No changed-file selection rules configured.") +
     card("Coverage gaps", c.uncoveredAreas.length ? table(["Severity", "Kind", "Message"], c.uncoveredAreas.map(g => [g.severity, g.kind, g.message])) : "No coverage gaps detected from config and latest plan.") +
+    coverageImprovementCard(improvements) +
     '</div>';
+}
+
+function coverageImprovementCard(report) {
+  if (!report) return card("Coverage improvement plan", '<p class="muted">No coverage improvement plan available. Run <code>visual-hive improve-coverage</code>.</p>');
+  if (!report.recommendations?.length) return card("Coverage improvement plan", '<p class="ok">No deterministic coverage improvement recommendations were produced from the current artifacts.</p>');
+  return card("Coverage improvement plan",
+    table(["Recommendations", "High", "Medium", "Low", "Coverage gaps", "Mutation survivors"], [[
+      esc(report.summary.total),
+      report.summary.high ? '<span class="bad">' + esc(report.summary.high) + '</span>' : '<span class="ok">0</span>',
+      esc(report.summary.medium),
+      esc(report.summary.low),
+      esc(report.summary.fromCoverageGaps),
+      report.summary.fromMutationSurvivors ? '<span class="bad">' + esc(report.summary.fromMutationSurvivors) + '</span>' : '<span class="ok">0</span>'
+    ]]) +
+    table(["Recommendation", "Context", "Suggested tests", "Config snippet"], report.recommendations.slice(0, 10).map(r => [
+      '<b>' + esc(r.title) + '</b><p class="muted">' + esc(r.kind) + ' / ' + esc(r.severity) + '</p>' + failureList("Rationale", r.rationale || []),
+      [
+        r.targetId ? "target=" + r.targetId : "",
+        r.contractId ? "contract=" + r.contractId : "",
+        r.route ? "route=" + r.route : "",
+        r.viewport ? "viewport=" + r.viewport : "",
+        r.changedFile ? "file=" + r.changedFile : "",
+        r.mutationOperator ? "mutation=" + r.mutationOperator : ""
+      ].filter(Boolean).map(esc).join("<br>") || '<span class="muted">global</span>',
+      list(r.suggestedTests || []),
+      r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' + copyButton(r.suggestedConfigYaml, r.title + " config snippet") : '<span class="muted">none</span>'
+    ])) +
+    (report.recommendations.length > 10 ? '<p class="muted">Showing 10 of ' + esc(report.recommendations.length) + ' recommendations.</p>' : ''));
 }
 
 function config() {
