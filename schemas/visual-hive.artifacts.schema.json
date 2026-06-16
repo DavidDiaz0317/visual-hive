@@ -49,7 +49,9 @@
           "labels": {
             "type": "array",
             "items": { "type": "string" }
-          }
+          },
+          "schemaPath": { "type": "string" },
+          "schemaId": { "type": "string" }
         }
       }
     },

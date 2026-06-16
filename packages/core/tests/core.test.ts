@@ -2126,6 +2126,8 @@ describe("artifact index", () => {
     const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
     expect(triageReport?.preview).toContain("[REDACTED]");
     expect(triageReport?.labels).toContain("triage-report");
+    expect(triageReport?.schemaPath).toBe("schemas/visual-hive.triage.schema.json");
+    expect(triageReport?.schemaId).toBe("https://visual-hive.dev/schemas/visual-hive.triage.schema.json");
     const baselineReview = index.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"));
     expect(baselineReview?.preview).toContain("[REDACTED]");
     expect(baselineReview?.labels).toContain("baseline-review");
@@ -2140,6 +2142,7 @@ describe("artifact index", () => {
     expect(coverageRecommendations?.preview).toContain("[REDACTED]");
     expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
     expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
+    expect(coverageRecommendations?.schemaPath).toBe("schemas/visual-hive.coverage-recommendations.schema.json");
     const securityAudit = index.artifacts.find((artifact) => artifact.path.endsWith("security.json"));
     expect(securityAudit?.preview).toContain("[REDACTED]");
     expect(securityAudit?.labels).toContain("security-audit");
@@ -2149,9 +2152,11 @@ describe("artifact index", () => {
     const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");
+    expect(providerDecisions?.schemaPath).toBe("schemas/visual-hive.provider-decisions.schema.json");
     const llmDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"));
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");
+    expect(llmDecisions?.schemaPath).toBe("schemas/visual-hive.llm-decisions.schema.json");
     const spec = index.artifacts.find((artifact) => artifact.kind === "typescript");
     expect(spec?.labels).toContain("generated-spec");
   });

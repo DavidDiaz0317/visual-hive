@@ -47,7 +47,8 @@ export function formatArtifactsIndex(index: ArtifactIndexReport, indexPath: stri
   ];
   for (const artifact of index.artifacts.slice(0, 12)) {
     const labels = artifact.labels.length ? ` labels=${artifact.labels.join(",")}` : "";
-    lines.push(`- ${artifact.path} (${artifact.kind}, ${artifact.bytes} bytes)${labels}`);
+    const schema = artifact.schemaPath ? ` schema=${artifact.schemaPath}` : "";
+    lines.push(`- ${artifact.path} (${artifact.kind}, ${artifact.bytes} bytes)${labels}${schema}`);
   }
   if (index.artifacts.length > 12) {
     lines.push(`- ... ${index.artifacts.length - 12} more artifact(s)`);

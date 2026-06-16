@@ -1182,8 +1182,14 @@ function artifacts() {
     metric("Images", counts.image || 0, "") +
     metric("Redacted previews", snapshot.artifacts.filter(a => a.previewRedacted).length, snapshot.artifacts.some(a => a.previewRedacted) ? "warn" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Artifact inventory", table(["Path", "Kind", "Bytes", "Labels", "Preview"], snapshot.artifacts.map(a => [focusWrapper("artifact", a.path, link(a.path)), esc(a.kind), String(a.bytes), esc((a.labels || []).join(", ") || "none"), artifactPreview(a)]))) +
+    card("Artifact inventory", table(["Path", "Kind", "Bytes", "Schema", "Labels", "Preview"], snapshot.artifacts.map(a => [focusWrapper("artifact", a.path, link(a.path)), esc(a.kind), String(a.bytes), artifactSchema(a), esc((a.labels || []).join(", ") || "none"), artifactPreview(a)]))) +
     '</div>';
+}
+
+function artifactSchema(artifact) {
+  if (!artifact.schemaPath) return '<span class="muted">n/a</span>';
+  const id = artifact.schemaId ? '<p class="muted">' + esc(artifact.schemaId) + '</p>' : '';
+  return '<code>' + esc(artifact.schemaPath) + '</code>' + id;
 }
 
 function artifactPreview(artifact) {

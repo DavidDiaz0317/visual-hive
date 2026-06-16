@@ -36,6 +36,8 @@ export interface ArtifactIndexEntry {
   contentType: string;
   bytes: number;
   safeToRender: boolean;
+  schemaPath?: string;
+  schemaId?: string;
   preview?: string;
   previewTruncated: boolean;
   previewRedacted: boolean;
@@ -54,6 +56,7 @@ export interface IndexArtifactsOptions {
 const DEFAULT_MAX_ARTIFACTS = 500;
 const DEFAULT_MAX_PREVIEW_BYTES = 8192;
 const GENERATED_ARTIFACT_INDEX = ".visual-hive/artifacts-index.json";
+const SCHEMA_ID_BASE = "https://visual-hive.dev/schemas/";
 
 export async function indexArtifacts(options: IndexArtifactsOptions): Promise<ArtifactIndexReport> {
   const repoRoot = path.resolve(options.repoRoot);
@@ -144,12 +147,15 @@ async function artifactEntry(input: {
   const contentType = artifactContentType(kind, input.filePath);
   const preview = await previewFor(input.filePath, kind, input.maxPreviewBytes);
   const labels = labelsFor(input.filePath, kind);
+  const schemaPath = schemaPathFor(input.filePath, kind);
   return {
     path: toRepoRelativePath(input.repoRoot, input.filePath),
     kind,
     contentType,
     bytes: input.bytes,
     safeToRender: kind !== "other",
+    schemaPath,
+    schemaId: schemaPath ? `${SCHEMA_ID_BASE}${path.basename(schemaPath)}` : undefined,
     preview: preview?.text,
     previewTruncated: Boolean(preview?.truncated),
     previewRedacted: Boolean(preview?.redacted),
@@ -201,6 +207,38 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
   if (normalized.endsWith("coverage-recommendations.json")) labels.add("coverage-recommendations");
   return [...labels].sort();
+}
+
+function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined {
+  if (kind !== "json") return undefined;
+  const fileName = path.basename(filePath.replaceAll("\\", "/").toLowerCase());
+  const mapping: Record<string, string> = {
+    "plan.json": "visual-hive.plan.schema.json",
+    "recommendations.json": "visual-hive.recommendations.schema.json",
+    "coverage.json": "visual-hive.coverage.schema.json",
+    "coverage-recommendations.json": "visual-hive.coverage-recommendations.schema.json",
+    "contracts.json": "visual-hive.contracts.schema.json",
+    "targets.json": "visual-hive.targets.schema.json",
+    "schedules.json": "visual-hive.schedules.schema.json",
+    "workflows.json": "visual-hive.workflows.schema.json",
+    "risk.json": "visual-hive.risk.schema.json",
+    "security.json": "visual-hive.security.schema.json",
+    "costs.json": "visual-hive.costs.schema.json",
+    "history.json": "visual-hive.history.schema.json",
+    "triage.json": "visual-hive.triage.schema.json",
+    "llm-usage.json": "visual-hive.llm-usage.schema.json",
+    "llm-decisions.json": "visual-hive.llm-decisions.schema.json",
+    "connections.json": "visual-hive.connections.schema.json",
+    "provider-results.json": "visual-hive.provider-results.schema.json",
+    "provider-decisions.json": "visual-hive.provider-decisions.schema.json",
+    "artifacts-index.json": "visual-hive.artifacts.schema.json",
+    "baseline-approvals.json": "visual-hive.baseline-approvals.schema.json",
+    "baseline-rejections.json": "visual-hive.baseline-rejections.schema.json",
+    "mutation-report.json": "visual-hive.mutation-report.schema.json",
+    "report.json": "visual-hive.report.schema.json"
+  };
+  const schemaFile = mapping[fileName];
+  return schemaFile ? `schemas/${schemaFile}` : undefined;
 }
 
 async function walk(dir: string, visit: (filePath: string) => Promise<void>): Promise<void> {

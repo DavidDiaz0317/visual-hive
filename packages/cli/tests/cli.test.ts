@@ -825,6 +825,11 @@ contracts:
       await mkdir(path.join(tempRoot, ".visual-hive", "logs"), { recursive: true });
       await writeFile(path.join(tempRoot, ".visual-hive", "logs", "run.log"), "cookie=session-secret", "utf8");
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      status: "passed",
+      token: "secret-value"
+    });
 
     const result = await runArtifactsCommand({ cwd: tempRoot });
     const written = await readJson<typeof result.index>(result.indexPath);
@@ -832,7 +837,9 @@ contracts:
 
     expect(written.summary.artifactCount).toBeGreaterThanOrEqual(1);
     expect(written.artifacts[0]?.preview).toContain("[REDACTED]");
+    expect(written.artifacts.find((artifact) => artifact.path.endsWith("report.json"))?.schemaPath).toBe("schemas/visual-hive.report.schema.json");
     expect(summary).toContain("Artifact Index: cli-artifacts");
+    expect(summary).toContain("schema=schemas/visual-hive.report.schema.json");
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
   });
 

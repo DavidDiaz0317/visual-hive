@@ -5,6 +5,7 @@
 It records:
 
 - artifact path, kind, content type, byte size, and labels
+- matching `schemas/visual-hive.*.schema.json` path and schema ID for known JSON artifacts
 - JSON, Markdown, text, log, YAML, TypeScript/generated spec, image, and other classifications
 - setup recommendation artifacts labeled as `setup-recommendations`
 - sanitized previews for text-like artifacts
