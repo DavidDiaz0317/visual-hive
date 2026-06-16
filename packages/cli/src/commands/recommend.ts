@@ -1,11 +1,19 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { writeSetupBundleFromRecommendation, type SetupBundleWriteResult } from "@visual-hive/control-plane";
-import { buildSetupDocsMarkdown, recommendSetup, writeJson, type SetupRecommendationReport } from "@visual-hive/core";
+import {
+  SetupProfileSchema,
+  buildSetupDocsMarkdown,
+  recommendSetup,
+  writeJson,
+  type SetupRecommendationReport,
+  type VisualHiveConfig
+} from "@visual-hive/core";
 
 export interface RecommendCommandOptions {
   cwd?: string;
   repo?: string;
+  profile?: VisualHiveConfig["project"]["setupProfile"];
   writeConfig?: boolean;
   writeDocs?: boolean;
   writeSetupBundle?: boolean;
@@ -28,7 +36,8 @@ export async function runRecommendCommand(
   const repoRoot = path.resolve(cwd, options.repo ?? ".");
   const configPath = path.join(repoRoot, "visual-hive.config.yaml");
   const docsPath = path.join(repoRoot, "docs", "visual-hive.md");
-  const report = await recommendSetup({ repoRoot, configPath });
+  const profile = parseProfileOption(options.profile);
+  const report = await recommendSetup({ repoRoot, configPath, setupProfile: profile });
   const reportPath = path.join(repoRoot, ".visual-hive", "recommendations.json");
   await writeJson(reportPath, report);
   let configWritten: string | undefined;
@@ -140,6 +149,15 @@ export function formatSetupRecommendation(
     lines.push("", "## Detected Selectors", ...report.detectedSelectors.slice(0, 8).map((selector) => `- ${selector.selector} (${selector.sourceFile})`));
   }
   return lines.join("\n");
+}
+
+function parseProfileOption(profile: VisualHiveConfig["project"]["setupProfile"] | undefined): VisualHiveConfig["project"]["setupProfile"] | undefined {
+  if (profile === undefined) return undefined;
+  const parsed = SetupProfileSchema.safeParse(profile);
+  if (parsed.success) return parsed.data;
+  throw new Error(
+    `Invalid setup profile "${profile}". Expected one of: ${SetupProfileSchema.options.join(", ")}.`
+  );
 }
 
 async function exists(filePath: string): Promise<boolean> {

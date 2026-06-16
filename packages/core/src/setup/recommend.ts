@@ -116,6 +116,7 @@ export interface SetupRecommendationFinding {
 export interface RecommendSetupOptions {
   repoRoot: string;
   configPath?: string;
+  setupProfile?: VisualHiveConfig["project"]["setupProfile"];
   now?: Date;
 }
 
@@ -163,7 +164,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const target = buildTarget({ install, build, serve, inventory, projectType });
   const selector = preferredSelector(inventory.selectors);
   const contract = buildContract(selector, target.id);
-  const setupProfile = inferSetupProfile(inventory, scripts);
+  const setupProfile = options.setupProfile ?? inferSetupProfile(inventory, scripts);
   const recommendationInput = configInput({
     projectName,
     projectType,
@@ -493,16 +494,22 @@ function buildProviderRecommendations(
     {
       providerId: "percy",
       label: PROVIDER_LABELS.percy,
-      recommendation: "future",
-      reason: "Consider only when broader hosted review or browser/device coverage justifies the extra service.",
+      recommendation: setupProfile === "hosted-review" || setupProfile === "enterprise-visual-ai" ? "optional" : "future",
+      reason:
+        setupProfile === "hosted-review" || setupProfile === "enterprise-visual-ai"
+          ? "Useful when the team wants hosted review history or broader browser/device coverage after local checks pass."
+          : "Consider only when broader hosted review or browser/device coverage justifies the extra service.",
       requiredEnv: ["PERCY_TOKEN"],
       externalUploadAllowedByDefault: false
     },
     {
       providerId: "applitools",
       label: PROVIDER_LABELS.applitools,
-      recommendation: "future",
-      reason: "Reserve for enterprise visual AI or cross-browser/device requirements.",
+      recommendation: setupProfile === "enterprise-visual-ai" ? "optional" : "future",
+      reason:
+        setupProfile === "enterprise-visual-ai"
+          ? "Enterprise visual AI is in scope for this profile, but it should run only from trusted scheduled/manual lanes after budget approval."
+          : "Reserve for enterprise visual AI or cross-browser/device requirements.",
       requiredEnv: ["APPLITOOLS_API_KEY"],
       externalUploadAllowedByDefault: false
     }
@@ -516,21 +523,36 @@ function buildCostEstimate(
   setupProfile: VisualHiveConfig["project"]["setupProfile"]
 ): SetupCostEstimate {
   const localScreenshotsPerRun = contract.screenshots.length;
+  const externalScreenshotsPerRun = externalScreenshotsForProfile(setupProfile, localScreenshotsPerRun);
   const estimatedPrMinutes = (target.kind === "command" || target.kind === "storybook") && target.build ? 4 : 2;
-  const estimatedScheduledMinutes = setupProfile === "complex-app" ? estimatedPrMinutes + 6 : estimatedPrMinutes + 2;
+  const estimatedScheduledMinutes =
+    setupProfile === "complex-app" || setupProfile === "enterprise-visual-ai"
+      ? estimatedPrMinutes + 6
+      : setupProfile === "hosted-review" || setupProfile === "component-storybook"
+        ? estimatedPrMinutes + 4
+        : estimatedPrMinutes + 2;
   return {
     localScreenshotsPerRun,
-    externalScreenshotsPerRun: 0,
+    externalScreenshotsPerRun,
     estimatedPrMinutes,
     estimatedScheduledMinutes,
-    estimatedMonthlyExternalScreenshots: 0,
-    ciRuntimeClass: estimatedPrMinutes <= 2 ? "cheap" : "medium",
+    estimatedMonthlyExternalScreenshots: externalScreenshotsPerRun * 20,
+    ciRuntimeClass:
+      setupProfile === "complex-app" || setupProfile === "enterprise-visual-ai" ? "expensive" : estimatedPrMinutes <= 2 ? "cheap" : "medium",
     notes: [
-      "Default recommendation uses local Playwright artifacts only.",
+      setupProfile === "free-local"
+        ? "Default recommendation uses local Playwright artifacts only."
+        : "Profile allows optional external review only in trusted/failure-oriented lanes after credentials are configured.",
       "External provider uploads are disabled on PRs by the generated cost policy.",
       "Actual runtime depends on dependency cache, app build time, and target startup time."
     ]
   };
+}
+
+function externalScreenshotsForProfile(setupProfile: VisualHiveConfig["project"]["setupProfile"], localScreenshotsPerRun: number): number {
+  if (setupProfile === "free-local") return 0;
+  if (setupProfile === "enterprise-visual-ai") return localScreenshotsPerRun * 2;
+  return localScreenshotsPerRun;
 }
 
 function buildPermissionRecommendation(setupProfile: VisualHiveConfig["project"]["setupProfile"]): SetupPermissionRecommendation {
@@ -543,7 +565,8 @@ function buildPermissionRecommendation(setupProfile: VisualHiveConfig["project"]
     },
     scheduled: {
       permissions: ["contents: read", "actions: read"],
-      secretsRequired: setupProfile === "complex-app" ? ["PROTECTED_TARGET_SECRET_NAMES"] : [],
+      secretsRequired:
+        setupProfile === "complex-app" || setupProfile === "enterprise-visual-ai" ? ["PROTECTED_TARGET_SECRET_NAMES"] : [],
       externalNetwork: setupProfile !== "free-local",
       notes: [
         "Scheduled/manual lanes may use protected secrets after explicit user authorization.",
@@ -639,8 +662,8 @@ function configInput(input: {
       maxDailyRuns: 5
     },
     costPolicy: {
-      maxExternalScreenshotsPerRun: 0,
-      maxMonthlyExternalScreenshots: 5000,
+      maxExternalScreenshotsPerRun: maxExternalScreenshotsPerRun(input.setupProfile, input.contract.screenshots.length),
+      maxMonthlyExternalScreenshots: input.setupProfile === "enterprise-visual-ai" ? 10000 : 5000,
       externalUpload: {
         pullRequest: false,
         schedule: true,
@@ -658,6 +681,12 @@ function configInput(input: {
       commentMarker: "<!-- visual-hive-report -->"
     }
   };
+}
+
+function maxExternalScreenshotsPerRun(setupProfile: VisualHiveConfig["project"]["setupProfile"], screenshotCount: number): number {
+  if (setupProfile === "free-local") return 0;
+  if (setupProfile === "enterprise-visual-ai") return Math.max(10, screenshotCount * 2);
+  return Math.max(5, screenshotCount);
 }
 
 function buildFindings(

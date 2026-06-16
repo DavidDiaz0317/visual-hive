@@ -488,6 +488,7 @@ program
   .command("recommend")
   .description("Inspect a target repo and recommend an initial Visual Hive setup")
   .option("--repo <path>", "repository path to inspect")
+  .option("--profile <profile>", "setup profile: free-local, hosted-review, component-storybook, enterprise-visual-ai, or complex-app")
   .option("--write-config", "write visual-hive.config.yaml from the recommendation")
   .option("--write-docs", "write docs/visual-hive.md from the recommendation")
   .option("--write-setup-bundle", "write config, repo docs, safe GitHub workflow templates, and setup audit from the recommendation")
@@ -497,6 +498,7 @@ program
     try {
       const result = await runRecommendCommand({
         repo: options.repo,
+        profile: options.profile,
         writeConfig: options.writeConfig,
         writeDocs: options.writeDocs,
         writeSetupBundle: options.writeSetupBundle,

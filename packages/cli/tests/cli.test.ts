@@ -703,6 +703,36 @@ contracts:
     await expect(readFile(docsPath, "utf8")).resolves.toContain("# Visual Hive");
   });
 
+  it("recommend honors explicit setup profiles in generated config", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-recommend-profile-"));
+    tempDirs.push(tempRoot);
+    await writeJson(path.join(tempRoot, "package.json"), {
+      name: "recommend-profile-fixture",
+      scripts: {
+        build: "vite build",
+        preview: "vite preview"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const result = await runRecommendCommand({ cwd: tempRoot, profile: "hosted-review", writeConfig: true });
+    const summary = formatSetupRecommendation(result);
+    const config = await readFile(path.join(tempRoot, "visual-hive.config.yaml"), "utf8");
+
+    expect(result.report.setupProfile).toBe("hosted-review");
+    expect(result.report.costEstimate.externalScreenshotsPerRun).toBeGreaterThan(0);
+    expect(summary).toContain("Setup profile: hosted-review");
+    expect(summary).toContain("External screenshots/run: 2");
+    expect(config).toContain("setupProfile: hosted-review");
+    expect(config).toContain("maxExternalScreenshotsPerRun: 5");
+    await expect(runRecommendCommand({ cwd: tempRoot, profile: "not-a-profile" as never })).rejects.toThrow(/Invalid setup profile/);
+  });
+
   it("recommend writes a complete setup bundle with safe workflows and audit logging", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-recommend-bundle-"));
     tempDirs.push(tempRoot);

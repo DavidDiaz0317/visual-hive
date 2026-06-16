@@ -18,6 +18,7 @@ Useful local commands:
 node packages/cli/dist/index.js doctor --config examples/demo-react-app/visual-hive.config.yaml
 node packages/cli/dist/index.js plan --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt
 node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build
+node packages/cli/dist/index.js recommend --repo examples/demo-react-app --profile hosted-review
 node packages/cli/dist/index.js recommend --repo examples/demo-react-app --write-docs
 node packages/cli/dist/index.js recommend --repo examples/demo-react-app --write-setup-bundle
 node packages/cli/dist/index.js triage --config examples/demo-react-app/visual-hive.config.yaml

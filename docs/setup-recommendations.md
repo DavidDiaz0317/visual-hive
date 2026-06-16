@@ -23,6 +23,7 @@ It does not run target code, call LLMs, contact paid visual providers, or decide
 
 ```bash
 visual-hive recommend
+visual-hive recommend --profile hosted-review
 visual-hive recommend --write-config --write-docs
 visual-hive recommend --write-setup-bundle
 visual-hive recommend --write-config --force
@@ -30,6 +31,8 @@ visual-hive recommend --write-docs --force
 visual-hive recommend --write-setup-bundle --force
 visual-hive recommend --format json
 ```
+
+`--profile` overrides the inferred setup profile. Supported profiles are `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, and `complex-app`. Profile selection changes the generated `project.setupProfile`, provider recommendations, estimated external screenshot budget, scheduled-lane permission guidance, and `costPolicy.maxExternalScreenshotsPerRun`. It still keeps PR external uploads disabled by default and does not make provider calls.
 
 `--write-config` creates `visual-hive.config.yaml` from the recommendation. Existing configs are protected unless `--force` is passed.
 

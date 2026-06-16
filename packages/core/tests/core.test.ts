@@ -2029,7 +2029,51 @@ describe("setup recommendations", () => {
       requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
       externalUploadAllowedByDefault: false
     });
-    expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(0);
+    expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(2);
+    expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(2);
+    expect(parsedYaml.costPolicy.externalUpload.pullRequest).toBe(false);
+  });
+
+  it("honors an explicit hosted-review setup profile without enabling PR uploads", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-hosted-profile-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "hosted-profile-fixture",
+      scripts: {
+        build: "vite build",
+        preview: "vite preview"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({
+      repoRoot: targetRoot,
+      setupProfile: "hosted-review",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
+
+    expect(recommendation.setupProfile).toBe("hosted-review");
+    expect(recommendation.costEstimate).toMatchObject({
+      localScreenshotsPerRun: 2,
+      externalScreenshotsPerRun: 2,
+      estimatedMonthlyExternalScreenshots: 40
+    });
+    expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "argos")).toMatchObject({
+      recommendation: "optional",
+      requiredEnv: ["ARGOS_TOKEN"],
+      externalUploadAllowedByDefault: false
+    });
+    expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "percy")?.recommendation).toBe("optional");
+    expect(parsedYaml.project.setupProfile).toBe("hosted-review");
+    expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(2);
+    expect(parsedYaml.costPolicy.externalUpload.pullRequest).toBe(false);
+    expect(parsedYaml.costPolicy.externalUpload.onFailureOnly).toBe(true);
   });
 
   it("handles package.json files with a UTF-8 BOM during setup scanning", async () => {

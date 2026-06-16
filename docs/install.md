@@ -27,12 +27,13 @@ Future consumers should install the CLI package once it is published:
 ```bash
 npm install --save-dev @visual-hive/cli
 npx visual-hive recommend
+npx visual-hive recommend --profile hosted-review
 npx visual-hive recommend --write-config
 npx visual-hive recommend --write-setup-bundle
 npx visual-hive init
 ```
 
-`visual-hive recommend` is the safest first command in a target repo: it writes `.visual-hive/recommendations.json` after inspecting package scripts, framework dependencies, and `data-testid` selectors. `--write-config` creates `visual-hive.config.yaml` from that recommendation and refuses to overwrite an existing config unless `--force` is passed. `--write-setup-bundle` creates the starter config, `docs/visual-hive.md`, safe GitHub workflow templates, and setup audit files in one guarded operation.
+`visual-hive recommend` is the safest first command in a target repo: it writes `.visual-hive/recommendations.json` after inspecting package scripts, framework dependencies, and `data-testid` selectors. `--profile` can explicitly choose `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`; this changes provider/cost recommendations while keeping PR uploads secret-free and disabled by default. `--write-config` creates `visual-hive.config.yaml` from that recommendation and refuses to overwrite an existing config unless `--force` is passed. `--write-setup-bundle` creates the starter config, `docs/visual-hive.md`, safe GitHub workflow templates, and setup audit files in one guarded operation.
 
 ## GitHub Action Templates
 
