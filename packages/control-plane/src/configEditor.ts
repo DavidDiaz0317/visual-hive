@@ -1,6 +1,6 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { parseConfigText, sanitizeText, type SetupRecommendationReport, type VisualHiveConfig } from "@visual-hive/core";
+import { buildSetupDocsMarkdown, parseConfigText, sanitizeText, type SetupRecommendationReport, type VisualHiveConfig } from "@visual-hive/core";
 import type { ControlPlaneOptions } from "./types.js";
 import { isInsidePath, toRepoRelativePath } from "./safePath.js";
 import { resolveControlPlaneOptions } from "./repoReader.js";
@@ -23,6 +23,16 @@ export interface ConfigSaveResult extends ConfigDraftValidation {
 export interface RecommendedConfigWriteResult extends ConfigSaveResult {
   recommendationPath: string;
   overwritten: boolean;
+}
+
+export interface RecommendedDocsWriteResult {
+  ok: true;
+  docsPath: string;
+  recommendationPath: string;
+  auditPath: string;
+  overwritten: boolean;
+  bytes: number;
+  diff: string;
 }
 
 export async function validateConfigDraft(options: ControlPlaneOptions, content: string): Promise<ConfigDraftValidation> {
@@ -127,6 +137,51 @@ export async function writeRecommendedConfigFromSetup(
   };
 }
 
+export async function writeRecommendedDocsFromSetup(
+  options: ControlPlaneOptions,
+  confirm: boolean,
+  force = false
+): Promise<RecommendedDocsWriteResult> {
+  const resolved = resolveControlPlaneOptions(options);
+  if (resolved.readOnly) {
+    throw new Error("Control Plane is read-only. Restart without --read-only to generate setup docs.");
+  }
+  if (!confirm) {
+    throw new Error("Recommended docs write requires explicit confirmation after reviewing the generated docs.");
+  }
+  const recommendationPath = path.join(resolved.configRoot, ".visual-hive", "recommendations.json");
+  const recommendation = await readSetupRecommendation(recommendationPath);
+  const docsPath = path.join(resolved.repoRoot, "docs", "visual-hive.md");
+  assertEditableFilePath(resolved.repoRoot, docsPath, "setup docs");
+  const docsAlreadyExist = await exists(docsPath);
+  if (docsAlreadyExist && !force) {
+    throw new Error(`Refusing to overwrite existing Visual Hive docs: ${toRepoRelativePath(resolved.repoRoot, docsPath)}. Set force=true after reviewing the diff.`);
+  }
+  const content = buildSetupDocsMarkdown(recommendation);
+  const current = await readConfigText(docsPath);
+  const diff = createUnifiedDiff(current, content, "current docs/visual-hive.md", "proposed docs/visual-hive.md");
+  await mkdir(path.dirname(docsPath), { recursive: true });
+  await writeFile(docsPath, content, "utf8");
+  const auditPath = path.join(resolved.configRoot, ".visual-hive", "setup-doc-edits.json");
+  await appendSetupDocsAudit(auditPath, {
+    source: "setup-recommendation",
+    editedAt: new Date().toISOString(),
+    docsPath: toRepoRelativePath(resolved.repoRoot, docsPath),
+    recommendationPath: toRepoRelativePath(resolved.repoRoot, recommendationPath),
+    diff,
+    bytes: Buffer.byteLength(content, "utf8")
+  });
+  return {
+    ok: true,
+    docsPath: toRepoRelativePath(resolved.repoRoot, docsPath),
+    recommendationPath: toRepoRelativePath(resolved.repoRoot, recommendationPath),
+    auditPath: toRepoRelativePath(resolved.repoRoot, auditPath),
+    overwritten: docsAlreadyExist,
+    bytes: Buffer.byteLength(content, "utf8"),
+    diff
+  };
+}
+
 async function readConfigText(configPath: string): Promise<string> {
   try {
     return await readFile(configPath, "utf8");
@@ -151,8 +206,12 @@ async function exists(filePath: string): Promise<boolean> {
 }
 
 function assertEditableConfigPath(repoRoot: string, configPath: string): void {
-  if (!isInsidePath(repoRoot, configPath)) {
-    throw new Error(`Refusing to edit config outside repository root: ${sanitizeText(configPath)}`);
+  assertEditableFilePath(repoRoot, configPath, "config");
+}
+
+function assertEditableFilePath(repoRoot: string, filePath: string, label: string): void {
+  if (!isInsidePath(repoRoot, filePath)) {
+    throw new Error(`Refusing to edit ${label} outside repository root: ${sanitizeText(filePath)}`);
   }
 }
 
@@ -166,6 +225,22 @@ function assertConfigSize(content: string): void {
 async function appendAudit(
   auditPath: string,
   entry: { source: "config-editor" | "setup-recommendation"; editedAt: string; configPath: string; diff: string; bytes: number }
+): Promise<void> {
+  let previous: { schemaVersion: 1; edits: Array<typeof entry> } = { schemaVersion: 1, edits: [] };
+  try {
+    previous = JSON.parse(await readFile(auditPath, "utf8")) as typeof previous;
+    if (!Array.isArray(previous.edits)) previous.edits = [];
+  } catch {
+    previous = { schemaVersion: 1, edits: [] };
+  }
+  previous.edits.push(entry);
+  await mkdir(path.dirname(auditPath), { recursive: true });
+  await writeFile(auditPath, `${JSON.stringify(previous, null, 2)}\n`, "utf8");
+}
+
+async function appendSetupDocsAudit(
+  auditPath: string,
+  entry: { source: "setup-recommendation"; editedAt: string; docsPath: string; recommendationPath: string; diff: string; bytes: number }
 ): Promise<void> {
   let previous: { schemaVersion: 1; edits: Array<typeof entry> } = { schemaVersion: 1, edits: [] };
   try {

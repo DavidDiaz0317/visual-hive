@@ -598,6 +598,8 @@ describe("control plane", () => {
       expect(appJs).toContain("Setup PR guidance");
       expect(appJs).toContain("setup-write-config");
       expect(appJs).toContain("/api/setup/write-config");
+      expect(appJs).toContain("setup-write-docs");
+      expect(appJs).toContain("/api/setup/write-docs");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
@@ -613,6 +615,7 @@ describe("control plane", () => {
     expect(controlPlaneJs).toContain("function baselineCardBody");
     expect(controlPlaneJs).toContain("navigator.clipboard");
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
+    expect(controlPlaneJs).toContain("function writeRecommendedDocs");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {
@@ -781,6 +784,54 @@ describe("control plane", () => {
     }
   });
 
+  it("writes recommended setup docs from setup artifact with audit and overwrite protection", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.docsPath).toBe("docs/visual-hive.md");
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      expect(payload.auditPath).toBe(".visual-hive/setup-doc-edits.json");
+      expect(payload.overwritten).toBe(false);
+
+      const docs = await readFile(path.join(fixture.repoRoot, "docs", "visual-hive.md"), "utf8");
+      expect(docs).toContain("# Visual Hive");
+      expect(docs).toContain("PR checks should run with read-only permissions");
+      expect(docs).toContain("Playwright built-in");
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-doc-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      expect(audit).toContain("docs/visual-hive.md");
+
+      const blocked = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing Visual Hive docs");
+
+      const forced = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("writes built-in workflow templates through the local API", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
@@ -869,6 +920,13 @@ describe("control plane", () => {
         body: JSON.stringify({ confirm: true, force: true })
       });
       expect(setupBlocked.status).toBe(403);
+
+      const setupDocsBlocked = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupDocsBlocked.status).toBe(403);
 
       const workflowsBlocked = await fetch(`${server.url}/api/workflows/write-templates`, {
         method: "POST",

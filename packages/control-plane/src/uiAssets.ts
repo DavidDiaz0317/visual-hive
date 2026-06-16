@@ -186,14 +186,18 @@ function setup() {
 
 function setupActions() {
   if (snapshot.readOnly) {
-    return '<p class="muted">Read-only mode disables setup writes. Restart without <code>--read-only</code> to generate config from this recommendation.</p>';
+    return '<p class="muted">Read-only mode disables setup writes. Restart without <code>--read-only</code> to generate config or docs from this recommendation.</p>';
   }
   const hasConfig = Boolean(snapshot.configRaw);
-  return '<p class="muted">Recommended config writes validate the generated YAML, require confirmation, and record .visual-hive/config-edits.json.</p>' +
+  return '<p class="muted">Recommended setup writes use .visual-hive/recommendations.json, require confirmation, and record audit files.</p>' +
     '<div class="actions">' +
     '<button id="setup-write-config" class="button" data-force="' + (hasConfig ? "true" : "false") + '">' + (hasConfig ? "Overwrite config after review" : "Generate config") + '</button>' +
     '<button class="button copy-button" data-copy="' + escAttr(snapshot.setupRecommendation?.recommendedConfigYaml || "") + '">Copy recommended YAML</button>' +
     '<span id="setup-action-status" class="muted">' + (hasConfig ? "Existing config detected. Overwrite requires confirmation." : "No config content loaded for this repo.") + '</span>' +
+    '</div><div class="actions">' +
+    '<button id="setup-write-docs" class="button" data-force="false">Generate setup docs</button>' +
+    '<button id="setup-overwrite-docs" class="button" data-force="true">Overwrite setup docs after review</button>' +
+    '<span id="setup-docs-status" class="muted">Writes docs/visual-hive.md and records .visual-hive/setup-doc-edits.json.</span>' +
     '</div>';
 }
 
@@ -633,6 +637,10 @@ function wireActions() {
   if (save) save.addEventListener("click", () => validateConfigDraft(true));
   const setupWrite = document.querySelector("#setup-write-config");
   if (setupWrite) setupWrite.addEventListener("click", () => writeRecommendedConfig());
+  const setupWriteDocs = document.querySelector("#setup-write-docs");
+  if (setupWriteDocs) setupWriteDocs.addEventListener("click", () => writeRecommendedDocs(false));
+  const setupOverwriteDocs = document.querySelector("#setup-overwrite-docs");
+  if (setupOverwriteDocs) setupOverwriteDocs.addEventListener("click", () => writeRecommendedDocs(true));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -774,6 +782,37 @@ async function writeRecommendedConfig() {
   }
   status.className = "ok";
   status.textContent = "Config written. Audit: " + payload.auditPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function writeRecommendedDocs(force) {
+  const status = document.querySelector("#setup-docs-status");
+  const buttons = [document.querySelector("#setup-write-docs"), document.querySelector("#setup-overwrite-docs")].filter(Boolean);
+  if (!status) return;
+  const promptText = force
+    ? "Overwrite docs/visual-hive.md with generated setup docs after reviewing the recommendation on this page?"
+    : "Write docs/visual-hive.md from the setup recommendation without overwriting existing docs?";
+  if (!confirm(promptText)) return;
+  buttons.forEach((button) => { button.disabled = true; });
+  status.className = "muted";
+  status.textContent = force ? "Overwriting setup docs..." : "Writing setup docs...";
+  const response = await fetch(apiUrl("/api/setup/write-docs"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true, force })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Setup docs write failed.";
+    buttons.forEach((button) => { button.disabled = false; });
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Docs written to " + payload.docsPath + ". Audit: " + payload.auditPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }
