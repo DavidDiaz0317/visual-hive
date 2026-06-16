@@ -62,10 +62,27 @@ export interface BaselineRejectionLog {
 }
 
 export interface BaselineList {
+  schemaVersion: 1;
+  project: string;
+  generatedAt: string;
+  reportGeneratedAt: string;
   reportPath: string;
   approvalLogPath: string;
   rejectionLogPath: string;
+  summary: BaselineSummary;
   entries: BaselineCandidate[];
+}
+
+export interface BaselineSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  created: number;
+  missingBaseline: number;
+  approvable: number;
+  approved: number;
+  rejected: number;
+  pendingReview: number;
 }
 
 export interface BaselineSelection {
@@ -78,6 +95,7 @@ export interface BaselineSelection {
 export interface BaselineManageOptions {
   repoRoot?: string;
   reportPath?: string;
+  now?: Date;
 }
 
 export async function listBaselines(options: BaselineManageOptions = {}): Promise<BaselineList> {
@@ -95,40 +113,55 @@ export async function listBaselines(options: BaselineManageOptions = {}): Promis
       }
     ])
   );
+  const entries = report.results.flatMap((result) =>
+    (result.screenshotAssertions ?? []).map((screenshot) => {
+      const baselinePath = resolveReportPath(resolved.repoRoot, screenshot.baselinePath, "baselinePath");
+      const actualPath = resolveReportPath(resolved.repoRoot, screenshot.actualPath, "actualPath");
+      const diffPath = screenshot.diffPath ? resolveReportPath(resolved.repoRoot, screenshot.diffPath, "diffPath") : undefined;
+      const candidate = {
+        contractId: screenshot.contractId || result.contractId,
+        screenshotName: screenshot.screenshotName || screenshot.name,
+        route: screenshot.route,
+        viewport: screenshot.viewport,
+        status: screenshot.status,
+        baselinePath: toDisplayPath(resolved.repoRoot, baselinePath),
+        actualPath: toDisplayPath(resolved.repoRoot, actualPath),
+        diffPath: diffPath ? toDisplayPath(resolved.repoRoot, diffPath) : undefined,
+        maxDiffPixelRatio: screenshot.maxDiffPixelRatio,
+        actualDiffPixelRatio: screenshot.actualDiffPixelRatio,
+        actualDiffPixels: screenshot.actualDiffPixels,
+        canApprove: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline",
+        canReject: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline"
+      };
+      const rejection = rejectedKeys.get(baselineKey(candidate));
+      return {
+        ...candidate,
+        approvedAt: approvedKeys.get(baselineKey(candidate)),
+        rejectedAt: rejection?.rejectedAt,
+        rejectionReason: rejection?.reason
+      };
+    })
+  );
   return {
+    schemaVersion: 1,
+    project: sanitizeText(report.project),
+    generatedAt: (options.now ?? new Date()).toISOString(),
+    reportGeneratedAt: sanitizeText(report.generatedAt),
     reportPath: resolved.reportPath,
     approvalLogPath: resolved.approvalLogPath,
     rejectionLogPath: resolved.rejectionLogPath,
-    entries: report.results.flatMap((result) =>
-      (result.screenshotAssertions ?? []).map((screenshot) => {
-        const baselinePath = resolveReportPath(resolved.repoRoot, screenshot.baselinePath, "baselinePath");
-        const actualPath = resolveReportPath(resolved.repoRoot, screenshot.actualPath, "actualPath");
-        const diffPath = screenshot.diffPath ? resolveReportPath(resolved.repoRoot, screenshot.diffPath, "diffPath") : undefined;
-        const candidate = {
-          contractId: screenshot.contractId || result.contractId,
-          screenshotName: screenshot.screenshotName || screenshot.name,
-          route: screenshot.route,
-          viewport: screenshot.viewport,
-          status: screenshot.status,
-          baselinePath: toDisplayPath(resolved.repoRoot, baselinePath),
-          actualPath: toDisplayPath(resolved.repoRoot, actualPath),
-          diffPath: diffPath ? toDisplayPath(resolved.repoRoot, diffPath) : undefined,
-          maxDiffPixelRatio: screenshot.maxDiffPixelRatio,
-          actualDiffPixelRatio: screenshot.actualDiffPixelRatio,
-          actualDiffPixels: screenshot.actualDiffPixels,
-          canApprove: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline",
-          canReject: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline"
-        };
-        const rejection = rejectedKeys.get(baselineKey(candidate));
-        return {
-          ...candidate,
-          approvedAt: approvedKeys.get(baselineKey(candidate)),
-          rejectedAt: rejection?.rejectedAt,
-          rejectionReason: rejection?.reason
-        };
-      })
-    )
+    summary: summarizeBaselines(entries),
+    entries
   };
+}
+
+export async function writeBaselineReview(options: BaselineManageOptions = {}): Promise<{ list: BaselineList; baselineReportPath: string }> {
+  const resolved = resolveBaselineOptions(options);
+  const list = await listBaselines(options);
+  const baselineReportPath = path.join(path.dirname(resolved.reportPath), "baselines.json");
+  await ensureDir(path.dirname(baselineReportPath));
+  await writeJson(baselineReportPath, list);
+  return { list, baselineReportPath };
 }
 
 export async function approveBaseline(options: BaselineManageOptions & BaselineSelection): Promise<BaselineApproval> {
@@ -279,6 +312,23 @@ function toDisplayPath(repoRoot: string, filePath: string): string {
 
 function normalizeSlashes(value: string): string {
   return value.replaceAll("\\", "/");
+}
+
+function summarizeBaselines(entries: BaselineCandidate[]): BaselineSummary {
+  const countStatus = (status: BaselineCandidate["status"]) => entries.filter((entry) => entry.status === status).length;
+  const approved = entries.filter((entry) => entry.approvedAt).length;
+  const rejected = entries.filter((entry) => entry.rejectedAt).length;
+  return {
+    total: entries.length,
+    passed: countStatus("passed"),
+    failed: countStatus("failed"),
+    created: countStatus("created"),
+    missingBaseline: countStatus("missing_baseline"),
+    approvable: entries.filter((entry) => entry.canApprove).length,
+    approved,
+    rejected,
+    pendingReview: entries.filter((entry) => entry.canApprove && !entry.approvedAt && !entry.rejectedAt).length
+  };
 }
 
 function baselineKey(value: { contractId: string; screenshotName: string; route: string; viewport: string }): string {

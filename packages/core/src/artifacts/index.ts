@@ -192,6 +192,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
     labels.add("prompt");
   }
   if (normalized.endsWith("baseline-review.md")) labels.add("baseline-review");
+  if (normalized.endsWith("baselines.json")) labels.add("baseline-review");
   if (normalized.endsWith("issue.md")) labels.add("issue");
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
   if (normalized.endsWith("triage.json")) labels.add("triage-report");
@@ -236,6 +237,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "artifacts-index.json": "visual-hive.artifacts.schema.json",
     "baseline-approvals.json": "visual-hive.baseline-approvals.schema.json",
     "baseline-rejections.json": "visual-hive.baseline-rejections.schema.json",
+    "baselines.json": "visual-hive.baselines.schema.json",
     "mutation-report.json": "visual-hive.mutation-report.schema.json",
     "report.json": "visual-hive.report.schema.json"
   };

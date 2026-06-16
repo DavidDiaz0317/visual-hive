@@ -719,10 +719,12 @@ baselines
   .description("List screenshot baselines from the latest report")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--report <path>", "report path override")
+  .option("--write", "write .visual-hive/baselines.json")
+  .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
-      const list = await runBaselineListCommand({ config: options.config, report: options.report });
-      console.log(formatBaselineList(list));
+      const list = await runBaselineListCommand({ config: options.config, report: options.report, write: options.write, format: options.format });
+      console.log(formatBaselineList(list, options.format));
     } catch (error) {
       fail(error);
     }

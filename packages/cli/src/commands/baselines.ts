@@ -4,6 +4,7 @@ import {
   listBaselines,
   loadConfig,
   rejectBaseline,
+  writeBaselineReview,
   type BaselineApproval,
   type BaselineCandidate,
   type BaselineList,
@@ -14,6 +15,8 @@ export interface BaselineCommandOptions {
   config?: string;
   report?: string;
   cwd?: string;
+  write?: boolean;
+  format?: string;
 }
 
 export interface BaselineApproveOptions extends BaselineCommandOptions {
@@ -27,8 +30,12 @@ export interface BaselineRejectOptions extends BaselineApproveOptions {
   reason?: string;
 }
 
-export async function runBaselineListCommand(options: BaselineCommandOptions = {}): Promise<BaselineList> {
+export async function runBaselineListCommand(options: BaselineCommandOptions = {}): Promise<BaselineList & { baselineReportPath?: string }> {
   const resolved = await resolveBaselineCommandOptions(options);
+  if (options.write) {
+    const result = await writeBaselineReview(resolved);
+    return { ...result.list, baselineReportPath: result.baselineReportPath };
+  }
   return listBaselines(resolved);
 }
 
@@ -55,12 +62,24 @@ export async function runBaselineRejectCommand(options: BaselineRejectOptions): 
   });
 }
 
-export function formatBaselineList(list: BaselineList): string {
+export function formatBaselineList(list: BaselineList & { baselineReportPath?: string }, format = "markdown"): string {
+  if (format === "json") return JSON.stringify(list, null, 2);
+  const summary = [
+    `Baselines from ${list.reportPath}`,
+    `- Total: ${list.summary.total}`,
+    `- Pending review: ${list.summary.pendingReview}`,
+    `- Approved: ${list.summary.approved}`,
+    `- Rejected: ${list.summary.rejected}`,
+    `- Created: ${list.summary.created}`,
+    `- Failed diffs: ${list.summary.failed}`,
+    `- Missing baselines: ${list.summary.missingBaseline}`,
+    list.baselineReportPath ? `Wrote ${list.baselineReportPath}` : undefined
+  ].filter((line): line is string => Boolean(line));
   if (list.entries.length === 0) {
-    return `No screenshot baselines found in ${list.reportPath}`;
+    return [...summary, "No screenshot baselines found."].join("\n");
   }
   const rows = list.entries.map(formatBaselineRow).join("\n");
-  return [`Baselines from ${list.reportPath}`, rows, `Approval log: ${list.approvalLogPath}`, `Rejection log: ${list.rejectionLogPath}`].join("\n");
+  return [...summary, rows, `Approval log: ${list.approvalLogPath}`, `Rejection log: ${list.rejectionLogPath}`].join("\n");
 }
 
 export function formatBaselineApproval(approval: BaselineApproval): string {

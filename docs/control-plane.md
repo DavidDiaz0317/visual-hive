@@ -66,7 +66,8 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Provider decision recording writes only `.visual-hive/provider-decisions.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
 - LLM decision recording writes only `.visual-hive/llm-decisions.json`, records `externalCallsMade: 0`, and does not enable API keys, billing, model calls, or pass/fail authority.
 - The Runbook page executes only allowlisted local commands in write mode: doctor, PR plan, deterministic CI run, triage/report, and mutation adequacy. It never executes trusted/protected lanes, secret-bearing lanes, or arbitrary browser-supplied shell text.
-- The Profiles page executes only curated sequences of those same runbook commands. The PR acceptance profile runs doctor, PR plan, deterministic CI run, then triage/report. The mutation audit profile runs doctor, PR plan, mutation adequacy, then triage/report.
+- The Runbook page also includes a safe baseline review refresh command that writes `.visual-hive/baselines.json` from existing report and review-log artifacts.
+- The Profiles page executes only curated sequences of those same runbook commands. The PR acceptance profile runs doctor, PR plan, deterministic CI run, baseline review refresh, then triage/report. The mutation audit profile runs doctor, PR plan, mutation adequacy, then triage/report.
 - Protected or secret-bearing profiles are shown as guidance-only and cannot be launched from the local UI.
 - Runbook execution records a bounded, sanitized audit trail in `.visual-hive/control-plane-actions.json`. Secret-like values in stdout/stderr are redacted before the action history is written or returned to the browser.
 - The Actions tab renders that same audit trail so local operators can see what the UI ran and inspect sanitized output without opening raw files.

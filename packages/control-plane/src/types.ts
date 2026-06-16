@@ -20,6 +20,7 @@ import type {
   TargetConfig,
   VisualHiveConfig,
   ArtifactIndexEntry,
+  BaselineSummary,
   GitHubWorkflowTemplate,
   LLMDecisionLog,
   ProviderDecisionLog,
@@ -241,6 +242,7 @@ export interface ControlPlaneSnapshot {
   runbook: ControlPlaneRunbook;
   runProfiles: ControlPlaneRunProfile[];
   screenshots: ControlPlaneScreenshot[];
+  baselineSummary?: BaselineSummary;
   coverage: ControlPlaneCoverage;
   coverageImprovementReport?: CoverageImprovementReport;
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;

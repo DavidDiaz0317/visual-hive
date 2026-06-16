@@ -168,11 +168,13 @@ The connections store records local repository paths, config paths, labels, and 
 
 ## Baseline Review Logs
 
-Paths: `.visual-hive/baseline-approvals.json`, `.visual-hive/baseline-rejections.json`
+Paths: `.visual-hive/baselines.json`, `.visual-hive/baseline-approvals.json`, `.visual-hive/baseline-rejections.json`
 
-Schemas: `schemas/visual-hive.baseline-approvals.schema.json`, `schemas/visual-hive.baseline-rejections.schema.json`
+Schemas: `schemas/visual-hive.baselines.schema.json`, `schemas/visual-hive.baseline-approvals.schema.json`, `schemas/visual-hive.baseline-rejections.schema.json`
 
-Baseline approvals are explicit review decisions that copy the actual screenshot listed in `report.json` to the baseline path and record the source status, route, viewport, paths, byte count, and review timestamp. Baseline rejections are explicit review decisions that leave the baseline image unchanged and record the actual/baseline/diff paths plus an optional sanitized reason. Both logs are local review evidence used by the Control Plane and CLI; neither changes the historical deterministic report result.
+`visual-hive baselines list --write` writes `.visual-hive/baselines.json`, a machine-readable review queue derived from `report.json`, `.visual-hive/baseline-approvals.json`, and `.visual-hive/baseline-rejections.json`. It includes total/passed/failed/created/missing/pending/approved/rejected counts plus per-screenshot baseline, actual, diff, threshold, and review-decision metadata.
+
+Baseline approvals are explicit review decisions that copy the actual screenshot listed in `report.json` to the baseline path and record the source status, route, viewport, paths, byte count, and review timestamp. Baseline rejections are explicit review decisions that leave the baseline image unchanged and record the actual/baseline/diff paths plus an optional sanitized reason. These artifacts are local review evidence used by the Control Plane and CLI; none of them changes the historical deterministic report result.
 
 ## Mutation Report
 

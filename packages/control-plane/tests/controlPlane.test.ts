@@ -729,7 +729,7 @@ describe("control plane", () => {
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "plan-pr", "run-ci", "triage-report"],
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "mutation-audit")).toMatchObject({
@@ -739,6 +739,10 @@ describe("control plane", () => {
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "baselines")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/baselines.json"]
+    });
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
       commandIds: ["doctor", "security", "triage-report"],
@@ -749,6 +753,13 @@ describe("control plane", () => {
       commandIds: ["doctor", "costs", "triage-report"],
       safety: "pr_safe"
     });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")?.commandIds).toEqual([
+      "doctor",
+      "plan-pr",
+      "run-ci",
+      "baselines",
+      "triage-report"
+    ]);
     expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.project).toBe("ui-fixture");
@@ -760,6 +771,7 @@ describe("control plane", () => {
     expect(snapshot.riskReport?.risks[0]?.contractIds).toEqual(["dashboard"]);
     expect(snapshot.riskReport?.risks[0]?.targetIds).toEqual(["localPreview"]);
     expect(snapshot.screenshots[0]?.name).toBe("dashboard");
+    expect(snapshot.baselineSummary).toMatchObject({ total: 1, passed: 1, pendingReview: 0 });
     expect(snapshot.issueMarkdown).toContain("Issue");
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
@@ -1099,18 +1111,20 @@ contracts:
         "doctor",
         "plan-pr",
         "run-ci",
+        "baselines",
         "triage-report"
       ]);
       expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
         "doctor:doctor",
         "plan-pr:plan-pr",
         "run-ci:run-ci",
+        "baselines:baselines",
         "triage-report:triage",
         "triage-report:report"
       ]);
 
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
-      expect(snapshot.actionHistory?.summary.total).toBe(4);
+      expect(snapshot.actionHistory?.summary.total).toBe(5);
       expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
     } finally {
       await server.close();
@@ -1339,6 +1353,8 @@ contracts:
     expect(controlPlaneJs).toContain("contractTargetPrSafe");
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
+    expect(controlPlaneJs).toContain("function baselineSummaryCard");
+    expect(controlPlaneJs).toContain("visual-hive baselines list --write");
     expect(controlPlaneJs).toContain("function coverageImprovementCard");
     expect(controlPlaneJs).toContain('["flows", "Flows"]');
     expect(controlPlaneJs).toContain("function flows");

@@ -8,12 +8,13 @@ After reviewing a created or changed screenshot, approve it explicitly:
 
 ```bash
 visual-hive baselines list --config visual-hive.config.yaml
+visual-hive baselines list --config visual-hive.config.yaml --write
 visual-hive baselines approve --config visual-hive.config.yaml --contract <contract-id> --screenshot <screenshot-name> --viewport <viewport>
 visual-hive baselines reject --config visual-hive.config.yaml --contract <contract-id> --screenshot <screenshot-name> --viewport <viewport> --reason "Not intentional"
 visual-hive run --ci
 ```
 
-The Control Plane Baselines page exposes the same actions unless it was started with `--read-only`. It also shows baseline, actual, and diff artifact paths with copy buttons so reviewers can attach exact files to design review or issue discussions. Approval and rejection actions require an explicit confirmation prompt after review. Approvals are recorded in `.visual-hive/baseline-approvals.json`; rejections are recorded in `.visual-hive/baseline-rejections.json` without changing the baseline image.
+The Control Plane Baselines page exposes the same actions unless it was started with `--read-only`. It also shows baseline, actual, and diff artifact paths with copy buttons so reviewers can attach exact files to design review or issue discussions. Approval and rejection actions require an explicit confirmation prompt after review. `baselines list --write` refreshes `.visual-hive/baselines.json`, which records the current pending/approved/rejected review queue. Approvals are recorded in `.visual-hive/baseline-approvals.json`; rejections are recorded in `.visual-hive/baseline-rejections.json` without changing the baseline image.
 
 ## Target Server Failed To Start
 

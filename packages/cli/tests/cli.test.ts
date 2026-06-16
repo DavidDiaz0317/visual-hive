@@ -11,6 +11,7 @@ import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.
 import { runInit } from "../src/commands/init.js";
 import {
   formatBaselineApproval,
+  formatBaselineList,
   formatBaselineRejection,
   runBaselineApproveCommand,
   runBaselineListCommand,
@@ -177,6 +178,7 @@ contracts:
     };
     const expectedCommands = [
       "demo:coverage",
+      "demo:baselines",
       "demo:improve",
       "demo:targets",
       "demo:contracts",
@@ -199,6 +201,8 @@ contracts:
       expect(packageJson.scripts["demo:ci"]).toContain(command);
     }
     expect(packageJson.scripts["demo:providers"]).toContain("providers --config");
+    expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
+    expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
@@ -1268,6 +1272,7 @@ contracts:
 
     const list = await runBaselineListCommand({ cwd: tempRoot });
     expect(list.entries[0]?.contractId).toBe("dashboard");
+    expect(formatBaselineList(list)).toContain("Pending review: 1");
 
     const approval = await runBaselineApproveCommand({ cwd: tempRoot, contractId: "dashboard", screenshotName: "desktop" });
     expect(formatBaselineApproval(approval)).toContain("Approved baseline dashboard/desktop");
@@ -1285,6 +1290,13 @@ contracts:
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("actual");
     const listedAfterReject = await runBaselineListCommand({ cwd: tempRoot });
     expect(listedAfterReject.entries[0]?.rejectedAt).toBeTruthy();
+    expect(listedAfterReject.summary.rejected).toBe(1);
+
+    const written = await runBaselineListCommand({ cwd: tempRoot, write: true });
+    expect(written.baselineReportPath).toContain("baselines.json");
+    expect(formatBaselineList(written)).toContain("Wrote");
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "baselines.json"), "utf8")).resolves.toContain('"rejected": 1');
+    expect(formatBaselineList(written, "json")).toContain('"pendingReview"');
   });
 
   it("triage writes issue, prompt, repair, missing-test, and baseline-review artifacts", async () => {

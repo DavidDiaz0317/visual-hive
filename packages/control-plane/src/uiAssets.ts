@@ -685,7 +685,22 @@ function failures() {
 
 function baselines() {
   if (!snapshot.screenshots.length) return empty("No screenshot assertions found.");
-  return '<div class="section">' + preview("Baseline review", snapshot.baselineReviewMarkdown) + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, baselineCardBody(s))).join("") + '</div>';
+  return '<div class="section">' + baselineSummaryCard() + preview("Baseline review", snapshot.baselineReviewMarkdown) + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, baselineCardBody(s))).join("") + '</div>';
+}
+
+function baselineSummaryCard() {
+  const summary = snapshot.baselineSummary;
+  if (!summary) return "";
+  return card("Baseline review queue",
+    metricGrid([
+      metric("Total", summary.total, "info"),
+      metric("Pending review", summary.pendingReview, summary.pendingReview ? "warn" : "ok"),
+      metric("Approved", summary.approved, "ok"),
+      metric("Rejected", summary.rejected, summary.rejected ? "warn" : "info"),
+      metric("Created", summary.created, summary.created ? "warn" : "ok"),
+      metric("Missing", summary.missingBaseline, summary.missingBaseline ? "bad" : "ok")
+    ]) +
+    '<p class="muted">Run <code>visual-hive baselines list --write</code> to refresh <code>.visual-hive/baselines.json</code> for artifact review.</p>');
 }
 
 function mutation() {

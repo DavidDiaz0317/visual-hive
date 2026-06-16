@@ -28,6 +28,7 @@ import {
   type CoverageImprovementReport,
   type CoverageReport,
   type FlowAuditReport,
+  type BaselineList,
   type LLMUsageReport,
   type MockProviderRunReport,
   type MutationReport,
@@ -145,7 +146,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     listConnections({ repoRoot: base.repoRoot })
   ]);
 
-  const screenshots = await collectScreenshots(resolved.repoRoot, path.join(hiveRoot, "report.json"), report);
+  const baselineList = report ? await collectBaselineList(resolved.repoRoot, path.join(hiveRoot, "report.json")) : undefined;
+  const screenshots = collectScreenshotsFromBaselineList(resolved.repoRoot, report, baselineList);
   const failures = collectFailures(resolved.repoRoot, report, mutationReport, triageReport);
   const targets = collectTargets(config, report);
   const coverage = config
@@ -225,6 +227,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     runbook,
     runProfiles,
     screenshots,
+    baselineSummary: baselineList?.summary,
     coverage,
     coverageImprovementReport,
     targets,
@@ -242,7 +245,7 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "pr-acceptance",
       label: "PR acceptance",
       description: "Check readiness, produce a PR plan, run deterministic CI contracts, then refresh triage and the markdown report.",
-      commandIds: ["doctor", "plan-pr", "run-ci", "triage-report"]
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report"]
     },
     {
       id: "triage-refresh",
@@ -363,6 +366,17 @@ function buildRunbook(
       description: "Generate offline triage, repair prompts, issue/PR markdown, and a markdown report from sanitized deterministic artifacts.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/triage.json", ".visual-hive/issue.md", ".visual-hive/pr-comment.md"]
+    },
+    {
+      id: "baselines",
+      label: "Refresh baseline review queue",
+      lane: "local",
+      command: `visual-hive baselines list ${configFlag} --write`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write .visual-hive/baselines.json with pending, approved, rejected, created, failed, and missing-baseline screenshot review evidence.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/baselines.json"]
     },
     {
       id: "mutate",
@@ -551,32 +565,40 @@ async function auditWorkflowFilesIfPresent(config: VisualHiveConfig, repoRoot: s
   return auditWorkflows(config, files, { workflowRoot });
 }
 
-async function collectScreenshots(repoRoot: string, reportPath: string, report?: Report): Promise<ControlPlaneScreenshot[]> {
-  if (report) {
-    try {
-      const list = await listBaselines({ repoRoot, reportPath });
-      return list.entries.map((entry) => ({
-        contractId: entry.contractId,
-        name: entry.screenshotName,
-        route: entry.route,
-        viewport: entry.viewport,
-        status: entry.status,
-        baselinePath: entry.baselinePath,
-        actualPath: entry.actualPath,
-        diffPath: entry.diffPath,
-        maxDiffPixelRatio: entry.maxDiffPixelRatio,
-        actualDiffPixelRatio: entry.actualDiffPixelRatio,
-        actualDiffPixels: entry.actualDiffPixels,
-        canApprove: entry.canApprove,
-        canReject: entry.canReject,
-        approvedAt: entry.approvedAt,
-        rejectedAt: entry.rejectedAt,
-        rejectionReason: entry.rejectionReason
-      }));
-    } catch {
-      // Fall back to report-only rendering when a legacy report contains paths
-      // that cannot be safely resolved against the selected repo.
-    }
+async function collectBaselineList(repoRoot: string, reportPath: string): Promise<BaselineList | undefined> {
+  try {
+    return await listBaselines({ repoRoot, reportPath });
+  } catch {
+    // Fall back to report-only rendering when a legacy report contains paths
+    // that cannot be safely resolved against the selected repo.
+    return undefined;
+  }
+}
+
+function collectScreenshotsFromBaselineList(
+  repoRoot: string,
+  report?: Report,
+  baselineList?: BaselineList
+): ControlPlaneScreenshot[] {
+  if (baselineList) {
+    return baselineList.entries.map((entry) => ({
+      contractId: entry.contractId,
+      name: entry.screenshotName,
+      route: entry.route,
+      viewport: entry.viewport,
+      status: entry.status,
+      baselinePath: entry.baselinePath,
+      actualPath: entry.actualPath,
+      diffPath: entry.diffPath,
+      maxDiffPixelRatio: entry.maxDiffPixelRatio,
+      actualDiffPixelRatio: entry.actualDiffPixelRatio,
+      actualDiffPixels: entry.actualDiffPixels,
+      canApprove: entry.canApprove,
+      canReject: entry.canReject,
+      approvedAt: entry.approvedAt,
+      rejectedAt: entry.rejectedAt,
+      rejectionReason: entry.rejectionReason
+    }));
   }
   return (report?.results ?? []).flatMap((result) =>
     (result.screenshotAssertions ?? []).map((shot) => ({

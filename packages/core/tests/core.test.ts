@@ -16,7 +16,7 @@ import { createPlan } from "../src/planner/createPlan.js";
 import { calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig, parseConfigText } from "../src/config/load.js";
 import { MUTATION_OPERATOR_METADATA, selectContractsForMutation } from "../src/mutations/operators.js";
-import { approveBaseline, listBaselines, rejectBaseline } from "../src/baselines/manage.js";
+import { approveBaseline, listBaselines, rejectBaseline, writeBaselineReview } from "../src/baselines/manage.js";
 import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../src/providers/adapter.js";
 import { readProviderDecisionLog, recordProviderDecision } from "../src/providers/decisions.js";
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
@@ -1972,6 +1972,12 @@ describe("baseline management", () => {
     await writeFile(reportPath, JSON.stringify(reportFixture(tempRoot, actualPath, baselinePath), null, 2), "utf8");
 
     const list = await listBaselines({ repoRoot: tempRoot, reportPath });
+    expect(list.summary).toMatchObject({
+      total: 1,
+      failed: 1,
+      approvable: 1,
+      pendingReview: 1
+    });
     expect(list.entries[0]).toMatchObject({
       contractId: "dashboard",
       screenshotName: "desktop",
@@ -1991,6 +1997,12 @@ describe("baseline management", () => {
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("approved-image");
     const approvalLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-approvals.json"), "utf8")) as { approvals: unknown[] };
     expect(approvalLog.approvals).toHaveLength(1);
+
+    const written = await writeBaselineReview({ repoRoot: tempRoot, reportPath, now: new Date("2026-06-16T00:00:00.000Z") });
+    expect(written.baselineReportPath).toBe(path.join(hiveRoot, "baselines.json"));
+    expect(written.list.summary.approved).toBe(1);
+    expect(written.list.summary.pendingReview).toBe(0);
+    await expect(readFile(written.baselineReportPath, "utf8")).resolves.toContain('"approved": 1');
   });
 
   it("rejects a screenshot baseline without modifying the baseline image", async () => {
@@ -2021,6 +2033,8 @@ describe("baseline management", () => {
     const list = await listBaselines({ repoRoot: tempRoot, reportPath });
     expect(list.entries[0]?.rejectedAt).toBeTruthy();
     expect(list.entries[0]?.rejectionReason).toBe("Not an intentional visual change");
+    expect(list.summary.rejected).toBe(1);
+    expect(list.summary.pendingReview).toBe(0);
     expect(list.rejectionLogPath).toContain("baseline-rejections.json");
   });
 
@@ -2205,6 +2219,7 @@ describe("artifact index", () => {
     await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
@@ -2228,7 +2243,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(14);
+    expect(index.summary.artifactCount).toBe(15);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2244,6 +2259,10 @@ describe("artifact index", () => {
     expect(baselineReview?.preview).toContain("[REDACTED]");
     expect(baselineReview?.labels).toContain("baseline-review");
     expect(baselineReview?.labels).toContain("prompt");
+    const baselines = index.artifacts.find((artifact) => artifact.path.endsWith("baselines.json"));
+    expect(baselines?.preview).toContain("[REDACTED]");
+    expect(baselines?.labels).toContain("baseline-review");
+    expect(baselines?.schemaPath).toBe("schemas/visual-hive.baselines.schema.json");
     const comment = index.artifacts.find((artifact) => artifact.path.endsWith("pr-comment.md"));
     expect(comment?.preview).toContain("[REDACTED]");
     expect(comment?.labels).toContain("pr-comment");
