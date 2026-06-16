@@ -55,8 +55,8 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Connection health is derived from local artifacts only. It can show failed deterministic runs, stale reports, missing reports, missing coverage audits, coverage gaps, weak mutation scores, and high-risk registers across connected repos without storing or printing secret values.
 - Portfolio queues are read-only derived views over the same local connection index. They do not execute connected repo code or fetch remote repository data.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
-- Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
-- Baseline rejection is explicit: the user records a reason in `.visual-hive/baseline-rejections.json`; the baseline image is not changed.
+- Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then confirms an approval prompt that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
+- Baseline rejection is explicit: the user records a reason, confirms the rejection prompt, and Visual Hive records `.visual-hive/baseline-rejections.json`; the baseline image is not changed.
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
 - Setup profile regeneration writes only `.visual-hive/recommendations.json` for one of the supported deterministic profiles. It does not alter config, docs, workflows, baselines, or target code.
 - Setup config generation reads only `.visual-hive/recommendations.json`, validates `recommendedConfigYaml`, refuses to overwrite an existing config unless the user confirms the overwrite action, and records `.visual-hive/config-edits.json`.
@@ -77,6 +77,8 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 ## Baseline Approval
 
 The Control Plane uses the same report metadata as the CLI. It only approves screenshots already listed in `.visual-hive/report.json`, and it refuses paths outside the selected repository.
+
+The local write API requires an explicit confirmation payload before approving or rejecting a baseline. Browser actions show the baseline, actual, diff, metadata, and paths first, then ask for confirmation before mutating baseline files or writing review logs.
 
 Equivalent CLI flow:
 

@@ -82,6 +82,10 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
         return;
       }
       const body = await readJsonBody(request);
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Baseline approval requires explicit confirmation after reviewing baseline, actual, diff, and artifact paths." }, 400);
+        return;
+      }
       const approval = await approveBaseline({
         repoRoot: resolved.repoRoot,
         reportPath: path.join(resolved.configRoot, ".visual-hive", "report.json"),
@@ -101,6 +105,10 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
         return;
       }
       const body = await readJsonBody(request);
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Baseline rejection requires explicit confirmation after reviewing baseline, actual, diff, and artifact paths." }, 400);
+        return;
+      }
       const rejection = await rejectBaseline({
         repoRoot: resolved.repoRoot,
         reportPath: path.join(resolved.configRoot, ".visual-hive", "report.json"),

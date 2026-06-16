@@ -1309,6 +1309,8 @@ function baselineDecisionStatus(s) {
 
 function wireActions() {
   document.querySelectorAll(".baseline-approve").forEach((button) => button.addEventListener("click", async () => {
+    const label = button.dataset.contract + " / " + button.dataset.name + " (" + button.dataset.viewport + " " + button.dataset.route + ")";
+    if (!confirm("Approve actual screenshot as the new baseline for " + label + "? Review the baseline, actual, diff image, diff metadata, and artifact paths before confirming.")) return;
     button.disabled = true;
     button.textContent = "Approving...";
     const response = await fetch(apiUrl("/api/baseline/approve"), {
@@ -1318,7 +1320,8 @@ function wireActions() {
         contractId: button.dataset.contract,
         screenshotName: button.dataset.name,
         viewport: button.dataset.viewport,
-        route: button.dataset.route
+        route: button.dataset.route,
+        confirm: true
       })
     });
     if (!response.ok) {
@@ -1333,6 +1336,8 @@ function wireActions() {
   document.querySelectorAll(".baseline-reject").forEach((button) => button.addEventListener("click", async () => {
     const reason = prompt("Why is this screenshot not an approved baseline?", "Visual change is not approved");
     if (reason === null) return;
+    const label = button.dataset.contract + " / " + button.dataset.name + " (" + button.dataset.viewport + " " + button.dataset.route + ")";
+    if (!confirm("Reject this screenshot for " + label + "? The baseline image will not be changed, and the rejection reason will be recorded.")) return;
     button.disabled = true;
     button.textContent = "Rejecting...";
     const response = await fetch(apiUrl("/api/baseline/reject"), {
@@ -1343,7 +1348,8 @@ function wireActions() {
         screenshotName: button.dataset.name,
         viewport: button.dataset.viewport,
         route: button.dataset.route,
-        reason
+        reason,
+        confirm: true
       })
     });
     if (!response.ok) {

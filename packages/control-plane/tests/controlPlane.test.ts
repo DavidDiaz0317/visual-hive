@@ -1376,6 +1376,8 @@ contracts:
     expect(controlPlaneJs).toContain("function llmDecisionCard");
     expect(controlPlaneJs).toContain("function recordLLMDecision");
     expect(controlPlaneJs).toContain("/api/llm/decision");
+    expect(controlPlaneJs).toContain("Approve actual screenshot as the new baseline");
+    expect(controlPlaneJs).toContain("confirm: true");
     expect(controlPlaneJs).toContain("External upload guardrails");
     expect(controlPlaneJs).toContain("function portfolio");
     expect(controlPlaneJs).toContain("function portfolioItemRow");
@@ -1391,7 +1393,7 @@ contracts:
       const response = await fetch(`${server.url}/api/baseline/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop" })
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", confirm: true })
       });
       const responseText = await response.text();
       expect(response.status, responseText).toBe(200);
@@ -1412,7 +1414,7 @@ contracts:
       const response = await fetch(`${server.url}/api/baseline/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs design review" })
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs design review", confirm: true })
       });
       const responseText = await response.text();
       expect(response.status, responseText).toBe(200);
@@ -1422,6 +1424,32 @@ contracts:
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
       expect(snapshot.screenshots[0]?.rejectedAt).toBeTruthy();
       expect(snapshot.screenshots[0]?.rejectionReason).toBe("Needs design review");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("requires explicit confirmation before baseline approval or rejection", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const approval = await fetch(`${server.url}/api/baseline/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop" })
+      });
+      await expect(approval.text()).resolves.toContain("Baseline approval requires explicit confirmation");
+      expect(approval.status).toBe(400);
+
+      const rejection = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs review" })
+      });
+      await expect(rejection.text()).resolves.toContain("Baseline rejection requires explicit confirmation");
+      expect(rejection.status).toBe(400);
+
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
     } finally {
       await server.close();
     }
