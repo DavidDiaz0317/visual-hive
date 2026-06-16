@@ -4,6 +4,8 @@ dist/
 playwright-report/
 test-results/
 coverage/
+!packages/core/src/coverage/
+!packages/core/src/coverage/**
 *.tsbuildinfo
 examples/demo-react-app/dist/
 examples/demo-react-app/.visual-hive/
