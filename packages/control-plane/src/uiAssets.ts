@@ -194,7 +194,7 @@ function failures() {
 
 function baselines() {
   if (!snapshot.screenshots.length) return empty("No screenshot assertions found.");
-  return '<div class="section">' + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p><p>Diff ratio: ' + esc(s.actualDiffPixelRatio ?? 0) + ' / ' + esc(s.maxDiffPixelRatio) + '</p><p>' + (s.approvedAt ? '<span class="ok">Approved ' + esc(s.approvedAt) + '</span>' : '<span class="muted">Not approved in this repo</span>') + '</p><div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' + baselineActions(s))).join("") + '</div>';
+  return '<div class="section">' + snapshot.screenshots.map(s => card(s.contractId + " / " + s.name, '<p><b>Status:</b> ' + esc(s.status) + ' <b>Route:</b> ' + esc(s.route) + ' <b>Viewport:</b> ' + esc(s.viewport) + '</p><p>Diff ratio: ' + esc(s.actualDiffPixelRatio ?? 0) + ' / ' + esc(s.maxDiffPixelRatio) + '</p>' + baselineDecisionStatus(s) + '<div class="image-row">' + image(s.baselinePath, "baseline") + image(s.actualPath, "actual") + image(s.diffPath, "diff") + '</div>' + baselineActions(s))).join("") + '</div>';
 }
 
 function mutation() {
@@ -429,8 +429,17 @@ function providerMetadataSummary(provider) {
 
 function baselineActions(s) {
   if (snapshot.readOnly) return '<div class="actions"><button class="button" disabled>Read-only mode</button></div>';
-  if (!s.canApprove) return '<div class="actions"><button class="button" disabled>No approval needed</button></div>';
-  return '<div class="actions"><button class="button baseline-approve" data-contract="' + escAttr(s.contractId) + '" data-name="' + escAttr(s.name) + '" data-viewport="' + escAttr(s.viewport) + '" data-route="' + escAttr(s.route) + '">Approve actual as baseline</button></div>';
+  if (!s.canApprove && !s.canReject) return '<div class="actions"><button class="button" disabled>No review action needed</button></div>';
+  return '<div class="actions">' +
+    (s.canApprove ? '<button class="button baseline-approve" data-contract="' + escAttr(s.contractId) + '" data-name="' + escAttr(s.name) + '" data-viewport="' + escAttr(s.viewport) + '" data-route="' + escAttr(s.route) + '">Approve actual as baseline</button>' : '') +
+    (s.canReject ? '<button class="button baseline-reject" data-contract="' + escAttr(s.contractId) + '" data-name="' + escAttr(s.name) + '" data-viewport="' + escAttr(s.viewport) + '" data-route="' + escAttr(s.route) + '">Reject screenshot</button>' : '') +
+    '</div>';
+}
+
+function baselineDecisionStatus(s) {
+  if (s.approvedAt) return '<p><span class="ok">Approved ' + esc(s.approvedAt) + '</span></p>';
+  if (s.rejectedAt) return '<p><span class="bad">Rejected ' + esc(s.rejectedAt) + '</span>' + (s.rejectionReason ? '<br><span class="muted">' + esc(s.rejectionReason) + '</span>' : '') + '</p>';
+  return '<p><span class="muted">Not reviewed in this repo</span></p>';
 }
 
 function wireActions() {
@@ -450,6 +459,31 @@ function wireActions() {
     if (!response.ok) {
       const text = await response.text();
       button.textContent = "Approval failed";
+      alert(text);
+      return;
+    }
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    render();
+  }));
+  document.querySelectorAll(".baseline-reject").forEach((button) => button.addEventListener("click", async () => {
+    const reason = prompt("Why is this screenshot not an approved baseline?", "Visual change is not approved");
+    if (reason === null) return;
+    button.disabled = true;
+    button.textContent = "Rejecting...";
+    const response = await fetch(apiUrl("/api/baseline/reject"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contractId: button.dataset.contract,
+        screenshotName: button.dataset.name,
+        viewport: button.dataset.viewport,
+        route: button.dataset.route,
+        reason
+      })
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      button.textContent = "Reject failed";
       alert(text);
       return;
     }

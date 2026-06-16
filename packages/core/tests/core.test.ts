@@ -13,7 +13,7 @@ import { createPlan } from "../src/planner/createPlan.js";
 import { calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig, parseConfigText } from "../src/config/load.js";
 import { MUTATION_OPERATOR_METADATA, selectContractsForMutation } from "../src/mutations/operators.js";
-import { approveBaseline, listBaselines } from "../src/baselines/manage.js";
+import { approveBaseline, listBaselines, rejectBaseline } from "../src/baselines/manage.js";
 import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../src/providers/adapter.js";
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
@@ -1133,6 +1133,37 @@ describe("baseline management", () => {
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("approved-image");
     const approvalLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-approvals.json"), "utf8")) as { approvals: unknown[] };
     expect(approvalLog.approvals).toHaveLength(1);
+  });
+
+  it("rejects a screenshot baseline without modifying the baseline image", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-baseline-reject-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    const actualPath = path.join(hiveRoot, "artifacts", "screenshots", "dashboard.png");
+    const baselinePath = path.join(hiveRoot, "snapshots", "dashboard.png");
+    const reportPath = path.join(hiveRoot, "report.json");
+    await mkdir(path.dirname(actualPath), { recursive: true });
+    await mkdir(path.dirname(baselinePath), { recursive: true });
+    await writeFile(actualPath, "changed-image", "utf8");
+    await writeFile(baselinePath, "approved-image", "utf8");
+    await writeFile(reportPath, JSON.stringify(reportFixture(tempRoot, actualPath, baselinePath), null, 2), "utf8");
+
+    const rejection = await rejectBaseline({
+      repoRoot: tempRoot,
+      reportPath,
+      contractId: "dashboard",
+      screenshotName: "desktop",
+      reason: "Not an intentional visual change"
+    });
+
+    expect(rejection.reason).toBe("Not an intentional visual change");
+    await expect(readFile(baselinePath, "utf8")).resolves.toBe("approved-image");
+    const rejectionLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-rejections.json"), "utf8")) as { rejections: unknown[] };
+    expect(rejectionLog.rejections).toHaveLength(1);
+    const list = await listBaselines({ repoRoot: tempRoot, reportPath });
+    expect(list.entries[0]?.rejectedAt).toBeTruthy();
+    expect(list.entries[0]?.rejectionReason).toBe("Not an intentional visual change");
+    expect(list.rejectionLogPath).toContain("baseline-rejections.json");
   });
 
   it("refuses to approve baselines outside the repo root", async () => {

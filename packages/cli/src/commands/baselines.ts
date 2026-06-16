@@ -3,9 +3,11 @@ import {
   approveBaseline,
   listBaselines,
   loadConfig,
+  rejectBaseline,
   type BaselineApproval,
   type BaselineCandidate,
-  type BaselineList
+  type BaselineList,
+  type BaselineRejection
 } from "@visual-hive/core";
 
 export interface BaselineCommandOptions {
@@ -19,6 +21,10 @@ export interface BaselineApproveOptions extends BaselineCommandOptions {
   screenshotName: string;
   viewport?: string;
   route?: string;
+}
+
+export interface BaselineRejectOptions extends BaselineApproveOptions {
+  reason?: string;
 }
 
 export async function runBaselineListCommand(options: BaselineCommandOptions = {}): Promise<BaselineList> {
@@ -37,12 +43,24 @@ export async function runBaselineApproveCommand(options: BaselineApproveOptions)
   });
 }
 
+export async function runBaselineRejectCommand(options: BaselineRejectOptions): Promise<BaselineRejection> {
+  const resolved = await resolveBaselineCommandOptions(options);
+  return rejectBaseline({
+    ...resolved,
+    contractId: options.contractId,
+    screenshotName: options.screenshotName,
+    viewport: options.viewport,
+    route: options.route,
+    reason: options.reason
+  });
+}
+
 export function formatBaselineList(list: BaselineList): string {
   if (list.entries.length === 0) {
     return `No screenshot baselines found in ${list.reportPath}`;
   }
   const rows = list.entries.map(formatBaselineRow).join("\n");
-  return [`Baselines from ${list.reportPath}`, rows, `Approval log: ${list.approvalLogPath}`].join("\n");
+  return [`Baselines from ${list.reportPath}`, rows, `Approval log: ${list.approvalLogPath}`, `Rejection log: ${list.rejectionLogPath}`].join("\n");
 }
 
 export function formatBaselineApproval(approval: BaselineApproval): string {
@@ -52,6 +70,17 @@ export function formatBaselineApproval(approval: BaselineApproval): string {
     `- baseline: ${approval.baselinePath}`,
     `- bytes: ${approval.bytes}`,
     `- approvedAt: ${approval.approvedAt}`
+  ].join("\n");
+}
+
+export function formatBaselineRejection(rejection: BaselineRejection): string {
+  const reason = rejection.reason ? [`- reason: ${rejection.reason}`] : [];
+  return [
+    `Rejected baseline ${rejection.contractId}/${rejection.screenshotName} (${rejection.viewport} ${rejection.route})`,
+    `- actual: ${rejection.actualPath}`,
+    `- baseline: ${rejection.baselinePath}`,
+    ...reason,
+    `- rejectedAt: ${rejection.rejectedAt}`
   ].join("\n");
 }
 
@@ -67,6 +96,7 @@ async function resolveBaselineCommandOptions(options: BaselineCommandOptions): P
 
 function formatBaselineRow(entry: BaselineCandidate): string {
   const approval = entry.approvedAt ? ` approved=${entry.approvedAt}` : "";
-  const action = entry.canApprove ? "approve-ready" : "review-only";
-  return `- ${entry.contractId}/${entry.screenshotName} route=${entry.route} viewport=${entry.viewport} status=${entry.status} ${action}${approval}`;
+  const rejection = entry.rejectedAt ? ` rejected=${entry.rejectedAt}` : "";
+  const action = entry.canApprove || entry.canReject ? "review-ready" : "review-only";
+  return `- ${entry.contractId}/${entry.screenshotName} route=${entry.route} viewport=${entry.viewport} status=${entry.status} ${action}${approval}${rejection}`;
 }

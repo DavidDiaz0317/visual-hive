@@ -41,8 +41,9 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Connection add/remove actions update only `.visual-hive/connections.json`; they do not delete target repositories or artifact directories.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
 - Baseline approval is explicit: the user reviews baseline/actual/diff images, then clicks an approval button that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.
+- Baseline rejection is explicit: the user records a reason in `.visual-hive/baseline-rejections.json`; the baseline image is not changed.
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
-- `--read-only` disables write actions such as baseline approval, config saving, and connection add/remove.
+- `--read-only` disables write actions such as baseline review decisions, config saving, and connection add/remove.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 
 ## Baseline Approval
@@ -54,10 +55,11 @@ Equivalent CLI flow:
 ```bash
 visual-hive baselines list --config visual-hive.config.yaml
 visual-hive baselines approve --config visual-hive.config.yaml --contract dashboard-visual-stability --screenshot dashboard-desktop --viewport desktop
+visual-hive baselines reject --config visual-hive.config.yaml --contract dashboard-visual-stability --screenshot dashboard-desktop --viewport desktop --reason "Not an intentional visual change"
 ```
 
-Approving a baseline does not change the historical run result. Re-run `visual-hive run --ci` after approval to verify the deterministic lane passes against the approved snapshot.
+Approving or rejecting a baseline does not change the historical run result. Re-run `visual-hive run --ci` after approval to verify the deterministic lane passes against the approved snapshot.
 
 ## Current Limits
 
-This is an early local Control Plane slice. It is a real management layer over setup recommendations, artifacts, baseline approvals, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.
+This is an early local Control Plane slice. It is a real management layer over setup recommendations, artifacts, baseline review decisions, guarded config edits, target/contract audits, schedule lane safety, LLM usage records, provider readiness, and local repo connections. Future slices should add richer form-based config editing and connected GitHub App ingestion.

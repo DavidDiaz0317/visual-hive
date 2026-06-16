@@ -502,6 +502,28 @@ describe("control plane", () => {
     }
   });
 
+  it("rejects a baseline through the local API without changing the baseline image", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs design review" })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.rejection.reason).toBe("Needs design review");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.screenshots[0]?.rejectedAt).toBeTruthy();
+      expect(snapshot.screenshots[0]?.rejectionReason).toBe("Needs design review");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("blocks baseline approval in read-only mode", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
@@ -512,6 +534,12 @@ describe("control plane", () => {
         body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop" })
       });
       expect(response.status).toBe(403);
+      const rejected = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "blocked" })
+      });
+      expect(rejected.status).toBe(403);
       await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
     } finally {
       await server.close();

@@ -9,7 +9,13 @@ import { parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
 import { runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
-import { formatBaselineApproval, runBaselineApproveCommand, runBaselineListCommand } from "../src/commands/baselines.js";
+import {
+  formatBaselineApproval,
+  formatBaselineRejection,
+  runBaselineApproveCommand,
+  runBaselineListCommand,
+  runBaselineRejectCommand
+} from "../src/commands/baselines.js";
 import { runTriageCommand } from "../src/commands/triage.js";
 import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "../src/commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "../src/commands/coverage.js";
@@ -667,6 +673,19 @@ contracts:
     const approval = await runBaselineApproveCommand({ cwd: tempRoot, contractId: "dashboard", screenshotName: "desktop" });
     expect(formatBaselineApproval(approval)).toContain("Approved baseline dashboard/desktop");
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("actual");
+
+    await writeFile(actualPath, "rejected-actual", "utf8");
+    const rejection = await runBaselineRejectCommand({
+      cwd: tempRoot,
+      contractId: "dashboard",
+      screenshotName: "desktop",
+      reason: "Needs design review"
+    });
+    expect(formatBaselineRejection(rejection)).toContain("Rejected baseline dashboard/desktop");
+    expect(formatBaselineRejection(rejection)).toContain("Needs design review");
+    await expect(readFile(baselinePath, "utf8")).resolves.toBe("actual");
+    const listedAfterReject = await runBaselineListCommand({ cwd: tempRoot });
+    expect(listedAfterReject.entries[0]?.rejectedAt).toBeTruthy();
   });
 
   it("triage writes issue, triage prompt, repair prompt, and missing-test artifacts", async () => {

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { addConnection, approveBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
+import { addConnection, approveBaseline, rejectBaseline, removeConnection, sanitizeText } from "@visual-hive/core";
 import { saveConfigDraft, validateConfigDraft } from "./configEditor.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
@@ -77,6 +77,26 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
         route: optionalString(body.route)
       });
       sendJson(response, { ok: true, approval });
+      return;
+    }
+    if (url.pathname === "/api/baseline/reject") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to reject baselines." }, 403);
+        return;
+      }
+      const body = await readJsonBody(request);
+      const rejection = await rejectBaseline({
+        repoRoot: resolved.repoRoot,
+        reportPath: path.join(resolved.configRoot, ".visual-hive", "report.json"),
+        contractId: requiredString(body.contractId, "contractId"),
+        screenshotName: requiredString(body.screenshotName, "screenshotName"),
+        viewport: optionalString(body.viewport),
+        route: optionalString(body.route),
+        reason: optionalString(body.reason)
+      });
+      sendJson(response, { ok: true, rejection });
       return;
     }
     if (url.pathname === "/api/config/validate") {

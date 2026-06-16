@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, and `artifacts-index.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `contracts.json`, `targets.json`, `schedules.json`, `workflows.json`, `history.json`, `llm-usage.json`, `connections.json`, `provider-results.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`.
 
 ## Plan
 
@@ -93,6 +93,14 @@ Path: `.visual-hive/connections.json`
 Schema: `schemas/visual-hive.connections.schema.json`
 
 The connections store records local repository paths, config paths, labels, and tags for repos managed from the local Control Plane. Readiness status and latest deterministic status are inspected at runtime by `visual-hive connections list` and the Control Plane. It stores no credentials or secret values.
+
+## Baseline Review Logs
+
+Paths: `.visual-hive/baseline-approvals.json`, `.visual-hive/baseline-rejections.json`
+
+Schemas: `schemas/visual-hive.baseline-approvals.schema.json`, `schemas/visual-hive.baseline-rejections.schema.json`
+
+Baseline approvals are explicit review decisions that copy the actual screenshot listed in `report.json` to the baseline path and record the source status, route, viewport, paths, byte count, and review timestamp. Baseline rejections are explicit review decisions that leave the baseline image unchanged and record the actual/baseline/diff paths plus an optional sanitized reason. Both logs are local review evidence used by the Control Plane and CLI; neither changes the historical deterministic report result.
 
 ## Mutation Report
 

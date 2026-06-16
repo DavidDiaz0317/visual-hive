@@ -17,7 +17,10 @@ export interface BaselineCandidate {
   actualDiffPixelRatio?: number;
   actualDiffPixels?: number;
   canApprove: boolean;
+  canReject: boolean;
   approvedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface BaselineApproval {
@@ -39,9 +42,29 @@ export interface BaselineApprovalLog {
   approvals: BaselineApproval[];
 }
 
+export interface BaselineRejection {
+  schemaVersion: 1;
+  rejectedAt: string;
+  contractId: string;
+  screenshotName: string;
+  route: string;
+  viewport: string;
+  sourceStatus: ScreenshotAssertionResult["status"];
+  actualPath: string;
+  baselinePath: string;
+  diffPath?: string;
+  reason?: string;
+}
+
+export interface BaselineRejectionLog {
+  schemaVersion: 1;
+  rejections: BaselineRejection[];
+}
+
 export interface BaselineList {
   reportPath: string;
   approvalLogPath: string;
+  rejectionLogPath: string;
   entries: BaselineCandidate[];
 }
 
@@ -61,10 +84,21 @@ export async function listBaselines(options: BaselineManageOptions = {}): Promis
   const resolved = resolveBaselineOptions(options);
   const report = await readJson<Report>(resolved.reportPath);
   const approvals = await readApprovalLog(resolved.approvalLogPath);
+  const rejections = await readRejectionLog(resolved.rejectionLogPath);
   const approvedKeys = new Map(approvals.approvals.map((approval) => [baselineKey(approval), approval.approvedAt]));
+  const rejectedKeys = new Map(
+    rejections.rejections.map((rejection) => [
+      baselineKey(rejection),
+      {
+        rejectedAt: rejection.rejectedAt,
+        reason: rejection.reason
+      }
+    ])
+  );
   return {
     reportPath: resolved.reportPath,
     approvalLogPath: resolved.approvalLogPath,
+    rejectionLogPath: resolved.rejectionLogPath,
     entries: report.results.flatMap((result) =>
       (result.screenshotAssertions ?? []).map((screenshot) => {
         const baselinePath = resolveReportPath(resolved.repoRoot, screenshot.baselinePath, "baselinePath");
@@ -82,11 +116,15 @@ export async function listBaselines(options: BaselineManageOptions = {}): Promis
           maxDiffPixelRatio: screenshot.maxDiffPixelRatio,
           actualDiffPixelRatio: screenshot.actualDiffPixelRatio,
           actualDiffPixels: screenshot.actualDiffPixels,
-          canApprove: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline"
+          canApprove: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline",
+          canReject: screenshot.status === "created" || screenshot.status === "failed" || screenshot.status === "missing_baseline"
         };
+        const rejection = rejectedKeys.get(baselineKey(candidate));
         return {
           ...candidate,
-          approvedAt: approvedKeys.get(baselineKey(candidate))
+          approvedAt: approvedKeys.get(baselineKey(candidate)),
+          rejectedAt: rejection?.rejectedAt,
+          rejectionReason: rejection?.reason
         };
       })
     )
@@ -124,7 +162,31 @@ export async function approveBaseline(options: BaselineManageOptions & BaselineS
   return approval;
 }
 
-function resolveBaselineOptions(options: BaselineManageOptions): { repoRoot: string; reportPath: string; approvalLogPath: string } {
+export async function rejectBaseline(options: BaselineManageOptions & BaselineSelection & { reason?: string }): Promise<BaselineRejection> {
+  const resolved = resolveBaselineOptions(options);
+  const report = await readJson<Report>(resolved.reportPath);
+  const screenshot = selectScreenshot(report, options);
+  const actualPath = resolveReportPath(resolved.repoRoot, screenshot.actualPath, "actualPath");
+  const baselinePath = resolveReportPath(resolved.repoRoot, screenshot.baselinePath, "baselinePath");
+  const diffPath = screenshot.diffPath ? resolveReportPath(resolved.repoRoot, screenshot.diffPath, "diffPath") : undefined;
+  const rejection: BaselineRejection = {
+    schemaVersion: 1,
+    rejectedAt: new Date().toISOString(),
+    contractId: screenshot.contractId,
+    screenshotName: screenshot.screenshotName || screenshot.name,
+    route: screenshot.route,
+    viewport: screenshot.viewport,
+    sourceStatus: screenshot.status,
+    actualPath: toDisplayPath(resolved.repoRoot, actualPath),
+    baselinePath: toDisplayPath(resolved.repoRoot, baselinePath),
+    diffPath: diffPath ? toDisplayPath(resolved.repoRoot, diffPath) : undefined,
+    reason: options.reason ? sanitizeText(options.reason).trim().slice(0, 500) : undefined
+  };
+  await appendRejection(resolved.rejectionLogPath, rejection);
+  return rejection;
+}
+
+function resolveBaselineOptions(options: BaselineManageOptions): { repoRoot: string; reportPath: string; approvalLogPath: string; rejectionLogPath: string } {
   const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
   const reportPath = path.resolve(repoRoot, options.reportPath ?? path.join(".visual-hive", "report.json"));
   if (!isInsidePath(repoRoot, reportPath)) {
@@ -133,7 +195,8 @@ function resolveBaselineOptions(options: BaselineManageOptions): { repoRoot: str
   return {
     repoRoot,
     reportPath,
-    approvalLogPath: path.join(path.dirname(reportPath), "baseline-approvals.json")
+    approvalLogPath: path.join(path.dirname(reportPath), "baseline-approvals.json"),
+    rejectionLogPath: path.join(path.dirname(reportPath), "baseline-rejections.json")
   };
 }
 
@@ -175,6 +238,13 @@ async function appendApproval(logPath: string, approval: BaselineApproval): Prom
   await writeJson(logPath, log);
 }
 
+async function appendRejection(logPath: string, rejection: BaselineRejection): Promise<void> {
+  const log = await readRejectionLog(logPath);
+  log.rejections.push(rejection);
+  await ensureDir(path.dirname(logPath));
+  await writeJson(logPath, log);
+}
+
 async function readApprovalLog(logPath: string): Promise<BaselineApprovalLog> {
   try {
     const raw = await readFile(logPath, "utf8");
@@ -182,6 +252,16 @@ async function readApprovalLog(logPath: string): Promise<BaselineApprovalLog> {
     return { schemaVersion: 1, approvals: Array.isArray(parsed.approvals) ? parsed.approvals : [] };
   } catch {
     return { schemaVersion: 1, approvals: [] };
+  }
+}
+
+async function readRejectionLog(logPath: string): Promise<BaselineRejectionLog> {
+  try {
+    const raw = await readFile(logPath, "utf8");
+    const parsed = JSON.parse(raw) as Partial<BaselineRejectionLog>;
+    return { schemaVersion: 1, rejections: Array.isArray(parsed.rejections) ? parsed.rejections : [] };
+  } catch {
+    return { schemaVersion: 1, rejections: [] };
   }
 }
 

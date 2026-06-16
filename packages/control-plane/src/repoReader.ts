@@ -274,7 +274,10 @@ async function collectScreenshots(repoRoot: string, reportPath: string, report?:
         actualDiffPixelRatio: entry.actualDiffPixelRatio,
         actualDiffPixels: entry.actualDiffPixels,
         canApprove: entry.canApprove,
-        approvedAt: entry.approvedAt
+        canReject: entry.canReject,
+        approvedAt: entry.approvedAt,
+        rejectedAt: entry.rejectedAt,
+        rejectionReason: entry.rejectionReason
       }));
     } catch {
       // Fall back to report-only rendering when a legacy report contains paths
@@ -294,7 +297,8 @@ async function collectScreenshots(repoRoot: string, reportPath: string, report?:
       maxDiffPixelRatio: shot.maxDiffPixelRatio,
       actualDiffPixelRatio: shot.actualDiffPixelRatio,
       actualDiffPixels: shot.actualDiffPixels,
-      canApprove: shot.status === "created" || shot.status === "failed" || shot.status === "missing_baseline"
+      canApprove: shot.status === "created" || shot.status === "failed" || shot.status === "missing_baseline",
+      canReject: shot.status === "created" || shot.status === "failed" || shot.status === "missing_baseline"
     }))
   );
 }

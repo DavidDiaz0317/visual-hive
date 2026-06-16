@@ -66,7 +66,10 @@ export interface ControlPlaneScreenshot {
   actualDiffPixelRatio?: number;
   actualDiffPixels?: number;
   canApprove?: boolean;
+  canReject?: boolean;
   approvedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface ControlPlaneFailure {

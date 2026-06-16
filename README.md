@@ -137,7 +137,7 @@ Local development without publishing:
 node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only
 ```
 
-The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can explicitly approve reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
+The UI reads `.visual-hive` artifacts and shows overview health, setup recommendations, runs, failures, baselines, mutation adequacy, coverage, config, targets, contracts, GitHub guidance, LLM/provider settings, local repo connections, and raw artifacts. It does not execute target code or call LLMs. In write mode it can explicitly approve or reject reviewed baselines, save validated config edits after a diff review, and add/remove local repo connection records; `--read-only` disables those actions.
 
 ## GitHub Actions
 

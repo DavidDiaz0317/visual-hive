@@ -12,8 +12,10 @@ import { runUiCommand } from "./commands/ui.js";
 import {
   formatBaselineApproval,
   formatBaselineList,
+  formatBaselineRejection,
   runBaselineApproveCommand,
-  runBaselineListCommand
+  runBaselineListCommand,
+  runBaselineRejectCommand
 } from "./commands/baselines.js";
 import { formatProvidersMockSummary, formatProvidersSummary, runProvidersCommand, runProvidersMockCommand } from "./commands/providers.js";
 import { formatCoverageSummary, runCoverageCommand } from "./commands/coverage.js";
@@ -469,7 +471,7 @@ connections
     }
   });
 
-const baselines = program.command("baselines").alias("baseline").description("Inspect and approve screenshot baselines");
+const baselines = program.command("baselines").alias("baseline").description("Inspect, approve, and reject screenshot baselines");
 
 baselines
   .command("list")
@@ -505,6 +507,33 @@ baselines
         route: options.route
       });
       console.log(formatBaselineApproval(approval));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+baselines
+  .command("reject")
+  .description("Reject one screenshot without copying it to the baseline path")
+  .requiredOption("--contract <id>", "contract ID")
+  .requiredOption("--screenshot <name>", "screenshot name")
+  .option("--viewport <name>", "viewport name when contract/screenshot is ambiguous")
+  .option("--route <route>", "route when contract/screenshot is ambiguous")
+  .option("--reason <text>", "short review reason")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--report <path>", "report path override")
+  .action(async (options) => {
+    try {
+      const rejection = await runBaselineRejectCommand({
+        config: options.config,
+        report: options.report,
+        contractId: options.contract,
+        screenshotName: options.screenshot,
+        viewport: options.viewport,
+        route: options.route,
+        reason: options.reason
+      });
+      console.log(formatBaselineRejection(rejection));
     } catch (error) {
       fail(error);
     }
