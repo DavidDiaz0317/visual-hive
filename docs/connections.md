@@ -9,7 +9,7 @@ The file stores:
 - config path inside that repository
 - tags
 
-`visual-hive connections list` and the Control Plane inspect those paths at runtime to show readiness status, project name, and latest deterministic status when a report exists.
+`visual-hive connections list` and the Control Plane inspect those paths at runtime to show readiness status, project name, latest deterministic status, mutation score, risk score, and attention reasons when the corresponding `.visual-hive` artifacts exist.
 
 It does not store credentials, tokens, cookies, provider secrets, kubeconfigs, or LLM keys. Required secrets are still represented by name only in target/provider audits.
 
@@ -23,5 +23,22 @@ visual-hive connections list
 The Control Plane `Connections` page reads and can manage the same store in write mode. It can add a local repo path, optional config path, stable ID, label, and tags, then switch only to stored ready connection IDs. Removing a connection deletes only the local connection record; it does not delete the target repository or any Visual Hive artifacts inside that repository.
 
 `visual-hive ui --read-only` disables connection add/remove actions. Switching repositories still uses a connection ID already present in `.visual-hive/connections.json`; the browser cannot switch to arbitrary paths.
+
+## Health summary
+
+The connection health dashboard is derived, not stored. For each connected repo Visual Hive reads:
+
+- `visual-hive.config.yaml` to validate readiness and project name
+- `.visual-hive/report.json` for latest deterministic status and timestamp
+- `.visual-hive/mutation-report.json` for mutation score, minimum score, and killed/total count
+- `.visual-hive/risk.json` for risk score and highest severity
+
+Health states:
+
+- `ready`: config is valid and available evidence does not need operator attention
+- `attention`: config is valid, but the repo has no deterministic report, a failed deterministic run, mutation score below its minimum, or a high/critical risk register
+- `blocked`: repo path, config path, or config validation is broken
+
+The summary counts failed deterministic reports, missing deterministic reports, weak mutation scores, high-risk registers, blocked repos, and repos needing attention. Secret values are never read from the target repos; protected target audits show required environment variable names only.
 
 Schema: `schemas/visual-hive.connections.schema.json`.

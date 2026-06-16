@@ -662,6 +662,88 @@ contracts:
     expect(snapshot.connections?.connections.map((connection) => connection.id)).toContain("connected");
   });
 
+  it("surfaces multi-repo connection health from report, mutation, and risk artifacts", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const reportPath = path.join(connected.repoRoot, ".visual-hive", "report.json");
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; summary: { passed: number; failed: number } };
+    report.status = "failed";
+    report.summary.passed = 0;
+    report.summary.failed = 1;
+    await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "mutation-report.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 2,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:10:00.000Z",
+          minScore: 0.8,
+          score: 0.4,
+          killed: 2,
+          total: 5,
+          results: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "risk.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:20:00.000Z",
+          summary: {
+            total: 1,
+            critical: 1,
+            high: 0,
+            medium: 0,
+            low: 0,
+            riskScore: 80,
+            highestSeverity: "critical",
+            prBlocking: 1,
+            trustedOnly: 0
+          },
+          inputs: {
+            plan: true,
+            report: true,
+            mutationReport: true,
+            coverageReport: false,
+            targetAudit: false,
+            contractAudit: false,
+            scheduleAudit: false,
+            workflowAudit: false
+          },
+          risks: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await addConnection({
+      repoRoot: manager.repoRoot,
+      repoPath: connected.repoRoot,
+      id: "attention-repo",
+      label: "Attention Repo"
+    });
+
+    const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath, readOnly: true });
+    const connection = snapshot.connections?.connections.find((candidate) => candidate.id === "attention-repo");
+
+    expect(snapshot.connections?.summary.failedConnections).toBe(1);
+    expect(snapshot.connections?.summary.weakMutationConnections).toBe(1);
+    expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
+    expect(connection?.health).toBe("attention");
+    expect(connection?.latestMutationScore).toBe(0.4);
+    expect(connection?.latestRiskSeverity).toBe("critical");
+    expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
+  });
+
   it("rejects unknown selected connection ids", async () => {
     const fixture = await makeFixture();
 
@@ -787,6 +869,10 @@ contracts:
       expect(appJs).toContain("/api/setup/write-docs");
       expect(appJs).toContain("setup-write-bundle");
       expect(appJs).toContain("/api/setup/write-bundle");
+      expect(appJs).toContain("Connection health dashboard");
+      expect(appJs).toContain("function connectionHealthBadge");
+      expect(appJs).toContain("function connectionMutation");
+      expect(appJs).toContain("function connectionRisk");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
     } finally {
@@ -812,6 +898,8 @@ contracts:
     expect(controlPlaneJs).toContain("function workflowTemplatesCard");
     expect(controlPlaneJs).toContain("function writeRecommendedDocs");
     expect(controlPlaneJs).toContain("function writeSetupBundle");
+    expect(controlPlaneJs).toContain("function connectionHealthBadge");
+    expect(controlPlaneJs).toContain("Connection health dashboard");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {

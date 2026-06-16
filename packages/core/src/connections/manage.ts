@@ -1,10 +1,13 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/load.js";
+import type { MutationReport, Report } from "../reports/types.js";
+import type { RiskRegisterReport, RiskSeverity } from "../risk/analyze.js";
 import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type ConnectionStatus = "ready" | "missing_repo" | "missing_config" | "invalid_config";
+export type ConnectionHealth = "ready" | "attention" | "blocked";
 
 export interface RepoConnectionRecord {
   id: string;
@@ -19,9 +22,19 @@ export interface RepoConnectionRecord {
 export interface RepoConnectionEntry extends RepoConnectionRecord {
   stored: boolean;
   status: ConnectionStatus;
+  health: ConnectionHealth;
   projectName?: string;
   latestDeterministicStatus?: "passed" | "failed";
   latestReportAt?: string;
+  latestMutationScore?: number;
+  latestMutationAt?: string;
+  mutationMinScore?: number;
+  mutationKilled?: number;
+  mutationTotal?: number;
+  latestRiskScore?: number;
+  latestRiskSeverity?: RiskSeverity | "none";
+  latestRiskAt?: string;
+  attention: string[];
   warnings: string[];
 }
 
@@ -37,6 +50,12 @@ export interface RepoConnectionIndex {
     missingConfigConnections: number;
     invalidConfigConnections: number;
     missingRepoConnections: number;
+    blockedConnections: number;
+    connectionsNeedingAttention: number;
+    failedConnections: number;
+    missingReportConnections: number;
+    weakMutationConnections: number;
+    highRiskConnections: number;
   };
   connections: RepoConnectionEntry[];
   warnings: string[];
@@ -189,6 +208,14 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
   let projectName: string | undefined;
   let latestDeterministicStatus: "passed" | "failed" | undefined;
   let latestReportAt: string | undefined;
+  let latestMutationScore: number | undefined;
+  let latestMutationAt: string | undefined;
+  let mutationMinScore: number | undefined;
+  let mutationKilled: number | undefined;
+  let mutationTotal: number | undefined;
+  let latestRiskScore: number | undefined;
+  let latestRiskSeverity: RiskSeverity | "none" | undefined;
+  let latestRiskAt: string | undefined;
 
   try {
     const stats = await stat(record.repoRoot);
@@ -225,13 +252,42 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
   }
 
   try {
-    const reportRaw = await readFile(path.join(path.dirname(record.configPath), ".visual-hive", "report.json"), "utf8");
-    const report = JSON.parse(reportRaw) as { status?: unknown; generatedAt?: unknown };
+    const report = await readOptionalJson<Report>(artifactPath(record, "report.json"));
     if (report.status === "passed" || report.status === "failed") latestDeterministicStatus = report.status;
     if (typeof report.generatedAt === "string") latestReportAt = report.generatedAt;
   } catch {
     // Reports are optional for connected repositories.
   }
+
+  try {
+    const mutationReport = await readOptionalJson<MutationReport>(artifactPath(record, "mutation-report.json"));
+    latestMutationScore = numberOrUndefined(mutationReport.score);
+    latestMutationAt = stringOrUndefined(mutationReport.generatedAt);
+    mutationMinScore = numberOrUndefined(mutationReport.minScore);
+    mutationKilled = numberOrUndefined(mutationReport.killed);
+    mutationTotal = numberOrUndefined(mutationReport.total);
+  } catch {
+    // Mutation reports are optional for connected repositories.
+  }
+
+  try {
+    const riskReport = await readOptionalJson<RiskRegisterReport>(artifactPath(record, "risk.json"));
+    latestRiskScore = numberOrUndefined(riskReport.summary?.riskScore);
+    latestRiskSeverity = riskSeverityOrUndefined(riskReport.summary?.highestSeverity);
+    latestRiskAt = stringOrUndefined(riskReport.generatedAt);
+  } catch {
+    // Risk reports are optional for connected repositories.
+  }
+
+  const attention = deriveAttention({
+    status: statusValue,
+    latestDeterministicStatus,
+    latestMutationScore,
+    mutationMinScore,
+    latestRiskScore,
+    latestRiskSeverity
+  });
+  const health = deriveHealth(statusValue, attention);
 
   return {
     ...record,
@@ -241,9 +297,19 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean):
     label: sanitizeLabel(record.label),
     tags: record.tags.map(sanitizeLabel).filter(Boolean),
     status: statusValue,
+    health,
     projectName,
     latestDeterministicStatus,
     latestReportAt,
+    latestMutationScore,
+    latestMutationAt,
+    mutationMinScore,
+    mutationKilled,
+    mutationTotal,
+    latestRiskScore,
+    latestRiskSeverity,
+    latestRiskAt,
+    attention,
     warnings
   };
 }
@@ -255,8 +321,75 @@ function summarize(connections: RepoConnectionEntry[]): RepoConnectionIndex["sum
     readyConnections: connections.filter((connection) => connection.status === "ready").length,
     missingConfigConnections: connections.filter((connection) => connection.status === "missing_config").length,
     invalidConfigConnections: connections.filter((connection) => connection.status === "invalid_config").length,
-    missingRepoConnections: connections.filter((connection) => connection.status === "missing_repo").length
+    missingRepoConnections: connections.filter((connection) => connection.status === "missing_repo").length,
+    blockedConnections: connections.filter((connection) => connection.health === "blocked").length,
+    connectionsNeedingAttention: connections.filter((connection) => connection.health === "attention").length,
+    failedConnections: connections.filter((connection) => connection.latestDeterministicStatus === "failed").length,
+    missingReportConnections: connections.filter((connection) => connection.status === "ready" && !connection.latestDeterministicStatus).length,
+    weakMutationConnections: connections.filter((connection) => mutationIsWeak(connection)).length,
+    highRiskConnections: connections.filter((connection) => riskIsHigh(connection)).length
   };
+}
+
+function artifactPath(record: RepoConnectionRecord, artifactName: string): string {
+  return path.join(path.dirname(record.configPath), ".visual-hive", artifactName);
+}
+
+async function readOptionalJson<T>(filePath: string): Promise<T> {
+  const raw = await readFile(filePath, "utf8");
+  return JSON.parse(raw) as T;
+}
+
+function deriveAttention(input: {
+  status: ConnectionStatus;
+  latestDeterministicStatus?: "passed" | "failed";
+  latestMutationScore?: number;
+  mutationMinScore?: number;
+  latestRiskScore?: number;
+  latestRiskSeverity?: RiskSeverity | "none";
+}): string[] {
+  const attention: string[] = [];
+  if (input.status === "missing_repo") attention.push("Repository path is missing.");
+  if (input.status === "missing_config") attention.push("Visual Hive config is missing.");
+  if (input.status === "invalid_config") attention.push("Visual Hive config is invalid.");
+  if (input.status === "ready" && !input.latestDeterministicStatus) attention.push("No deterministic report found.");
+  if (input.latestDeterministicStatus === "failed") attention.push("Latest deterministic run failed.");
+  if (input.latestMutationScore !== undefined && input.mutationMinScore !== undefined && input.latestMutationScore < input.mutationMinScore) {
+    attention.push(`Mutation score ${formatPercent(input.latestMutationScore)} is below minimum ${formatPercent(input.mutationMinScore)}.`);
+  }
+  if (input.latestRiskSeverity === "critical" || input.latestRiskSeverity === "high" || (input.latestRiskScore ?? 0) >= 50) {
+    attention.push(`Risk register needs review${input.latestRiskScore === undefined ? "." : ` (${input.latestRiskScore}/100).`}`);
+  }
+  return unique(attention);
+}
+
+function deriveHealth(statusValue: ConnectionStatus, attention: string[]): ConnectionHealth {
+  if (statusValue !== "ready") return "blocked";
+  return attention.length ? "attention" : "ready";
+}
+
+function mutationIsWeak(connection: RepoConnectionEntry): boolean {
+  return connection.latestMutationScore !== undefined && connection.mutationMinScore !== undefined && connection.latestMutationScore < connection.mutationMinScore;
+}
+
+function riskIsHigh(connection: RepoConnectionEntry): boolean {
+  return connection.latestRiskSeverity === "critical" || connection.latestRiskSeverity === "high" || (connection.latestRiskScore ?? 0) >= 50;
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" ? sanitizeText(value) : undefined;
+}
+
+function riskSeverityOrUndefined(value: unknown): RiskSeverity | "none" | undefined {
+  return value === "critical" || value === "high" || value === "medium" || value === "low" || value === "none" ? value : undefined;
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
 function isConnectionRecord(value: unknown): value is RepoConnectionRecord {

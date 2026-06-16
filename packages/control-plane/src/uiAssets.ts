@@ -673,13 +673,61 @@ function connections() {
     metric("Connections", index.summary.connectionCount, "") +
     metric("Ready", index.summary.readyConnections, index.summary.readyConnections ? "ok" : "warn") +
     metric("Stored", index.summary.storedConnections, "") +
-    metric("Needs attention", index.summary.missingConfigConnections + index.summary.invalidConfigConnections + index.summary.missingRepoConnections, index.warnings.length ? "warn" : "ok") +
+    metric("Needs attention", index.summary.connectionsNeedingAttention || 0, index.summary.connectionsNeedingAttention ? "warn" : "ok") +
+    metric("Blocked", index.summary.blockedConnections || 0, index.summary.blockedConnections ? "bad" : "ok") +
+    metric("Weak mutation", index.summary.weakMutationConnections || 0, index.summary.weakMutationConnections ? "warn" : "ok") +
+    metric("High risk", index.summary.highRiskConnections || 0, index.summary.highRiskConnections ? "bad" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Connected repositories", table(["ID", "Label", "Project", "Status", "Latest", "Tags", "Action"], index.connections.map(c => [esc(c.id), esc(c.label), esc(c.projectName || "unknown"), esc(c.status), esc(c.latestDeterministicStatus || "no report"), esc((c.tags || []).join(", ") || "none"), connectionAction(c)]))) +
+    card("Connection health dashboard", table(["Repository", "Health", "Latest deterministic", "Mutation", "Risk", "Attention", "Action"], index.connections.map(c => [
+      '<b>' + esc(c.label) + '</b><p class="muted">' + esc(c.projectName || c.id) + '</p><p class="muted">' + esc((c.tags || []).join(", ") || "no tags") + '</p>',
+      connectionHealthBadge(c),
+      connectionLatest(c),
+      connectionMutation(c),
+      connectionRisk(c),
+      connectionAttention(c),
+      connectionAction(c)
+    ]))) +
+    card("Connected repositories", table(["ID", "Project", "Status", "Repo", "Config"], index.connections.map(c => [esc(c.id), esc(c.projectName || "unknown"), esc(c.status), esc(c.repoRoot), esc(c.configPath)]))) +
     connectionForm() +
     card("Local connection file", '<p>' + esc(index.connectionsPath) + '</p><p class="muted">Connections store local paths only. Secret values are not stored. Only IDs from this file can be selected through the Control Plane.</p>') +
     card("Warnings", index.warnings.length ? list(index.warnings) : "No connection warnings.") +
     '</div>';
+}
+
+function connectionHealthBadge(connection) {
+  if (connection.health === "ready") return '<span class="ok">ready</span>';
+  if (connection.health === "blocked") return '<span class="bad">blocked</span><p class="muted">' + esc(connection.status) + '</p>';
+  return '<span class="warn">attention</span><p class="muted">' + esc(connection.status) + '</p>';
+}
+
+function connectionLatest(connection) {
+  if (connection.latestDeterministicStatus === "passed") return '<span class="ok">passed</span>' + connectionTimestamp(connection.latestReportAt);
+  if (connection.latestDeterministicStatus === "failed") return '<span class="bad">failed</span>' + connectionTimestamp(connection.latestReportAt);
+  return '<span class="muted">no report</span>';
+}
+
+function connectionMutation(connection) {
+  if (connection.latestMutationScore == null) return '<span class="muted">not run</span>';
+  const score = Math.round(connection.latestMutationScore * 100) + "%";
+  const min = connection.mutationMinScore == null ? "" : '<p class="muted">min ' + Math.round(connection.mutationMinScore * 100) + "%</p>";
+  const cls = connection.mutationMinScore != null && connection.latestMutationScore < connection.mutationMinScore ? "warn" : "ok";
+  const detail = connection.mutationTotal == null ? "" : '<p class="muted">' + esc(connection.mutationKilled ?? 0) + "/" + esc(connection.mutationTotal) + " killed</p>";
+  return '<span class="' + cls + '">' + esc(score) + '</span>' + min + detail;
+}
+
+function connectionRisk(connection) {
+  if (connection.latestRiskScore == null) return '<span class="muted">not run</span>';
+  const severe = connection.latestRiskSeverity === "critical" || connection.latestRiskSeverity === "high" || connection.latestRiskScore >= 50;
+  return '<span class="' + (severe ? "bad" : connection.latestRiskScore ? "warn" : "ok") + '">' + esc(connection.latestRiskScore) + '/100</span><p class="muted">' + esc(connection.latestRiskSeverity || "unknown") + '</p>';
+}
+
+function connectionAttention(connection) {
+  if (!connection.attention?.length) return '<span class="ok">none</span>';
+  return list(connection.attention);
+}
+
+function connectionTimestamp(value) {
+  return value ? '<p class="muted">' + esc(value) + '</p>' : "";
 }
 
 function connectionAction(connection) {

@@ -1866,6 +1866,82 @@ describe("local repository connections", () => {
       /outside the repository root/
     );
   });
+
+  it("summarizes connected repository health from reports, mutation score, and risk", async () => {
+    const managerRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-connections-health-manager-"));
+    const connectedRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-connections-health-target-"));
+    tempDirs.push(managerRoot, connectedRoot);
+    await writeMinimalConfig(managerRoot, "manager-project");
+    await writeMinimalConfig(connectedRoot, "connected-project");
+    await writeJson(path.join(managerRoot, ".visual-hive", "report.json"), connectionReport("manager-project", "passed"));
+    await writeJson(path.join(connectedRoot, ".visual-hive", "report.json"), connectionReport("connected-project", "failed"));
+    await writeJson(path.join(connectedRoot, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "connected-project",
+      generatedAt: "2026-06-15T00:10:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: []
+    });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "risk.json"), {
+      schemaVersion: 1,
+      project: "connected-project",
+      generatedAt: "2026-06-15T00:20:00.000Z",
+      summary: {
+        total: 2,
+        critical: 0,
+        high: 1,
+        medium: 1,
+        low: 0,
+        riskScore: 62,
+        highestSeverity: "high",
+        prBlocking: 1,
+        trustedOnly: 0
+      },
+      inputs: {
+        plan: true,
+        report: true,
+        mutationReport: true,
+        coverageReport: false,
+        targetAudit: false,
+        contractAudit: false,
+        scheduleAudit: false,
+        workflowAudit: false
+      },
+      risks: [],
+      recommendations: []
+    });
+
+    await addConnection({
+      repoRoot: managerRoot,
+      repoPath: connectedRoot,
+      id: "risky-console",
+      label: "Risky Console"
+    });
+
+    const index = await listConnections({ repoRoot: managerRoot });
+    const connection = index.connections.find((candidate) => candidate.id === "risky-console");
+
+    expect(index.summary.failedConnections).toBe(1);
+    expect(index.summary.weakMutationConnections).toBe(1);
+    expect(index.summary.highRiskConnections).toBe(1);
+    expect(index.summary.connectionsNeedingAttention).toBe(1);
+    expect(connection).toMatchObject({
+      health: "attention",
+      latestDeterministicStatus: "failed",
+      latestMutationScore: 0.5,
+      mutationMinScore: 0.75,
+      mutationKilled: 1,
+      mutationTotal: 2,
+      latestRiskScore: 62,
+      latestRiskSeverity: "high"
+    });
+    expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
+    expect(connection?.attention.join(" ")).toContain("Mutation score 50% is below minimum 75%");
+    expect(connection?.attention.join(" ")).toContain("Risk register needs review");
+  });
 });
 
 async function writeMinimalConfig(repoRoot: string, projectName: string): Promise<void> {
@@ -1884,6 +1960,40 @@ contracts:
 `,
     "utf8"
   );
+}
+
+function connectionReport(project: string, status: "passed" | "failed"): Report {
+  return {
+    schemaVersion: 2,
+    project,
+    repository: sampleRepository,
+    mode: "pr",
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    status,
+    changedFiles: [],
+    selectedTargets: [],
+    selectedContracts: [],
+    excludedContracts: [],
+    targetLifecycle: [],
+    generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+    results: [],
+    summary: {
+      passed: status === "passed" ? 1 : 0,
+      failed: status === "failed" ? 1 : 0,
+      screenshotsPassed: 0,
+      screenshotsFailed: 0,
+      baselinesCreated: 0,
+      createdBaselines: 0,
+      missingBaselines: 0,
+      visualDiffs: 0,
+      consoleErrors: 0,
+      pageErrors: 0
+    },
+    consoleErrors: [],
+    pageErrors: [],
+    artifacts: [],
+    reproductionCommands: []
+  };
 }
 
 function reportFixture(repoRoot: string, actualPath: string, baselinePath: string): Report {
