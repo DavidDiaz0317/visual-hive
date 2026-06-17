@@ -819,8 +819,16 @@ describe("planner", () => {
     expect(plan.mutation.enabled).toBe(true);
   });
 
-  it("selects all contracts in explicit full mode", () => {
+  it("selects all PR-safe contracts in explicit full mode by default", () => {
     const plan = createPlan(sampleConfig(), { mode: "full", changedFiles: [] });
+
+    expect(plan.items.map((item) => item.contractId).sort()).toEqual(["changed-contract", "safe-contract"]);
+    expect(plan.excluded.find((item) => item.contractId === "unsafe-contract")?.reasons).toContain("target.prSafe=false");
+    expect(plan.mutation.enabled).toBe(true);
+  });
+
+  it("includes unsafe contracts in full mode only when explicitly allowed", () => {
+    const plan = createPlan(sampleConfig(), { mode: "full", changedFiles: [], allowUnsafeTargets: true });
 
     expect(plan.items.map((item) => item.contractId).sort()).toEqual(["changed-contract", "safe-contract", "unsafe-contract"]);
     expect(plan.mutation.enabled).toBe(true);

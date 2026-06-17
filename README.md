@@ -142,7 +142,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 
 Target kinds are `url`, `deployPreview`, `storybook`, `command`, `commandGroup`, and `protected`. Deploy-preview targets resolve PR preview URLs from safe env-var names and default to cheap PR-safe checks; Storybook targets model component-library coverage without requiring Chromatic; protected targets default to PR-unsafe and report missing secret environment variable names without printing values.
 
-Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use `canary` for cheap scheduled public checks, `mutation` for mutation-applicable contracts, and `full` only in trusted contexts where protected targets and cost are acceptable.
+Plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. Use `canary` for cheap scheduled public checks, `mutation` for mutation-applicable contracts, and `full` for broad PR-safe coverage. Add `--allow-unsafe-targets` to `full` only in trusted contexts where protected targets and cost are acceptable.
 
 Changed-file selection can also define `selection.ignoreChangedFiles` for docs-only or metadata-only patterns. If every changed file matches that explicit ignore list in PR mode, Visual Hive writes an empty plan plus a passed no-op report instead of starting target servers.
 

@@ -22,7 +22,7 @@ Plan modes:
 - `manual`: all contracts for local/manual investigation, with mutation enabled when configured.
 - `canary`: cheap or medium scheduled PR-safe contracts only. Use this for public hosted demo canaries and other low-cost health checks.
 - `mutation`: contracts relevant to configured mutation operators, using explicit mappings first and heuristics otherwise. Non-PR-safe targets are excluded unless explicitly allowed.
-- `full`: explicit trusted all-contract planning. Use only where protected target credentials and runtime cost are acceptable.
+- `full`: explicit all-contract planning for PR-safe targets. Add `--allow-unsafe-targets` only in trusted contexts where protected target credentials and runtime cost are acceptable.
 
 Planner include/exclude controls:
 

@@ -213,7 +213,7 @@ function targetExclusionReasons(
   allowUnsafeTargets: boolean
 ): string[] {
   const reasons: string[] = [];
-  if (!allowUnsafeTargets && (mode === "pr" || mode === "canary" || mode === "mutation") && !target.prSafe) {
+  if (!allowUnsafeTargets && (mode === "pr" || mode === "canary" || mode === "mutation" || mode === "full") && !target.prSafe) {
     reasons.push("target.prSafe=false", "pass --allow-unsafe-targets to include this target");
   }
   if (mode === "canary" && target.cost === "expensive") {
