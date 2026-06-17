@@ -632,6 +632,7 @@ program
   .option("--workflows <path>", "workflow audit artifact path override")
   .option("--provider-decisions <path>", "provider governance decision artifact path override")
   .option("--provider-setup-plan <path>", "provider setup-plan artifact path override")
+  .option("--provider-handoff <path>", "provider handoff artifact path override")
   .option("--llm-decisions <path>", "LLM governance decision artifact path override")
   .option("--history <path>", "run history artifact path override")
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
@@ -651,6 +652,7 @@ program
         workflows: options.workflows,
         providerDecisions: options.providerDecisions,
         providerSetupPlan: options.providerSetupPlan,
+        providerHandoff: options.providerHandoff,
         llmDecisions: options.llmDecisions,
         history: options.history,
         workflowDir: options.workflowDir,
@@ -676,6 +678,7 @@ program
   .option("--costs <path>", "cost audit artifact path", ".visual-hive/costs.json")
   .option("--provider-decisions <path>", "provider governance decision artifact path", ".visual-hive/provider-decisions.json")
   .option("--provider-setup-plan <path>", "provider setup-plan artifact path", ".visual-hive/provider-setup-plan.json")
+  .option("--provider-handoff <path>", "provider handoff artifact path", ".visual-hive/provider-handoff.json")
   .option("--llm-decisions <path>", "LLM governance decision artifact path", ".visual-hive/llm-decisions.json")
   .option("--history <path>", "run history artifact path", ".visual-hive/history.json")
   .option("--format <format>", "markdown or json", "markdown")
@@ -693,6 +696,7 @@ program
         costs: options.costs,
         providerDecisions: options.providerDecisions,
         providerSetupPlan: options.providerSetupPlan,
+        providerHandoff: options.providerHandoff,
         llmDecisions: options.llmDecisions,
         history: options.history,
         format: options.format

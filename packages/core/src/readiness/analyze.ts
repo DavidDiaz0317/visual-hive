@@ -7,6 +7,7 @@ import type { Plan } from "../planner/types.js";
 import type { BaselineList } from "../baselines/manage.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { ProviderDecisionLog } from "../providers/decisions.js";
+import type { ProviderHandoffManifest } from "../providers/handoff.js";
 import type { ProviderSetupPlan } from "../providers/setupPlan.js";
 import type { SecurityAuditReport } from "../security/audit.js";
 import { sanitizeText } from "../utils/sanitize.js";
@@ -61,6 +62,7 @@ export interface ReadinessReport {
     runHistory: boolean;
     providerDecisions: boolean;
     providerSetupPlan: boolean;
+    providerHandoff: boolean;
     llmDecisions: boolean;
   };
   gates: ReadinessGate[];
@@ -78,6 +80,7 @@ export interface AnalyzeReadinessOptions {
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
   providerSetupPlan?: ProviderSetupPlan;
+  providerHandoff?: ProviderHandoffManifest;
   llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
@@ -91,7 +94,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     ...mutationGates(config, options.mutationReport),
     ...workflowGates(options.workflowAudit),
     ...securityGates(options.securityAudit),
-    ...providerGates(config, options.costAudit, options.providerDecisions, options.providerSetupPlan),
+    ...providerGates(config, options.costAudit, options.providerDecisions, options.providerSetupPlan, options.providerHandoff),
     ...llmGates(config, options.llmDecisions),
     ...costGates(options.costAudit),
     ...historyGates(options.runHistory)
@@ -115,6 +118,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
       runHistory: Boolean(options.runHistory),
       providerDecisions: Boolean(options.providerDecisions),
       providerSetupPlan: Boolean(options.providerSetupPlan),
+      providerHandoff: Boolean(options.providerHandoff),
       llmDecisions: Boolean(options.llmDecisions)
     },
     gates,
@@ -362,7 +366,8 @@ function providerGates(
   config: VisualHiveConfig,
   costAudit?: CostAuditReport,
   providerDecisions?: ProviderDecisionLog,
-  providerSetupPlan?: ProviderSetupPlan
+  providerSetupPlan?: ProviderSetupPlan,
+  providerHandoff?: ProviderHandoffManifest
 ): ReadinessGate[] {
   const externalEnabled = Object.entries(config.providers).filter(
     ([providerId, provider]) => providerId !== "playwright" && provider.enabled && provider.mode === "external"
@@ -371,6 +376,9 @@ function providerGates(
   const decisionByProvider = new Map(decisions.map((decision) => [decision.providerId, decision]));
   const setupPlanMatchesEnabledProvider = providerSetupPlan
     ? externalEnabled.some(([providerId]) => providerId === providerSetupPlan.providerId)
+    : false;
+  const handoffMatchesEnabledProvider = providerHandoff
+    ? externalEnabled.some(([providerId]) => providerId === providerHandoff.providerId)
     : false;
   const conflictingDecisions = externalEnabled
     .map(([providerId]) => decisionByProvider.get(providerId))
@@ -408,6 +416,24 @@ function providerGates(
         )
       ];
     }
+    if (providerHandoff) {
+      return [
+        gate(
+          "provider:handoff-recorded",
+          "provider",
+          "passed",
+          "Provider handoff manifest is recorded",
+          "A no-network provider handoff manifest exists for optional future provider review.",
+          [
+            `provider=${providerHandoff.providerId}`,
+            `status=${providerHandoff.status}`,
+            `externalCallsMade=${providerHandoff.externalCallsMade}`,
+            `eligibleArtifacts=${providerHandoff.summary.eligibleArtifacts}`
+          ],
+          [".visual-hive/provider-handoff.json"]
+        )
+      ];
+    }
     if (decisions.length) {
       return [
         gate(
@@ -437,22 +463,37 @@ function providerGates(
     !setupPlanMatchesEnabledProvider ||
     providerSetupPlan?.recommendation === "blocked" ||
     providerSetupPlan?.readiness.missingEnv.length;
+  const handoffEvidence = providerHandoff
+    ? [
+        `handoff=${providerHandoff.providerId}`,
+        `status=${providerHandoff.status}`,
+        `deterministicStatus=${providerHandoff.deterministicStatus}`,
+        `eligibleArtifacts=${providerHandoff.summary.eligibleArtifacts}`,
+        `externalCallsMade=${providerHandoff.externalCallsMade}`
+      ]
+    : ["handoff=missing"];
+  const handoffWarning = !handoffMatchesEnabledProvider || providerHandoff?.status === "blocked" || providerHandoff?.externalCallsMade !== 0;
   return [
     gate(
       "provider:external-enabled",
       "provider",
-      missing.length || setupPlanWarning ? "warning" : "passed",
+      missing.length || setupPlanWarning || handoffWarning ? "warning" : "passed",
       "External provider requires trusted setup review",
       `${externalEnabled.length} external provider(s) are enabled.`,
       [
         ...externalEnabled.map(([providerId]) => `provider=${providerId}`),
         ...approved.map(([providerId]) => `approvedForTrustedSetup=${providerId}`),
-        ...setupEvidence
+        ...setupEvidence,
+        ...handoffEvidence
       ],
-      [".visual-hive/costs.json", ".visual-hive/provider-decisions.json", ".visual-hive/provider-setup-plan.json"],
-      setupPlanMatchesEnabledProvider
-        ? ["Confirm credentials, budget policy, and trusted workflow boundaries before external upload."]
-        : ["Write `visual-hive providers plan --provider <id>` for the enabled provider before external upload."]
+      [".visual-hive/costs.json", ".visual-hive/provider-decisions.json", ".visual-hive/provider-setup-plan.json", ".visual-hive/provider-handoff.json"],
+      setupPlanMatchesEnabledProvider && handoffMatchesEnabledProvider
+        ? ["Confirm credentials, budget policy, handoff artifact eligibility, and trusted workflow boundaries before external upload."]
+        : [
+            setupPlanMatchesEnabledProvider
+              ? "Run `visual-hive providers handoff --provider <id>` after deterministic report generation."
+              : "Write `visual-hive providers plan --provider <id>` for the enabled provider before external upload."
+          ]
     )
   ];
 }

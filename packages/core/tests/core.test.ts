@@ -1414,7 +1414,7 @@ jobs:
     expect(risk.recommendations.join(" ")).not.toContain("Repair critical/high GitHub workflow safety findings");
   });
 
-  it("flags enabled external providers without matching setup plans", () => {
+  it("flags enabled external providers without matching setup plans or handoff manifests", () => {
     const config = VisualHiveConfigSchema.parse({
       project: { name: "provider-risk", type: "custom", defaultBranch: "main" },
       targets: { local: { kind: "url", url: "http://127.0.0.1:4173" } },
@@ -1425,28 +1425,61 @@ jobs:
           mode: "external",
           requiredEnv: ["ARGOS_TOKEN"]
         }
+      },
+      costPolicy: {
+        maxExternalScreenshotsPerRun: 10,
+        maxMonthlyExternalScreenshots: 1000,
+        externalUpload: {
+          pullRequest: false,
+          schedule: true,
+          manual: true,
+          canary: false,
+          mutation: false,
+          full: true,
+          onFailureOnly: false,
+          criticalContractsOnly: false
+        }
       }
     });
     const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
 
     const missingPlanRisk = analyzeRisk(config, { plan, now: new Date("2026-06-15T00:00:00.000Z") });
     expect(missingPlanRisk.inputs.providerSetupPlan).toBe(false);
+    expect(missingPlanRisk.inputs.providerHandoff).toBe(false);
     expect(missingPlanRisk.risks.find((item) => item.id === "provider-setup-plan:missing:argos")).toMatchObject({
+      category: "provider_policy",
+      severity: "medium",
+      trustedOnly: true
+    });
+    expect(missingPlanRisk.risks.find((item) => item.id === "provider-handoff:missing:argos")).toMatchObject({
       category: "provider_policy",
       severity: "medium",
       trustedOnly: true
     });
 
     const setupPlan = buildProviderSetupPlan(config, { providerId: "argos", env: {}, generatedAt: "2026-06-15T00:00:00.000Z" });
-    const withPlanRisk = analyzeRisk(config, { plan, providerSetupPlan: setupPlan, now: new Date("2026-06-15T00:00:00.000Z") });
+    const handoff = buildProviderHandoffManifest(
+      config,
+      reportFixture(repoRoot, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"),
+      { providerId: "argos", env: { ARGOS_TOKEN: "secret-value" }, generatedAt: "2026-06-15T00:00:00.000Z" }
+    );
+    const withPlanRisk = analyzeRisk(config, { plan, providerSetupPlan: setupPlan, providerHandoff: handoff, now: new Date("2026-06-15T00:00:00.000Z") });
     expect(withPlanRisk.inputs.providerSetupPlan).toBe(true);
+    expect(withPlanRisk.inputs.providerHandoff).toBe(true);
     expect(withPlanRisk.risks.find((item) => item.id === "provider-setup-plan:argos")).toMatchObject({
       title: "Provider setup is blocked: Argos",
       category: "provider_policy",
       severity: "medium",
       trustedOnly: true
     });
+    expect(withPlanRisk.risks.find((item) => item.id === "provider-handoff:argos")).toMatchObject({
+      title: "Provider handoff recorded: Argos",
+      category: "provider_policy",
+      severity: "low",
+      trustedOnly: true
+    });
     expect(withPlanRisk.risks.find((item) => item.id === "provider-setup-plan:missing:argos")).toBeUndefined();
+    expect(withPlanRisk.risks.find((item) => item.id === "provider-handoff:missing:argos")).toBeUndefined();
     expect(JSON.stringify(withPlanRisk)).not.toContain("secret-value");
   });
 
@@ -2379,7 +2412,7 @@ jobs:
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
   });
 
-  it("uses provider setup plans as readiness evidence for external providers", () => {
+  it("uses provider setup plans and handoff manifests as readiness evidence for external providers", () => {
     const config = VisualHiveConfigSchema.parse({
       project: { name: "provider-readiness", type: "custom", defaultBranch: "main" },
       targets: { local: { kind: "url", url: "http://127.0.0.1:4173" } },
@@ -2402,15 +2435,35 @@ jobs:
     });
 
     expect(readiness.inputs.providerSetupPlan).toBe(true);
+    expect(readiness.inputs.providerHandoff).toBe(false);
     expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")).toMatchObject({
       category: "provider",
       status: "warning"
     });
     expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.evidence).toEqual(
-      expect.arrayContaining(["setupPlan=argos", "recommendation=blocked", "externalCallsMade=0"])
+      expect.arrayContaining(["setupPlan=argos", "recommendation=blocked", "externalCallsMade=0", "handoff=missing"])
     );
     expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(".visual-hive/provider-setup-plan.json");
+    expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(".visual-hive/provider-handoff.json");
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
+
+    const handoff = buildProviderHandoffManifest(
+      config,
+      reportFixture(repoRoot, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"),
+      { providerId: "argos", env: {}, generatedAt: "2026-06-15T00:00:00.000Z" }
+    );
+    const withHandoff = analyzeReadiness(config, {
+      plan,
+      costAudit: analyzeCosts(config, { plan }),
+      providerSetupPlan: setupPlan,
+      providerHandoff: handoff,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    expect(withHandoff.inputs.providerHandoff).toBe(true);
+    expect(withHandoff.gates.find((gate) => gate.id === "provider:external-enabled")?.evidence).toEqual(
+      expect.arrayContaining(["handoff=argos", "status=blocked", "eligibleArtifacts=0", "externalCallsMade=0"])
+    );
+    expect(JSON.stringify(withHandoff)).not.toContain("secret-value");
   });
 
   it("builds artifact-backed setup progress and recommends the next blocked step", async () => {

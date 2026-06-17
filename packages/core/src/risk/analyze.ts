@@ -10,6 +10,7 @@ import type { ScheduleAuditReport } from "../schedules/audit.js";
 import type { TargetAuditReport } from "../targets/audit.js";
 import type { Plan } from "../planner/types.js";
 import type { ProviderDecisionLog } from "../providers/decisions.js";
+import type { ProviderHandoffManifest } from "../providers/handoff.js";
 import type { ProviderSetupPlan } from "../providers/setupPlan.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -63,6 +64,7 @@ export interface RiskInputs {
   runHistory: boolean;
   providerDecisions: boolean;
   providerSetupPlan: boolean;
+  providerHandoff: boolean;
   llmDecisions: boolean;
 }
 
@@ -94,6 +96,7 @@ export interface AnalyzeRiskOptions {
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
   providerSetupPlan?: ProviderSetupPlan;
+  providerHandoff?: ProviderHandoffManifest;
   llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
@@ -109,7 +112,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...flowRisks(options.flowAudit),
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
-    ...providerRisks(options.plan, options.report, options.providerDecisions, options.providerSetupPlan),
+    ...providerRisks(options.plan, options.report, options.providerDecisions, options.providerSetupPlan, options.providerHandoff),
     ...llmRisks(config, options.llmDecisions),
     ...historyRisks(options.runHistory)
   ]
@@ -134,6 +137,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       runHistory: Boolean(options.runHistory),
       providerDecisions: Boolean(options.providerDecisions),
       providerSetupPlan: Boolean(options.providerSetupPlan),
+      providerHandoff: Boolean(options.providerHandoff),
       llmDecisions: Boolean(options.llmDecisions)
     },
     risks,
@@ -420,7 +424,13 @@ function workflowRisks(workflowAudit?: WorkflowAuditReport): RiskItem[] {
   }));
 }
 
-function providerRisks(plan?: Plan, report?: Report, providerDecisions?: ProviderDecisionLog, providerSetupPlan?: ProviderSetupPlan): RiskItem[] {
+function providerRisks(
+  plan?: Plan,
+  report?: Report,
+  providerDecisions?: ProviderDecisionLog,
+  providerSetupPlan?: ProviderSetupPlan,
+  providerHandoff?: ProviderHandoffManifest
+): RiskItem[] {
   const externalProviders = plan?.providerPolicy.filter((provider) => provider.enabled && provider.mode === "external" && provider.providerId !== "playwright") ?? [];
   const planRisks =
     plan?.providerPolicy
@@ -484,6 +494,58 @@ function providerRisks(plan?: Plan, report?: Report, providerDecisions?: Provide
       trustedOnly: true
     });
   }
+  const handoffRisks: RiskItem[] = [];
+  if (providerHandoff) {
+    const matchingExternalProvider = externalProviders.some((provider) => provider.providerId === providerHandoff.providerId);
+    const needsAttention = providerHandoff.status === "blocked" || providerHandoff.externalCallsMade !== 0;
+    handoffRisks.push({
+      id: `provider-handoff:${providerHandoff.providerId}`,
+      category: "provider_policy",
+      severity: matchingExternalProvider && needsAttention ? "medium" : "low",
+      title:
+        matchingExternalProvider && needsAttention
+          ? `Provider handoff needs review: ${providerHandoff.label}`
+          : `Provider handoff recorded: ${providerHandoff.label}`,
+      message:
+        matchingExternalProvider && needsAttention
+          ? "An enabled external provider has a no-network handoff manifest that is not ready for trusted upload."
+          : `Provider handoff status is ${providerHandoff.status}.`,
+      evidence: [
+        `status=${providerHandoff.status}`,
+        `deterministicStatus=${providerHandoff.deterministicStatus}`,
+        `eligibleArtifacts=${providerHandoff.summary.eligibleArtifacts}`,
+        `blockedArtifacts=${providerHandoff.summary.blockedArtifacts}`,
+        `externalCallsMade=${providerHandoff.externalCallsMade}`,
+        ...providerHandoff.readiness.missingEnv.map((name) => `missing=${name}`),
+        ...providerHandoff.readiness.externalUploadBlockedReasons
+      ],
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/provider-handoff.json"],
+      suggestedActions:
+        matchingExternalProvider && needsAttention
+          ? ["Resolve missing provider credentials, cost policy, or artifact eligibility before enabling trusted external uploads."]
+          : ["Review provider handoff artifacts before moving from local-only evidence to trusted provider-backed lanes."],
+      prBlocking: false,
+      trustedOnly: true
+    });
+  }
+  for (const provider of externalProviders.filter((provider) => providerHandoff?.providerId !== provider.providerId)) {
+    handoffRisks.push({
+      id: `provider-handoff:missing:${provider.providerId}`,
+      category: "provider_policy",
+      severity: "medium",
+      title: `Provider handoff manifest missing: ${provider.label}`,
+      message: "An external provider is enabled without a matching no-network handoff manifest from deterministic artifacts.",
+      evidence: [`provider=${provider.providerId}`, `mode=${provider.mode}`, `availability=${provider.availability}`],
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/plan.json", ".visual-hive/report.json"],
+      suggestedActions: [`Run visual-hive providers handoff --provider ${provider.providerId} after visual-hive run writes report.json.`],
+      prBlocking: false,
+      trustedOnly: true
+    });
+  }
   const resultRisks =
     report?.providerResults
       ?.filter((provider) => provider.status === "failed" || provider.status === "missing_credentials")
@@ -537,7 +599,7 @@ function providerRisks(plan?: Plan, report?: Report, providerDecisions?: Provide
         trustedOnly: true
       };
     }) ?? [];
-  return [...planRisks, ...setupPlanRisks, ...resultRisks, ...decisionRisks];
+  return [...planRisks, ...setupPlanRisks, ...handoffRisks, ...resultRisks, ...decisionRisks];
 }
 
 function llmRisks(config: VisualHiveConfig, llmDecisions?: LLMDecisionLog): RiskItem[] {
@@ -612,6 +674,7 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "history_regression")) recs.add("Compare latest and previous run history before accepting the current visual QA state.");
   if (risks.some((risk) => risk.category === "llm_governance")) recs.add("Review LLM governance decisions before enabling trusted model-assisted workflows.");
   if (risks.some((risk) => risk.id.startsWith("provider-setup-plan:"))) recs.add("Review provider setup plans before enabling trusted external provider uploads.");
+  if (risks.some((risk) => risk.id.startsWith("provider-handoff:"))) recs.add("Review provider handoff manifests before enabling trusted external provider uploads.");
   return [...recs];
 }
 

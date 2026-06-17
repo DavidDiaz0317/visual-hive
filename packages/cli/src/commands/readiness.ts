@@ -16,6 +16,7 @@ import {
   type MutationReport,
   type Plan,
   type ProviderDecisionLog,
+  type ProviderHandoffManifest,
   type ProviderSetupPlan,
   type ReadinessReport,
   type Report,
@@ -38,6 +39,7 @@ export interface ReadinessCommandOptions {
   costs?: string;
   providerDecisions?: string;
   providerSetupPlan?: string;
+  providerHandoff?: string;
   llmDecisions?: string;
   history?: string;
   format?: "markdown" | "json";
@@ -68,6 +70,9 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
   const providerSetupPlan = await readOptionalJson<ProviderSetupPlan>(
     path.resolve(loaded.rootDir, options.providerSetupPlan ?? path.join(".visual-hive", "provider-setup-plan.json"))
   );
+  const providerHandoff = await readOptionalJson<ProviderHandoffManifest>(
+    path.resolve(loaded.rootDir, options.providerHandoff ?? path.join(".visual-hive", "provider-handoff.json"))
+  );
   const llmDecisions = await readOptionalLLMDecisions(path.resolve(loaded.rootDir, options.llmDecisions ?? path.join(".visual-hive", "llm-decisions.json")));
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
   const readiness = analyzeReadiness(loaded.config, {
@@ -80,6 +85,7 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
     costAudit,
     providerDecisions,
     providerSetupPlan,
+    providerHandoff,
     llmDecisions,
     runHistory
   });

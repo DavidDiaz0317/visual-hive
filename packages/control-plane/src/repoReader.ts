@@ -201,6 +201,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         workflowAudit,
         providerDecisions: providerDecisionLog,
         providerSetupPlan,
+        providerHandoff,
         llmDecisions: llmDecisionLog,
         runHistory
       })
@@ -217,6 +218,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         costAudit,
         providerDecisions: providerDecisionLog,
         providerSetupPlan,
+        providerHandoff,
         llmDecisions: llmDecisionLog,
         runHistory
       })

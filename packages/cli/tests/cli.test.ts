@@ -2551,6 +2551,20 @@ providers:
     expect(summary).toContain("Provider Handoff: Argos");
     expect(summary).toContain("External calls made: 0");
     expect(summary).toContain("dashboard.diff.png");
+
+    const risk = await runRiskCommand({ cwd: tempRoot });
+    expect(risk.report.inputs.providerHandoff).toBe(true);
+    expect(risk.report.risks.find((item) => item.id === "provider-handoff:argos")).toMatchObject({
+      category: "provider_policy",
+      trustedOnly: true
+    });
+
+    const readiness = await runReadinessCommand({ cwd: tempRoot });
+    expect(readiness.report.inputs.providerHandoff).toBe(true);
+    expect(readiness.report.gates.find((gate) => gate.id === "provider:handoff-recorded")).toMatchObject({
+      category: "provider",
+      status: "passed"
+    });
   });
 
   it("records LLM governance decisions from the CLI without model calls", async () => {

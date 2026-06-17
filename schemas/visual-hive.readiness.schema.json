@@ -24,7 +24,20 @@
     },
     "inputs": {
       "type": "object",
-      "required": ["plan", "report", "mutationReport", "baselines", "workflowAudit", "securityAudit", "costAudit"],
+      "required": [
+        "plan",
+        "report",
+        "mutationReport",
+        "baselines",
+        "workflowAudit",
+        "securityAudit",
+        "costAudit",
+        "runHistory",
+        "providerDecisions",
+        "providerSetupPlan",
+        "providerHandoff",
+        "llmDecisions"
+      ],
       "properties": {
         "plan": { "type": "boolean" },
         "report": { "type": "boolean" },
@@ -36,6 +49,7 @@
         "runHistory": { "type": "boolean" },
         "providerDecisions": { "type": "boolean" },
         "providerSetupPlan": { "type": "boolean" },
+        "providerHandoff": { "type": "boolean" },
         "llmDecisions": { "type": "boolean" }
       },
       "additionalProperties": false

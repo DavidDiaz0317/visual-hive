@@ -39,6 +39,8 @@ visual-hive providers decision --provider applitools --decision approve_trusted_
 
 `visual-hive providers handoff --provider <id>` writes `.visual-hive/provider-handoff.json` after a deterministic run. This is the next no-network bridge toward real provider integration: it lists exact actual/diff screenshot artifacts, baseline context, generated spec/report context, upload eligibility, credential/cost-policy blocked reasons, and trusted workflow steps. It still makes zero external calls; a future trusted adapter can consume the manifest after explicit authorization.
 
+`visual-hive risk` and `visual-hive readiness` consume the same handoff manifest automatically. If an external provider is enabled, those commands expect both a setup plan and a handoff manifest before the lane is considered reviewed. Missing or blocked handoff evidence is reported as trusted-only provider policy risk, not as a deterministic test failure.
+
 Each command writes a sanitized local audit entry and records `externalCallsMade: 0`.
 
 The default Visual Hive workflow does not require paid accounts or external visual providers.
