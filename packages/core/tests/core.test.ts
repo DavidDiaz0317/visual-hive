@@ -23,6 +23,7 @@ import { readProviderDecisionLog, recordProviderDecision } from "../src/provider
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { buildProviderSetupPlan } from "../src/providers/setupPlan.js";
+import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
@@ -452,6 +453,93 @@ describe("config validation", () => {
     ]);
   });
 
+  it("builds a no-network provider handoff manifest with exact screenshot eligibility", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "handoff-fixture", type: "react-vite", defaultBranch: "main" },
+      targets: {
+        local: { kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }
+      },
+      contracts: [
+        {
+          id: "dashboard",
+          description: "Dashboard visual contract",
+          target: "local",
+          severity: "critical",
+          runOn: { pullRequest: true },
+          screenshots: [{ name: "desktop", route: "/", viewport: "desktop" }]
+        }
+      ],
+      providers: {
+        argos: { enabled: true, projectId: "visual-hive/demo" }
+      },
+      costPolicy: {
+        maxExternalScreenshotsPerRun: 10,
+        maxMonthlyExternalScreenshots: 1000,
+        externalUpload: {
+          pullRequest: false,
+          schedule: true,
+          manual: true,
+          canary: false,
+          mutation: false,
+          full: true,
+          onFailureOnly: false,
+          criticalContractsOnly: false
+        }
+      }
+    });
+    const report = reportFixture(
+      repoRoot,
+      ".visual-hive/artifacts/screenshots/dashboard.png",
+      ".visual-hive/snapshots/dashboard.png"
+    );
+
+    const manifest = buildProviderHandoffManifest(config, report, {
+      providerId: "argos",
+      env: { ARGOS_TOKEN: "secret-token-value" },
+      generatedAt: "2026-06-15T00:00:00.000Z"
+    });
+
+    expect(manifest).toMatchObject({
+      schemaVersion: 1,
+      project: "handoff-fixture",
+      providerId: "argos",
+      status: "ready",
+      externalCallsMade: 0,
+      readiness: {
+        availability: "available",
+        missingEnv: [],
+        externalUploadAllowed: true,
+        projectIdConfigured: true
+      },
+      summary: {
+        screenshotArtifacts: 1,
+        eligibleArtifacts: 1
+      }
+    });
+    expect(manifest.artifacts.find((artifact) => artifact.kind === "actual_screenshot")).toMatchObject({
+      path: ".visual-hive/artifacts/screenshots/dashboard.png",
+      contractId: "dashboard",
+      eligibleForUpload: true
+    });
+    expect(manifest.artifacts.find((artifact) => artifact.kind === "baseline_screenshot")?.eligibleForUpload).toBe(false);
+    expect(JSON.stringify(manifest)).not.toContain("secret-token-value");
+  });
+
+  it("blocks provider handoff when provider policy or credential readiness is not satisfied", () => {
+    const config = sampleConfig();
+    const report = reportFixture(repoRoot, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+
+    const manifest = buildProviderHandoffManifest(config, report, {
+      providerId: "argos",
+      generatedAt: "2026-06-15T00:00:00.000Z"
+    });
+
+    expect(manifest.status).toBe("blocked");
+    expect(manifest.summary.eligibleArtifacts).toBe(0);
+    expect(manifest.artifacts.find((artifact) => artifact.kind === "actual_screenshot")?.blockedReasons.join(" ")).toContain("Provider is disabled");
+    expect(manifest.externalCallsMade).toBe(0);
+  });
+
   it("records provider governance decisions in core without leaking secrets or making external calls", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-provider-decision-"));
     tempDirs.push(tempRoot);
@@ -655,6 +743,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.runbook.schema.json");
     expect(schemaNames).toContain("visual-hive.plans.schema.json");
     expect(schemaNames).toContain("visual-hive.setup-pr-plan.schema.json");
+    expect(schemaNames).toContain("visual-hive.provider-handoff.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -3199,6 +3288,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "readiness.json"), '{"gates":[{"evidence":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-setup-plan.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
+    await writeFile(path.join(hiveRoot, "provider-handoff.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
@@ -3219,7 +3309,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(22);
+    expect(index.summary.artifactCount).toBe(23);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3283,6 +3373,10 @@ describe("artifact index", () => {
     expect(providerSetupPlan?.preview).toContain("[REDACTED]");
     expect(providerSetupPlan?.labels).toContain("provider-setup-plan");
     expect(providerSetupPlan?.schemaPath).toBe("schemas/visual-hive.provider-setup-plan.schema.json");
+    const providerHandoff = index.artifacts.find((artifact) => artifact.path.endsWith("provider-handoff.json"));
+    expect(providerHandoff?.preview).toContain("[REDACTED]");
+    expect(providerHandoff?.labels).toContain("provider-handoff");
+    expect(providerHandoff?.schemaPath).toBe("schemas/visual-hive.provider-handoff.schema.json");
     const llmDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"));
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");

@@ -23,7 +23,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results and handoff manifests, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
 
 Initialize Visual Hive in another repo:
 
@@ -138,6 +138,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive providers list`: inspect optional provider adapters and missing credential names without calling paid services.
 - `visual-hive providers list --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive providers plan --provider argos`: write `.visual-hive/provider-setup-plan.json`, a no-network provider setup plan with required env names, config changes, trusted workflow steps, safety checks, and validation commands.
+- `visual-hive providers handoff --provider argos`: after a deterministic run, write `.visual-hive/provider-handoff.json`, a no-network manifest of exact screenshot artifacts, eligibility, blocked reasons, required env names, and trusted workflow steps for optional provider upload review.
 - `visual-hive providers decision`: records a local sanitized provider governance decision in `.visual-hive/provider-decisions.json` without enabling credentials, billing, uploads, or provider network calls.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, flows, mutation, failures, and raw artifacts.
 

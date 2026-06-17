@@ -21,10 +21,12 @@ import {
 import { runTriageCommand } from "../src/commands/triage.js";
 import {
   formatProviderDecision,
+  formatProviderHandoff,
   formatProviderSetupPlan,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
+  runProviderHandoffCommand,
   runProviderSetupPlanCommand,
   runProvidersCommand,
   runProvidersMockCommand
@@ -288,6 +290,7 @@ mutation:
       "demo:schedules",
       "demo:workflows",
       "demo:providers",
+      "demo:provider-handoff",
       "demo:triage",
       "demo:llm",
       "demo:report",
@@ -310,6 +313,8 @@ mutation:
       expect(packageJson.scripts["demo:ci"]).toContain(command);
     }
     expect(packageJson.scripts["demo:providers"]).toContain("providers list --config");
+    expect(packageJson.scripts["demo:provider-handoff"]).toContain("providers handoff --config");
+    expect(packageJson.scripts["demo:provider-handoff"]).toContain("--provider argos");
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
@@ -2434,6 +2439,118 @@ providers:
     expect(readiness.report.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(
       ".visual-hive/provider-setup-plan.json"
     );
+  });
+
+  it("writes provider handoff manifests from deterministic reports without external calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-provider-handoff-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: provider-handoff
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    severity: critical
+providers:
+  argos:
+    enabled: true
+    mode: mock
+`
+    );
+    const report: Report = {
+      schemaVersion: 2,
+      project: "provider-handoff",
+      repository: sampleRepository,
+      mode: "manual",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: [],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 1,
+          errors: ["visual diff"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          screenshotAssertions: [
+            {
+              contractId: "dashboard",
+              screenshotName: "desktop",
+              name: "desktop",
+              route: "/",
+              viewport: "desktop",
+              status: "failed",
+              baselinePath: ".visual-hive/snapshots/dashboard.png",
+              actualPath: ".visual-hive/artifacts/screenshots/dashboard.png",
+              diffPath: ".visual-hive/artifacts/screenshots/dashboard.diff.png",
+              maxDiffPixelRatio: 0.01,
+              actualDiffPixelRatio: 0.2,
+              actualDiffPixels: 20,
+              totalPixels: 100
+            }
+          ],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 1,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 1,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    };
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), report);
+
+    const result = await runProviderHandoffCommand({ cwd: tempRoot, providerId: "argos" });
+    const written = await readJson<typeof result.manifest>(result.manifestPath);
+    const summary = formatProviderHandoff(result);
+
+    expect(result.manifestPath).toBe(path.join(tempRoot, ".visual-hive", "provider-handoff.json"));
+    expect(written).toMatchObject({
+      providerId: "argos",
+      label: "Argos",
+      status: "review",
+      externalCallsMade: 0,
+      summary: {
+        screenshotArtifacts: 1,
+        diffArtifacts: 1
+      }
+    });
+    expect(written.artifacts.map((artifact) => artifact.kind)).toEqual([
+      "actual_screenshot",
+      "diff_screenshot",
+      "baseline_screenshot",
+      "generated_spec",
+      "deterministic_report"
+    ]);
+    expect(summary).toContain("Provider Handoff: Argos");
+    expect(summary).toContain("External calls made: 0");
+    expect(summary).toContain("dashboard.diff.png");
   });
 
   it("records LLM governance decisions from the CLI without model calls", async () => {

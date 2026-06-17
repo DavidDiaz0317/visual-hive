@@ -37,6 +37,8 @@ visual-hive providers decision --provider applitools --decision approve_trusted_
 
 `visual-hive providers plan --provider <id>` writes `.visual-hive/provider-setup-plan.json`. The Control Plane Providers page can write the same artifact after explicit confirmation. The plan is a no-network readiness artifact: it lists required environment variable names, missing credential names, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`. It helps a maintainer prepare a provider-backed scheduled lane without silently enabling billing, credentials, external uploads, or provider API calls.
 
+`visual-hive providers handoff --provider <id>` writes `.visual-hive/provider-handoff.json` after a deterministic run. This is the next no-network bridge toward real provider integration: it lists exact actual/diff screenshot artifacts, baseline context, generated spec/report context, upload eligibility, credential/cost-policy blocked reasons, and trusted workflow steps. It still makes zero external calls; a future trusted adapter can consume the manifest after explicit authorization.
+
 Each command writes a sanitized local audit entry and records `externalCallsMade: 0`.
 
 The default Visual Hive workflow does not require paid accounts or external visual providers.

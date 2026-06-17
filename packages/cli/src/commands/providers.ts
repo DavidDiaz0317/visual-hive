@@ -1,5 +1,6 @@
 import path from "node:path";
 import {
+  buildProviderHandoffManifest,
   inspectProviders,
   loadConfig,
   buildProviderSetupPlan,
@@ -8,6 +9,7 @@ import {
   runMockProviderAdapters,
   writeJson,
   type MockProviderRunReport,
+  type ProviderHandoffManifest,
   type ProviderDecision,
   type ProviderDecisionEntry,
   type ProviderInspection,
@@ -38,6 +40,14 @@ export interface ProviderSetupPlanCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface ProviderHandoffCommandOptions {
+  config?: string;
+  cwd?: string;
+  providerId: string;
+  report?: string;
+  format?: "markdown" | "json";
+}
+
 export interface ProvidersMockCommandResult {
   report: MockProviderRunReport;
   reportPath: string;
@@ -52,6 +62,11 @@ export interface ProviderDecisionCommandResult {
 export interface ProviderSetupPlanCommandResult {
   plan: ProviderSetupPlan;
   planPath: string;
+}
+
+export interface ProviderHandoffCommandResult {
+  manifest: ProviderHandoffManifest;
+  manifestPath: string;
 }
 
 export async function runProvidersCommand(options: ProvidersCommandOptions = {}): Promise<ProviderInspection[]> {
@@ -121,6 +136,29 @@ export async function runProviderSetupPlanCommand(options: ProviderSetupPlanComm
   const planPath = path.join(loaded.rootDir, ".visual-hive", "provider-setup-plan.json");
   await writeJson(planPath, plan);
   return { plan, planPath };
+}
+
+export async function runProviderHandoffCommand(options: ProviderHandoffCommandOptions): Promise<ProviderHandoffCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
+  const deterministicReportPath = path.resolve(loaded.rootDir, options.report ?? path.join(".visual-hive", "report.json"));
+  let deterministicReport: Report;
+  try {
+    deterministicReport = await readJson<Report>(deterministicReportPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Missing deterministic report for provider handoff at ${deterministicReportPath}. Run "visual-hive run" first. Details: ${message}`
+    );
+  }
+  const provider = inspectProviders(loaded.config).find((candidate) => candidate.id === options.providerId);
+  if (!provider) {
+    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers list" to list configured providers.`);
+  }
+  const manifest = buildProviderHandoffManifest(loaded.config, deterministicReport, { providerId: provider.id });
+  const manifestPath = path.join(loaded.rootDir, ".visual-hive", "provider-handoff.json");
+  await writeJson(manifestPath, manifest);
+  return { manifest, manifestPath };
 }
 
 export function formatProvidersSummary(providers: ProviderInspection[]): string {
@@ -253,6 +291,47 @@ export function formatProviderSetupPlan(result: ProviderSetupPlanCommandResult, 
     "## Validation Commands",
     ...plan.validationCommands.map((command) => `- \`${command}\``),
     ...(plan.warnings.length ? ["", "## Warnings", ...plan.warnings.map((warning) => `- ${warning}`)] : [])
+  ].join("\n");
+}
+
+export function formatProviderHandoff(result: ProviderHandoffCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        manifest: result.manifest,
+        manifestPath: result.manifestPath
+      },
+      null,
+      2
+    );
+  }
+  const manifest = result.manifest;
+  return [
+    `Wrote ${result.manifestPath}`,
+    `# Provider Handoff: ${manifest.label}`,
+    "",
+    `- Status: ${manifest.status}`,
+    `- Deterministic status: ${manifest.deterministicStatus}`,
+    `- Mode: ${manifest.mode}`,
+    `- External calls made: ${manifest.externalCallsMade}`,
+    `- Required env names: ${manifest.readiness.requiredEnv.join(", ") || "none"}`,
+    `- Missing env names: ${manifest.readiness.missingEnv.join(", ") || "none"}`,
+    `- External upload: ${manifest.readiness.externalUploadAllowed ? "allowed" : "blocked"}`,
+    `- Eligible artifacts: ${manifest.summary.eligibleArtifacts}/${manifest.summary.totalArtifacts}`,
+    "",
+    "| Artifact | Kind | Contract | Upload | Blocked reasons |",
+    "| --- | --- | --- | --- | --- |",
+    ...manifest.artifacts.map(
+      (artifact) =>
+        `| ${artifact.path} | ${artifact.kind} | ${artifact.contractId ?? "n/a"} | ${artifact.eligibleForUpload ? "yes" : "no"} | ${artifact.blockedReasons.join(" ") || "none"} |`
+    ),
+    "",
+    "## Trusted Workflow Steps",
+    ...manifest.trustedWorkflowSteps.map((step) => `- ${step}`),
+    "",
+    "## Validation Commands",
+    ...manifest.validationCommands.map((command) => `- \`${command}\``),
+    ...(manifest.warnings.length ? ["", "## Warnings", ...manifest.warnings.map((warning) => `- ${warning}`)] : [])
   ].join("\n");
 }
 

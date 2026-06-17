@@ -20,10 +20,12 @@ import {
 } from "./commands/baselines.js";
 import {
   formatProviderDecision,
+  formatProviderHandoff,
   formatProviderSetupPlan,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
+  runProviderHandoffCommand,
   runProviderSetupPlanCommand,
   runProvidersCommand,
   runProvidersMockCommand
@@ -280,6 +282,27 @@ providersCommand
         format: options.format
       });
       console.log(formatProviderSetupPlan(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+providersCommand
+  .command("handoff")
+  .description("Write a no-network provider artifact handoff manifest from the deterministic report")
+  .requiredOption("--provider <id>", "provider id, for example argos, percy, chromatic, or applitools")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--report <path>", "deterministic report path", ".visual-hive/report.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runProviderHandoffCommand({
+        config: options.config,
+        providerId: options.provider,
+        report: options.report,
+        format: options.format
+      });
+      console.log(formatProviderHandoff(result, options.format));
     } catch (error) {
       fail(error);
     }

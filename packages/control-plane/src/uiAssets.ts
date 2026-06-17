@@ -1447,6 +1447,7 @@ function providers() {
     providerCostPolicyCard() +
     providerDecisionCard() +
     providerSetupPlanCard() +
+    providerHandoffCard(snapshot.providerHandoff) +
     card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Credentials", "External upload", "Decision", "Supports"], snapshot.providers.map(p => [
       '<b>' + esc(p.label) + '</b><p class="muted">' + esc(p.docs) + '</p>',
       p.enabled ? "yes" : "no",
@@ -1463,6 +1464,45 @@ function providers() {
     providerRunResultsCard(snapshot.providerRunReport) +
     '<div class="grid" style="margin-top:14px">' + snapshot.providers.map(p => card(p.label, providerDetailBody(p))).join("") + '</div>' +
     '</div>';
+}
+
+function providerHandoffCard(manifest) {
+  if (!manifest) {
+    return card(
+      "Provider handoff",
+      '<p class="muted">No provider handoff manifest found. Run <code>visual-hive providers handoff --provider argos</code> after a deterministic report exists to preview exact screenshot artifacts eligible for trusted external-provider upload.</p>'
+    );
+  }
+  const statusClass = manifest.status === "ready" ? "ok" : manifest.status === "blocked" ? "bad" : "warn";
+  return card(
+    "Provider handoff",
+    '<p class="muted">No external upload has happened. This manifest is a trusted-lane review artifact over local Visual Hive screenshots and policy decisions.</p>' +
+    '<div class="grid">' +
+      metric("Provider", manifest.label || manifest.providerId, "") +
+      metric("Status", manifest.status, statusClass) +
+      metric("Eligible artifacts", (manifest.summary?.eligibleArtifacts ?? 0) + "/" + (manifest.summary?.totalArtifacts ?? 0), (manifest.summary?.eligibleArtifacts ?? 0) ? "ok" : "warn") +
+      metric("External calls", manifest.externalCallsMade ?? 0, manifest.externalCallsMade ? "bad" : "ok") +
+    '</div>' +
+    table(["Field", "Value"], [
+      ["Mode", esc(manifest.mode || "unknown")],
+      ["Deterministic status", esc(manifest.deterministicStatus || "unknown")],
+      ["Availability", esc(manifest.readiness?.availability || "unknown")],
+      ["Required env names", esc((manifest.readiness?.requiredEnv || []).join(", ") || "none")],
+      ["Missing env names", esc((manifest.readiness?.missingEnv || []).join(", ") || "none")],
+      ["External upload", manifest.readiness?.externalUploadAllowed ? '<span class="ok">allowed</span>' : '<span class="warn">blocked</span>']
+    ]) +
+    '<h3>Artifacts</h3>' +
+    table(["Artifact", "Kind", "Contract", "Upload", "Blocked reasons"], (manifest.artifacts || []).slice(0, 20).map(artifact => [
+      link(artifact.path, artifact.path),
+      artifact.kind || "unknown",
+      artifact.contractId || "n/a",
+      artifact.eligibleForUpload ? '<span class="ok">yes</span>' : '<span class="muted">no</span>',
+      (artifact.blockedReasons || []).join("<br>") || '<span class="muted">none</span>'
+    ])) +
+    ((manifest.artifacts || []).length > 20 ? '<p class="muted">Showing 20 of ' + esc(manifest.artifacts.length) + ' artifacts.</p>' : '') +
+    '<h3>Trusted workflow steps</h3>' + list(manifest.trustedWorkflowSteps || []) +
+    ((manifest.warnings || []).length ? '<h3>Warnings</h3>' + list(manifest.warnings) : '')
+  );
 }
 
 function providerDecisionCard() {

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.provider-handoff.schema.json",
+  "title": "Visual Hive Provider Handoff Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "providerId",
+    "label",
+    "status",
+    "deterministicStatus",
+    "mode",
+    "externalCallsMade",
+    "readiness",
+    "summary",
+    "artifacts",
+    "trustedWorkflowSteps",
+    "validationCommands",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "providerId": { "enum": ["playwright", "argos", "percy", "chromatic", "applitools", "storybook", "github-checks"] },
+    "label": { "type": "string" },
+    "status": { "enum": ["ready", "review", "blocked"] },
+    "deterministicStatus": { "enum": ["passed", "failed"] },
+    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "externalCallsMade": { "const": 0 },
+    "readiness": { "$ref": "#/$defs/readiness" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "trustedWorkflowSteps": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "validationCommands": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "readiness": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "providerMode",
+        "availability",
+        "deterministicRole",
+        "requiredEnv",
+        "missingEnv",
+        "externalUploadAllowed",
+        "externalUploadBlockedReasons",
+        "projectIdConfigured"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "providerMode": { "enum": ["mock", "external"] },
+        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
+        "deterministicRole": { "enum": ["oracle", "supplemental"] },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "missingEnv": { "type": "array", "items": { "type": "string" } },
+        "externalUploadAllowed": { "type": "boolean" },
+        "externalUploadBlockedReasons": { "type": "array", "items": { "type": "string" } },
+        "projectIdConfigured": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "totalArtifacts",
+        "screenshotArtifacts",
+        "diffArtifacts",
+        "eligibleArtifacts",
+        "blockedArtifacts",
+        "estimatedExternalScreenshots",
+        "maxExternalScreenshotsPerRun"
+      ],
+      "properties": {
+        "totalArtifacts": { "type": "number" },
+        "screenshotArtifacts": { "type": "number" },
+        "diffArtifacts": { "type": "number" },
+        "eligibleArtifacts": { "type": "number" },
+        "blockedArtifacts": { "type": "number" },
+        "estimatedExternalScreenshots": { "type": "number" },
+        "maxExternalScreenshotsPerRun": { "type": "number" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["path", "kind", "eligibleForUpload", "blockedReasons"],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": {
+          "enum": ["actual_screenshot", "diff_screenshot", "baseline_screenshot", "generated_spec", "deterministic_report"]
+        },
+        "contractId": { "type": "string" },
+        "screenshotName": { "type": "string" },
+        "route": { "type": "string" },
+        "viewport": { "type": "string" },
+        "screenshotStatus": { "enum": ["passed", "failed", "created", "missing_baseline"] },
+        "eligibleForUpload": { "type": "boolean" },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

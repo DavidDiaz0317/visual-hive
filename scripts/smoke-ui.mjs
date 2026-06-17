@@ -35,6 +35,9 @@ try {
   if (!snapshot.setupPullRequestPlan || snapshot.setupPullRequestPlan.summary?.externalCallsMade !== 0) {
     throw new Error("snapshot did not include no-network setup PR plan evidence");
   }
+  if (!snapshot.providerHandoff || snapshot.providerHandoff.externalCallsMade !== 0) {
+    throw new Error("snapshot did not include no-network provider handoff evidence");
+  }
   if (!snapshot.mutationReport || typeof snapshot.mutationReport.score !== "number") {
     throw new Error("snapshot did not include mutation score evidence");
   }

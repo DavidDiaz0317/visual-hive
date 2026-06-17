@@ -27,6 +27,7 @@ import type {
   GitHubWorkflowTemplate,
   LLMDecisionLog,
   ProviderDecisionLog,
+  ProviderHandoffManifest,
   SetupProgressReport,
   SetupPullRequestPlanReport,
   SetupRecommendationReport,
@@ -232,6 +233,7 @@ export interface ControlPlaneSnapshot {
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;
   providerSetupPlan?: ProviderSetupPlan;
+  providerHandoff?: ProviderHandoffManifest;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
   flowAudit?: FlowAuditReport;

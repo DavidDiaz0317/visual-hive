@@ -442,6 +442,72 @@ viewports:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "provider-handoff.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        providerId: "argos",
+        label: "Argos",
+        status: "review",
+        deterministicStatus: "passed",
+        mode: "manual",
+        externalCallsMade: 0,
+        readiness: {
+          enabled: true,
+          providerMode: "mock",
+          availability: "mock",
+          deterministicRole: "supplemental",
+          requiredEnv: ["ARGOS_TOKEN"],
+          missingEnv: [],
+          externalUploadAllowed: true,
+          externalUploadBlockedReasons: [],
+          projectIdConfigured: true
+        },
+        summary: {
+          totalArtifacts: 3,
+          screenshotArtifacts: 1,
+          diffArtifacts: 1,
+          eligibleArtifacts: 0,
+          blockedArtifacts: 3,
+          estimatedExternalScreenshots: 1,
+          maxExternalScreenshotsPerRun: 10
+        },
+        artifacts: [
+          {
+            path: ".visual-hive/artifacts/screenshots/dashboard.png",
+            kind: "actual_screenshot",
+            contractId: "dashboard",
+            screenshotName: "desktop",
+            route: "/",
+            viewport: "desktop",
+            screenshotStatus: "failed",
+            eligibleForUpload: false,
+            blockedReasons: ["Provider is in mock mode; the handoff is review-only and will not upload externally."]
+          },
+          {
+            path: ".visual-hive/artifacts/screenshots/dashboard.diff.png",
+            kind: "diff_screenshot",
+            contractId: "dashboard",
+            screenshotName: "desktop",
+            route: "/",
+            viewport: "desktop",
+            screenshotStatus: "failed",
+            eligibleForUpload: false,
+            blockedReasons: ["Provider is in mock mode; the handoff is review-only and will not upload externally."]
+          }
+        ],
+        trustedWorkflowSteps: ["Run visual-hive plan/run first and treat Playwright as the pass/fail oracle."],
+        validationCommands: ["visual-hive providers handoff --provider argos"],
+        warnings: ["This manifest made zero external calls and does not upload screenshots."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".visual-hive", "recommendations.json"),
     JSON.stringify(
       {
@@ -1045,6 +1111,14 @@ describe("control plane", () => {
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.changedFiles).toContain("src/App.tsx");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.providerHandoff).toMatchObject({
+      providerId: "argos",
+      status: "review",
+      externalCallsMade: 0,
+      summary: {
+        diffArtifacts: 1
+      }
+    });
     expect(snapshot.providerSetupPlan).toBeUndefined();
     expect(snapshot.mutationReport?.score).toBe(0.5);
     expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
@@ -1241,6 +1315,7 @@ describe("control plane", () => {
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"))?.labels).toContain("setup-pr-plan");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-handoff.json"))?.labels).toContain("provider-handoff");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("plans.json"))?.labels).toContain("plan-lanes");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
@@ -2067,6 +2142,8 @@ contracts:
     expect(controlPlaneJs).toContain("function connectionCost");
     expect(controlPlaneJs).toContain("critical/high");
     expect(controlPlaneJs).toContain("policy-blocked providers");
+    expect(controlPlaneJs).toContain("function providerHandoffCard");
+    expect(controlPlaneJs).toContain("visual-hive providers handoff --provider argos");
     expect(controlPlaneJs).toContain("function profiles");
     expect(controlPlaneJs).toContain("function profileActions");
     expect(controlPlaneJs).toContain("/api/runbook/profile");

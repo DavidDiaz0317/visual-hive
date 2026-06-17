@@ -42,6 +42,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions, blocked reasons, provider setup plans, and provider governance decisions
 - LLM decisions, including explicit local records to keep LLM use disabled, review it later, or approve prompt-only review in a trusted lane
 - Provider setup planning, including no-network `.visual-hive/provider-setup-plan.json` artifacts that list required credential names, missing credential names, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`
+- Provider handoff review, including no-network `.visual-hive/provider-handoff.json` manifests that map exact actual/diff screenshot artifacts to upload eligibility, blocked credential/cost-policy reasons, trusted workflow steps, and `externalCallsMade: 0`
 - Provider decisions, including explicit local records to skip a supplemental provider, review it later, or approve it only for a future trusted setup review
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy/write buttons
 - Guarded workflow template generation into `.github/workflows`, with overwrite protection, explicit confirmation, and `.visual-hive/workflow-edits.json`
@@ -69,6 +70,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup PR bundle generation preflights all output files before writing. It writes `visual-hive.config.yaml`, `docs/visual-hive.md`, and the built-in PR/scheduled/trusted-issue workflow templates only after confirmation, then records `.visual-hive/setup-bundle-edits.json`.
 - Workflow template generation writes only built-in Visual Hive templates to `.github/workflows`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/workflow-edits.json`.
 - Provider setup planning writes only `.visual-hive/provider-setup-plan.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
+- Provider handoff generation writes only `.visual-hive/provider-handoff.json`, records `externalCallsMade: 0`, and does not upload screenshots or call provider APIs.
 - Provider decision recording writes only `.visual-hive/provider-decisions.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
 - LLM decision recording writes only `.visual-hive/llm-decisions.json`, records `externalCallsMade: 0`, and does not enable API keys, billing, model calls, or pass/fail authority.
 - The Runbook page executes only allowlisted local commands in write mode: doctor, PR plan, deterministic CI run, triage/report, and mutation adequacy. It never executes trusted/protected lanes, secret-bearing lanes, or arbitrary browser-supplied shell text.

@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -111,6 +111,14 @@ Path: `.visual-hive/provider-setup-plan.json`
 Schema: `schemas/visual-hive.provider-setup-plan.schema.json`
 
 The provider setup plan is written by `visual-hive providers plan --provider <id>`. It is a no-network readiness artifact for a maintainer-controlled setup review. It records provider ID, label, recommendation, readiness metadata, required and missing environment variable names, whether external authorization is required, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`.
+
+## Provider Handoff Manifest
+
+Path: `.visual-hive/provider-handoff.json`
+
+Schema: `schemas/visual-hive.provider-handoff.schema.json`
+
+The provider handoff manifest is written by `visual-hive providers handoff --provider <id>` after a deterministic report exists. It enumerates the exact actual/diff/baseline screenshot artifacts and context files that a trusted external-provider lane would review, marks which artifacts are eligible for upload, records blocked reasons from credential names and `costPolicy`, and includes trusted workflow steps plus validation commands. It always records `externalCallsMade: 0`; the default CLI does not upload screenshots or call provider APIs.
 
 The setup plan does not enable a provider, create credentials, upload screenshots, make provider API calls, or change deterministic pass/fail authority. Missing credentials are reported by environment variable name only.
 
