@@ -916,6 +916,31 @@ describe("control plane", () => {
     expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
       "ARGOS_TOKEN"
     ]);
+    expect(snapshot.setupProgress).toMatchObject({
+      status: "attention",
+      phase: "measure mutation adequacy",
+      completedSteps: 8,
+      totalSteps: 10,
+      blockedSteps: 1,
+      reviewSteps: 1
+    });
+    expect(snapshot.setupProgress.nextStep).toMatchObject({
+      id: "mutation",
+      status: "blocked",
+      command: "visual-hive mutate"
+    });
+    expect(snapshot.setupProgress.steps.map((step) => step.id)).toEqual([
+      "recommend",
+      "config",
+      "plan",
+      "run",
+      "baselines",
+      "mutation",
+      "triage",
+      "workflow-safety",
+      "provider-governance",
+      "readiness"
+    ]);
     expect(snapshot.runHistory?.summary.runCount).toBe(1);
     expect(snapshot.runHistory?.trend.direction).toBe("unknown");
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
@@ -1863,6 +1888,8 @@ contracts:
     expect(controlPlaneJs).toContain("function actionOutput");
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
+    expect(controlPlaneJs).toContain("function setupProgressCard");
+    expect(controlPlaneJs).toContain("Next best action");
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function setupPlaywrightPresence");

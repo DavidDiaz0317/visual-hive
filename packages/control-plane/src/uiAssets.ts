@@ -514,10 +514,13 @@ function safetyBadge(safety) {
 function setup() {
   const recommendation = snapshot.setupRecommendation;
   if (!recommendation) {
-    return '<div class="grid">' +
+    return '<div class="section">' +
+      setupProgressCard(snapshot.setupProgress) +
+      '<div class="grid">' +
       card("No recommendation artifact", '<p class="muted">Run <code>visual-hive recommend</code> in the target repo to generate .visual-hive/recommendations.json.</p>') +
       card("Bootstrap command", '<pre>visual-hive recommend --write-config</pre>') +
       card("What it detects", list(["package scripts for install/build/serve", "frontend framework signals", "project-owned data-testid selectors", "starter PR-safe screenshots and selection rules"])) +
+      '</div>' +
       '</div>';
   }
   const cost = recommendation.costEstimate || {};
@@ -534,6 +537,7 @@ function setup() {
     metric("PR runtime", cost.estimatedPrMinutes == null ? "unknown" : cost.estimatedPrMinutes + "m", cost.ciRuntimeClass === "expensive" ? "bad" : "") +
     metric("External screenshots", cost.externalScreenshotsPerRun == null ? "unknown" : cost.externalScreenshotsPerRun + "/run", cost.externalScreenshotsPerRun ? "warn" : "ok") +
     '</div>' +
+    setupProgressCard(snapshot.setupProgress) +
     setupChecklist(recommendation) +
     setupProfileSelector(recommendation) +
     setupPlaywrightPresence(recommendation) +
@@ -569,6 +573,43 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupProgressCard(progress) {
+  if (!progress) {
+    return card("Setup progress", '<p class="muted">No setup progress model is available. Refresh the Control Plane after building the latest CLI.</p>');
+  }
+  const next = progress.nextStep;
+  return card(
+    "Setup progress",
+    '<div class="grid">' +
+      metric("Progress", progress.percentComplete + "%", progress.status === "ready" ? "ok" : progress.blockedSteps ? "bad" : progress.reviewSteps ? "warn" : "") +
+      metric("Phase", progress.phase, progress.status === "ready" ? "ok" : "") +
+      metric("Blocked", progress.blockedSteps, progress.blockedSteps ? "bad" : "ok") +
+      metric("Needs review", progress.reviewSteps, progress.reviewSteps ? "warn" : "ok") +
+    '</div>' +
+    (next ? '<h3>Next best action</h3>' +
+      table(["Step", "Status", "Command", "Evidence"], [[
+        '<b>' + esc(next.label) + '</b><p class="muted">' + esc(next.description) + '</p>',
+        setupProgressStatusBadge(next.status),
+        next.command ? copyButton(next.command, next.label + " command") + '<pre>' + esc(next.command) + '</pre>' : '<span class="muted">review artifacts</span>',
+        (next.evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>'
+      ]]) : '<p class="ok">All setup steps are complete.</p>') +
+    '<h3>Artifact-backed steps</h3>' +
+    table(["Step", "Status", "Evidence", "Artifacts"], (progress.steps || []).map(step => [
+      '<b>' + esc(step.label) + '</b><p class="muted">' + esc(step.description) + '</p>',
+      setupProgressStatusBadge(step.status),
+      (step.evidence || []).map(esc).join("<br>") || '<span class="muted">none</span>',
+      (step.artifacts || []).map(path => link(path)).join("<br>") || '<span class="muted">none</span>'
+    ]))
+  );
+}
+
+function setupProgressStatusBadge(status) {
+  if (status === "complete") return '<span class="ok">complete</span>';
+  if (status === "blocked") return '<span class="bad">blocked</span>';
+  if (status === "review") return '<span class="warn">needs review</span>';
+  return '<span class="muted">pending</span>';
 }
 
 function setupPlaywrightPresence(recommendation) {

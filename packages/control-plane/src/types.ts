@@ -191,6 +191,28 @@ export interface ControlPlaneRunProfile {
   requiredSecrets: string[];
 }
 
+export interface ControlPlaneSetupProgressStep {
+  id: string;
+  label: string;
+  status: "complete" | "pending" | "review" | "blocked";
+  description: string;
+  evidence: string[];
+  command?: string;
+  artifacts: string[];
+}
+
+export interface ControlPlaneSetupProgress {
+  status: "not_started" | "in_progress" | "attention" | "ready";
+  phase: string;
+  percentComplete: number;
+  completedSteps: number;
+  totalSteps: number;
+  reviewSteps: number;
+  blockedSteps: number;
+  nextStep?: ControlPlaneSetupProgressStep;
+  steps: ControlPlaneSetupProgressStep[];
+}
+
 export interface ControlPlaneProfileExecution {
   schemaVersion: 1;
   profileId: string;
@@ -247,6 +269,7 @@ export interface ControlPlaneSnapshot {
   failures: ControlPlaneFailure[];
   runbook: ControlPlaneRunbook;
   runProfiles: ControlPlaneRunProfile[];
+  setupProgress: ControlPlaneSetupProgress;
   screenshots: ControlPlaneScreenshot[];
   baselineSummary?: BaselineSummary;
   coverage: ControlPlaneCoverage;
