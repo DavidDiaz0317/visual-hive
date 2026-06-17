@@ -317,6 +317,7 @@ function workflowRecommendation(kind: string): string {
   if (kind.includes("secrets")) return "Keep PR workflows secret-free; move secret-bearing checks to scheduled/manual trusted lanes.";
   if (kind.includes("write_permissions")) return "Use contents: read on PR workflows.";
   if (kind.includes("artifact")) return "Upload .visual-hive artifacts with include-hidden-files: true.";
+  if (kind.includes("action_not_sha_pinned")) return "Pin external GitHub Actions by full commit SHA for production hardening.";
   if (kind.includes("issue")) return "Create issues only from trusted workflow_run consumers of sanitized artifacts.";
   return "Review the workflow safety finding and apply least-privilege permissions.";
 }
@@ -344,7 +345,16 @@ function summarize(findings: SecurityAuditFinding[], npmAudit: NpmAuditSummary):
 function recommendations(findings: SecurityAuditFinding[], npmAudit: NpmAuditSummary): string[] {
   if (!findings.length) return ["No immediate Visual Hive security posture findings were detected."];
   const recs = new Set<string>();
-  if (findings.some((finding) => finding.category === "workflow")) recs.add("Fix workflow safety findings before making Visual Hive checks required.");
+  const workflowFindings = findings.filter((finding) => finding.category === "workflow");
+  if (workflowFindings.some((finding) => finding.severity === "critical" || finding.severity === "high")) {
+    recs.add("Fix critical/high workflow safety findings before making Visual Hive checks required.");
+  }
+  if (workflowFindings.some((finding) => finding.id.includes("action_not_sha_pinned"))) {
+    recs.add("For production hardening, pin external GitHub Actions by full commit SHA after reviewing upstream source.");
+  }
+  if (workflowFindings.some((finding) => finding.severity === "medium")) {
+    recs.add("Review medium-severity workflow safety findings before expanding Visual Hive automation.");
+  }
   if (findings.some((finding) => finding.category === "protected_target")) recs.add("Keep protected targets out of PR workflows and list required secret names only.");
   if (findings.some((finding) => finding.category === "provider")) recs.add("Keep external provider uploads disabled on PRs unless explicitly reviewed.");
   if (findings.some((finding) => finding.category === "llm")) recs.add("Keep LLM usage prompt-only and advisory unless a trusted workflow is explicitly approved.");

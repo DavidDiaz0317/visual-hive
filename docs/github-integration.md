@@ -24,7 +24,9 @@ Issue creation should happen in a trusted follow-up workflow that consumes uploa
 
 Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
-Run `visual-hive workflows` to write `.visual-hive/workflows.json`, which audits actual workflow YAML for PR secret usage, write permissions, `pull_request_target`, hidden artifact upload, baseline review queue generation, and trusted `workflow_run` issue patterns. Trusted issue workflow checks include artifact download, recursive `issue.md` discovery, dedupe markers, no checkout, and a defensive redaction pass before issue creation.
+Run `visual-hive workflows` to write `.visual-hive/workflows.json`, which audits actual workflow YAML for PR secret usage, write permissions, `pull_request_target`, hidden artifact upload, baseline review queue generation, external action pinning posture, and trusted `workflow_run` issue patterns. Trusted issue workflow checks include artifact download, recursive `issue.md` discovery, dedupe markers, no checkout, and a defensive redaction pass before issue creation.
+
+The built-in templates use readable action version tags such as `actions/checkout@v4` so they are easy to review and adapt. For production hardening, replace external action tags with full commit SHAs after reviewing upstream source. Visual Hive reports tag-pinned or unpinned external actions as low-severity supply-chain evidence, while local actions and full-SHA references are treated as hardened.
 
 Run the workflow audit before `visual-hive triage` when you want `.visual-hive/issue.md` and `.visual-hive/pr-comment.md` to include workflow-safety evidence:
 

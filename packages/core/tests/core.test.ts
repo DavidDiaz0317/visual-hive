@@ -1181,6 +1181,40 @@ describe("risk register", () => {
     });
     expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
     expect(risk.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
+    expect(risk.recommendations).toContain("Repair critical/high GitHub workflow safety findings before relying on CI automation.");
+  });
+
+  it("reports tag-pinned action workflow risk as production hardening only", () => {
+    const workflows = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-pr.yml",
+        content: `
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+      - run: visual-hive baselines list --write
+`
+      }
+    ]);
+    const risk = analyzeRisk(sampleConfig(), { workflowAudit: workflows, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(risk.summary.prBlocking).toBe(0);
+    expect(risk.risks.find((item) => item.id.includes("action_not_sha_pinned"))).toMatchObject({
+      category: "workflow_safety",
+      severity: "low",
+      prBlocking: false
+    });
+    expect(risk.recommendations).toContain(
+      "For production hardening, pin external GitHub Actions by full commit SHA after reviewing upstream source."
+    );
+    expect(risk.recommendations.join(" ")).not.toContain("Repair critical/high GitHub workflow safety findings");
   });
 
   it("turns regressed run history into actionable risk evidence", async () => {
@@ -1776,8 +1810,40 @@ jobs:
     expect(audit.summary.pullRequestWorkflows).toBe(1);
     expect(audit.summary.criticalFindings).toBe(0);
     expect(audit.summary.prWorkflowsUsingSecrets).toBe(0);
+    expect(audit.summary.workflowsUsingUnpinnedActions).toBe(1);
+    expect(audit.summary.unpinnedActionReferences).toBe(2);
     expect(audit.workflows[0]?.risk).toBe("low");
     expect(audit.workflows[0]?.writesBaselineReview).toBe(true);
+    expect(audit.workflows[0]?.unpinnedActions.map((action) => action.value)).toEqual(["actions/checkout@v4", "actions/upload-artifact@v4"]);
+    expect(audit.findings.find((finding) => finding.kind === "action_not_sha_pinned")?.severity).toBe("low");
+  });
+
+  it("treats SHA-pinned external actions and local actions as production-hardened", () => {
+    const sha = "1234567890abcdef1234567890abcdef12345678";
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/sha-pinned.yml",
+        content: `name: SHA pinned
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${sha}
+      - uses: ./.github/actions/local-setup
+      - uses: docker://ghcr.io/example/action@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      - run: npx visual-hive report --github-step-summary
+`
+      }
+    ]);
+
+    expect(audit.summary.workflowsUsingUnpinnedActions).toBe(0);
+    expect(audit.summary.unpinnedActionReferences).toBe(0);
+    expect(audit.workflows[0]?.actions.map((action) => action.pinning)).toEqual(["sha", "local", "sha"]);
+    expect(audit.findings.map((finding) => finding.kind)).not.toContain("action_not_sha_pinned");
   });
 
   it("warns when Visual Hive workflows upload artifacts without baseline review evidence", () => {
@@ -1826,11 +1892,11 @@ jobs:
   create-issue:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@1234567890abcdef1234567890abcdef12345678
         with:
           name: visual-hive
           path: visual-hive-artifacts
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@abcdef1234567890abcdef1234567890abcdef12
         with:
           script: |
             const fs = require("fs");
@@ -1897,7 +1963,8 @@ jobs:
       workflowsUsingPullRequestTarget: 0,
       prWorkflowsUsingSecrets: 0,
       prWorkflowsWithWritePermissions: 0,
-      trustedIssueWorkflowsCheckingOutCode: 0
+      trustedIssueWorkflowsCheckingOutCode: 0,
+      workflowsUsingUnpinnedActions: 3
     });
     const trusted = audit.workflows.find((workflow) => workflow.kind === "trusted_issue");
     expect(audit.workflows.find((workflow) => workflow.kind === "pull_request")?.writesBaselineReview).toBe(true);
@@ -1905,6 +1972,8 @@ jobs:
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
     expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
+    expect(audit.findings.filter((finding) => finding.kind === "action_not_sha_pinned").length).toBeGreaterThan(0);
+    expect(audit.recommendations.join(" ")).toContain("pin external GitHub Actions");
   });
 });
 
@@ -2245,7 +2314,37 @@ jobs:
     );
     expect(security.findings.find((finding) => finding.id.includes("protectedLane"))?.title).toContain("Protected target");
     expect(JSON.stringify(security)).not.toContain("SECRET_TOKEN");
-    expect(security.recommendations).toEqual(expect.arrayContaining(["Fix workflow safety findings before making Visual Hive checks required."]));
+    expect(security.recommendations).toEqual(expect.arrayContaining(["Fix critical/high workflow safety findings before making Visual Hive checks required."]));
+  });
+
+  it("treats tag-pinned actions as production hardening instead of PR-blocking workflow risk", () => {
+    const workflowAudit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-pr.yml",
+        content: `
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+      - run: visual-hive baselines list --write
+`
+      }
+    ]);
+
+    const security = analyzeSecurity(sampleConfig(), { workflowAudit, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(security.summary.prBlocking).toBe(0);
+    expect(security.findings.map((finding) => finding.id)).toContain("workflow:action_not_sha_pinned:.github/workflows/visual-hive-pr.yml");
+    expect(security.recommendations).toContain(
+      "For production hardening, pin external GitHub Actions by full commit SHA after reviewing upstream source."
+    );
+    expect(security.recommendations.join(" ")).not.toContain("Fix critical/high workflow safety findings");
   });
 
   it("keeps npm audit optional and parses object-form vulnerability output", () => {

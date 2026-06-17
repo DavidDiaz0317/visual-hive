@@ -17,6 +17,14 @@ export interface WorkflowFinding {
   evidence: string;
 }
 
+export interface WorkflowActionReference {
+  value: string;
+  action: string;
+  ref?: string;
+  pinning: "sha" | "tag" | "unpinned" | "local";
+  line: number;
+}
+
 export interface WorkflowAuditEntry {
   path: string;
   name?: string;
@@ -39,6 +47,9 @@ export interface WorkflowAuditEntry {
   runsMutation: boolean;
   writesBaselineReview: boolean;
   hasDedupeSignature: boolean;
+  actions: WorkflowActionReference[];
+  unpinnedActions: WorkflowActionReference[];
+  usesUnpinnedActions: boolean;
   risk: "low" | "medium" | "high" | "critical";
   findings: WorkflowFinding[];
   recommendations: string[];
@@ -63,6 +74,8 @@ export interface WorkflowAuditReport {
     workflowsUploadingArtifacts: number;
     workflowsMissingHiddenArtifactUpload: number;
     trustedIssueWorkflowsCheckingOutCode: number;
+    workflowsUsingUnpinnedActions: number;
+    unpinnedActionReferences: number;
   };
   workflows: WorkflowAuditEntry[];
   findings: WorkflowFinding[];
@@ -101,7 +114,9 @@ export function auditWorkflows(
       workflowsMissingHiddenArtifactUpload: workflows.filter(
         (workflow) => workflow.uploadsVisualHiveArtifacts && !workflow.includesHiddenArtifacts
       ).length,
-      trustedIssueWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_issue" && workflow.checksOutCode).length
+      trustedIssueWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_issue" && workflow.checksOutCode).length,
+      workflowsUsingUnpinnedActions: workflows.filter((workflow) => workflow.usesUnpinnedActions).length,
+      unpinnedActionReferences: workflows.reduce((sum, workflow) => sum + workflow.unpinnedActions.length, 0)
     },
     workflows,
     findings,
@@ -115,6 +130,8 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
   const triggers = workflowTriggers(parsed, content);
   const permissions = workflowPermissions(parsed, content);
   const kind = classifyWorkflow(sanitizeText(file.path), triggers, content);
+  const actions = workflowActions(content);
+  const unpinnedActions = actions.filter((action) => action.pinning !== "sha" && action.pinning !== "local");
   const workflow: WorkflowAuditEntry = {
     path: sanitizeText(file.path),
     name: typeof parsed?.name === "string" ? sanitizeText(parsed.name) : undefined,
@@ -141,6 +158,9 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
       /\.visual-hive\/baselines\.json/i.test(content) ||
       /npm\s+run\s+demo:baselines/i.test(content),
     hasDedupeSignature: /visual-hive-dedupe|dedupe/i.test(content),
+    actions,
+    unpinnedActions,
+    usesUnpinnedActions: unpinnedActions.length > 0,
     risk: "low",
     findings: [],
     recommendations: []
@@ -163,6 +183,14 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
       "critical",
       "`pull_request_target` must not be used for workflows that execute untrusted PR code.",
       "pull_request_target"
+    );
+  }
+  for (const action of workflow.unpinnedActions) {
+    add(
+      "action_not_sha_pinned",
+      "low",
+      "External GitHub Action references should be SHA-pinned in production workflows.",
+      `${action.value} on line ${action.line}`
     );
   }
   if (workflow.kind === "pull_request") {
@@ -286,6 +314,9 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   for (const finding of workflow.findings) {
     if (finding.kind === "pull_request_target_execution") recommendations.add("Replace pull_request_target with pull_request for untrusted validation.");
     if (finding.kind === "hidden_artifacts_excluded") recommendations.add("Set include-hidden-files: true on upload-artifact.");
+    if (finding.kind === "action_not_sha_pinned") {
+      recommendations.add("Pin external GitHub Actions by full commit SHA after reviewing the upstream action source.");
+    }
   }
   return [...recommendations];
 }
@@ -300,7 +331,61 @@ function reportRecommendations(workflows: WorkflowAuditEntry[], findings: Workfl
   if (workflows.some((workflow) => workflow.uploadsVisualHiveArtifacts && !workflow.includesHiddenArtifacts)) {
     recommendations.add("Set include-hidden-files: true wherever .visual-hive artifacts are uploaded.");
   }
+  if (workflows.some((workflow) => workflow.usesUnpinnedActions)) {
+    recommendations.add("For production hardening, pin external GitHub Actions by full commit SHA instead of mutable version tags.");
+  }
   return [...recommendations];
+}
+
+function workflowActions(content: string): WorkflowActionReference[] {
+  return content
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const match = line.match(/^\s*-\s+uses\s*:\s*["']?(?<value>[^"'\s#]+)["']?/i);
+      if (!match?.groups?.value) return undefined;
+      return parseActionReference(match.groups.value, index + 1);
+    })
+    .filter((reference): reference is WorkflowActionReference => Boolean(reference));
+}
+
+function parseActionReference(value: string, line: number): WorkflowActionReference {
+  const sanitizedValue = sanitizeText(value);
+  if (sanitizedValue.startsWith("./") || sanitizedValue.startsWith("../") || sanitizedValue.startsWith("/")) {
+    return {
+      value: sanitizedValue,
+      action: sanitizedValue,
+      line,
+      pinning: "local"
+    };
+  }
+  const dockerSha = /^docker:\/\/.+@sha256:[a-f0-9]{64}$/i.test(sanitizedValue);
+  const atIndex = sanitizedValue.lastIndexOf("@");
+  if (dockerSha) {
+    return {
+      value: sanitizedValue,
+      action: sanitizedValue.slice(0, atIndex),
+      ref: sanitizedValue.slice(atIndex + 1),
+      line,
+      pinning: "sha"
+    };
+  }
+  if (atIndex < 0) {
+    return {
+      value: sanitizedValue,
+      action: sanitizedValue,
+      line,
+      pinning: "unpinned"
+    };
+  }
+  const action = sanitizedValue.slice(0, atIndex);
+  const ref = sanitizedValue.slice(atIndex + 1);
+  return {
+    value: sanitizedValue,
+    action,
+    ref,
+    line,
+    pinning: /^[a-f0-9]{40}$/i.test(ref) ? "sha" : "tag"
+  };
 }
 
 function parseWorkflow(content: string): Record<string, unknown> | undefined {

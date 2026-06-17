@@ -76,12 +76,14 @@ export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: stri
     `- pull_request_target workflows: ${audit.summary.workflowsUsingPullRequestTarget}`,
     `- PR workflows using secrets: ${audit.summary.prWorkflowsUsingSecrets}`,
     `- PR workflows with write permissions: ${audit.summary.prWorkflowsWithWritePermissions}`,
+    `- Workflows with tag/unpinned actions: ${audit.summary.workflowsUsingUnpinnedActions}`,
+    `- Tag/unpinned action references: ${audit.summary.unpinnedActionReferences}`,
     "",
     "## Workflows"
   ];
   for (const workflow of audit.workflows) {
     lines.push(
-      `- ${workflow.path}: kind=${workflow.kind} risk=${workflow.risk} triggers=${workflow.triggers.join(", ") || "none"} artifacts=${workflow.uploadsVisualHiveArtifacts ? "yes" : "no"} baselines=${workflow.writesBaselineReview ? "yes" : "no"}`
+      `- ${workflow.path}: kind=${workflow.kind} risk=${workflow.risk} triggers=${workflow.triggers.join(", ") || "none"} artifacts=${workflow.uploadsVisualHiveArtifacts ? "yes" : "no"} baselines=${workflow.writesBaselineReview ? "yes" : "no"} actions=${workflow.unpinnedActions.length ? `${workflow.unpinnedActions.length} tag/unpinned` : "sha/local"}`
     );
   }
   if (audit.findings.length) {

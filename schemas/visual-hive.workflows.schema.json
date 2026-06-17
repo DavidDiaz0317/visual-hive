@@ -24,7 +24,9 @@
         "prWorkflowsWithWritePermissions",
         "workflowsUploadingArtifacts",
         "workflowsMissingHiddenArtifactUpload",
-        "trustedIssueWorkflowsCheckingOutCode"
+        "trustedIssueWorkflowsCheckingOutCode",
+        "workflowsUsingUnpinnedActions",
+        "unpinnedActionReferences"
       ],
       "properties": {
         "workflowCount": { "type": "integer", "minimum": 0 },
@@ -39,7 +41,9 @@
         "prWorkflowsWithWritePermissions": { "type": "integer", "minimum": 0 },
         "workflowsUploadingArtifacts": { "type": "integer", "minimum": 0 },
         "workflowsMissingHiddenArtifactUpload": { "type": "integer", "minimum": 0 },
-        "trustedIssueWorkflowsCheckingOutCode": { "type": "integer", "minimum": 0 }
+        "trustedIssueWorkflowsCheckingOutCode": { "type": "integer", "minimum": 0 },
+        "workflowsUsingUnpinnedActions": { "type": "integer", "minimum": 0 },
+        "unpinnedActionReferences": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     },
@@ -81,6 +85,9 @@
         "runsMutation",
         "writesBaselineReview",
         "hasDedupeSignature",
+        "actions",
+        "unpinnedActions",
+        "usesUnpinnedActions",
         "risk",
         "findings",
         "recommendations"
@@ -110,9 +117,24 @@
         "runsMutation": { "type": "boolean" },
         "writesBaselineReview": { "type": "boolean" },
         "hasDedupeSignature": { "type": "boolean" },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/actionReference" } },
+        "unpinnedActions": { "type": "array", "items": { "$ref": "#/$defs/actionReference" } },
+        "usesUnpinnedActions": { "type": "boolean" },
         "risk": { "enum": ["low", "medium", "high", "critical"] },
         "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
         "recommendations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "actionReference": {
+      "type": "object",
+      "required": ["value", "action", "pinning", "line"],
+      "properties": {
+        "value": { "type": "string" },
+        "action": { "type": "string" },
+        "ref": { "type": "string" },
+        "pinning": { "enum": ["sha", "tag", "unpinned", "local"] },
+        "line": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     },

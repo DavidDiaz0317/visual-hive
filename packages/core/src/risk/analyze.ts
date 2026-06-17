@@ -550,7 +550,13 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "baseline_review")) recs.add("Review screenshot actual/baseline/diff artifacts and record explicit baseline decisions.");
   if (risks.some((risk) => risk.category === "mutation_adequacy")) recs.add("Strengthen contracts for survived or errored mutation operators.");
   if (risks.some((risk) => risk.category === "flow_coverage")) recs.add("Add or repair deterministic flow steps for high-risk user journeys.");
-  if (risks.some((risk) => risk.category === "workflow_safety")) recs.add("Repair GitHub workflow safety findings before relying on CI automation.");
+  const workflowRisks = risks.filter((risk) => risk.category === "workflow_safety");
+  if (workflowRisks.some((risk) => risk.severity === "critical" || risk.severity === "high")) {
+    recs.add("Repair critical/high GitHub workflow safety findings before relying on CI automation.");
+  }
+  if (workflowRisks.some((risk) => risk.id.includes("action_not_sha_pinned"))) {
+    recs.add("For production hardening, pin external GitHub Actions by full commit SHA after reviewing upstream source.");
+  }
   if (risks.some((risk) => risk.category === "environment")) recs.add("Configure required secret names only in trusted scheduled/manual environments.");
   if (risks.some((risk) => risk.category === "coverage_gap")) recs.add("Add contracts or changed-file rules for uncovered high-risk areas.");
   if (risks.some((risk) => risk.category === "history_regression")) recs.add("Compare latest and previous run history before accepting the current visual QA state.");

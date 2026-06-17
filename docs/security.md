@@ -15,6 +15,7 @@ This writes `.visual-hive/security.json`. The default audit is local and offline
 - GitHub workflow safety if `.github/workflows` exists
 - `pull_request_target` risk
 - PR secret and write-permission usage
+- External GitHub Action pinning posture
 - protected target posture
 - provider external upload policy
 - LLM governance posture
@@ -48,6 +49,7 @@ Use the direct mode only where network access and npm registry calls are accepta
 - PR validation does not use secrets.
 - PR validation uploads `.visual-hive` artifacts with `include-hidden-files: true`.
 - Trusted issue creation uses `workflow_run`, downloads artifacts, redacts again, and does not checkout or execute PR code.
+- External GitHub Actions should be pinned by full commit SHA in production. Tag-pinned actions are reported as low-severity supply-chain evidence so teams can harden them after reviewing upstream source.
 
 ## Provider and LLM rules
 
