@@ -90,8 +90,18 @@ export interface SetupRecommendedTarget {
   install?: string;
   build?: string;
   serve?: string;
+  setup?: string[];
+  services?: SetupRecommendedService[];
+  teardown?: string[];
   confidence: "high" | "medium" | "low";
   reasons: string[];
+}
+
+export interface SetupRecommendedService {
+  name: string;
+  command: string;
+  url: string;
+  readinessTimeoutMs?: number;
 }
 
 export interface SetupRecommendedContract {
@@ -242,10 +252,10 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const install = installCommand(inventory.packageManager);
   const build = scripts.build ? `${scriptRunner(inventory.packageManager)} build` : undefined;
   const serve = serveCommand(inventory.packageManager, scripts, projectType);
-  const target = buildTarget({ install, build, serve, inventory, projectType });
+  const setupProfile = options.setupProfile ?? inferSetupProfile(inventory, scripts);
+  const target = buildTarget({ install, build, serve, inventory, projectType, setupProfile });
   const selector = preferredSelector(inventory.selectors);
   const contracts = buildContracts(selector, target.id, target.config, inventory);
-  const setupProfile = options.setupProfile ?? inferSetupProfile(inventory, scripts);
   const recommendationInput = configInput({
     projectName,
     projectType,
@@ -327,6 +337,14 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
       install: "install" in target.config ? target.config.install : undefined,
       build: "build" in target.config ? target.config.build : undefined,
       serve: "serve" in target.config ? target.config.serve : undefined,
+      setup: "setup" in target.config ? target.config.setup : undefined,
+      services: "services" in target.config ? target.config.services.map((service) => ({
+        name: service.name,
+        command: service.command,
+        url: service.url,
+        readinessTimeoutMs: service.readinessTimeoutMs
+      })) : undefined,
+      teardown: "teardown" in target.config ? target.config.teardown : undefined,
       confidence: target.confidence,
       reasons: target.reasons
     },
@@ -445,6 +463,7 @@ function buildTarget(input: {
   serve?: string;
   inventory: RepoInventory;
   projectType: VisualHiveConfig["project"]["type"];
+  setupProfile: VisualHiveConfig["project"]["setupProfile"];
 }): { id: string; config: TargetConfig; confidence: SetupRecommendedTarget["confidence"]; reasons: string[] } {
   const reasons: string[] = [];
   const storybook = storybookCommands(input.inventory);
@@ -467,6 +486,10 @@ function buildTarget(input: {
       confidence: storybook.build ? "high" : "medium",
       reasons
     };
+  }
+  const commandGroup = commandGroupTarget(input.inventory, input.setupProfile);
+  if (commandGroup) {
+    return commandGroup;
   }
   if (input.serve) {
     reasons.push(`Detected a runnable package script for local preview: ${sanitizeText(input.serve)}.`);
@@ -498,6 +521,129 @@ function buildTarget(input: {
     confidence: input.inventory.packageJson ? "low" : "medium",
     reasons
   };
+}
+
+function commandGroupTarget(
+  inventory: RepoInventory,
+  setupProfile: VisualHiveConfig["project"]["setupProfile"]
+): { id: string; config: TargetConfig; confidence: SetupRecommendedTarget["confidence"]; reasons: string[] } | undefined {
+  if (setupProfile !== "complex-app") return undefined;
+  const scripts = inventory.packageJson?.scripts ?? {};
+  const runner = scriptRunner(inventory.packageManager);
+  const frontend = findScript(scripts, [
+    "dev:web",
+    "web:dev",
+    "dev:frontend",
+    "frontend:dev",
+    "preview",
+    "dev"
+  ]);
+  const backend = findScript(scripts, [
+    "dev:api",
+    "api:dev",
+    "dev:backend",
+    "backend:dev",
+    "dev:server",
+    "server:dev"
+  ]);
+  const fakeOAuth = findScript(
+    scripts,
+    ["dev:oauth", "oauth:dev", "fake-oauth", "oauth:fake", "mock-oauth", "auth:fake"],
+    (name, command) => /(fake|mock).*oauth|oauth.*(fake|mock)|auth.*(fake|mock)/i.test(`${name} ${command}`)
+  );
+  const services = [
+    backend
+      ? {
+          name: "backend",
+          command: `${runner} ${backend.name}`,
+          url: serviceUrl(backend.value, 8080, "/health"),
+          readinessTimeoutMs: 30000
+        }
+      : undefined,
+    fakeOAuth
+      ? {
+          name: "fakeOAuth",
+          command: `${runner} ${fakeOAuth.name}`,
+          url: serviceUrl(fakeOAuth.value, 8787, "/health"),
+          readinessTimeoutMs: 30000
+        }
+      : undefined,
+    frontend
+      ? {
+          name: "frontend",
+          command: `${runner} ${frontend.name}`,
+          url: serviceUrl(frontend.value, DEFAULT_PORT),
+          readinessTimeoutMs: 30000
+        }
+      : undefined
+  ].filter((service): service is { name: string; command: string; url: string; readinessTimeoutMs: number } => Boolean(service));
+  if (!frontend || services.length < 2) return undefined;
+  const setup = setupCommandsForCommandGroup(scripts, runner);
+  const reasons = [
+    `Detected complex-app script profile with frontend service ${sanitizeText(frontend.name)}.`,
+    backend ? `Detected backend service script ${sanitizeText(backend.name)}.` : "",
+    fakeOAuth ? `Detected fake OAuth service script ${sanitizeText(fakeOAuth.name)}.` : "",
+    setup.length ? `Detected setup command(s): ${setup.map((command) => sanitizeText(command)).join(", ")}.` : "No setup commands were added; review whether backend/frontend builds are needed."
+  ].filter(Boolean);
+  return {
+    id: fakeOAuth ? "fakeOAuthFullstack" : "localFullstack",
+    config: {
+      kind: "commandGroup",
+      setup,
+      services,
+      teardown: [],
+      url: services.find((service) => service.name === "frontend")?.url ?? `http://127.0.0.1:${DEFAULT_PORT}`,
+      prSafe: true,
+      cost: fakeOAuth ? "medium" : "medium"
+    },
+    confidence: fakeOAuth && backend ? "high" : "medium",
+    reasons
+  };
+}
+
+function findScript(
+  scripts: Record<string, string>,
+  preferredNames: string[],
+  predicate?: (name: string, command: string) => boolean
+): { name: string; value: string } | undefined {
+  for (const name of preferredNames) {
+    if (scripts[name]) return { name, value: scripts[name] };
+  }
+  const match = Object.entries(scripts).find(([name, command]) => predicate?.(name, command));
+  return match ? { name: match[0], value: match[1] } : undefined;
+}
+
+function setupCommandsForCommandGroup(scripts: Record<string, string>, runner: string): string[] {
+  const setupScripts = [
+    "build:backend",
+    "backend:build",
+    "build:api",
+    "api:build",
+    "build:frontend",
+    "frontend:build",
+    "build:web",
+    "web:build",
+    "build"
+  ];
+  const commands = setupScripts.filter((script) => scripts[script]).map((script) => `${runner} ${script}`);
+  return unique(commands).slice(0, 4);
+}
+
+function serviceUrl(command: string, fallbackPort: number, fallbackPath = ""): string {
+  const port = extractPort(command) ?? fallbackPort;
+  return `http://127.0.0.1:${port}${fallbackPath}`;
+}
+
+function extractPort(command: string): number | undefined {
+  const matches = [
+    /(?:--port|-p)\s+(\d{2,5})/i.exec(command),
+    /PORT=(\d{2,5})/i.exec(command),
+    /port\s*[:=]\s*(\d{2,5})/i.exec(command)
+  ];
+  const value = matches.find(Boolean)?.[1];
+  if (!value) return undefined;
+  const port = Number.parseInt(value, 10);
+  return Number.isFinite(port) && port > 0 && port <= 65535 ? port : undefined;
 }
 
 function storybookCommands(inventory: RepoInventory): { serve?: string; build?: string } {
@@ -758,7 +904,12 @@ function buildCostEstimate(
 ): SetupCostEstimate {
   const localScreenshotsPerRun = contracts.reduce((sum, contract) => sum + contract.screenshots.length, 0);
   const externalScreenshotsPerRun = externalScreenshotsForProfile(setupProfile, localScreenshotsPerRun);
-  const estimatedPrMinutes = (target.kind === "command" || target.kind === "storybook") && target.build ? 4 : 2;
+  const estimatedPrMinutes =
+    target.kind === "commandGroup"
+      ? 6
+      : (target.kind === "command" || target.kind === "storybook") && target.build
+        ? 4
+        : 2;
   const estimatedScheduledMinutes =
     setupProfile === "complex-app" || setupProfile === "enterprise-visual-ai"
       ? estimatedPrMinutes + 6

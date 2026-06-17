@@ -11,7 +11,7 @@ The command detects:
 - static route hints from common `to`, `href`, route, and path declarations
 - Storybook story files and the first few runnable iframe routes when Storybook is detected
 - existing GitHub workflow hints, including triggers, permissions, secret references, Visual Hive usage, and `pull_request_target`
-- a likely PR-safe `localPreview` target
+- a likely PR-safe target, including `localPreview` for single-service apps or `commandGroup` for detected fullstack/fake-OAuth script sets
 - starter visual contracts: an app-shell contract plus route-specific contracts for detected app routes, or Storybook component contracts for component-library repos
 - an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
 - provider recommendations that keep Playwright as the default oracle and external uploads disabled by default
@@ -68,7 +68,7 @@ Important fields:
 - `playwright`: existing Playwright setup status, dependency names, package scripts, config files, and notes
 - `recommendedConfig`: parsed Visual Hive config object
 - `recommendedConfigYaml`: YAML that can be written as `visual-hive.config.yaml`
-- `recommendedTarget`: target kind, URL, commands, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs
+- `recommendedTarget`: target kind, URL, commands, services, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs, while complex apps can receive a `commandGroup` with frontend/backend/fake-OAuth services
 - `recommendedContracts`: starter contracts, route or story coverage, selectors, screenshots, flow steps, and reasons
 - `detectedSelectors`: top discovered `data-testid` selectors
 - `detectedRoutes`: top discovered static app route hints, source files, and occurrence counts
@@ -79,6 +79,8 @@ Important fields:
 For Storybook repositories, the generated starter contracts target up to the first three detected CSF stories through routes such as `/iframe.html?id=dashboard-card--primary&viewMode=story`. The generated selection rules include story files and `src/components/**`, so component-only changes can select the component visual lane without running unrelated app routes. Hosted Storybook providers such as Chromatic remain optional; the default contracts still run through Playwright/local artifacts.
 
 For normal app repositories, the generated starter config keeps the app-shell contract for `/` and adds up to three route-specific visual contracts from detected route hints such as `/clusters` or `/settings`. Those route contracts include explicit `goto` flow steps, route screenshots, and changed-file rules for common route/page directories plus a general `src/**` fallback. This gives beginners useful initial coverage without requiring them to understand the full contract model on day one.
+
+For complex repositories with explicit scripts such as `dev:web`, `dev:api`, and `fake-oauth`, the setup agent can recommend a PR-safe `commandGroup` target. It records setup commands, named services, local readiness URLs, and conservative startup timeouts so fake OAuth or local fullstack lanes can be reviewed before they are made required in CI. Secret-backed live environments should still be modeled separately as protected targets.
 
 ## Control Plane
 

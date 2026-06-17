@@ -32,6 +32,9 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     `- Install command: ${safe(report.recommendedTarget.install ?? "not configured")}`,
     `- Build command: ${safe(report.recommendedTarget.build ?? "not configured")}`,
     `- Serve command: ${safe(report.recommendedTarget.serve ?? "not configured")}`,
+    `- Setup commands: ${listInline(report.recommendedTarget.setup)}`,
+    `- Services: ${targetServiceSummary(report)}`,
+    `- Teardown commands: ${listInline(report.recommendedTarget.teardown)}`,
     `- Estimated PR runtime: ${safe(String(report.costEstimate.estimatedPrMinutes))} minute(s)`,
     `- PR permissions: ${listInline(report.permissions.pullRequest.permissions)}`,
     `- PR secrets required: ${listInline(report.permissions.pullRequest.secretsRequired)}`,
@@ -131,6 +134,12 @@ function contractLines(report: SetupRecommendationReport): string[] {
     `- Reasons: ${listInline(contract.reasons)}`,
     ""
   ]);
+}
+
+function targetServiceSummary(report: SetupRecommendationReport): string {
+  const services = report.recommendedTarget.services ?? [];
+  if (!services.length) return "none";
+  return services.map((service) => `${service.name}: ${service.command} (${service.url})`).map((value) => safe(value)).join(", ");
 }
 
 function routeLines(report: SetupRecommendationReport): string[] {

@@ -94,6 +94,8 @@ export function formatSetupRecommendation(
     `- Playwright setup: ${report.playwright?.status ?? "unknown"}`,
     `- Target: ${report.recommendedTarget.id} (${report.recommendedTarget.kind}, ${report.recommendedTarget.confidence} confidence)`,
     `- URL: ${report.recommendedTarget.url}`,
+    `- Target setup commands: ${report.recommendedTarget.setup?.length ? report.recommendedTarget.setup.join(", ") : "none"}`,
+    `- Target services: ${report.recommendedTarget.services?.length ? report.recommendedTarget.services.map((service) => `${service.name}=${service.command} (${service.url})`).join(", ") : "none"}`,
     `- Selector seed: ${report.recommendedContracts[0]?.selectors.join(", ") || "none"}`,
     `- App routes: ${report.detectedRoutes?.length ? report.detectedRoutes.map((route) => route.route).slice(0, 5).join(", ") : "none detected"}`,
     `- Story routes: ${report.detectedStories?.length ? report.detectedStories.map((story) => story.route).slice(0, 3).join(", ") : "none detected"}`,

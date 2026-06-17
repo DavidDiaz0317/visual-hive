@@ -112,6 +112,12 @@
         "install": { "type": "string" },
         "build": { "type": "string" },
         "serve": { "type": "string" },
+        "setup": { "type": "array", "items": { "type": "string" } },
+        "services": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/recommendedService" }
+        },
+        "teardown": { "type": "array", "items": { "type": "string" } },
         "confidence": { "enum": ["high", "medium", "low"] },
         "reasons": { "type": "array", "items": { "type": "string" } }
       }
@@ -140,6 +146,16 @@
     "warnings": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {
+    "recommendedService": {
+      "type": "object",
+      "required": ["name", "command", "url"],
+      "properties": {
+        "name": { "type": "string" },
+        "command": { "type": "string" },
+        "url": { "type": "string" },
+        "readinessTimeoutMs": { "type": "integer", "minimum": 1 }
+      }
+    },
     "providerRecommendation": {
       "type": "object",
       "required": ["providerId", "label", "recommendation", "reason", "requiredEnv", "externalUploadAllowedByDefault"],

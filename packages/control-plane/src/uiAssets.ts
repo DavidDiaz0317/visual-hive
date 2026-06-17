@@ -537,7 +537,17 @@ function setup() {
     setupChecklist(recommendation) +
     setupProfileSelector(recommendation) +
     setupPlaywrightPresence(recommendation) +
-    card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
+    card("Recommended target", table(["Field", "Value"], [
+      ["ID", recommendation.recommendedTarget.id],
+      ["Kind", recommendation.recommendedTarget.kind],
+      ["URL", recommendation.recommendedTarget.url],
+      ["Install", recommendation.recommendedTarget.install || "n/a"],
+      ["Build", recommendation.recommendedTarget.build || "n/a"],
+      ["Serve", recommendation.recommendedTarget.serve || "n/a"],
+      ["Setup", (recommendation.recommendedTarget.setup || []).join(", ") || "none"],
+      ["Services", setupTargetServices(recommendation.recommendedTarget)],
+      ["Teardown", (recommendation.recommendedTarget.teardown || []).join(", ") || "none"]
+    ])) +
     card("Provider recommendation", recommendation.providerRecommendations?.length ? table(["Provider", "Recommendation", "External by default", "Required env names", "Reason"], recommendation.providerRecommendations.map(p => [p.label, p.recommendation, p.externalUploadAllowedByDefault ? "yes" : "no", p.requiredEnv?.join(", ") || "none", p.reason])) : '<p class="muted">No provider recommendation found. Run a newer visual-hive recommend.</p>') +
     card("Cost and permissions", table(["Area", "Value"], [
       ["Local screenshots/run", String(cost.localScreenshotsPerRun ?? "unknown")],
@@ -682,6 +692,12 @@ function setupProfileSelector(recommendation) {
       ])) +
       '<p id="setup-profile-status" class="muted">Current profile: ' + esc(current) + '</p>'
   );
+}
+
+function setupTargetServices(target) {
+  const services = target?.services || [];
+  if (!services.length) return "none";
+  return services.map(service => esc(service.name || "service") + ": " + esc(service.command || "n/a") + " (" + esc(service.url || "n/a") + ")").join("<br>");
 }
 
 function setupChecklist(recommendation) {

@@ -3359,6 +3359,77 @@ export const Alert = {};
     expect(setupDocs).toContain("/iframe.html?id=dashboard-card--primary&viewMode=story");
   });
 
+  it("recommends a commandGroup target for complex fullstack and fake OAuth scripts", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-fullstack-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "fullstack-fixture",
+      scripts: {
+        "build:web": "vite build",
+        "build:api": "tsc -p server",
+        "dev:web": "vite --host 127.0.0.1 --port 5173",
+        "dev:api": "node server.js --port 8081",
+        "fake-oauth": "node fake-oauth.js --port 8788"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        vite: "^6.0.0"
+      }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(
+      path.join(targetRoot, "src", "App.tsx"),
+      `<main data-testid="dashboard-page"><a href="/settings">Settings</a></main>`,
+      "utf8"
+    );
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
+
+    expect(recommendation.setupProfile).toBe("complex-app");
+    expect(recommendation.recommendedTarget).toMatchObject({
+      id: "fakeOAuthFullstack",
+      kind: "commandGroup",
+      url: "http://127.0.0.1:5173",
+      setup: ["npm run build:api", "npm run build:web"],
+      services: [
+        {
+          name: "backend",
+          command: "npm run dev:api",
+          url: "http://127.0.0.1:8081/health",
+          readinessTimeoutMs: 30000
+        },
+        {
+          name: "fakeOAuth",
+          command: "npm run fake-oauth",
+          url: "http://127.0.0.1:8788/health",
+          readinessTimeoutMs: 30000
+        },
+        {
+          name: "frontend",
+          command: "npm run dev:web",
+          url: "http://127.0.0.1:5173",
+          readinessTimeoutMs: 30000
+        }
+      ]
+    });
+    expect(parsedYaml.targets.fakeOAuthFullstack).toMatchObject({
+      kind: "commandGroup",
+      url: "http://127.0.0.1:5173",
+      prSafe: true,
+      cost: "medium"
+    });
+    expect(parsedYaml.targets.fakeOAuthFullstack.services.map((service) => service.name)).toEqual(["backend", "fakeOAuth", "frontend"]);
+    expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual(["app-shell-visual-stability", "route-settings-visual-stability"]);
+    expect(recommendation.costEstimate.ciRuntimeClass).toBe("expensive");
+    expect(recommendation.permissions.scheduled.secretsRequired).toEqual(["PROTECTED_TARGET_SECRET_NAMES"]);
+
+    const setupDocs = buildSetupDocsMarkdown(recommendation);
+    expect(setupDocs).toContain("Services:");
+    expect(setupDocs).toContain("fakeOAuth: npm run fake-oauth");
+    expect(setupDocs).toContain("Setup commands: npm run build:api, npm run build:web");
+  });
+
   it("honors an explicit hosted-review setup profile without enabling PR uploads", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-hosted-profile-"));
     tempDirs.push(targetRoot);
