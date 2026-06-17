@@ -1159,6 +1159,49 @@ contracts:
 `,
       "utf8"
     );
+    await writeJson(path.join(connectedRoot, ".visual-hive", "readiness.json"), {
+      schemaVersion: 1,
+      project: "connected",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "attention",
+      score: 82,
+      summary: { total: 3, passed: 2, warnings: 1, blocked: 0, missing: 0 },
+      inputs: { plan: true, report: true, mutationReport: false, baselines: false, workflowAudit: true, securityAudit: true, costAudit: true },
+      gates: [],
+      nextActions: []
+    });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "security.json"), {
+      schemaVersion: 1,
+      project: "connected",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      summary: {
+        score: 90,
+        totalFindings: 0,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        prBlocking: 0,
+        trustedOnly: 0,
+        npmAuditSource: "not_run",
+        npmAuditTotal: 0
+      },
+      inputs: { workflowAudit: true, npmAudit: false },
+      npmAudit: { source: "not_run", total: 0, critical: 0, high: 0, moderate: 0, low: 0, info: 0 },
+      findings: [],
+      recommendations: []
+    });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "costs.json"), {
+      schemaVersion: 1,
+      project: "connected",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      mode: "pr",
+      summary: { budgetStatus: "warning", policyBlockedProviders: 1 },
+      targets: [],
+      providers: [],
+      risks: [],
+      recommendations: []
+    });
 
     const added = await runConnectionsAddCommand({ cwd: managerRoot, repo: connectedRoot, id: "connected", label: "Connected Repo", tags: ["dogfood"] });
     const stored = await readJson<{ schemaVersion: 1; connections: Array<{ id: string; tags: string[] }> }>(added.indexPath);
@@ -1171,6 +1214,10 @@ contracts:
     });
     expect(stored.connections.find((connection) => connection.id === "connected")).toMatchObject({ tags: ["dogfood"] });
     expect(addedSummary).toContain("Visual Hive Connections");
+    expect(addedSummary).toContain("Readiness gates needing review: 1");
+    expect(addedSummary).toContain("readiness=attention 82/100");
+    expect(addedSummary).toContain("security=90/100 criticalHigh=0");
+    expect(addedSummary).toContain("cost=warning");
 
     const listed = await runConnectionsListCommand({ cwd: managerRoot });
     expect(listed.index.connections.map((connection) => connection.id)).toContain("connected");

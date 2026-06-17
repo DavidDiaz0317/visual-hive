@@ -3285,6 +3285,73 @@ describe("local repository connections", () => {
       risks: [],
       recommendations: []
     });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "readiness.json"), {
+      schemaVersion: 1,
+      project: "connected-project",
+      generatedAt: "2026-06-15T00:25:00.000Z",
+      status: "blocked",
+      score: 58,
+      summary: { total: 4, passed: 1, warnings: 1, blocked: 2, missing: 0 },
+      inputs: {
+        plan: true,
+        report: true,
+        mutationReport: true,
+        baselines: true,
+        workflowAudit: true,
+        securityAudit: true,
+        costAudit: true
+      },
+      gates: [],
+      nextActions: []
+    });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "security.json"), {
+      schemaVersion: 1,
+      project: "connected-project",
+      generatedAt: "2026-06-15T00:30:00.000Z",
+      summary: {
+        score: 72,
+        totalFindings: 2,
+        critical: 1,
+        high: 1,
+        medium: 0,
+        low: 0,
+        prBlocking: 1,
+        trustedOnly: 1,
+        npmAuditSource: "not_run",
+        npmAuditTotal: 0
+      },
+      inputs: { workflowAudit: true, npmAudit: false },
+      npmAudit: { source: "not_run", total: 0, critical: 0, high: 0, moderate: 0, low: 0, info: 0 },
+      findings: [],
+      recommendations: []
+    });
+    await writeJson(path.join(connectedRoot, ".visual-hive", "costs.json"), {
+      schemaVersion: 1,
+      project: "connected-project",
+      generatedAt: "2026-06-15T00:35:00.000Z",
+      mode: "pr",
+      summary: {
+        selectedContracts: 2,
+        selectedTargets: 1,
+        localScreenshots: 3,
+        estimatedExternalScreenshots: 3,
+        externalCallsPlanned: 0,
+        externalCallsMade: 0,
+        enabledExternalProviders: 1,
+        policyBlockedProviders: 1,
+        missingCredentialProviders: 0,
+        expensiveTargetsSelected: 0,
+        mutationOperators: 0,
+        maxExternalScreenshotsPerRun: 0,
+        maxMonthlyExternalScreenshots: 100,
+        budgetStatus: "blocked"
+      },
+      costPolicy: sampleConfig().costPolicy,
+      targets: [],
+      providers: [],
+      risks: [],
+      recommendations: []
+    });
 
     await addConnection({
       repoRoot: managerRoot,
@@ -3303,12 +3370,18 @@ describe("local repository connections", () => {
     expect(index.summary.coverageGapConnections).toBe(1);
     expect(index.summary.highCoverageGapConnections).toBe(1);
     expect(index.summary.highRiskConnections).toBe(1);
+    expect(index.summary.readinessBlockedConnections).toBe(1);
+    expect(index.summary.securityRiskConnections).toBe(1);
+    expect(index.summary.costPolicyConnections).toBe(1);
     expect(index.summary.connectionsNeedingAttention).toBe(1);
     expect(index.portfolio.queues.find((queue) => queue.id === "deterministic_failures")?.connections.map((item) => item.id)).toContain("risky-console");
     expect(index.portfolio.queues.find((queue) => queue.id === "stale_reports")?.connections.map((item) => item.id)).toContain("risky-console");
     expect(index.portfolio.queues.find((queue) => queue.id === "coverage_gaps")?.connections.map((item) => item.id)).toContain("risky-console");
     expect(index.portfolio.queues.find((queue) => queue.id === "weak_mutation")?.connections.map((item) => item.id)).toContain("risky-console");
     expect(index.portfolio.queues.find((queue) => queue.id === "high_risk")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "readiness_blocked")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "security_risks")?.connections.map((item) => item.id)).toContain("risky-console");
+    expect(index.portfolio.queues.find((queue) => queue.id === "cost_policy")?.connections.map((item) => item.id)).toContain("risky-console");
     expect(index.portfolio.topAttention[0]).toMatchObject({ id: "risky-console", health: "attention" });
     expect(connection).toMatchObject({
       health: "attention",
@@ -3325,13 +3398,24 @@ describe("local repository connections", () => {
       uncoveredTargets: 1,
       uncoveredContracts: 1,
       latestRiskScore: 62,
-      latestRiskSeverity: "high"
+      latestRiskSeverity: "high",
+      latestReadinessStatus: "blocked",
+      latestReadinessScore: 58,
+      readinessBlocked: 2,
+      readinessWarnings: 1,
+      latestSecurityScore: 72,
+      securityCriticalHigh: 2,
+      latestCostBudgetStatus: "blocked",
+      costPolicyBlockedProviders: 1
     });
     expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
     expect(connection?.attention.join(" ")).toContain("Latest deterministic report is stale");
     expect(connection?.attention.join(" ")).toContain("Mutation score 50% is below minimum 75%");
     expect(connection?.attention.join(" ")).toContain("Coverage has 1 high-severity gap");
     expect(connection?.attention.join(" ")).toContain("Risk register needs review");
+    expect(connection?.attention.join(" ")).toContain("Readiness gate is blocked");
+    expect(connection?.attention.join(" ")).toContain("Security audit has 2 critical/high findings");
+    expect(connection?.attention.join(" ")).toContain("Cost policy is blocked");
   });
 });
 

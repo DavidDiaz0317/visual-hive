@@ -180,7 +180,7 @@ Path: `.visual-hive/connections.json`
 
 Schema: `schemas/visual-hive.connections.schema.json`
 
-The connections store records local repository paths, config paths, labels, and tags for repos managed from the local Control Plane. Readiness status and latest deterministic status are inspected at runtime by `visual-hive connections list` and the Control Plane. It stores no credentials or secret values.
+The connections store records local repository paths, config paths, labels, and tags for repos managed from the local Control Plane. Readiness status, latest deterministic status, mutation score, coverage gaps, risk score, readiness gates, security score, and cost budget status are inspected at runtime by `visual-hive connections list` and the Control Plane. It stores no credentials or secret values.
 
 ## Baseline Review Logs
 

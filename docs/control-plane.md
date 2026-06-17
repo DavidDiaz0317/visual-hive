@@ -52,7 +52,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Raw artifact access is restricted to the selected repository's `.visual-hive` directory.
 - Repository switching is restricted to connection IDs already present in `.visual-hive/connections.json`; the browser cannot request arbitrary local paths.
 - Connection add/remove actions update only `.visual-hive/connections.json`; they do not delete target repositories or artifact directories.
-- Connection health is derived from local artifacts only. It can show failed deterministic runs, stale reports, missing reports, missing coverage audits, coverage gaps, weak mutation scores, and high-risk registers across connected repos without storing or printing secret values.
+- Connection health is derived from local artifacts only. It can show failed deterministic runs, stale reports, missing reports, missing coverage audits, coverage gaps, weak mutation scores, high-risk registers, blocked readiness gates, security findings, and cost-policy warnings across connected repos without storing or printing secret values.
 - Portfolio queues are read-only derived views over the same local connection index. They do not execute connected repo code or fetch remote repository data.
 - Secret-like values are sanitized before text artifacts are returned or previewed in the artifact index.
 - Baseline approval is explicit: the user reviews baseline/actual/diff images, diff metadata, and artifact paths, then confirms an approval prompt that copies the actual screenshot to the baseline path and records `.visual-hive/baseline-approvals.json`.

@@ -1113,6 +1113,73 @@ contracts:
       ),
       "utf8"
     );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "readiness.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:25:00.000Z",
+          status: "blocked",
+          score: 61,
+          summary: { total: 3, passed: 1, warnings: 0, blocked: 2, missing: 0 },
+          inputs: { plan: true, report: true, mutationReport: true, baselines: true, workflowAudit: true, securityAudit: true, costAudit: true },
+          gates: [],
+          nextActions: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "security.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:30:00.000Z",
+          summary: {
+            score: 70,
+            totalFindings: 1,
+            critical: 0,
+            high: 1,
+            medium: 0,
+            low: 0,
+            prBlocking: 1,
+            trustedOnly: 0,
+            npmAuditSource: "not_run",
+            npmAuditTotal: 0
+          },
+          inputs: { workflowAudit: true, npmAudit: false },
+          npmAudit: { source: "not_run", total: 0, critical: 0, high: 0, moderate: 0, low: 0, info: 0 },
+          findings: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "costs.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:35:00.000Z",
+          mode: "pr",
+          summary: { budgetStatus: "blocked", policyBlockedProviders: 1 },
+          targets: [],
+          providers: [],
+          risks: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
     await addConnection({
       repoRoot: manager.repoRoot,
       repoPath: connected.repoRoot,
@@ -1129,8 +1196,14 @@ contracts:
     expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
+    expect(snapshot.connections?.summary.readinessBlockedConnections).toBe(1);
+    expect(snapshot.connections?.summary.securityRiskConnections).toBe(1);
+    expect(snapshot.connections?.summary.costPolicyConnections).toBeGreaterThanOrEqual(1);
     expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "deterministic_failures")?.count).toBe(1);
     expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "coverage_gaps")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "readiness_blocked")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "security_risks")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "cost_policy")?.connections.map((item) => item.id)).toContain("attention-repo");
     expect(snapshot.connections?.portfolio.topAttention[0]?.id).toBe("attention-repo");
     expect(connection?.health).toBe("attention");
     expect(connection?.staleReport).toBe(true);
@@ -1138,8 +1211,12 @@ contracts:
     expect(connection?.coverageGapCount).toBe(1);
     expect(connection?.highCoverageGapCount).toBe(1);
     expect(connection?.latestRiskSeverity).toBe("critical");
+    expect(connection?.latestReadinessStatus).toBe("blocked");
+    expect(connection?.latestSecurityScore).toBe(70);
+    expect(connection?.latestCostBudgetStatus).toBe("blocked");
     expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
     expect(connection?.attention.join(" ")).toContain("Coverage has 1 high-severity gap");
+    expect(connection?.attention.join(" ")).toContain("Readiness gate is blocked");
   });
 
   it("rejects unknown selected connection ids", async () => {

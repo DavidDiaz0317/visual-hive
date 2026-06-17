@@ -69,6 +69,9 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
     `- Coverage gaps: ${index.summary.coverageGapConnections}`,
     `- High coverage gaps: ${index.summary.highCoverageGapConnections}`,
     `- High risk registers: ${index.summary.highRiskConnections}`,
+    `- Readiness gates needing review: ${index.summary.readinessBlockedConnections}`,
+    `- Security audits needing review: ${index.summary.securityRiskConnections}`,
+    `- Cost policies needing review: ${index.summary.costPolicyConnections}`,
     `- Missing config: ${index.summary.missingConfigConnections}`,
     `- Invalid config: ${index.summary.invalidConfigConnections}`,
     `- Missing repo: ${index.summary.missingRepoConnections}`,
@@ -87,11 +90,17 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
         ? "coverage=not run"
         : `coverage=${connection.coverageGapCount} gap(s), high=${connection.highCoverageGapCount ?? 0}`;
     const risk = connection.latestRiskScore === undefined ? "risk=not run" : `risk=${connection.latestRiskScore}/100 ${connection.latestRiskSeverity ?? ""}`.trim();
+    const readiness =
+      connection.latestReadinessStatus === undefined
+        ? "readiness=not run"
+        : `readiness=${connection.latestReadinessStatus}${connection.latestReadinessScore === undefined ? "" : ` ${connection.latestReadinessScore}/100`}`;
+    const security = connection.latestSecurityScore === undefined ? "security=not run" : `security=${connection.latestSecurityScore}/100 criticalHigh=${connection.securityCriticalHigh ?? 0}`;
+    const cost = connection.latestCostBudgetStatus === undefined ? "cost=not run" : `cost=${connection.latestCostBudgetStatus}`;
     lines.push(`- ${connection.id}: ${connection.label} - ${connection.health} / ${status}${tags}`);
     lines.push(`  repo: ${connection.repoRoot}`);
     lines.push(`  config: ${connection.configPath}`);
     lines.push(
-      `  latest: ${connection.latestDeterministicStatus ?? "no report"}${connection.latestReportAgeDays === undefined ? "" : ` (${connection.latestReportAgeDays}d old)`}; ${mutation}; ${coverage}; ${risk}`
+      `  latest: ${connection.latestDeterministicStatus ?? "no report"}${connection.latestReportAgeDays === undefined ? "" : ` (${connection.latestReportAgeDays}d old)`}; ${mutation}; ${coverage}; ${risk}; ${readiness}; ${security}; ${cost}`
     );
     if (connection.attention.length) lines.push(`  attention: ${connection.attention.join(" ")}`);
   }

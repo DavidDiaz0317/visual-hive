@@ -1,9 +1,12 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/load.js";
+import type { CostAuditReport } from "../costs/analyze.js";
 import type { CoverageReport } from "../coverage/analyze.js";
 import type { MutationReport, Report } from "../reports/types.js";
+import type { ReadinessReport } from "../readiness/analyze.js";
 import type { RiskRegisterReport, RiskSeverity } from "../risk/analyze.js";
+import type { SecurityAuditReport } from "../security/audit.js";
 import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -18,6 +21,9 @@ export type ConnectionPortfolioQueueId =
   | "coverage_gaps"
   | "weak_mutation"
   | "high_risk"
+  | "readiness_blocked"
+  | "security_risks"
+  | "cost_policy"
   | "healthy";
 const STALE_REPORT_DAYS = 7;
 
@@ -55,6 +61,17 @@ export interface RepoConnectionEntry extends RepoConnectionRecord {
   latestRiskScore?: number;
   latestRiskSeverity?: RiskSeverity | "none";
   latestRiskAt?: string;
+  latestReadinessStatus?: ReadinessReport["status"];
+  latestReadinessScore?: number;
+  readinessBlocked?: number;
+  readinessWarnings?: number;
+  latestReadinessAt?: string;
+  latestSecurityScore?: number;
+  securityCriticalHigh?: number;
+  latestSecurityAt?: string;
+  latestCostBudgetStatus?: CostAuditReport["summary"]["budgetStatus"];
+  costPolicyBlockedProviders?: number;
+  latestCostAt?: string;
   attention: string[];
   warnings: string[];
 }
@@ -81,6 +98,9 @@ export interface RepoConnectionIndex {
     missingCoverageConnections: number;
     coverageGapConnections: number;
     highCoverageGapConnections: number;
+    readinessBlockedConnections: number;
+    securityRiskConnections: number;
+    costPolicyConnections: number;
   };
   portfolio: RepoConnectionPortfolio;
   connections: RepoConnectionEntry[];
@@ -117,6 +137,10 @@ export interface RepoConnectionPortfolioItem {
   highCoverageGapCount?: number;
   latestRiskScore?: number;
   latestRiskSeverity?: RiskSeverity | "none";
+  latestReadinessStatus?: ReadinessReport["status"];
+  latestReadinessScore?: number;
+  latestSecurityScore?: number;
+  latestCostBudgetStatus?: CostAuditReport["summary"]["budgetStatus"];
 }
 
 export interface ConnectionStoreFile {
@@ -284,6 +308,17 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean, 
   let latestRiskScore: number | undefined;
   let latestRiskSeverity: RiskSeverity | "none" | undefined;
   let latestRiskAt: string | undefined;
+  let latestReadinessStatus: ReadinessReport["status"] | undefined;
+  let latestReadinessScore: number | undefined;
+  let readinessBlocked: number | undefined;
+  let readinessWarnings: number | undefined;
+  let latestReadinessAt: string | undefined;
+  let latestSecurityScore: number | undefined;
+  let securityCriticalHigh: number | undefined;
+  let latestSecurityAt: string | undefined;
+  let latestCostBudgetStatus: CostAuditReport["summary"]["budgetStatus"] | undefined;
+  let costPolicyBlockedProviders: number | undefined;
+  let latestCostAt: string | undefined;
 
   try {
     const stats = await stat(record.repoRoot);
@@ -361,6 +396,35 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean, 
     // Risk reports are optional for connected repositories.
   }
 
+  try {
+    const readinessReport = await readOptionalJson<ReadinessReport>(artifactPath(record, "readiness.json"));
+    latestReadinessStatus = readinessStatusOrUndefined(readinessReport.status);
+    latestReadinessScore = numberOrUndefined(readinessReport.score);
+    readinessBlocked = numberOrUndefined(readinessReport.summary?.blocked);
+    readinessWarnings = numberOrUndefined(readinessReport.summary?.warnings);
+    latestReadinessAt = stringOrUndefined(readinessReport.generatedAt);
+  } catch {
+    // Readiness reports are optional for connected repositories.
+  }
+
+  try {
+    const securityReport = await readOptionalJson<SecurityAuditReport>(artifactPath(record, "security.json"));
+    latestSecurityScore = numberOrUndefined(securityReport.summary?.score);
+    securityCriticalHigh = numberOrUndefined((securityReport.summary?.critical ?? 0) + (securityReport.summary?.high ?? 0));
+    latestSecurityAt = stringOrUndefined(securityReport.generatedAt);
+  } catch {
+    // Security reports are optional for connected repositories.
+  }
+
+  try {
+    const costReport = await readOptionalJson<CostAuditReport>(artifactPath(record, "costs.json"));
+    latestCostBudgetStatus = costBudgetStatusOrUndefined(costReport.summary?.budgetStatus);
+    costPolicyBlockedProviders = numberOrUndefined(costReport.summary?.policyBlockedProviders);
+    latestCostAt = stringOrUndefined(costReport.generatedAt);
+  } catch {
+    // Cost reports are optional for connected repositories.
+  }
+
   const attention = deriveAttention({
     status: statusValue,
     latestDeterministicStatus,
@@ -373,7 +437,15 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean, 
     uncoveredTargets,
     uncoveredContracts,
     latestRiskScore,
-    latestRiskSeverity
+    latestRiskSeverity,
+    latestReadinessStatus,
+    latestReadinessScore,
+    readinessBlocked,
+    readinessWarnings,
+    latestSecurityScore,
+    securityCriticalHigh,
+    latestCostBudgetStatus,
+    costPolicyBlockedProviders
   });
   const health = deriveHealth(statusValue, attention);
 
@@ -406,6 +478,17 @@ async function inspectConnection(record: RepoConnectionRecord, stored: boolean, 
     latestRiskScore,
     latestRiskSeverity,
     latestRiskAt,
+    latestReadinessStatus,
+    latestReadinessScore,
+    readinessBlocked,
+    readinessWarnings,
+    latestReadinessAt,
+    latestSecurityScore,
+    securityCriticalHigh,
+    latestSecurityAt,
+    latestCostBudgetStatus,
+    costPolicyBlockedProviders,
+    latestCostAt,
     attention,
     warnings
   };
@@ -425,6 +508,9 @@ function summarize(connections: RepoConnectionEntry[]): RepoConnectionIndex["sum
     missingReportConnections: connections.filter((connection) => connection.status === "ready" && !connection.latestDeterministicStatus).length,
     weakMutationConnections: connections.filter((connection) => mutationIsWeak(connection)).length,
     highRiskConnections: connections.filter((connection) => riskIsHigh(connection)).length,
+    readinessBlockedConnections: connections.filter((connection) => readinessNeedsAttention(connection)).length,
+    securityRiskConnections: connections.filter((connection) => securityNeedsAttention(connection)).length,
+    costPolicyConnections: connections.filter((connection) => costNeedsAttention(connection)).length,
     staleReportConnections: connections.filter((connection) => connection.staleReport).length,
     missingCoverageConnections: connections.filter((connection) => connection.status === "ready" && connection.missingCoverage).length,
     coverageGapConnections: connections.filter((connection) => (connection.coverageGapCount ?? 0) > 0).length,
@@ -506,6 +592,30 @@ function buildPortfolio(connections: RepoConnectionEntry[]): RepoConnectionPortf
       filter: (connection) => riskIsHigh(connection)
     },
     {
+      id: "readiness_blocked",
+      label: "Readiness gates",
+      description: "Readiness gate is blocked or has warnings that need operator review.",
+      severity: "critical",
+      nextAction: "Run visual-hive readiness and address blocked or warning gates before expanding automation.",
+      filter: (connection) => readinessNeedsAttention(connection)
+    },
+    {
+      id: "security_risks",
+      label: "Security posture",
+      description: "Security audit contains critical/high findings or a low security score.",
+      severity: "critical",
+      nextAction: "Run visual-hive security and fix workflow, protected target, provider, dependency, or LLM governance findings.",
+      filter: (connection) => securityNeedsAttention(connection)
+    },
+    {
+      id: "cost_policy",
+      label: "Cost policy",
+      description: "Cost audit is warning or blocked because target/provider usage needs budget review.",
+      severity: "warning",
+      nextAction: "Run visual-hive costs and review external provider budgets, expensive targets, and screenshot volume.",
+      filter: (connection) => costNeedsAttention(connection)
+    },
+    {
       id: "healthy",
       label: "Healthy",
       description: "Connected repos with valid config and no derived attention signals.",
@@ -552,7 +662,11 @@ function toPortfolioItem(connection: RepoConnectionEntry): RepoConnectionPortfol
     coverageGapCount: connection.coverageGapCount,
     highCoverageGapCount: connection.highCoverageGapCount,
     latestRiskScore: connection.latestRiskScore,
-    latestRiskSeverity: connection.latestRiskSeverity
+    latestRiskSeverity: connection.latestRiskSeverity,
+    latestReadinessStatus: connection.latestReadinessStatus,
+    latestReadinessScore: connection.latestReadinessScore,
+    latestSecurityScore: connection.latestSecurityScore,
+    latestCostBudgetStatus: connection.latestCostBudgetStatus
   };
 }
 
@@ -565,9 +679,12 @@ function portfolioScore(connection: RepoConnectionEntry): number {
   if (connection.health === "blocked") score += 100;
   if (connection.latestDeterministicStatus === "failed") score += 90;
   if (riskIsHigh(connection)) score += 80;
+  if (readinessNeedsAttention(connection)) score += connection.latestReadinessStatus === "blocked" ? 85 : 55;
+  if (securityNeedsAttention(connection)) score += 78;
   if ((connection.highCoverageGapCount ?? 0) > 0) score += 75;
   if (connection.staleReport) score += 65;
   if (mutationIsWeak(connection)) score += 60;
+  if (costNeedsAttention(connection)) score += connection.latestCostBudgetStatus === "blocked" ? 50 : 25;
   if (connection.status === "ready" && !connection.latestDeterministicStatus) score += 55;
   if (connection.missingCoverage && connection.latestDeterministicStatus) score += 45;
   if ((connection.coverageGapCount ?? 0) > 0) score += 30;
@@ -596,6 +713,14 @@ function deriveAttention(input: {
   uncoveredContracts?: number;
   latestRiskScore?: number;
   latestRiskSeverity?: RiskSeverity | "none";
+  latestReadinessStatus?: ReadinessReport["status"];
+  latestReadinessScore?: number;
+  readinessBlocked?: number;
+  readinessWarnings?: number;
+  latestSecurityScore?: number;
+  securityCriticalHigh?: number;
+  latestCostBudgetStatus?: CostAuditReport["summary"]["budgetStatus"];
+  costPolicyBlockedProviders?: number;
 }): string[] {
   const attention: string[] = [];
   if (input.status === "missing_repo") attention.push("Repository path is missing.");
@@ -621,6 +746,23 @@ function deriveAttention(input: {
   if (input.latestRiskSeverity === "critical" || input.latestRiskSeverity === "high" || (input.latestRiskScore ?? 0) >= 50) {
     attention.push(`Risk register needs review${input.latestRiskScore === undefined ? "." : ` (${input.latestRiskScore}/100).`}`);
   }
+  if (input.latestReadinessStatus === "blocked") {
+    attention.push(
+      `Readiness gate is blocked${input.latestReadinessScore === undefined ? "." : ` (${input.latestReadinessScore}/100).`}`
+    );
+  } else if ((input.readinessBlocked ?? 0) > 0 || (input.readinessWarnings ?? 0) > 0) {
+    attention.push(`Readiness has ${input.readinessBlocked ?? 0} blocked and ${input.readinessWarnings ?? 0} warning gate(s).`);
+  }
+  if ((input.securityCriticalHigh ?? 0) > 0) {
+    attention.push(`Security audit has ${input.securityCriticalHigh} critical/high finding${input.securityCriticalHigh === 1 ? "" : "s"}.`);
+  } else if (input.latestSecurityScore !== undefined && input.latestSecurityScore < 80) {
+    attention.push(`Security score is ${input.latestSecurityScore}/100.`);
+  }
+  if (input.latestCostBudgetStatus === "blocked" || input.latestCostBudgetStatus === "warning") {
+    attention.push(
+      `Cost policy is ${input.latestCostBudgetStatus}${input.costPolicyBlockedProviders ? ` with ${input.costPolicyBlockedProviders} policy-blocked provider(s)` : ""}.`
+    );
+  }
   return unique(attention);
 }
 
@@ -635,6 +777,26 @@ function mutationIsWeak(connection: RepoConnectionEntry): boolean {
 
 function riskIsHigh(connection: RepoConnectionEntry): boolean {
   return connection.latestRiskSeverity === "critical" || connection.latestRiskSeverity === "high" || (connection.latestRiskScore ?? 0) >= 50;
+}
+
+function readinessNeedsAttention(connection: RepoConnectionEntry): boolean {
+  return connection.latestReadinessStatus === "blocked" || (connection.readinessBlocked ?? 0) > 0 || (connection.readinessWarnings ?? 0) > 0;
+}
+
+function securityNeedsAttention(connection: RepoConnectionEntry): boolean {
+  return (connection.securityCriticalHigh ?? 0) > 0 || (connection.latestSecurityScore !== undefined && connection.latestSecurityScore < 80);
+}
+
+function costNeedsAttention(connection: RepoConnectionEntry): boolean {
+  return connection.latestCostBudgetStatus === "blocked" || connection.latestCostBudgetStatus === "warning";
+}
+
+function readinessStatusOrUndefined(value: unknown): ReadinessReport["status"] | undefined {
+  return value === "ready" || value === "attention" || value === "blocked" ? value : undefined;
+}
+
+function costBudgetStatusOrUndefined(value: unknown): CostAuditReport["summary"]["budgetStatus"] | undefined {
+  return value === "ok" || value === "blocked" || value === "warning" ? value : undefined;
 }
 
 function ageInDays(value: string | undefined, now: Date): number | undefined {
