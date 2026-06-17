@@ -970,6 +970,26 @@ describe("coverage analysis", () => {
       "[data-testid='critical-action-button']"
     );
   });
+
+  it("builds and applies flow-step coverage recommendations from flow gaps", () => {
+    const config = sampleConfig();
+    const flowAudit = auditFlows(config, { selectedContractIds: ["safe-contract"], now: new Date("2026-06-15T00:01:00.000Z") });
+    const coverage = analyzeCoverage(config, { changedFiles: [], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(config, coverage, undefined, {
+      now: new Date("2026-06-15T00:02:00.000Z"),
+      flowAudit
+    });
+    const flowRecommendation = report.recommendations.find((recommendation) => recommendation.id === "flow-steps:safe-contract");
+    const result = applyCoverageImprovementRecommendation(config, report, "flow-steps:safe-contract");
+    const parsed = parseConfigText(result.configText);
+    const steps = parsed.contracts.find((contract) => contract.id === "safe-contract")?.steps ?? [];
+
+    expect(report.summary.fromFlowGaps).toBeGreaterThan(0);
+    expect(flowRecommendation).toMatchObject({ contractId: "safe-contract", route: "/" });
+    expect(result.applied).toBe(true);
+    expect(steps.map((step) => step.action)).toEqual(expect.arrayContaining(["goto", "assertVisible"]));
+    expect(steps.find((step) => step.action === "assertVisible")?.selector).toBe("main");
+  });
 });
 
 describe("risk register", () => {

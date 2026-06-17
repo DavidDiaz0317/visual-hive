@@ -11,12 +11,14 @@ import {
   type CoverageImprovementApplyResult,
   type CoverageImprovementReport,
   type CoverageReport,
+  type FlowAuditReport,
   type MutationReport
 } from "@visual-hive/core";
 
 export interface ImproveCoverageCommandOptions {
   config?: string;
   coverage?: string;
+  flows?: string;
   mutationReport?: string;
   format?: "markdown" | "json";
   apply?: string;
@@ -28,10 +30,12 @@ export async function runImproveCoverageCommand(
 ): Promise<{ report: CoverageImprovementReport; reportPath: string; applyResult?: CoverageImprovementApplyResult }> {
   const loaded = await loadConfig(options.config, process.cwd());
   const coveragePath = path.resolve(loaded.rootDir, options.coverage ?? ".visual-hive/coverage.json");
+  const flowsPath = path.resolve(loaded.rootDir, options.flows ?? ".visual-hive/flows.json");
   const mutationPath = path.resolve(loaded.rootDir, options.mutationReport ?? ".visual-hive/mutation-report.json");
   const coverage = await readCoverageOrAnalyze(loaded.config, coveragePath);
+  const flowAudit = await readOptionalJson<FlowAuditReport>(flowsPath);
   const mutationReport = await readOptionalJson<MutationReport>(mutationPath);
-  const report = buildCoverageImprovementReport(loaded.config, coverage, mutationReport);
+  const report = buildCoverageImprovementReport(loaded.config, coverage, mutationReport, { flowAudit });
   const reportPath = path.join(loaded.rootDir, ".visual-hive", "coverage-recommendations.json");
   await writeJson(reportPath, report);
   const applyResult = options.apply
@@ -60,7 +64,8 @@ export function formatCoverageImprovementReport(
     `- Medium: ${report.summary.medium}`,
     `- Low: ${report.summary.low}`,
     `- From coverage gaps: ${report.summary.fromCoverageGaps}`,
-    `- From mutation survivors: ${report.summary.fromMutationSurvivors}`
+    `- From mutation survivors: ${report.summary.fromMutationSurvivors}`,
+    `- From flow gaps: ${report.summary.fromFlowGaps}`
   ];
   if (report.recommendations.length === 0) {
     lines.push("", "No deterministic coverage improvement recommendations were produced from the current artifacts.");

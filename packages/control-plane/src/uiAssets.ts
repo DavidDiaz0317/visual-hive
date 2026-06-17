@@ -1086,13 +1086,14 @@ function coverageImprovementCard(report) {
   if (!report) return card("Coverage improvement plan", '<p class="muted">No coverage improvement plan available. Run <code>visual-hive improve-coverage</code>.</p>');
   if (!report.recommendations?.length) return card("Coverage improvement plan", '<p class="ok">No deterministic coverage improvement recommendations were produced from the current artifacts.</p>');
   return card("Coverage improvement plan",
-    table(["Recommendations", "High", "Medium", "Low", "Coverage gaps", "Mutation survivors"], [[
+    table(["Recommendations", "High", "Medium", "Low", "Coverage gaps", "Mutation survivors", "Flow gaps"], [[
       esc(report.summary.total),
       report.summary.high ? '<span class="bad">' + esc(report.summary.high) + '</span>' : '<span class="ok">0</span>',
       esc(report.summary.medium),
       esc(report.summary.low),
       esc(report.summary.fromCoverageGaps),
-      report.summary.fromMutationSurvivors ? '<span class="bad">' + esc(report.summary.fromMutationSurvivors) + '</span>' : '<span class="ok">0</span>'
+      report.summary.fromMutationSurvivors ? '<span class="bad">' + esc(report.summary.fromMutationSurvivors) + '</span>' : '<span class="ok">0</span>',
+      report.summary.fromFlowGaps ? '<span class="warn">' + esc(report.summary.fromFlowGaps) + '</span>' : '<span class="ok">0</span>'
     ]]) +
     '<p class="muted">Preview a validated config diff before applying any recommendation. Apply writes through the same guarded config editor audit path.</p><pre id="coverage-repair-status" class="muted">No coverage recommendation selected.</pre>' +
     table(["Recommendation", "Context", "Suggested tests", "Config snippet", "Actions"], report.recommendations.slice(0, 10).map(r => [

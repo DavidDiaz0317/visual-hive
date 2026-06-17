@@ -276,6 +276,7 @@ program
   .description("Generate deterministic coverage improvement recommendations from coverage gaps and mutation survivors")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--coverage <path>", "coverage artifact path override", ".visual-hive/coverage.json")
+  .option("--flows <path>", "flow audit artifact path override", ".visual-hive/flows.json")
   .option("--mutation-report <path>", "mutation report path override", ".visual-hive/mutation-report.json")
   .option("--apply <id>", "show a config diff for a specific recommendation id")
   .option("--yes", "write the selected recommendation to visual-hive.config.yaml after reviewing the diff")
@@ -285,6 +286,7 @@ program
       const result = await runImproveCoverageCommand({
         config: options.config,
         coverage: options.coverage,
+        flows: options.flows,
         mutationReport: options.mutationReport,
         apply: options.apply,
         yes: options.yes,

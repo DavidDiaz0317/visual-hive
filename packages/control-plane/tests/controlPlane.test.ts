@@ -839,7 +839,8 @@ async function writeCoverageRecommendationFixture(repoRoot: string): Promise<voi
           medium: 2,
           low: 0,
           fromCoverageGaps: 1,
-          fromMutationSurvivors: 1
+          fromMutationSurvivors: 1,
+          fromFlowGaps: 0
         },
         recommendations: [
           {
@@ -1699,6 +1700,7 @@ contracts:
       expect(appJs).toContain("function copyText");
       expect(appJs).toContain("Diff pixels");
       expect(appJs).toContain("Coverage improvement plan");
+      expect(appJs).toContain("Flow gaps");
       expect(appJs).toContain("function coverageImprovementCard");
       expect(appJs).toContain("/api/coverage/apply-recommendation");
       expect(appJs).toContain("function applyCoverageRecommendation");

@@ -20,6 +20,14 @@ Schema: `schemas/visual-hive.recommendations.schema.json`
 
 The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, static route hints, detected Storybook story files and iframe routes, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview or Storybook target, starter contracts, a structured onboarding checklist, guarded setup actions, next commands, findings, and warnings. New reports include `onboardingChecklist` rows with `ready | review | blocked` status, evidence, operator action, optional command, and related artifact paths. They also include `setupActions` rows with command, files written, confirmation requirement, safety notes, and expected outcome, so the CLI and Control Plane can show beginner-friendly setup choices without hiding writes or provider-governance boundaries.
 
+## Coverage Recommendations
+
+Path: `.visual-hive/coverage-recommendations.json`
+
+Schema: `schemas/visual-hive.coverage-recommendations.schema.json`
+
+The coverage improvement report is written by `visual-hive improve-coverage`. It combines `.visual-hive/coverage.json`, optional `.visual-hive/flows.json`, and optional `.visual-hive/mutation-report.json` into deterministic config recommendations. Summary counters separate recommendations from coverage gaps, flow gaps, and mutation survivors. Recommendation kinds include starter contracts, screenshots, selector assertions, flow steps, changed-file rules, and mutation mappings. `visual-hive improve-coverage --apply <id>` previews a validated diff; `--yes` is required before writing `visual-hive.config.yaml`.
+
 ## Deterministic Report
 
 Path: `.visual-hive/report.json`

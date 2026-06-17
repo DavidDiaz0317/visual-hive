@@ -10,14 +10,15 @@
     "generatedAt": { "type": "string" },
     "summary": {
       "type": "object",
-      "required": ["total", "high", "medium", "low", "fromCoverageGaps", "fromMutationSurvivors"],
+      "required": ["total", "high", "medium", "low", "fromCoverageGaps", "fromMutationSurvivors", "fromFlowGaps"],
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
         "high": { "type": "integer", "minimum": 0 },
         "medium": { "type": "integer", "minimum": 0 },
         "low": { "type": "integer", "minimum": 0 },
         "fromCoverageGaps": { "type": "integer", "minimum": 0 },
-        "fromMutationSurvivors": { "type": "integer", "minimum": 0 }
+        "fromMutationSurvivors": { "type": "integer", "minimum": 0 },
+        "fromFlowGaps": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     },
@@ -29,7 +30,7 @@
         "properties": {
           "id": { "type": "string" },
           "kind": {
-            "enum": ["add_contract", "add_screenshot", "add_selector_assertion", "add_changed_file_rule", "map_mutation_operator"]
+            "enum": ["add_contract", "add_screenshot", "add_selector_assertion", "add_flow_steps", "add_changed_file_rule", "map_mutation_operator"]
           },
           "severity": { "enum": ["low", "medium", "high"] },
           "title": { "type": "string" },

@@ -206,6 +206,8 @@ contracts:
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:flows")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:improve"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:flows")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:improve"));
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:security"]).toContain("security --config");
@@ -405,6 +407,42 @@ viewports:
         }
       ]
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "flows.json"), {
+      schemaVersion: 1,
+      project: "improve-fixture",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      summary: {
+        contractCount: 1,
+        flowContractCount: 0,
+        selectedFlowContracts: 0,
+        flowStepCount: 0,
+        navigationSteps: 0,
+        interactionSteps: 0,
+        assertionSteps: 0,
+        failedFlowSteps: 0,
+        contractsWithoutFlow: 1,
+        criticalContractsWithoutFlow: 0,
+        highSeverityFlowGaps: 0
+      },
+      flows: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          targetKind: "url",
+          severity: "high",
+          selected: true,
+          runOn: { pullRequest: true, schedule: false },
+          steps: [],
+          latestStatus: "not_run",
+          latestPassedSteps: 0,
+          latestFailedSteps: 0,
+          latestFailedMessages: [],
+          gaps: [{ kind: "no_flow_steps", severity: "medium", message: "Contract has no deterministic user-flow steps." }],
+          recommendations: ["Add deterministic flow steps to dashboard."]
+        }
+      ],
+      recommendations: ["Start with a dashboard flow."]
+    });
 
     const result = await runImproveCoverageCommand({ config: path.join(tempRoot, "visual-hive.config.yaml") });
     const written = await readJson<typeof result.report>(result.reportPath);
@@ -412,10 +450,12 @@ viewports:
 
     expect(written.schemaVersion).toBe(1);
     expect(written.summary.fromMutationSurvivors).toBe(1);
+    expect(written.summary.fromFlowGaps).toBe(1);
     expect(written.recommendations.map((recommendation) => recommendation.kind)).toEqual(
-      expect.arrayContaining(["add_changed_file_rule", "add_screenshot", "map_mutation_operator"])
+      expect.arrayContaining(["add_changed_file_rule", "add_screenshot", "map_mutation_operator", "add_flow_steps"])
     );
     expect(summary).toContain("Coverage Improvement Plan: improve-fixture");
+    expect(summary).toContain("- From flow gaps: 1");
     await expect(access(path.join(tempRoot, ".visual-hive", "coverage-recommendations.json"))).resolves.toBeUndefined();
   });
 

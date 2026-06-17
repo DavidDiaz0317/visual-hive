@@ -5,6 +5,7 @@ import { validateReferences } from "../config/load.js";
 import type { MutationReport } from "../reports/types.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageGap, CoverageReport } from "./analyze.js";
+import type { FlowAuditEntry, FlowAuditReport } from "../flows/audit.js";
 
 export interface CoverageImprovementReport {
   schemaVersion: 1;
@@ -21,12 +22,14 @@ export interface CoverageImprovementSummary {
   low: number;
   fromCoverageGaps: number;
   fromMutationSurvivors: number;
+  fromFlowGaps: number;
 }
 
 export type CoverageImprovementKind =
   | "add_contract"
   | "add_screenshot"
   | "add_selector_assertion"
+  | "add_flow_steps"
   | "add_changed_file_rule"
   | "map_mutation_operator";
 
@@ -57,6 +60,7 @@ export interface CoverageImprovementApplyResult {
 export interface BuildCoverageImprovementOptions {
   now?: Date;
   maxRecommendations?: number;
+  flowAudit?: FlowAuditReport;
 }
 
 export function buildCoverageImprovementReport(
@@ -67,7 +71,8 @@ export function buildCoverageImprovementReport(
 ): CoverageImprovementReport {
   const recommendations = [
     ...coverage.uncoveredAreas.flatMap((gap) => recommendationForGap(config, gap)),
-    ...recommendationsForMutationSurvivors(config, mutationReport)
+    ...recommendationsForMutationSurvivors(config, mutationReport),
+    ...recommendationsForFlowGaps(config, options.flowAudit)
   ];
   const deduped = dedupeRecommendations(recommendations).slice(0, options.maxRecommendations ?? 30);
   return {
@@ -112,6 +117,8 @@ function applyRecommendation(config: VisualHiveConfig, recommendation: CoverageI
       return applyAddScreenshot(config, recommendation);
     case "add_selector_assertion":
       return applySelectorAssertion(config, recommendation);
+    case "add_flow_steps":
+      return applyFlowSteps(config, recommendation);
     case "add_changed_file_rule":
       return applyChangedFileRule(config, recommendation);
     case "map_mutation_operator":
@@ -119,6 +126,21 @@ function applyRecommendation(config: VisualHiveConfig, recommendation: CoverageI
     default:
       return false;
   }
+}
+
+function applyFlowSteps(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  if (!recommendation.contractId) return false;
+  const contract = config.contracts.find((candidate) => candidate.id === recommendation.contractId);
+  if (!contract) return false;
+  const snippet = parseSnippet<{ steps?: VisualHiveConfig["contracts"][number]["steps"] }>(recommendation);
+  let changed = false;
+  for (const step of snippet.steps ?? []) {
+    if (!contract.steps.some((candidate) => sameFlowStep(candidate, step))) {
+      contract.steps.push(step);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function applyAddContract(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
@@ -417,6 +439,79 @@ function recommendationsForMutationSurvivors(config: VisualHiveConfig, mutationR
     });
 }
 
+function recommendationsForFlowGaps(config: VisualHiveConfig, flowAudit?: FlowAuditReport): CoverageImprovementRecommendation[] {
+  if (!flowAudit) return [];
+  return flowAudit.flows.flatMap((flow) => {
+    const contract = config.contracts.find((candidate) => candidate.id === flow.contractId);
+    if (!contract) return [];
+    const recommendations: CoverageImprovementRecommendation[] = [];
+    if (flow.gaps.some((gap) => gap.kind === "no_flow_steps")) {
+      recommendations.push(flowStepRecommendation(config, contract, flow, "flow-steps", "Add deterministic flow steps"));
+    } else {
+      if (flow.gaps.some((gap) => gap.kind === "no_navigation_step")) {
+        recommendations.push(flowStepRecommendation(config, contract, flow, "flow-goto", "Add an explicit flow navigation step", ["goto"]));
+      }
+      if (flow.gaps.some((gap) => gap.kind === "no_assertion_step")) {
+        recommendations.push(flowStepRecommendation(config, contract, flow, "flow-assertion", "Add a deterministic flow assertion step", ["assertVisible"]));
+      }
+    }
+    return recommendations;
+  });
+}
+
+function flowStepRecommendation(
+  config: VisualHiveConfig,
+  contract: VisualHiveConfig["contracts"][number],
+  flow: FlowAuditEntry,
+  idPrefix: string,
+  titlePrefix: string,
+  actions?: Array<"goto" | "assertVisible">
+): CoverageImprovementRecommendation {
+  const route = contract.screenshots[0]?.route ?? "/";
+  const selector = preferredFlowSelector(contract);
+  const steps = buildSuggestedFlowSteps(route, selector, actions);
+  const severity = flow.severity === "critical" ? "high" : flow.severity === "high" ? "medium" : "low";
+  return {
+    id: `${idPrefix}:${contract.id}`,
+    kind: "add_flow_steps",
+    severity,
+    title: `${titlePrefix} for "${contract.id}"`,
+    rationale: [
+      ...flow.gaps
+        .filter((gap) =>
+          actions?.includes("goto")
+            ? gap.kind === "no_navigation_step"
+            : actions?.includes("assertVisible")
+              ? gap.kind === "no_assertion_step"
+              : gap.kind === "no_flow_steps"
+        )
+        .map((gap) => gap.message),
+      "Flow steps protect user-visible behavior beyond static screenshot and selector checks."
+    ],
+    targetId: contract.target,
+    contractId: contract.id,
+    route,
+    suggestedConfigYaml: yamlSnippet({ steps }),
+    suggestedTests: [
+      `Run ${contract.id} locally and verify the flow steps pass before making CI required.`,
+      "Prefer stable data-testid selectors and avoid typing real credentials into flow steps."
+    ]
+  };
+}
+
+function buildSuggestedFlowSteps(route: string, selector: string, actions?: Array<"goto" | "assertVisible">): VisualHiveConfig["contracts"][number]["steps"] {
+  const requested = actions ?? ["goto", "assertVisible"];
+  return requested.map((action) =>
+    action === "goto"
+      ? { action: "goto" as const, route, description: `Navigate to ${route}`, state: "visible" as const, timeoutMs: 15000 }
+      : { action: "assertVisible" as const, selector, description: `Assert ${selector} is visible`, state: "visible" as const, timeoutMs: 15000 }
+  );
+}
+
+function preferredFlowSelector(contract: VisualHiveConfig["contracts"][number]): string {
+  return contract.selectors.mustExist[0] ?? contract.waitFor[0]?.selector ?? "body";
+}
+
 function selectorsForOperator(operator: string): Record<string, string[]> {
   if (operator === "force-login-on-demo") return { mustNotExist: ["[data-testid='login-page']", "[data-testid='github-login-button']"] };
   if (operator === "hide-critical-button") return { mustExist: ["[data-testid='critical-action-button']"] };
@@ -443,8 +538,11 @@ function summarize(recommendations: CoverageImprovementRecommendation[]): Covera
     high: recommendations.filter((recommendation) => recommendation.severity === "high").length,
     medium: recommendations.filter((recommendation) => recommendation.severity === "medium").length,
     low: recommendations.filter((recommendation) => recommendation.severity === "low").length,
-    fromCoverageGaps: recommendations.filter((recommendation) => !recommendation.id.startsWith("mutation-survivor:")).length,
-    fromMutationSurvivors: recommendations.filter((recommendation) => recommendation.id.startsWith("mutation-survivor:")).length
+    fromCoverageGaps: recommendations.filter(
+      (recommendation) => !recommendation.id.startsWith("mutation-survivor:") && recommendation.kind !== "add_flow_steps"
+    ).length,
+    fromMutationSurvivors: recommendations.filter((recommendation) => recommendation.id.startsWith("mutation-survivor:")).length,
+    fromFlowGaps: recommendations.filter((recommendation) => recommendation.kind === "add_flow_steps").length
   };
 }
 
@@ -525,6 +623,17 @@ function changedFilePattern(changedFile: string): string {
   const segments = normalized.split("/");
   if (segments.length <= 1) return normalized || "src/**";
   return `${segments.slice(0, -1).join("/")}/**`;
+}
+
+function sameFlowStep(left: VisualHiveConfig["contracts"][number]["steps"][number], right: VisualHiveConfig["contracts"][number]["steps"][number]): boolean {
+  return (
+    left.action === right.action &&
+    left.selector === right.selector &&
+    left.route === right.route &&
+    left.value === right.value &&
+    left.key === right.key &&
+    left.text === right.text
+  );
 }
 
 function trimRoute(route: string): string {
