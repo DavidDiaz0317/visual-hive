@@ -2282,6 +2282,7 @@ jobs:
       path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png")
     );
     report.status = "passed";
+    report.generatedAt = "2026-06-15T00:00:00.000Z";
     report.summary.passed = 1;
     report.summary.failed = 0;
     report.summary.screenshotsFailed = 0;
@@ -2332,6 +2333,83 @@ jobs:
     expect(progress.steps.find((step) => step.id === "run")?.status).toBe("complete");
     expect(progress.steps.find((step) => step.id === "provider-governance")?.status).toBe("complete");
     expect(JSON.stringify(progress)).not.toContain("secret-value");
+  });
+
+  it("marks setup artifacts for review when they are older than newer deterministic evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-setup-progress-stale-"));
+    tempDirs.push(tempRoot);
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"], now: new Date("2026-06-15T01:00:00.000Z") });
+    const report = reportFixture(
+      tempRoot,
+      path.join(tempRoot, ".visual-hive", "artifacts", "screenshots", "actual.png"),
+      path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png")
+    );
+    report.generatedAt = "2026-06-15T01:00:00.000Z";
+    report.status = "passed";
+    report.summary.passed = 1;
+    report.summary.failed = 0;
+    report.summary.screenshotsFailed = 0;
+    report.summary.visualDiffs = 0;
+    report.results[0]!.status = "passed";
+    report.results[0]!.errors = [];
+    report.results[0]!.screenshotAssertions[0]!.status = "passed";
+    const mutationReport = {
+      schemaVersion: 2 as const,
+      project: "sample",
+      generatedAt: "2026-06-15T02:00:00.000Z",
+      minScore: 0.7,
+      score: 1,
+      killed: 1,
+      total: 1,
+      results: [
+        {
+          operator: "remove-demo-badge",
+          status: "killed" as const,
+          killed: true,
+          contractIds: ["safe-contract"],
+          applicable: true,
+          expectedFailureKinds: ["missing_element"],
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    };
+    const triageReport = buildTriageReport({
+      project: "sample",
+      findings: [],
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const readinessReport = analyzeReadiness(config, {
+      plan,
+      report,
+      mutationReport,
+      workflowAudit: auditWorkflows(config, [], { now: new Date("2026-06-15T02:00:00.000Z") }),
+      now: new Date("2026-06-15T00:30:00.000Z")
+    });
+    const progress = buildSetupProgress({
+      config,
+      plan,
+      report,
+      mutationReport,
+      triageReport,
+      workflowAudit: auditWorkflows(config, [], { now: new Date("2026-06-15T02:00:00.000Z") }),
+      readinessReport,
+      now: new Date("2026-06-15T03:00:00.000Z")
+    });
+
+    const mutationStep = progress.steps.find((step) => step.id === "mutation");
+    const triageStep = progress.steps.find((step) => step.id === "triage");
+    const readinessStep = progress.steps.find((step) => step.id === "readiness");
+
+    expect(mutationStep).toMatchObject({ status: "complete" });
+    expect(mutationStep?.evidence).toContain("mutation-report.json=current");
+    expect(triageStep).toMatchObject({ status: "review" });
+    expect(triageStep?.evidence).toEqual(expect.arrayContaining(["triage.json=stale", "newer=report.json,mutation-report.json"]));
+    expect(readinessStep).toMatchObject({ status: "review" });
+    expect(readinessStep?.evidence).toContain("readiness.json=stale");
+    expect(progress.nextStep).toMatchObject({ id: "triage", status: "review" });
   });
 
   it("blocks readiness on deterministic failures and missing CI baselines", () => {

@@ -62,6 +62,20 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
     options.workflowAudit?.findings.filter((finding) => finding.severity === "critical" || finding.severity === "high").length ?? 0;
   const readinessBlocked = options.readinessReport?.summary.blocked ?? 0;
   const readinessWarnings = options.readinessReport?.summary.warnings ?? 0;
+  const mutationFreshness = artifactFreshness("mutation-report.json", options.mutationReport?.generatedAt, [
+    ["report.json", options.report?.generatedAt]
+  ]);
+  const triageFreshness = artifactFreshness("triage.json", options.triageReport?.generatedAt, [
+    ["report.json", options.report?.generatedAt],
+    ["mutation-report.json", options.mutationReport?.generatedAt]
+  ]);
+  const readinessFreshness = artifactFreshness("readiness.json", options.readinessReport?.generatedAt, [
+    ["report.json", options.report?.generatedAt],
+    ["mutation-report.json", options.mutationReport?.generatedAt],
+    ["triage.json", options.triageReport?.generatedAt],
+    ["workflows.json", options.workflowAudit?.generatedAt],
+    ["provider-setup-plan.json", options.providerSetupPlan?.generatedAt]
+  ]);
   const steps: SetupProgressStep[] = [
     setupStep({
       id: "recommend",
@@ -134,7 +148,9 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
       id: "mutation",
       label: "Measure mutation adequacy",
       status: options.mutationReport
-        ? options.mutationReport.score >= options.mutationReport.minScore
+        ? !mutationFreshness.current
+          ? "review"
+          : options.mutationReport.score >= options.mutationReport.minScore
           ? "complete"
           : "blocked"
         : "review",
@@ -143,7 +159,8 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
         ? [
             `score=${Math.round(options.mutationReport.score * 100)}%`,
             `min=${Math.round(options.mutationReport.minScore * 100)}%`,
-            `survived=${options.mutationReport.results.filter((result) => result.status === "survived").length}`
+            `survived=${options.mutationReport.results.filter((result) => result.status === "survived").length}`,
+            ...mutationFreshness.evidence
           ]
         : ["No .visual-hive/mutation-report.json artifact found."],
       command: "visual-hive mutate",
@@ -152,10 +169,14 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
     setupStep({
       id: "triage",
       label: "Generate repair-ready triage",
-      status: options.triageReport ? "complete" : options.report ? "pending" : "review",
+      status: options.triageReport ? (triageFreshness.current ? "complete" : "review") : options.report ? "pending" : "review",
       description: "Create sanitized issue, PR comment, missing-test suggestions, and LLM-ready prompt artifacts without making model calls by default.",
       evidence: options.triageReport
-        ? [`findings=${options.triageReport.summary.findingCount}`, `classes=${Object.keys(options.triageReport.summary.classifications).join(", ") || "none"}`]
+        ? [
+            `findings=${options.triageReport.summary.findingCount}`,
+            `classes=${Object.keys(options.triageReport.summary.classifications).join(", ") || "none"}`,
+            ...triageFreshness.evidence
+          ]
         : ["No .visual-hive/triage.json artifact found."],
       command: "visual-hive triage && visual-hive report",
       artifacts: [".visual-hive/triage.json", ".visual-hive/issue.md", ".visual-hive/pr-comment.md"]
@@ -189,7 +210,9 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
       id: "readiness",
       label: "Pass readiness gate",
       status: options.readinessReport
-        ? readinessBlocked
+        ? !readinessFreshness.current
+          ? "review"
+          : readinessBlocked
           ? "blocked"
           : readinessWarnings
             ? "review"
@@ -197,7 +220,13 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
         : "pending",
       description: "Combine deterministic status, baselines, mutation, workflow safety, security, cost, provider, LLM, and run history evidence.",
       evidence: options.readinessReport
-        ? [`status=${options.readinessReport.status}`, `score=${options.readinessReport.score}`, `blocked=${readinessBlocked}`, `warnings=${readinessWarnings}`]
+        ? [
+            `status=${options.readinessReport.status}`,
+            `score=${options.readinessReport.score}`,
+            `blocked=${readinessBlocked}`,
+            `warnings=${readinessWarnings}`,
+            ...readinessFreshness.evidence
+          ]
         : ["No .visual-hive/readiness.json artifact found."],
       command: "visual-hive readiness",
       artifacts: [".visual-hive/readiness.json"]
@@ -257,4 +286,28 @@ function setupPhase(steps: SetupProgressStep[], status: SetupProgressReport["sta
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.map((value) => sanitizeText(value)).filter(Boolean))].sort();
+}
+
+function artifactFreshness(
+  artifact: string,
+  generatedAt: string | undefined,
+  dependencies: Array<[artifact: string, generatedAt: string | undefined]>
+): { current: boolean; evidence: string[] } {
+  if (!generatedAt) {
+    return { current: false, evidence: [] };
+  }
+  const artifactTime = Date.parse(generatedAt);
+  if (Number.isNaN(artifactTime)) {
+    return { current: false, evidence: [`${artifact}=invalid-generatedAt`] };
+  }
+  const staleDependencies = dependencies
+    .map(([name, dependencyGeneratedAt]) => ({ name, time: dependencyGeneratedAt ? Date.parse(dependencyGeneratedAt) : Number.NaN }))
+    .filter((dependency) => !Number.isNaN(dependency.time) && dependency.time > artifactTime);
+  if (!staleDependencies.length) {
+    return { current: true, evidence: [`${artifact}=current`] };
+  }
+  return {
+    current: false,
+    evidence: [`${artifact}=stale`, `newer=${staleDependencies.map((dependency) => dependency.name).join(",")}`]
+  };
 }
