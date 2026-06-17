@@ -20,6 +20,7 @@ import {
   type Plan,
   type LLMDecisionLog,
   type ProviderDecisionLog,
+  type ProviderSetupPlan,
   type Report,
   type RiskRegisterReport,
   type RunHistoryReport,
@@ -41,6 +42,7 @@ export interface RiskCommandOptions {
   schedules?: string;
   workflows?: string;
   providerDecisions?: string;
+  providerSetupPlan?: string;
   llmDecisions?: string;
   history?: string;
   workflowDir?: string;
@@ -77,6 +79,9 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
   const providerDecisions = await readOptionalProviderDecisions(
     path.resolve(loaded.rootDir, options.providerDecisions ?? path.join(".visual-hive", "provider-decisions.json"))
   );
+  const providerSetupPlan = await readOptionalJson<ProviderSetupPlan>(
+    path.resolve(loaded.rootDir, options.providerSetupPlan ?? path.join(".visual-hive", "provider-setup-plan.json"))
+  );
   const llmDecisions = await readOptionalLLMDecisions(path.resolve(loaded.rootDir, options.llmDecisions ?? path.join(".visual-hive", "llm-decisions.json")));
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
 
@@ -91,6 +96,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
     scheduleAudit,
     workflowAudit,
     providerDecisions,
+    providerSetupPlan,
     llmDecisions,
     runHistory
   });

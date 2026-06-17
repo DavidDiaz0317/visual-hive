@@ -2129,6 +2129,19 @@ providers:
     expect(summary).toContain("visual-hive providers list --mock-results");
     expect(summary).not.toContain("secret");
     await expect(access(path.join(tempRoot, ".visual-hive", "provider-setup-plan.json"))).resolves.toBeUndefined();
+
+    const risk = await runRiskCommand({ cwd: tempRoot });
+    expect(risk.report.inputs.providerSetupPlan).toBe(true);
+    expect(risk.report.risks.find((item) => item.id === "provider-setup-plan:argos")).toMatchObject({
+      category: "provider_policy",
+      trustedOnly: true
+    });
+
+    const readiness = await runReadinessCommand({ cwd: tempRoot });
+    expect(readiness.report.inputs.providerSetupPlan).toBe(true);
+    expect(readiness.report.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(
+      ".visual-hive/provider-setup-plan.json"
+    );
   });
 
   it("records LLM governance decisions from the CLI without model calls", async () => {

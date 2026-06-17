@@ -586,6 +586,7 @@ program
   .option("--schedules <path>", "schedules audit artifact path override")
   .option("--workflows <path>", "workflow audit artifact path override")
   .option("--provider-decisions <path>", "provider governance decision artifact path override")
+  .option("--provider-setup-plan <path>", "provider setup-plan artifact path override")
   .option("--llm-decisions <path>", "LLM governance decision artifact path override")
   .option("--history <path>", "run history artifact path override")
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
@@ -604,6 +605,7 @@ program
         schedules: options.schedules,
         workflows: options.workflows,
         providerDecisions: options.providerDecisions,
+        providerSetupPlan: options.providerSetupPlan,
         llmDecisions: options.llmDecisions,
         history: options.history,
         workflowDir: options.workflowDir,
@@ -628,6 +630,7 @@ program
   .option("--security <path>", "security audit artifact path", ".visual-hive/security.json")
   .option("--costs <path>", "cost audit artifact path", ".visual-hive/costs.json")
   .option("--provider-decisions <path>", "provider governance decision artifact path", ".visual-hive/provider-decisions.json")
+  .option("--provider-setup-plan <path>", "provider setup-plan artifact path", ".visual-hive/provider-setup-plan.json")
   .option("--llm-decisions <path>", "LLM governance decision artifact path", ".visual-hive/llm-decisions.json")
   .option("--history <path>", "run history artifact path", ".visual-hive/history.json")
   .option("--format <format>", "markdown or json", "markdown")
@@ -644,6 +647,7 @@ program
         security: options.security,
         costs: options.costs,
         providerDecisions: options.providerDecisions,
+        providerSetupPlan: options.providerSetupPlan,
         llmDecisions: options.llmDecisions,
         history: options.history,
         format: options.format

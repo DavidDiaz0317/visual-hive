@@ -10,6 +10,7 @@ import type { ScheduleAuditReport } from "../schedules/audit.js";
 import type { TargetAuditReport } from "../targets/audit.js";
 import type { Plan } from "../planner/types.js";
 import type { ProviderDecisionLog } from "../providers/decisions.js";
+import type { ProviderSetupPlan } from "../providers/setupPlan.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type RiskSeverity = "low" | "medium" | "high" | "critical";
@@ -61,6 +62,7 @@ export interface RiskInputs {
   workflowAudit: boolean;
   runHistory: boolean;
   providerDecisions: boolean;
+  providerSetupPlan: boolean;
   llmDecisions: boolean;
 }
 
@@ -91,6 +93,7 @@ export interface AnalyzeRiskOptions {
   workflowAudit?: WorkflowAuditReport;
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
+  providerSetupPlan?: ProviderSetupPlan;
   llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
@@ -106,7 +109,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...flowRisks(options.flowAudit),
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
-    ...providerRisks(options.plan, options.report, options.providerDecisions),
+    ...providerRisks(options.plan, options.report, options.providerDecisions, options.providerSetupPlan),
     ...llmRisks(config, options.llmDecisions),
     ...historyRisks(options.runHistory)
   ]
@@ -130,6 +133,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       workflowAudit: Boolean(options.workflowAudit),
       runHistory: Boolean(options.runHistory),
       providerDecisions: Boolean(options.providerDecisions),
+      providerSetupPlan: Boolean(options.providerSetupPlan),
       llmDecisions: Boolean(options.llmDecisions)
     },
     risks,
@@ -416,7 +420,8 @@ function workflowRisks(workflowAudit?: WorkflowAuditReport): RiskItem[] {
   }));
 }
 
-function providerRisks(plan?: Plan, report?: Report, providerDecisions?: ProviderDecisionLog): RiskItem[] {
+function providerRisks(plan?: Plan, report?: Report, providerDecisions?: ProviderDecisionLog, providerSetupPlan?: ProviderSetupPlan): RiskItem[] {
+  const externalProviders = plan?.providerPolicy.filter((provider) => provider.enabled && provider.mode === "external" && provider.providerId !== "playwright") ?? [];
   const planRisks =
     plan?.providerPolicy
       .filter((provider) => provider.enabled && !provider.externalUploadAllowed && provider.providerId !== "playwright")
@@ -434,6 +439,51 @@ function providerRisks(plan?: Plan, report?: Report, providerDecisions?: Provide
         prBlocking: false,
         trustedOnly: true
       })) ?? [];
+  const setupPlanRisks: RiskItem[] = [];
+  if (providerSetupPlan) {
+    const matchingExternalProvider = externalProviders.some((provider) => provider.providerId === providerSetupPlan.providerId);
+    const hasBlockedRecommendation = providerSetupPlan.recommendation === "blocked";
+    setupPlanRisks.push({
+      id: `provider-setup-plan:${providerSetupPlan.providerId}`,
+      category: "provider_policy",
+      severity: matchingExternalProvider && hasBlockedRecommendation ? "medium" : "low",
+      title: matchingExternalProvider && hasBlockedRecommendation ? `Provider setup is blocked: ${providerSetupPlan.label}` : `Provider setup plan recorded: ${providerSetupPlan.label}`,
+      message: matchingExternalProvider && hasBlockedRecommendation
+        ? "An enabled external provider has a setup plan that is not ready for trusted upload."
+        : `Provider setup recommendation is ${providerSetupPlan.recommendation}.`,
+      evidence: [
+        `recommendation=${providerSetupPlan.recommendation}`,
+        `authorizationRequired=${providerSetupPlan.authorizationRequired}`,
+        `externalCallsMade=${providerSetupPlan.externalCallsMade}`,
+        ...providerSetupPlan.readiness.missingEnv.map((name) => `missing=${name}`),
+        ...providerSetupPlan.readiness.externalUploadBlockedReasons
+      ],
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/provider-setup-plan.json"],
+      suggestedActions: matchingExternalProvider && hasBlockedRecommendation
+        ? ["Resolve missing provider setup, credential-name, or cost-policy blockers before enabling external uploads."]
+        : ["Review provider setup plans before moving from local-only artifacts to trusted provider-backed lanes."],
+      prBlocking: false,
+      trustedOnly: true
+    });
+  }
+  for (const provider of externalProviders.filter((provider) => providerSetupPlan?.providerId !== provider.providerId)) {
+    setupPlanRisks.push({
+      id: `provider-setup-plan:missing:${provider.providerId}`,
+      category: "provider_policy",
+      severity: "medium",
+      title: `Provider setup plan missing: ${provider.label}`,
+      message: "An external provider is enabled without a matching no-network setup plan artifact.",
+      evidence: [`provider=${provider.providerId}`, `mode=${provider.mode}`, `availability=${provider.availability}`],
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/plan.json"],
+      suggestedActions: [`Run visual-hive providers plan --provider ${provider.providerId} before enabling trusted external uploads.`],
+      prBlocking: false,
+      trustedOnly: true
+    });
+  }
   const resultRisks =
     report?.providerResults
       ?.filter((provider) => provider.status === "failed" || provider.status === "missing_credentials")
@@ -487,7 +537,7 @@ function providerRisks(plan?: Plan, report?: Report, providerDecisions?: Provide
         trustedOnly: true
       };
     }) ?? [];
-  return [...planRisks, ...resultRisks, ...decisionRisks];
+  return [...planRisks, ...setupPlanRisks, ...resultRisks, ...decisionRisks];
 }
 
 function llmRisks(config: VisualHiveConfig, llmDecisions?: LLMDecisionLog): RiskItem[] {
@@ -561,6 +611,7 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "coverage_gap")) recs.add("Add contracts or changed-file rules for uncovered high-risk areas.");
   if (risks.some((risk) => risk.category === "history_regression")) recs.add("Compare latest and previous run history before accepting the current visual QA state.");
   if (risks.some((risk) => risk.category === "llm_governance")) recs.add("Review LLM governance decisions before enabling trusted model-assisted workflows.");
+  if (risks.some((risk) => risk.id.startsWith("provider-setup-plan:"))) recs.add("Review provider setup plans before enabling trusted external provider uploads.");
   return [...recs];
 }
 

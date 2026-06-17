@@ -35,6 +35,7 @@
         "costAudit": { "type": "boolean" },
         "runHistory": { "type": "boolean" },
         "providerDecisions": { "type": "boolean" },
+        "providerSetupPlan": { "type": "boolean" },
         "llmDecisions": { "type": "boolean" }
       },
       "additionalProperties": false

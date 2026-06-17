@@ -115,8 +115,8 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
 - `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.
 - `visual-hive improve-coverage`: writes `.visual-hive/coverage-recommendations.json` with missing-coverage, flow-gap, and mutation-survivor recommendations. Pass `--apply <recommendation-id>` to preview a validated config diff, then add `--yes` only after review to update `visual-hive.config.yaml`.
-- `visual-hive risk`: builds `.visual-hive/risk.json`, a prioritized register across deterministic failures, baselines, mutation adequacy, coverage, target safety, workflow safety, environment gaps, and provider policy.
-- `visual-hive readiness`: builds `.visual-hive/readiness.json`, a beginner-friendly go/no-go gate across plan, run, baseline, mutation, workflow, security, cost, provider, and LLM evidence.
+- `visual-hive risk`: builds `.visual-hive/risk.json`, a prioritized register across deterministic failures, baselines, mutation adequacy, coverage, target safety, workflow safety, environment gaps, provider policy, provider setup plans, and governance decisions.
+- `visual-hive readiness`: builds `.visual-hive/readiness.json`, a beginner-friendly go/no-go gate across plan, run, baseline, mutation, workflow, security, cost, provider setup, provider decisions, and LLM evidence.
 - `visual-hive security`: builds `.visual-hive/security.json`, an offline security posture report across workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence.
 - `visual-hive costs`: builds `.visual-hive/costs.json`, a local/external cost posture report across selected contracts, screenshot volume, provider upload policy, and budgets.
 - `visual-hive contracts`: audits configured contracts, mappings, latest results, and gaps in `.visual-hive/contracts.json`.

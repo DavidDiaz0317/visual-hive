@@ -1271,6 +1271,42 @@ jobs:
     expect(risk.recommendations.join(" ")).not.toContain("Repair critical/high GitHub workflow safety findings");
   });
 
+  it("flags enabled external providers without matching setup plans", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "provider-risk", type: "custom", defaultBranch: "main" },
+      targets: { local: { kind: "url", url: "http://127.0.0.1:4173" } },
+      contracts: [{ id: "dashboard", description: "Dashboard", target: "local", runOn: { pullRequest: true } }],
+      providers: {
+        argos: {
+          enabled: true,
+          mode: "external",
+          requiredEnv: ["ARGOS_TOKEN"]
+        }
+      }
+    });
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+
+    const missingPlanRisk = analyzeRisk(config, { plan, now: new Date("2026-06-15T00:00:00.000Z") });
+    expect(missingPlanRisk.inputs.providerSetupPlan).toBe(false);
+    expect(missingPlanRisk.risks.find((item) => item.id === "provider-setup-plan:missing:argos")).toMatchObject({
+      category: "provider_policy",
+      severity: "medium",
+      trustedOnly: true
+    });
+
+    const setupPlan = buildProviderSetupPlan(config, { providerId: "argos", env: {}, generatedAt: "2026-06-15T00:00:00.000Z" });
+    const withPlanRisk = analyzeRisk(config, { plan, providerSetupPlan: setupPlan, now: new Date("2026-06-15T00:00:00.000Z") });
+    expect(withPlanRisk.inputs.providerSetupPlan).toBe(true);
+    expect(withPlanRisk.risks.find((item) => item.id === "provider-setup-plan:argos")).toMatchObject({
+      title: "Provider setup is blocked: Argos",
+      category: "provider_policy",
+      severity: "medium",
+      trustedOnly: true
+    });
+    expect(withPlanRisk.risks.find((item) => item.id === "provider-setup-plan:missing:argos")).toBeUndefined();
+    expect(JSON.stringify(withPlanRisk)).not.toContain("secret-value");
+  });
+
   it("turns regressed run history into actionable risk evidence", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-risk-history-"));
     tempDirs.push(tempRoot);
@@ -2197,6 +2233,40 @@ jobs:
     expect(readiness.gates.find((gate) => gate.id === "provider:decisions-recorded")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "llm:decisions-recorded")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "security:posture")?.status).toBe("warning");
+    expect(JSON.stringify(readiness)).not.toContain("secret-value");
+  });
+
+  it("uses provider setup plans as readiness evidence for external providers", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "provider-readiness", type: "custom", defaultBranch: "main" },
+      targets: { local: { kind: "url", url: "http://127.0.0.1:4173" } },
+      contracts: [{ id: "dashboard", description: "Dashboard", target: "local", runOn: { pullRequest: true } }],
+      providers: {
+        argos: {
+          enabled: true,
+          mode: "external",
+          requiredEnv: ["ARGOS_TOKEN"]
+        }
+      }
+    });
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const setupPlan = buildProviderSetupPlan(config, { providerId: "argos", env: {}, generatedAt: "2026-06-15T00:00:00.000Z" });
+    const readiness = analyzeReadiness(config, {
+      plan,
+      costAudit: analyzeCosts(config, { plan }),
+      providerSetupPlan: setupPlan,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(readiness.inputs.providerSetupPlan).toBe(true);
+    expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")).toMatchObject({
+      category: "provider",
+      status: "warning"
+    });
+    expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.evidence).toEqual(
+      expect.arrayContaining(["setupPlan=argos", "recommendation=blocked", "externalCallsMade=0"])
+    );
+    expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(".visual-hive/provider-setup-plan.json");
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
   });
 

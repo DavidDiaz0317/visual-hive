@@ -7,6 +7,7 @@ import type { Plan } from "../planner/types.js";
 import type { BaselineList } from "../baselines/manage.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { ProviderDecisionLog } from "../providers/decisions.js";
+import type { ProviderSetupPlan } from "../providers/setupPlan.js";
 import type { SecurityAuditReport } from "../security/audit.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -59,6 +60,7 @@ export interface ReadinessReport {
     costAudit: boolean;
     runHistory: boolean;
     providerDecisions: boolean;
+    providerSetupPlan: boolean;
     llmDecisions: boolean;
   };
   gates: ReadinessGate[];
@@ -75,6 +77,7 @@ export interface AnalyzeReadinessOptions {
   costAudit?: CostAuditReport;
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
+  providerSetupPlan?: ProviderSetupPlan;
   llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
@@ -88,7 +91,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     ...mutationGates(config, options.mutationReport),
     ...workflowGates(options.workflowAudit),
     ...securityGates(options.securityAudit),
-    ...providerGates(config, options.costAudit, options.providerDecisions),
+    ...providerGates(config, options.costAudit, options.providerDecisions, options.providerSetupPlan),
     ...llmGates(config, options.llmDecisions),
     ...costGates(options.costAudit),
     ...historyGates(options.runHistory)
@@ -111,6 +114,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
       costAudit: Boolean(options.costAudit),
       runHistory: Boolean(options.runHistory),
       providerDecisions: Boolean(options.providerDecisions),
+      providerSetupPlan: Boolean(options.providerSetupPlan),
       llmDecisions: Boolean(options.llmDecisions)
     },
     gates,
@@ -354,12 +358,20 @@ function securityGates(securityAudit?: SecurityAuditReport): ReadinessGate[] {
   ];
 }
 
-function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport, providerDecisions?: ProviderDecisionLog): ReadinessGate[] {
+function providerGates(
+  config: VisualHiveConfig,
+  costAudit?: CostAuditReport,
+  providerDecisions?: ProviderDecisionLog,
+  providerSetupPlan?: ProviderSetupPlan
+): ReadinessGate[] {
   const externalEnabled = Object.entries(config.providers).filter(
     ([providerId, provider]) => providerId !== "playwright" && provider.enabled && provider.mode === "external"
   );
   const decisions = providerDecisions?.decisions ?? [];
   const decisionByProvider = new Map(decisions.map((decision) => [decision.providerId, decision]));
+  const setupPlanMatchesEnabledProvider = providerSetupPlan
+    ? externalEnabled.some(([providerId]) => providerId === providerSetupPlan.providerId)
+    : false;
   const conflictingDecisions = externalEnabled
     .map(([providerId]) => decisionByProvider.get(providerId))
     .filter((decision) => decision?.decision === "skip" || decision?.decision === "review_later");
@@ -379,6 +391,23 @@ function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport, pr
     ];
   }
   if (!externalEnabled.length) {
+    if (providerSetupPlan) {
+      return [
+        gate(
+          "provider:setup-plan-recorded",
+          "provider",
+          "passed",
+          "Provider setup plan is recorded",
+          "A no-network provider setup plan exists for optional future provider review.",
+          [
+            `provider=${providerSetupPlan.providerId}`,
+            `recommendation=${providerSetupPlan.recommendation}`,
+            `externalCallsMade=${providerSetupPlan.externalCallsMade}`
+          ],
+          [".visual-hive/provider-setup-plan.json"]
+        )
+      ];
+    }
     if (decisions.length) {
       return [
         gate(
@@ -396,16 +425,34 @@ function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport, pr
   }
   const missing = costAudit?.providers.filter((provider) => provider.enabled && provider.mode === "external" && provider.missingEnv.length > 0) ?? [];
   const approved = externalEnabled.filter(([providerId]) => decisionByProvider.get(providerId)?.decision === "approve_trusted_setup");
+  const setupEvidence = providerSetupPlan
+    ? [
+        `setupPlan=${providerSetupPlan.providerId}`,
+        `recommendation=${providerSetupPlan.recommendation}`,
+        `authorizationRequired=${providerSetupPlan.authorizationRequired}`,
+        `externalCallsMade=${providerSetupPlan.externalCallsMade}`
+      ]
+    : ["setupPlan=missing"];
+  const setupPlanWarning =
+    !setupPlanMatchesEnabledProvider ||
+    providerSetupPlan?.recommendation === "blocked" ||
+    providerSetupPlan?.readiness.missingEnv.length;
   return [
     gate(
       "provider:external-enabled",
       "provider",
-      missing.length ? "warning" : "passed",
+      missing.length || setupPlanWarning ? "warning" : "passed",
       "External provider requires trusted setup review",
       `${externalEnabled.length} external provider(s) are enabled.`,
-      [...externalEnabled.map(([providerId]) => `provider=${providerId}`), ...approved.map(([providerId]) => `approvedForTrustedSetup=${providerId}`)],
-      [".visual-hive/costs.json", ".visual-hive/provider-decisions.json"],
-      ["Confirm credentials, budget policy, and trusted workflow boundaries before external upload."]
+      [
+        ...externalEnabled.map(([providerId]) => `provider=${providerId}`),
+        ...approved.map(([providerId]) => `approvedForTrustedSetup=${providerId}`),
+        ...setupEvidence
+      ],
+      [".visual-hive/costs.json", ".visual-hive/provider-decisions.json", ".visual-hive/provider-setup-plan.json"],
+      setupPlanMatchesEnabledProvider
+        ? ["Confirm credentials, budget policy, and trusted workflow boundaries before external upload."]
+        : ["Write `visual-hive providers plan --provider <id>` for the enabled provider before external upload."]
     )
   ];
 }
