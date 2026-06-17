@@ -204,7 +204,7 @@ function appendReadiness(lines: string[], report?: ReadinessReport): void {
 function appendProviderAdapterEvidence(lines: string[], providerRunReport?: MockProviderRunReport): void {
   if (!providerRunReport) {
     lines.push("- No provider adapter mock-results artifact was reported.");
-    lines.push("- Run `visual-hive providers --mock-results` after deterministic checks to include adapter operation evidence.");
+    lines.push("- Run `visual-hive providers list --mock-results` after deterministic checks to include adapter operation evidence.");
     return;
   }
 

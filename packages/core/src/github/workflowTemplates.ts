@@ -44,7 +44,7 @@ jobs:
         if: always()
       - run: npx visual-hive workflows
         if: always()
-      - run: npx visual-hive providers --mock-results
+      - run: npx visual-hive providers list --mock-results
         if: always()
       - run: npx visual-hive risk
         if: always()
@@ -238,7 +238,7 @@ jobs:
         if: always()
       - run: npx visual-hive workflows
         if: always()
-      - run: npx visual-hive providers --mock-results
+      - run: npx visual-hive providers list --mock-results
         if: always()
       - run: npx visual-hive risk
         if: always()

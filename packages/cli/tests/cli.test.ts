@@ -20,9 +20,11 @@ import {
 import { runTriageCommand } from "../src/commands/triage.js";
 import {
   formatProviderDecision,
+  formatProviderSetupPlan,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
+  runProviderSetupPlanCommand,
   runProvidersCommand,
   runProvidersMockCommand
 } from "../src/commands/providers.js";
@@ -203,7 +205,7 @@ contracts:
       expect(packageJson.scripts["demo:all"]).toContain(command);
       expect(packageJson.scripts["demo:ci"]).toContain(command);
     }
-    expect(packageJson.scripts["demo:providers"]).toContain("providers --config");
+    expect(packageJson.scripts["demo:providers"]).toContain("providers list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
@@ -1495,7 +1497,7 @@ contracts:
     expect(prWorkflow).toContain("include-hidden-files: true");
     expect(prWorkflow).toContain("npx visual-hive baselines list --write");
     expect(prWorkflow).toContain("npx visual-hive workflows");
-    expect(prWorkflow).toContain("npx visual-hive providers --mock-results");
+    expect(prWorkflow).toContain("npx visual-hive providers list --mock-results");
     expect(prWorkflow).toContain("npx visual-hive risk");
     expect(prWorkflow).toContain("npx visual-hive security");
     expect(prWorkflow).toContain("npx visual-hive costs");
@@ -1507,7 +1509,7 @@ contracts:
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
     expect(scheduledWorkflow).toContain("npx visual-hive baselines list --write");
     expect(scheduledWorkflow).toContain("npx visual-hive workflows");
-    expect(scheduledWorkflow).toContain("npx visual-hive providers --mock-results");
+    expect(scheduledWorkflow).toContain("npx visual-hive providers list --mock-results");
     expect(scheduledWorkflow).toContain("npx visual-hive risk");
     expect(scheduledWorkflow).toContain("npx visual-hive security");
     expect(scheduledWorkflow).toContain("npx visual-hive costs");
@@ -2086,6 +2088,47 @@ providers:
     await expect(
       runProviderDecisionCommand({ cwd: tempRoot, providerId: "not-real", decision: "skip" })
     ).rejects.toThrow(/Unknown provider/);
+  });
+
+  it("writes provider setup plans from the CLI without enabling external calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-provider-plan-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: provider-plan
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+providers:
+  argos:
+    enabled: true
+    projectId: "visual-hive/demo"
+`,
+      "utf8"
+    );
+
+    const result = await runProviderSetupPlanCommand({ cwd: tempRoot, providerId: "argos" });
+    const written = await readJson<typeof result.plan>(result.planPath);
+    const summary = formatProviderSetupPlan(result);
+
+    expect(result.planPath).toBe(path.join(tempRoot, ".visual-hive", "provider-setup-plan.json"));
+    expect(written).toMatchObject({
+      providerId: "argos",
+      label: "Argos",
+      authorizationRequired: true,
+      externalCallsMade: 0
+    });
+    expect(summary).toContain("Provider Setup Plan: Argos");
+    expect(summary).toContain("External calls made: 0");
+    expect(summary).toContain("visual-hive providers list --mock-results");
+    expect(summary).not.toContain("secret");
+    await expect(access(path.join(tempRoot, ".visual-hive", "provider-setup-plan.json"))).resolves.toBeUndefined();
   });
 
   it("records LLM governance decisions from the CLI without model calls", async () => {

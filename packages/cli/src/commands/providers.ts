@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   inspectProviders,
   loadConfig,
+  buildProviderSetupPlan,
   recordProviderDecision,
   readJson,
   runMockProviderAdapters,
@@ -10,6 +11,7 @@ import {
   type ProviderDecision,
   type ProviderDecisionEntry,
   type ProviderInspection,
+  type ProviderSetupPlan,
   type Report
 } from "@visual-hive/core";
 
@@ -29,6 +31,13 @@ export interface ProviderDecisionCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface ProviderSetupPlanCommandOptions {
+  config?: string;
+  cwd?: string;
+  providerId: string;
+  format?: "markdown" | "json";
+}
+
 export interface ProvidersMockCommandResult {
   report: MockProviderRunReport;
   reportPath: string;
@@ -38,6 +47,11 @@ export interface ProviderDecisionCommandResult {
   decision: ProviderDecisionEntry;
   decisionPath: string;
   summary: ProviderDecisionEntry[];
+}
+
+export interface ProviderSetupPlanCommandResult {
+  plan: ProviderSetupPlan;
+  planPath: string;
 }
 
 export async function runProvidersCommand(options: ProvidersCommandOptions = {}): Promise<ProviderInspection[]> {
@@ -86,7 +100,7 @@ export async function runProviderDecisionCommand(options: ProviderDecisionComman
   const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
   const provider = inspectProviders(loaded.config).find((candidate) => candidate.id === options.providerId);
   if (!provider) {
-    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers" to list configured providers.`);
+    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers list" to list configured providers.`);
   }
   return recordProviderDecision(path.join(loaded.rootDir, ".visual-hive", "provider-decisions.json"), {
     providerId: provider.id,
@@ -94,6 +108,19 @@ export async function runProviderDecisionCommand(options: ProviderDecisionComman
     decision: options.decision,
     reason: options.reason
   });
+}
+
+export async function runProviderSetupPlanCommand(options: ProviderSetupPlanCommandOptions): Promise<ProviderSetupPlanCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
+  const provider = inspectProviders(loaded.config).find((candidate) => candidate.id === options.providerId);
+  if (!provider) {
+    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers list" to list configured providers.`);
+  }
+  const plan = buildProviderSetupPlan(loaded.config, { providerId: provider.id });
+  const planPath = path.join(loaded.rootDir, ".visual-hive", "provider-setup-plan.json");
+  await writeJson(planPath, plan);
+  return { plan, planPath };
 }
 
 export function formatProvidersSummary(providers: ProviderInspection[]): string {
@@ -186,6 +213,46 @@ export function formatProviderDecision(result: ProviderDecisionCommandResult, fo
     `- Reason: ${result.decision.reason}`,
     "",
     "This records local governance only. It does not enable credentials, billing, uploads, or provider network calls."
+  ].join("\n");
+}
+
+export function formatProviderSetupPlan(result: ProviderSetupPlanCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        plan: result.plan,
+        planPath: result.planPath
+      },
+      null,
+      2
+    );
+  }
+  const plan = result.plan;
+  return [
+    `Wrote ${result.planPath}`,
+    `# Provider Setup Plan: ${plan.label}`,
+    "",
+    `- Recommendation: ${plan.recommendation}`,
+    `- Availability: ${plan.readiness.availability}`,
+    `- Mode: ${plan.readiness.mode}`,
+    `- Authorization required: ${plan.authorizationRequired ? "yes" : "no"}`,
+    `- External calls made: ${plan.externalCallsMade}`,
+    `- Required env names: ${plan.readiness.requiredEnv.join(", ") || "none"}`,
+    `- Missing env names: ${plan.readiness.missingEnv.join(", ") || "none"}`,
+    `- External upload: ${plan.readiness.externalUploadAllowed ? "allowed" : "blocked"}`,
+    "",
+    "## Config Changes",
+    ...plan.configChanges.map((item) => `- ${item}`),
+    "",
+    "## Workflow Steps",
+    ...plan.workflowSteps.map((item) => `- ${item}`),
+    "",
+    "## Safety Checks",
+    ...plan.safetyChecks.map((item) => `- ${item}`),
+    "",
+    "## Validation Commands",
+    ...plan.validationCommands.map((command) => `- \`${command}\``),
+    ...(plan.warnings.length ? ["", "## Warnings", ...plan.warnings.map((warning) => `- ${warning}`)] : [])
   ].join("\n");
 }
 

@@ -21,6 +21,7 @@ import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../sr
 import { readProviderDecisionLog, recordProviderDecision } from "../src/providers/decisions.js";
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
+import { buildProviderSetupPlan } from "../src/providers/setupPlan.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
@@ -294,6 +295,59 @@ describe("config validation", () => {
       externalUploadAllowed: false,
       estimatedExternalScreenshots: 3
     });
+  });
+
+  it("builds a no-network provider setup plan with required authorization and no secret values", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      providers: {
+        argos: { enabled: true, projectId: "visual-hive/demo" }
+      }
+    });
+
+    const plan = buildProviderSetupPlan(config, {
+      providerId: "argos",
+      env: { ARGOS_TOKEN: "super-secret-token-value" },
+      generatedAt: "2026-06-15T00:00:00.000Z"
+    });
+
+    expect(plan).toMatchObject({
+      schemaVersion: 1,
+      project: "sample",
+      providerId: "argos",
+      label: "Argos",
+      recommendation: "blocked",
+      authorizationRequired: true,
+      externalCallsMade: 0,
+      readiness: {
+        enabled: true,
+        mode: "external",
+        missingEnv: [],
+        projectIdConfigured: true,
+        externalUploadAllowed: false
+      }
+    });
+    expect(plan.readiness.externalUploadBlockedReasons.join(" ")).toContain("onFailureOnly=true");
+    expect(plan.configChanges.join(" ")).toContain("costPolicy.externalUpload.pullRequest=false");
+    expect(plan.workflowSteps.join(" ")).toContain("trusted environments");
+    expect(plan.safetyChecks.join(" ")).toContain("sole pass/fail oracle");
+    expect(plan.validationCommands).toContain("visual-hive providers list --mock-results");
+    expect(JSON.stringify(plan)).not.toContain("super-secret-token-value");
+  });
+
+  it("keeps disabled providers advisory in setup plans", () => {
+    const plan = buildProviderSetupPlan(sampleConfig(), {
+      providerId: "percy",
+      env: {},
+      generatedAt: "2026-06-15T00:00:00.000Z"
+    });
+
+    expect(plan.recommendation).toBe("keep_disabled");
+    expect(plan.authorizationRequired).toBe(true);
+    expect(plan.readiness.missingEnv).toEqual(["PERCY_TOKEN"]);
+    expect(plan.configChanges.join(" ")).toContain("enabled=true only after approving");
+    expect(plan.warnings.join(" ")).toContain("Provider is currently disabled");
+    expect(plan.externalCallsMade).toBe(0);
   });
 
   it("runs mock provider adapter operations without leaking credential values", () => {
@@ -1944,10 +1998,10 @@ jobs:
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
-    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
+    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers list --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
       expect(prTemplate).toContain(`npx visual-hive ${command}`);
     }
-    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
+    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers list --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
       expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
     }
     expect(prTemplate.indexOf("npx visual-hive readiness")).toBeLessThan(prTemplate.indexOf("npx visual-hive triage"));
@@ -2876,6 +2930,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "costs.json"), '{"providers":[{"blockedReasons":["client_secret=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "readiness.json"), '{"gates":[{"evidence":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "provider-setup-plan.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -2895,7 +2950,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(17);
+    expect(index.summary.artifactCount).toBe(18);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2944,6 +2999,10 @@ describe("artifact index", () => {
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");
     expect(providerDecisions?.schemaPath).toBe("schemas/visual-hive.provider-decisions.schema.json");
+    const providerSetupPlan = index.artifacts.find((artifact) => artifact.path.endsWith("provider-setup-plan.json"));
+    expect(providerSetupPlan?.preview).toContain("[REDACTED]");
+    expect(providerSetupPlan?.labels).toContain("provider-setup-plan");
+    expect(providerSetupPlan?.schemaPath).toBe("schemas/visual-hive.provider-setup-plan.schema.json");
     const llmDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"));
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");

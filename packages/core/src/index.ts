@@ -31,6 +31,7 @@ export * from "./providers/adapter.js";
 export * from "./providers/inspect.js";
 export * from "./providers/mock.js";
 export * from "./providers/decisions.js";
+export * from "./providers/setupPlan.js";
 export * from "./mutations/score.js";
 export * from "./mutations/operators.js";
 export * from "./utils/files.js";

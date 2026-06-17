@@ -1666,7 +1666,7 @@ function providerResultsCard(results) {
 }
 
 function providerRunResultsCard(report) {
-  if (!report) return card("Provider adapter run", '<p class="muted">No provider-results.json found. Run visual-hive providers --mock-results after a deterministic run.</p>');
+  if (!report) return card("Provider adapter run", '<p class="muted">No provider-results.json found. Run visual-hive providers list --mock-results after a deterministic run.</p>');
   return card("Provider adapter run", '<p><b>Source deterministic status:</b> ' + esc(report.deterministicStatus) + '</p><p><b>Artifacts:</b> ' + esc(report.artifactCount) + '</p>' +
     table(["Provider", "Availability", "Result", "Network", "Upload", "Policy", "Operations", "Metadata"], report.providers.map(p => [p.label, p.availability, p.result.status, p.normalized?.networkMode || "unknown", p.normalized?.artifactSummary?.uploadMode || "unknown", providerExternalPolicy(p.result, p.normalized), p.operations.map(o => o.operation + ":" + o.status).join(", "), providerMetadataSummary(p)])));
 }

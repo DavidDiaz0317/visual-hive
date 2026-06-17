@@ -20,7 +20,7 @@ Percy, Chromatic, Argos, and Applitools are valuable visual testing products. Vi
 
 ## How they work together
 
-Visual Hive can run first to decide which targets/contracts deserve attention. The v0.2 adapter surface can inspect optional provider readiness, report missing credential names, and run mock-mode adapters without external accounts. `visual-hive providers --mock-results` writes `.visual-hive/provider-results.json` with availability, artifact upload, compare, fetch, normalize, and report-metadata operation evidence. Future external adapters can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
+Visual Hive can run first to decide which targets/contracts deserve attention. The v0.2 adapter surface can inspect optional provider readiness, report missing credential names, and run mock-mode adapters without external accounts. `visual-hive providers list --mock-results` writes `.visual-hive/provider-results.json` with availability, artifact upload, compare, fetch, normalize, and report-metadata operation evidence. Future external adapters can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
 
 Visual Hive also owns external upload policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, and still report `externalCallsMade: 0` unless a future trusted adapter explicitly performs a network call.
 
@@ -29,10 +29,13 @@ The CLI and Control Plane use the same core governance helper to record provider
 CLI-only example:
 
 ```bash
+visual-hive providers plan --provider argos
 visual-hive providers decision --provider argos --decision skip --reason "Playwright artifacts are enough for this repo right now"
 visual-hive providers decision --provider percy --decision review_later
 visual-hive providers decision --provider applitools --decision approve_trusted_setup
 ```
+
+`visual-hive providers plan --provider <id>` writes `.visual-hive/provider-setup-plan.json`. The plan is a no-network readiness artifact: it lists required environment variable names, missing credential names, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`. It helps a maintainer prepare a provider-backed scheduled lane without silently enabling billing, credentials, external uploads, or provider API calls.
 
 Each command writes a sanitized local audit entry and records `externalCallsMade: 0`.
 

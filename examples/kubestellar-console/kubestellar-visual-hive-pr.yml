@@ -35,7 +35,7 @@ jobs:
         if: always()
       - run: npx visual-hive workflows --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
-      - run: npx visual-hive providers --config examples/kubestellar-console/visual-hive.config.yaml --mock-results
+      - run: npx visual-hive providers list --config examples/kubestellar-console/visual-hive.config.yaml --mock-results
         if: always()
       - run: npx visual-hive risk --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()

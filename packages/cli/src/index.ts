@@ -19,9 +19,11 @@ import {
 } from "./commands/baselines.js";
 import {
   formatProviderDecision,
+  formatProviderSetupPlan,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
+  runProviderSetupPlanCommand,
   runProvidersCommand,
   runProvidersMockCommand
 } from "./commands/providers.js";
@@ -196,6 +198,10 @@ program
 
 const providersCommand = program
   .command("providers")
+  .description("Inspect and govern optional provider adapters");
+
+providersCommand
+  .command("list", { isDefault: true })
   .description("Inspect optional provider adapters and credential-name readiness")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--mock-results", "write .visual-hive/provider-results.json using mock/no-network adapter operations")
@@ -233,6 +239,25 @@ providersCommand
         format: options.format
       });
       console.log(formatProviderDecision(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+providersCommand
+  .command("plan")
+  .description("Write a no-network provider setup plan for trusted review")
+  .requiredOption("--provider <id>", "provider id, for example argos, percy, chromatic, or applitools")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runProviderSetupPlanCommand({
+        config: options.config,
+        providerId: options.provider,
+        format: options.format
+      });
+      console.log(formatProviderSetupPlan(result, options.format));
     } catch (error) {
       fail(error);
     }

@@ -132,8 +132,9 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive llm decision`: records a local sanitized LLM governance decision in `.visual-hive/llm-decisions.json` without enabling API keys or model calls.
 - `visual-hive report`: prints markdown or JSON, includes readiness evidence when `.visual-hive/readiness.json` exists, and can append to `GITHUB_STEP_SUMMARY`.
 - `visual-hive baselines list|approve|reject`: inspect screenshot baselines, write `.visual-hive/baselines.json` with `baselines list --write`, and explicitly approve or reject reviewed screenshots with audit records.
-- `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
-- `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
+- `visual-hive providers list`: inspect optional provider adapters and missing credential names without calling paid services.
+- `visual-hive providers list --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
+- `visual-hive providers plan --provider argos`: write `.visual-hive/provider-setup-plan.json`, a no-network provider setup plan with required env names, config changes, trusted workflow steps, safety checks, and validation commands.
 - `visual-hive providers decision`: records a local sanitized provider governance decision in `.visual-hive/provider-decisions.json` without enabling credentials, billing, uploads, or provider network calls.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, flows, mutation, failures, and raw artifacts.
 
