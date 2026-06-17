@@ -8,6 +8,7 @@ import {
   addConnection,
   applyCoverageImprovementRecommendation,
   approveBaseline,
+  buildProviderSetupPlan,
   recommendSetup,
   rejectBaseline,
   removeConnection,
@@ -340,6 +341,43 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
           source: "control-plane"
         });
         sendJson(response, result);
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
+      return;
+    }
+    if (url.pathname === "/api/providers/setup-plan") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to write provider setup plans." }, 403);
+        return;
+      }
+      if (body.confirm !== true) {
+        sendJson(response, { ok: false, error: "Provider setup planning requires explicit confirmation. No provider calls were made." }, 400);
+        return;
+      }
+      const providerId = requiredString(body.providerId, "providerId");
+      const snapshot = await createControlPlaneSnapshot(options, connectionIdFromUrl(url));
+      if (!snapshot.config) {
+        sendJson(response, { ok: false, error: "A valid Visual Hive config is required before writing provider setup plans." }, 400);
+        return;
+      }
+      const provider = snapshot.providers.find((candidate) => candidate.id === providerId);
+      if (!provider) {
+        sendJson(response, { ok: false, error: `Unknown provider "${sanitizeText(providerId)}".` }, 404);
+        return;
+      }
+      try {
+        const plan = buildProviderSetupPlan(snapshot.config, { providerId: provider.id });
+        const absolutePath = path.join(resolved.configRoot, ".visual-hive", "provider-setup-plan.json");
+        await writeJson(absolutePath, plan);
+        sendJson(response, {
+          ok: true,
+          planPath: ".visual-hive/provider-setup-plan.json",
+          plan
+        });
       } catch (error) {
         sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
       }

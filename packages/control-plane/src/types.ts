@@ -10,6 +10,7 @@ import type {
   MutationReport,
   MockProviderRunReport,
   ProviderInspection,
+  ProviderSetupPlan,
   Report,
   RiskRegisterReport,
   ReadinessReport,
@@ -226,6 +227,7 @@ export interface ControlPlaneSnapshot {
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;
+  providerSetupPlan?: ProviderSetupPlan;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
   flowAudit?: FlowAuditReport;

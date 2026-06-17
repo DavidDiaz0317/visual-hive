@@ -901,6 +901,7 @@ describe("control plane", () => {
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.changedFiles).toContain("src/App.tsx");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.providerSetupPlan).toBeUndefined();
     expect(snapshot.mutationReport?.score).toBe(0.5);
     expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
     expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
@@ -1716,8 +1717,11 @@ contracts:
       expect(appJs).toContain("function providerCredentialSummary");
       expect(appJs).toContain("function providerInspectionPolicy");
       expect(appJs).toContain("function providerDecisionCard");
+      expect(appJs).toContain("function providerSetupPlanCard");
       expect(appJs).toContain("provider-decision");
+      expect(appJs).toContain("provider-setup-plan");
       expect(appJs).toContain("/api/providers/decision");
+      expect(appJs).toContain("/api/providers/setup-plan");
       expect(appJs).toContain("Playwright remains local and deterministic");
       expect(appJs).toContain("Runbook");
       expect(appJs).toContain("function reportSelectionCards");
@@ -1881,7 +1885,10 @@ contracts:
     expect(controlPlaneJs).toContain("function providerDetailBody");
     expect(controlPlaneJs).toContain("function providerDecisionCard");
     expect(controlPlaneJs).toContain("function recordProviderDecision");
+    expect(controlPlaneJs).toContain("function providerSetupPlanCard");
+    expect(controlPlaneJs).toContain("function writeProviderSetupPlan");
     expect(controlPlaneJs).toContain("/api/providers/decision");
+    expect(controlPlaneJs).toContain("/api/providers/setup-plan");
     expect(controlPlaneJs).toContain("function llmDecisionCard");
     expect(controlPlaneJs).toContain("function recordLLMDecision");
     expect(controlPlaneJs).toContain("/api/llm/decision");
@@ -2387,6 +2394,47 @@ contracts:
     }
   });
 
+  it("writes provider setup plans without making external provider calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: "argos",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.planPath).toBe(".visual-hive/provider-setup-plan.json");
+      expect(payload.plan).toMatchObject({
+        schemaVersion: 1,
+        providerId: "argos",
+        label: "Argos",
+        recommendation: "keep_disabled",
+        authorizationRequired: true,
+        externalCallsMade: 0
+      });
+      expect(payload.plan.readiness.requiredEnv).toEqual(["ARGOS_TOKEN"]);
+      expect(JSON.stringify(payload)).not.toContain("secret-value");
+
+      const plan = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-setup-plan.json"), "utf8"));
+      expect(plan.providerId).toBe("argos");
+      expect(plan.externalCallsMade).toBe(0);
+      expect(plan.validationCommands).toContain("visual-hive providers list --mock-results");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.providerSetupPlan?.providerId).toBe("argos");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-setup-plan.json"))?.labels).toContain("provider-setup-plan");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects unconfirmed, unknown, and invalid provider decisions", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
@@ -2418,6 +2466,43 @@ contracts:
       });
     } finally {
       await server.close();
+    }
+  });
+
+  it("rejects unconfirmed, unknown, and read-only provider setup planning", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    const readOnlyServer = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const unknown = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "unknown-provider", confirm: true })
+      });
+      expect(unknown.status).toBe(404);
+
+      const readOnly = await fetch(`${readOnlyServer.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", confirm: true })
+      });
+      const readOnlyPayload = await readOnly.json();
+      expect(readOnly.status).toBe(403);
+      expect(readOnlyPayload.error).toContain("read-only");
+
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-setup-plan.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+      await readOnlyServer.close();
     }
   });
 

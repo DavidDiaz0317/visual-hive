@@ -35,7 +35,7 @@ visual-hive providers decision --provider percy --decision review_later
 visual-hive providers decision --provider applitools --decision approve_trusted_setup
 ```
 
-`visual-hive providers plan --provider <id>` writes `.visual-hive/provider-setup-plan.json`. The plan is a no-network readiness artifact: it lists required environment variable names, missing credential names, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`. It helps a maintainer prepare a provider-backed scheduled lane without silently enabling billing, credentials, external uploads, or provider API calls.
+`visual-hive providers plan --provider <id>` writes `.visual-hive/provider-setup-plan.json`. The Control Plane Providers page can write the same artifact after explicit confirmation. The plan is a no-network readiness artifact: it lists required environment variable names, missing credential names, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`. It helps a maintainer prepare a provider-backed scheduled lane without silently enabling billing, credentials, external uploads, or provider API calls.
 
 Each command writes a sanitized local audit entry and records `externalCallsMade: 0`.
 

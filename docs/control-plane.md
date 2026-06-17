@@ -37,8 +37,9 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Setup docs generation into `docs/visual-hive.md`, with overwrite protection, explicit confirmation, and `.visual-hive/setup-doc-edits.json`
 - Setup PR bundle generation for the recommended config, repo docs, and built-in workflow templates, with overwrite protection and `.visual-hive/setup-bundle-edits.json`
 - Target and contract managers
-- Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions and blocked reasons
+- Schedule, GitHub, LLM, and provider settings, including external upload cost-policy decisions, blocked reasons, provider setup plans, and provider governance decisions
 - LLM decisions, including explicit local records to keep LLM use disabled, review it later, or approve prompt-only review in a trusted lane
+- Provider setup planning, including no-network `.visual-hive/provider-setup-plan.json` artifacts that list required credential names, missing credential names, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`
 - Provider decisions, including explicit local records to skip a supplemental provider, review it later, or approve it only for a future trusted setup review
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy/write buttons
 - Guarded workflow template generation into `.github/workflows`, with overwrite protection, explicit confirmation, and `.visual-hive/workflow-edits.json`
@@ -60,11 +61,12 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Config editing validates against the same zod schema as the CLI, returns a diff before saving, requires explicit confirmation, and records `.visual-hive/config-edits.json`.
 - Coverage recommendation application reads `.visual-hive/coverage-recommendations.json`, validates the resulting config, previews a diff first, and writes through the audited config editor only after explicit confirmation.
 - Setup profile regeneration writes only `.visual-hive/recommendations.json` for one of the supported deterministic profiles. It does not alter config, docs, workflows, baselines, or target code.
-- Setup action recommendations are display/copy guidance until an explicit guarded write or governance-decision action is confirmed. Provider actions record local decisions only and never enable credentials, billing, uploads, or network calls.
+- Setup action recommendations are display/copy guidance until an explicit guarded write or governance-decision action is confirmed. Provider setup-plan actions write local readiness artifacts only. Provider decision actions record local decisions only. Neither action enables credentials, billing, uploads, or network calls.
 - Setup config generation reads only `.visual-hive/recommendations.json`, validates `recommendedConfigYaml`, refuses to overwrite an existing config unless the user confirms the overwrite action, and records `.visual-hive/config-edits.json`.
 - Setup docs generation reads only `.visual-hive/recommendations.json`, writes `docs/visual-hive.md`, refuses to overwrite existing docs unless the user confirms the overwrite action, and records `.visual-hive/setup-doc-edits.json`.
 - Setup PR bundle generation preflights all output files before writing. It writes `visual-hive.config.yaml`, `docs/visual-hive.md`, and the built-in PR/scheduled/trusted-issue workflow templates only after confirmation, then records `.visual-hive/setup-bundle-edits.json`.
 - Workflow template generation writes only built-in Visual Hive templates to `.github/workflows`, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/workflow-edits.json`.
+- Provider setup planning writes only `.visual-hive/provider-setup-plan.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
 - Provider decision recording writes only `.visual-hive/provider-decisions.json`, records `externalCallsMade: 0`, and does not enable credentials, billing, uploads, or provider network calls.
 - LLM decision recording writes only `.visual-hive/llm-decisions.json`, records `externalCallsMade: 0`, and does not enable API keys, billing, model calls, or pass/fail authority.
 - The Runbook page executes only allowlisted local commands in write mode: doctor, PR plan, deterministic CI run, triage/report, and mutation adequacy. It never executes trusted/protected lanes, secret-bearing lanes, or arbitrary browser-supplied shell text.
@@ -73,7 +75,7 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Protected or secret-bearing profiles are shown as guidance-only and cannot be launched from the local UI.
 - Runbook execution records a bounded, sanitized audit trail in `.visual-hive/control-plane-actions.json`. Secret-like values in stdout/stderr are redacted before the action history is written or returned to the browser.
 - The Actions tab renders that same audit trail so local operators can see what the UI ran and inspect sanitized output without opening raw files.
-- `--read-only` disables write actions such as baseline review decisions, setup profile regeneration, setup config/docs generation, workflow template generation, provider decision recording, LLM decision recording, config saving, and connection add/remove.
+- `--read-only` disables write actions such as baseline review decisions, setup profile regeneration, setup config/docs generation, workflow template generation, provider setup planning, provider decision recording, LLM decision recording, config saving, and connection add/remove.
 - `--read-only` also disables runbook execution; the Runbook remains copy-only in that mode.
 - LLM/provider settings are displayed from config, but no LLM or paid provider calls happen by default.
 

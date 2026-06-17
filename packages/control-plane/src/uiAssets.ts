@@ -1346,6 +1346,7 @@ function providers() {
     '</div><div class="section" style="margin-top:14px">' +
     providerCostPolicyCard() +
     providerDecisionCard() +
+    providerSetupPlanCard() +
     card("Provider adapters", table(["Provider", "Enabled", "Status", "Mode", "Role", "Credentials", "External upload", "Decision", "Supports"], snapshot.providers.map(p => [
       '<b>' + esc(p.label) + '</b><p class="muted">' + esc(p.docs) + '</p>',
       p.enabled ? "yes" : "no",
@@ -1375,7 +1376,8 @@ function providerDecisionCard() {
         ? '<span class="muted">read-only</span>'
         : '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="skip">Skip provider</button> ' +
           '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="review_later">Review later</button> ' +
-          '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="approve_trusted_setup">Approve trusted setup review</button>'
+          '<button class="button link-button provider-decision" data-provider="' + escAttr(provider.id) + '" data-decision="approve_trusted_setup">Approve trusted setup review</button> ' +
+          '<button class="button link-button provider-setup-plan" data-provider="' + escAttr(provider.id) + '">Write setup plan</button>'
     ]);
   return card(
     "Provider decisions",
@@ -1384,6 +1386,44 @@ function providerDecisionCard() {
       '<p id="provider-decision-status" class="muted">' +
       (log?.decisions?.length ? "Latest decision: " + esc(log.decisions[0].providerId + " -> " + log.decisions[0].decision) : "No provider decisions recorded yet.") +
       '</p>'
+  );
+}
+
+function providerSetupPlanCard() {
+  const plan = snapshot.providerSetupPlan;
+  const rows = snapshot.providers
+    .filter(provider => provider.id !== "playwright")
+    .map(provider => [
+      '<b>' + esc(provider.label) + '</b><p class="muted">' + esc(provider.id) + '</p>',
+      providerCredentialSummary(provider),
+      providerInspectionPolicy(provider),
+      snapshot.readOnly
+        ? '<span class="muted">read-only</span>'
+        : '<button class="button provider-setup-plan" data-provider="' + escAttr(provider.id) + '">Write no-network setup plan</button>'
+    ]);
+  const latest = plan
+    ? '<h3>Latest setup plan</h3>' +
+      table(["Field", "Value"], [
+        ["Provider", esc(plan.label) + " (" + esc(plan.providerId) + ")"],
+        ["Recommendation", esc(plan.recommendation)],
+        ["Authorization required", plan.authorizationRequired ? "yes" : "no"],
+        ["External calls made", String(plan.externalCallsMade)],
+        ["Required env names", esc(plan.readiness.requiredEnv.join(", ") || "none")],
+        ["Missing env names", esc(plan.readiness.missingEnv.join(", ") || "none")],
+        ["External upload", plan.readiness.externalUploadAllowed ? '<span class="ok">allowed</span>' : '<span class="warn">blocked</span>']
+      ]) +
+      '<h3>Workflow steps</h3>' + list(plan.workflowSteps || []) +
+      '<h3>Safety checks</h3>' + list(plan.safetyChecks || []) +
+      (plan.warnings?.length ? '<h3>Warnings</h3>' + list(plan.warnings) : '')
+    : '<p class="muted">No provider setup plan found. Generate one to review required credential names, trusted workflow steps, validation commands, and safety checks before enabling any external provider.</p>';
+  return card(
+    "Provider setup planning",
+    '<p class="muted">Setup plans are no-network readiness artifacts. They do not create credentials, enable billing, upload screenshots, or call provider APIs.</p>' +
+      (rows.length ? table(["Provider", "Credentials", "Policy", "Action"], rows) : '<p class="muted">No supplemental providers are configured.</p>') +
+      '<p id="provider-setup-plan-status" class="muted">' +
+      (plan ? "Latest setup plan: " + esc(plan.providerId + " -> " + plan.recommendation) : "No provider setup plan written yet.") +
+      '</p>' +
+      latest
   );
 }
 
@@ -1796,6 +1836,7 @@ function wireActions() {
   if (setupOverwriteBundle) setupOverwriteBundle.addEventListener("click", () => writeSetupBundle(true));
   document.querySelectorAll(".setup-profile-select").forEach((button) => button.addEventListener("click", () => regenerateSetupRecommendation(button.dataset.profile || "")));
   document.querySelectorAll(".provider-decision").forEach((button) => button.addEventListener("click", () => recordProviderDecision(button.dataset.provider || "", button.dataset.decision || "")));
+  document.querySelectorAll(".provider-setup-plan").forEach((button) => button.addEventListener("click", () => writeProviderSetupPlan(button.dataset.provider || "")));
   document.querySelectorAll(".llm-decision").forEach((button) => button.addEventListener("click", () => recordLLMDecision(button.dataset.decision || "")));
   document.querySelectorAll(".coverage-apply").forEach((button) => button.addEventListener("click", () => applyCoverageRecommendation(button.dataset.id || "", button.dataset.save === "true")));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
@@ -2031,6 +2072,31 @@ async function recordProviderDecision(providerId, decision) {
   }
   status.className = "ok";
   status.textContent = "Provider decision recorded: " + payload.decision.providerId + " -> " + payload.decision.decision + ". Artifact: " + payload.decisionPath;
+  snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+  render();
+}
+
+async function writeProviderSetupPlan(providerId) {
+  const status = document.querySelector("#provider-setup-plan-status");
+  if (!providerId || !status) return;
+  if (!confirm("Write a no-network provider setup plan for " + providerId + "? This writes only .visual-hive/provider-setup-plan.json and makes no external calls.")) return;
+  status.className = "muted";
+  status.textContent = "Writing provider setup plan...";
+  const response = await fetch(apiUrl("/api/providers/setup-plan"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ providerId, confirm: true })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Provider setup plan failed.";
+    return;
+  }
+  status.className = "ok";
+  status.textContent = "Provider setup plan written for " + payload.plan.providerId + ". Artifact: " + payload.planPath + ". External calls made: " + payload.plan.externalCallsMade;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
 }
