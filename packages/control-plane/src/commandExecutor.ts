@@ -27,6 +27,9 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "mutate",
   "security",
   "costs",
+  "providers",
+  "provider-plan",
+  "provider-handoff",
   "readiness",
   "connections-portfolio"
 ]);
@@ -61,7 +64,7 @@ export async function executeRunbookCommand(input: ExecuteCommandInput): Promise
   }
 
   const runner = input.options.commandRunner ?? defaultCommandRunner(input.options);
-  const steps = commandSteps(input.command.id, input.resolved.configPath);
+  const steps = commandSteps(input.command, input.resolved.configPath);
   const stepResults: ControlPlaneCommandStepResult[] = [];
   let status: ControlPlaneCommandExecution["status"] = "passed";
   let message = "Command completed successfully.";
@@ -175,8 +178,8 @@ function blockReason(resolved: ResolvedControlPlaneOptions, command: ControlPlan
   return undefined;
 }
 
-function commandSteps(commandId: string, configPath: string): CommandStep[] {
-  switch (commandId) {
+function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): CommandStep[] {
+  switch (command.id) {
     case "doctor":
       return [{ stepId: "doctor", args: ["doctor", "--config", configPath] }];
     case "plan-pr":
@@ -200,6 +203,12 @@ function commandSteps(commandId: string, configPath: string): CommandStep[] {
       return [{ stepId: "security", args: ["security", "--config", configPath] }];
     case "costs":
       return [{ stepId: "costs", args: ["costs", "--config", configPath] }];
+    case "providers":
+      return [{ stepId: "providers", args: ["providers", "list", "--config", configPath, "--mock-results"] }];
+    case "provider-plan":
+      return [{ stepId: "provider-plan", args: ["providers", "plan", "--config", configPath, "--provider", providerIdFromCommand(command)] }];
+    case "provider-handoff":
+      return [{ stepId: "provider-handoff", args: ["providers", "handoff", "--config", configPath, "--provider", providerIdFromCommand(command)] }];
     case "readiness":
       return [{ stepId: "readiness", args: ["readiness", "--config", configPath] }];
     case "connections-portfolio":
@@ -207,6 +216,13 @@ function commandSteps(commandId: string, configPath: string): CommandStep[] {
     default:
       return [];
   }
+}
+
+function providerIdFromCommand(command: ControlPlaneRunbookCommand): string {
+  const parts = command.command.split(/\s+/);
+  const providerFlagIndex = parts.indexOf("--provider");
+  const providerId = providerFlagIndex >= 0 ? parts[providerFlagIndex + 1] : undefined;
+  return providerId && !providerId.startsWith("-") ? providerId : "argos";
 }
 
 function defaultCommandRunner(options: ControlPlaneOptions): ControlPlaneCommandRunner {

@@ -1868,6 +1868,54 @@ contracts:
     }
   });
 
+  it("executes the provider-governance profile as no-network provider handoff workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "provider-governance" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "providers",
+        "provider-plan",
+        "provider-handoff",
+        "costs",
+        "readiness"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "providers:providers",
+        "provider-plan:provider-plan",
+        "provider-handoff:provider-handoff",
+        "costs:costs",
+        "readiness:readiness"
+      ]);
+      expect(calls[0]?.args.slice(-5)).toEqual(["providers", "list", "--config", path.resolve(fixture.configPath), "--mock-results"]);
+      expect(calls[1]?.args.slice(-6)).toEqual(["providers", "plan", "--config", path.resolve(fixture.configPath), "--provider", "argos"]);
+      expect(calls[2]?.args.slice(-6)).toEqual(["providers", "handoff", "--config", path.resolve(fixture.configPath), "--provider", "argos"]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(5);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("readiness");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("blocks guidance-only protected run profiles", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
