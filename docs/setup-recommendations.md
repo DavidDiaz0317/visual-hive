@@ -57,6 +57,7 @@ Important fields:
 - `costEstimate`: local screenshot count, external screenshot count, CI runtime class, monthly external screenshot estimate, and notes
 - `permissions`: least-privilege PR and scheduled-lane recommendations
 - `setupPullRequest`: suggested setup PR title, files, steps, and security notes
+- `workflowPreviews`: built-in PR, scheduled, and trusted failure-issue workflow snippets with paths, descriptions, and safety notes
 - `recommendedConfig`: parsed Visual Hive config object
 - `recommendedConfigYaml`: YAML that can be written as `visual-hive.config.yaml`
 - `recommendedTarget`: target kind, URL, commands, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs
@@ -69,4 +70,4 @@ For Storybook repositories, the generated starter contracts target up to the fir
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, workflow previews, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.

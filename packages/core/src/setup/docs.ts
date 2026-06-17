@@ -84,6 +84,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...setupPrLines(report),
     "",
+    "## Workflow Previews",
+    "",
+    ...workflowPreviewLines(report),
+    "",
     "## Security Rules",
     "",
     "- Use `pull_request`, not `pull_request_target`, for workflows that execute PR code.",
@@ -150,6 +154,22 @@ function setupPrLines(report: SetupRecommendationReport): string[] {
     ...report.setupPullRequest.steps.map((step) => `- ${safe(step)}`),
     ...report.setupPullRequest.securityNotes.map((note) => `- Security: ${safe(note)}`)
   ];
+}
+
+function workflowPreviewLines(report: SetupRecommendationReport): string[] {
+  if (!report.workflowPreviews?.length) return ["No workflow previews were generated."];
+  return report.workflowPreviews.flatMap((workflow) => [
+    `### ${safe(workflow.label)}`,
+    "",
+    `- Path: ${safe(workflow.path)}`,
+    `- Purpose: ${safe(workflow.description)}`,
+    `- Safety notes: ${listInline(workflow.safetyNotes)}`,
+    "",
+    "```yaml",
+    safe(workflow.content).trim(),
+    "```",
+    ""
+  ]);
 }
 
 function warningLines(report: SetupRecommendationReport): string[] {

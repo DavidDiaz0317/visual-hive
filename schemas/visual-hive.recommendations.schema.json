@@ -49,6 +49,10 @@
     "costEstimate": { "$ref": "#/$defs/costEstimate" },
     "permissions": { "$ref": "#/$defs/permissions" },
     "setupPullRequest": { "$ref": "#/$defs/setupPullRequest" },
+    "workflowPreviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflowPreview" }
+    },
     "recommendedConfig": { "type": "object" },
     "recommendedConfigYaml": { "type": "string" },
     "detectedSelectors": {
@@ -174,6 +178,19 @@
         "files": { "type": "array", "items": { "type": "string" } },
         "steps": { "type": "array", "items": { "type": "string" } },
         "securityNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workflowPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "path", "description", "safetyNotes", "content"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "description": { "type": "string" },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } },
+        "content": { "type": "string" }
       }
     },
     "checklistItem": {

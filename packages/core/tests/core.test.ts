@@ -2589,6 +2589,14 @@ describe("setup recommendations", () => {
       requiredEnv: ["ARGOS_TOKEN"]
     });
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
+    expect(recommendation.workflowPreviews.map((workflow) => workflow.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")).toMatchObject({
+      path: ".github/workflows/visual-hive-pr.yml",
+      label: "Visual Hive PR"
+    });
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("pull_request:");
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("include-hidden-files: true");
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_failure_issue")?.content).toContain("workflow_run:");
     expect(recommendation.onboardingChecklist.map((item) => item.id)).toEqual([
       "inspect-repository",
       "choose-pr-safe-target",
@@ -2616,6 +2624,10 @@ describe("setup recommendations", () => {
     expect(setupDocs).toContain("Playwright built-in");
     expect(setupDocs).toContain("## Onboarding Checklist");
     expect(setupDocs).toContain("### Verify PR safety");
+    expect(setupDocs).toContain("## Workflow Previews");
+    expect(setupDocs).toContain("### Visual Hive PR");
+    expect(setupDocs).toContain(".github/workflows/visual-hive-pr.yml");
+    expect(setupDocs).toContain("include-hidden-files: true");
     expect(setupDocs).toContain("visual-hive workflows --write-templates");
     expect(setupDocs).toContain("Use `pull_request`, not `pull_request_target`");
   });

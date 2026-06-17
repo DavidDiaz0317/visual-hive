@@ -8,6 +8,7 @@ import {
   type TargetConfig,
   type VisualHiveConfig
 } from "../config/schema.js";
+import { githubWorkflowTemplates } from "../github/workflowTemplates.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export interface SetupRecommendationReport {
@@ -20,6 +21,7 @@ export interface SetupRecommendationReport {
   costEstimate: SetupCostEstimate;
   permissions: SetupPermissionRecommendation;
   setupPullRequest: SetupPullRequestRecommendation;
+  workflowPreviews: SetupWorkflowPreview[];
   recommendedConfig: VisualHiveConfig;
   recommendedConfigYaml: string;
   detectedSelectors: SetupDetectedSelector[];
@@ -116,6 +118,15 @@ export interface SetupPullRequestRecommendation {
   securityNotes: string[];
 }
 
+export interface SetupWorkflowPreview {
+  id: string;
+  label: string;
+  path: string;
+  description: string;
+  safetyNotes: string[];
+  content: string;
+}
+
 export interface SetupRecommendationFinding {
   severity: "info" | "warning";
   message: string;
@@ -205,6 +216,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const providerRecommendations = buildProviderRecommendations(inventory, setupProfile);
   const permissions = buildPermissionRecommendation(setupProfile);
   const setupPullRequest = buildSetupPullRequestRecommendation(configPath, setupProfile);
+  const workflowPreviews = buildWorkflowPreviews();
   const recommendedContracts = contracts.map((contract) => ({
     id: contract.config.id,
     targetId: contract.config.target,
@@ -248,6 +260,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     costEstimate,
     permissions,
     setupPullRequest,
+    workflowPreviews,
     recommendedConfig,
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
@@ -277,6 +290,17 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     findings: buildFindings(inventory, target, selector),
     warnings
   };
+}
+
+function buildWorkflowPreviews(): SetupWorkflowPreview[] {
+  return githubWorkflowTemplates.map((template) => ({
+    id: template.id,
+    label: template.label,
+    path: template.path,
+    description: template.description,
+    safetyNotes: template.safetyNotes,
+    content: template.content
+  }));
 }
 
 async function inspectRepository(repoRoot: string): Promise<RepoInventory> {

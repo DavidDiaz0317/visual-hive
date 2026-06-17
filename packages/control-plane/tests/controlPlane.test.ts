@@ -433,6 +433,24 @@ viewports:
           steps: ["Run visual-hive recommend --write-config in the target repo."],
           securityNotes: ["Use pull_request, not pull_request_target, for PR code execution."]
         },
+        workflowPreviews: [
+          {
+            id: "pull_request",
+            label: "Visual Hive PR",
+            path: ".github/workflows/visual-hive-pr.yml",
+            description: "Read-only, no-secret PR validation for PR-safe deterministic contracts.",
+            safetyNotes: ["Uses pull_request, not pull_request_target.", "Uses contents: read only."],
+            content: "name: Visual Hive PR\non:\n  pull_request:\npermissions:\n  contents: read\n"
+          },
+          {
+            id: "trusted_failure_issue",
+            label: "Visual Hive Failure Issue",
+            path: ".github/workflows/visual-hive-failure-issue.yml",
+            description: "Trusted workflow_run issue creation from sanitized artifacts.",
+            safetyNotes: ["Does not checkout or execute PR code."],
+            content: "name: Visual Hive Failure Issue\non:\n  workflow_run:\n"
+          }
+        ],
         recommendedConfig: {},
         recommendedConfigYaml: configYaml,
         detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
@@ -1343,6 +1361,9 @@ contracts:
       expect(appJs).toContain("trusted only");
       expect(appJs).toContain("visual-hive run");
       expect(appJs).toContain("Setup PR guidance");
+      expect(appJs).toContain("function setupWorkflowPreviews");
+      expect(appJs).toContain("Workflow previews");
+      expect(appJs).toContain("Review the generated workflow snippets");
       expect(appJs).toContain("setup-write-config");
       expect(appJs).toContain("/api/setup/write-config");
       expect(appJs).toContain("setup-write-docs");
@@ -1360,6 +1381,7 @@ contracts:
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
+      expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
     } finally {
       await server.close();
     }
@@ -1393,6 +1415,7 @@ contracts:
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function setupDetectedStories");
+    expect(controlPlaneJs).toContain("function setupWorkflowPreviews");
     expect(controlPlaneJs).toContain("Storybook repositories can start with component contracts");
     expect(controlPlaneJs).toContain("function setupProfileSelector");
     expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");

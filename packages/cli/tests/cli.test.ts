@@ -900,9 +900,12 @@ contracts:
     expect(report.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(report.providerRecommendations.find((provider) => provider.providerId === "playwright")?.recommendation).toBe("use");
     expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
+    expect(report.workflowPreviews.map((workflow) => workflow.path)).toContain(".github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Visual Hive Setup Recommendation");
     expect(summary).toContain("Setup profile: free-local");
     expect(summary).toContain("Provider Recommendation");
+    expect(summary).toContain("Workflow Previews");
+    expect(summary).toContain("Visual Hive PR: .github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Onboarding Checklist");
     expect(summary).toContain("[ready] Verify PR safety");
     expect(summary).toContain("PR secrets required: none");
@@ -910,6 +913,8 @@ contracts:
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("## Workflow Previews");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("include-hidden-files: true");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("visual-hive workflows --write-templates");
     await expect(runRecommendCommand({ cwd: tempRoot, writeConfig: true })).rejects.toThrow(/Refusing to overwrite/);
     await expect(runRecommendCommand({ cwd: tempRoot, writeDocs: true })).rejects.toThrow(/Refusing to overwrite existing Visual Hive docs/);

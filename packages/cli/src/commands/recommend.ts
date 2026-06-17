@@ -137,6 +137,15 @@ export function formatSetupRecommendation(
       ...report.setupPullRequest.securityNotes.map((note) => `- Security: ${note}`)
     );
   }
+  if (report.workflowPreviews?.length) {
+    lines.push(
+      "",
+      "## Workflow Previews",
+      ...report.workflowPreviews.map(
+        (workflow) => `- ${workflow.label}: ${workflow.path} - ${workflow.description}`
+      )
+    );
+  }
   if (result.setupBundle) {
     lines.push(
       "",

@@ -547,6 +547,7 @@ function setup() {
     ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
     card("Setup actions", setupActions()) +
     card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
+    setupWorkflowPreviews(recommendation) +
     setupDetectedStories(recommendation) +
     card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
     card("Next commands", list(recommendation.recommendedCommands)) +
@@ -554,6 +555,24 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupWorkflowPreviews(recommendation) {
+  const workflows = recommendation.workflowPreviews || [];
+  if (!workflows.length) {
+    return card("Workflow previews", '<p class="muted">No workflow previews were generated. Re-run <code>visual-hive recommend</code> with a current Visual Hive version.</p>');
+  }
+  return card(
+    "Workflow previews",
+    '<p class="muted">Review the generated workflow snippets before writing setup files. PR snippets stay read-only and secret-free; issue creation belongs in the trusted workflow_run lane.</p>' +
+      workflows.map(workflow =>
+        '<h3>' + esc(workflow.label || workflow.id) + '</h3>' +
+        '<p><code>' + esc(workflow.path || "") + '</code></p>' +
+        '<p class="muted">' + esc(workflow.description || "") + '</p>' +
+        ((workflow.safetyNotes || []).length ? list(workflow.safetyNotes) : "") +
+        '<pre>' + esc(workflow.content || "") + '</pre>'
+      ).join("")
+  );
 }
 
 function setupDetectedStories(recommendation) {
