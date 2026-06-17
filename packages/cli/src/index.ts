@@ -39,6 +39,7 @@ import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
 import { formatSetupProgress, runSetupStatusCommand } from "./commands/setupStatus.js";
+import { formatRunbookReport, runRunbookCommand } from "./commands/runbook.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
@@ -692,6 +693,34 @@ program
         format: options.format
       });
       console.log(formatSetupProgress(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("runbook")
+  .description("Export curated Visual Hive runbook commands and optionally execute an allowlisted command or profile")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--repo <path>", "target repository path")
+  .option("--execute-command <id>", "execute one allowlisted runbook command by id")
+  .option("--execute-profile <id>", "execute one allowlisted run profile by id")
+  .option("--read-only", "block execution and only export runbook guidance")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runRunbookCommand({
+        config: options.config,
+        repo: options.repo,
+        executeCommand: options.executeCommand,
+        executeProfile: options.executeProfile,
+        readOnly: options.readOnly,
+        format: options.format
+      });
+      console.log(formatRunbookReport(result, options.format));
+      if (result.report.execution?.status === "failed" || result.report.execution?.status === "blocked") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }

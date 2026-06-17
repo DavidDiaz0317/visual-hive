@@ -41,6 +41,7 @@ import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
 import { formatSetupProgress, runSetupStatusCommand } from "../src/commands/setupStatus.js";
+import { formatRunbookReport, runRunbookCommand } from "../src/commands/runbook.js";
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
@@ -196,6 +197,7 @@ contracts:
       "demo:risk",
       "demo:security",
       "demo:costs",
+      "demo:runbook",
       "demo:history",
       "demo:connections",
       "demo:artifacts",
@@ -216,6 +218,7 @@ contracts:
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:security"]).toContain("security --config");
     expect(packageJson.scripts["demo:costs"]).toContain("costs --config");
+    expect(packageJson.scripts["demo:runbook"]).toContain("runbook --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
     expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
@@ -2177,6 +2180,83 @@ contracts:
     expect(summary).toContain("Next Best Action");
     expect(written.schemaVersion).toBe(1);
     expect(written.steps.map((step) => step.id)).toContain("mutation");
+  });
+
+  it("writes runbook guidance from the CLI", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-runbook-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: runbook-demo
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+`
+    );
+
+    const result = await runRunbookCommand({ cwd: tempRoot });
+    const summary = formatRunbookReport(result);
+    const written = await readJson<{ schemaVersion: number; runbook: { commands: Array<{ id: string }> }; profiles: Array<{ id: string }> }>(
+      result.reportPath
+    );
+
+    expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "runbook.json"));
+    expect(result.report.runbook.commands.map((command) => command.id)).toContain("plan-pr");
+    expect(result.report.profiles.map((profile) => profile.id)).toContain("pr-acceptance");
+    expect(summary).toContain("Visual Hive Runbook");
+    expect(summary).toContain("PR acceptance");
+    expect(written.schemaVersion).toBe(1);
+    expect(written.runbook.commands.map((command) => command.id)).toContain("run-ci");
+  });
+
+  it("executes allowlisted runbook commands through the CLI with sanitized audit output", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-runbook-execute-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: runbook-execute
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+`
+    );
+
+    const result = await runRunbookCommand({
+      cwd: tempRoot,
+      executeCommand: "doctor",
+      commandRunner: async (input) => ({
+        exitCode: 0,
+        stdout: `ran ${input.stepId} token=secret-value`,
+        stderr: ""
+      })
+    });
+    const summary = formatRunbookReport(result);
+    const actionHistory = await readFile(path.join(tempRoot, ".visual-hive", "control-plane-actions.json"), "utf8");
+
+    expect(result.report.execution).toMatchObject({ status: "passed", commandId: "doctor" });
+    expect(summary).toContain("Execution");
+    expect(summary).toContain("Status: passed");
+    expect(actionHistory).toContain("doctor");
+    expect(actionHistory).toContain("[REDACTED]");
+    expect(actionHistory).not.toContain("secret-value");
   });
 
   it("writes provider setup plans from the CLI without enabling external calls", async () => {

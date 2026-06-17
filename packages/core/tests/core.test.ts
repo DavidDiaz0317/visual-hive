@@ -3144,6 +3144,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-setup-plan.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
       '{"schemaVersion":1,"portfolio":{"queues":[{"id":"security_risks","connections":[]}]},"connections":[{"id":"repo","attention":["token=abc123"]}]}',
@@ -3162,7 +3163,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(18);
+    expect(index.summary.artifactCount).toBe(19);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3219,6 +3220,10 @@ describe("artifact index", () => {
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");
     expect(llmDecisions?.schemaPath).toBe("schemas/visual-hive.llm-decisions.schema.json");
+    const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
+    expect(runbook?.preview).toContain("[REDACTED]");
+    expect(runbook?.labels).toContain("runbook");
+    expect(runbook?.schemaPath).toBe("schemas/visual-hive.runbook.schema.json");
     const connectionsPortfolio = index.artifacts.find((artifact) => artifact.path.endsWith("connections-portfolio.json"));
     expect(connectionsPortfolio?.preview).toContain("[REDACTED]");
     expect(connectionsPortfolio?.labels).toContain("connections-portfolio");
