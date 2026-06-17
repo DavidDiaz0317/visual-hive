@@ -629,6 +629,16 @@ contracts:
     expect(docsPlan.excluded.map((item) => item.reasons.join(";"))).toContainEqual(
       expect.stringContaining("all changed files matched selection.ignoreChangedFiles")
     );
+
+    const schedulePlan = createPlan(loaded.config, { mode: "schedule" });
+    expect(schedulePlan.items.map((item) => item.contractId)).toEqual(
+      expect.arrayContaining(["live-cluster-picker-renders", "live-workloads-renders"])
+    );
+    expect(schedulePlan.targets.find((target) => target.id === "liveCluster")).toMatchObject({
+      kind: "protected",
+      requiresSecrets: ["KUBECONFIG", "KC_AGENT_TOKEN"]
+    });
+    expect(schedulePlan.mutation.enabled).toBe(true);
   });
 });
 
@@ -640,6 +650,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.llm-decisions.schema.json");
     expect(schemaNames).toContain("visual-hive.flows.schema.json");
     expect(schemaNames).toContain("visual-hive.connections-portfolio.schema.json");
+    expect(schemaNames).toContain("visual-hive.runbook.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };

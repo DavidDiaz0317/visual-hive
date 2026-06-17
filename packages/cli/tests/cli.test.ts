@@ -201,6 +201,7 @@ contracts:
       "demo:history",
       "demo:connections",
       "demo:artifacts",
+      "demo:kubestellar",
       "demo:ui"
     ];
 
@@ -224,6 +225,9 @@ contracts:
     expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+    expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:auth-plan");
+    expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:docs-plan");
+    expect(packageJson.scripts["demo:kubestellar:schedule-plan"]).toContain("--mode schedule");
     expect(packageJson.scripts["demo:ui"]).toBe("npm run smoke:ui");
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });

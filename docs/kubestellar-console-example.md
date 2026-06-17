@@ -24,6 +24,8 @@ node packages/cli/dist/index.js plan --config examples/kubestellar-console/visua
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
 ```
 
+From this repository, `npm run demo:kubestellar` runs the auth, cluster/API, docs-only, and scheduled planning lanes without starting local services or requiring KubeStellar secrets.
+
 ## What Runs On Schedule
 
 Scheduled workflows may use protected secrets. They can include:

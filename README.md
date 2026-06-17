@@ -193,6 +193,8 @@ A mutation is killed when deterministic contracts fail under the injected breaka
 
 Use a safe PR lane for local preview screenshots and public hosted demo canaries. Put fake OAuth and live cluster checks into scheduled or protected workflows, with secrets available only outside untrusted PR execution. See `docs/kubestellar-console-example.md`.
 
+This repo also dogfoods the example with `npm run demo:kubestellar`, a no-network planning check that exercises auth, cluster/API, docs-only, and scheduled protected-lane scenarios against `examples/kubestellar-console/visual-hive.config.yaml`.
+
 See also:
 
 - `docs/troubleshooting.md`
