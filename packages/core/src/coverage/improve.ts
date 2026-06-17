@@ -1,5 +1,7 @@
-import { stringify } from "yaml";
-import type { VisualHiveConfig } from "../config/schema.js";
+import { parse, stringify } from "yaml";
+import type { MutationOperator, VisualHiveConfig } from "../config/schema.js";
+import { VisualHiveConfigSchema } from "../config/schema.js";
+import { validateReferences } from "../config/load.js";
 import type { MutationReport } from "../reports/types.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageGap, CoverageReport } from "./analyze.js";
@@ -44,6 +46,14 @@ export interface CoverageImprovementRecommendation {
   suggestedTests: string[];
 }
 
+export interface CoverageImprovementApplyResult {
+  recommendationId: string;
+  title: string;
+  applied: boolean;
+  configText: string;
+  diff: string;
+}
+
 export interface BuildCoverageImprovementOptions {
   now?: Date;
   maxRecommendations?: number;
@@ -67,6 +77,128 @@ export function buildCoverageImprovementReport(
     summary: summarize(deduped),
     recommendations: deduped
   };
+}
+
+export function applyCoverageImprovementRecommendation(
+  config: VisualHiveConfig,
+  report: CoverageImprovementReport,
+  recommendationId: string,
+  currentConfigText = stringify(config, { sortMapEntries: false }).trimEnd() + "\n"
+): CoverageImprovementApplyResult {
+  const recommendation = report.recommendations.find((candidate) => candidate.id === recommendationId);
+  if (!recommendation) {
+    throw new Error(`Unknown coverage improvement recommendation "${sanitizeText(recommendationId)}". Run "visual-hive improve-coverage" to inspect available IDs.`);
+  }
+
+  const next = cloneConfig(config);
+  const applied = applyRecommendation(next, recommendation);
+  const validated = VisualHiveConfigSchema.parse(next);
+  validateReferences(validated);
+  const configText = stringify(validated, { sortMapEntries: false }).trimEnd() + "\n";
+  return {
+    recommendationId: recommendation.id,
+    title: recommendation.title,
+    applied,
+    configText,
+    diff: createUnifiedDiff(currentConfigText, configText, "current visual-hive.config.yaml", "proposed visual-hive.config.yaml")
+  };
+}
+
+function applyRecommendation(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  switch (recommendation.kind) {
+    case "add_contract":
+      return applyAddContract(config, recommendation);
+    case "add_screenshot":
+      return applyAddScreenshot(config, recommendation);
+    case "add_selector_assertion":
+      return applySelectorAssertion(config, recommendation);
+    case "add_changed_file_rule":
+      return applyChangedFileRule(config, recommendation);
+    case "map_mutation_operator":
+      return applyMutationMapping(config, recommendation);
+    default:
+      return false;
+  }
+}
+
+function applyAddContract(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  const snippet = parseSnippet<{ contracts?: VisualHiveConfig["contracts"] }>(recommendation);
+  const contract = snippet.contracts?.[0];
+  if (!contract || config.contracts.some((candidate) => candidate.id === contract.id)) return false;
+  config.contracts.push(contract);
+  return true;
+}
+
+function applyAddScreenshot(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  if (!recommendation.contractId) return false;
+  const contract = config.contracts.find((candidate) => candidate.id === recommendation.contractId);
+  if (!contract) return false;
+  const snippet = parseSnippet<{ screenshots?: VisualHiveConfig["contracts"][number]["screenshots"] }>(recommendation);
+  const screenshot = snippet.screenshots?.[0];
+  if (!screenshot || contract.screenshots.some((candidate) => candidate.name === screenshot.name)) return false;
+  contract.screenshots.push(screenshot);
+  return true;
+}
+
+function applySelectorAssertion(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  if (!recommendation.contractId) return false;
+  const contract = config.contracts.find((candidate) => candidate.id === recommendation.contractId);
+  if (!contract) return false;
+  const snippet = parseSnippet<{
+    selectors?: Partial<VisualHiveConfig["contracts"][number]["selectors"]>;
+    waitFor?: VisualHiveConfig["contracts"][number]["waitFor"];
+    screenshots?: VisualHiveConfig["contracts"][number]["screenshots"];
+  }>(recommendation);
+  let changed = false;
+  for (const key of ["mustExist", "mustNotExist", "textMustExist", "textMustNotExist"] as const) {
+    for (const value of snippet.selectors?.[key] ?? []) {
+      if (!contract.selectors[key].includes(value)) {
+        contract.selectors[key].push(value);
+        changed = true;
+      }
+    }
+  }
+  for (const wait of snippet.waitFor ?? []) {
+    if (!contract.waitFor.some((candidate) => candidate.selector === wait.selector && candidate.state === wait.state)) {
+      contract.waitFor.push(wait);
+      changed = true;
+    }
+  }
+  for (const screenshot of snippet.screenshots ?? []) {
+    if (!contract.screenshots.some((candidate) => candidate.name === screenshot.name)) {
+      contract.screenshots.push(screenshot);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function applyChangedFileRule(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  const snippet = parseSnippet<{ selection?: { changedFiles?: VisualHiveConfig["selection"]["changedFiles"] } }>(recommendation);
+  const rule = snippet.selection?.changedFiles?.[0];
+  if (!rule) return false;
+  const exists = config.selection.changedFiles.some(
+    (candidate) => candidate.pattern === rule.pattern && candidate.contracts.join("\0") === rule.contracts.join("\0")
+  );
+  if (exists) return false;
+  config.selection.changedFiles.push(rule);
+  return true;
+}
+
+function applyMutationMapping(config: VisualHiveConfig, recommendation: CoverageImprovementRecommendation): boolean {
+  if (!recommendation.mutationOperator) return false;
+  const contractId = recommendation.contractId;
+  const existing = config.mutation.operators.find((operator) =>
+    typeof operator === "string" ? operator === recommendation.mutationOperator : operator.id === recommendation.mutationOperator
+  );
+  if (!existing) {
+    const operatorId = recommendation.mutationOperator as MutationOperator;
+    config.mutation.operators.push(contractId ? { id: operatorId, contracts: [contractId] } : operatorId);
+    return true;
+  }
+  if (typeof existing === "string" || !contractId || existing.contracts.includes(contractId)) return false;
+  existing.contracts.push(contractId);
+  return true;
 }
 
 function recommendationForGap(config: VisualHiveConfig, gap: CoverageGap): CoverageImprovementRecommendation[] {
@@ -320,6 +452,36 @@ function dedupeRecommendations(recommendations: CoverageImprovementRecommendatio
 
 function yamlSnippet(value: unknown): string {
   return stringify(value, { sortMapEntries: false }).trimEnd();
+}
+
+function parseSnippet<T>(recommendation: CoverageImprovementRecommendation): T {
+  if (!recommendation.suggestedConfigYaml) return {} as T;
+  try {
+    return JSON.parse(JSON.stringify(parse(recommendation.suggestedConfigYaml))) as T;
+  } catch (error) {
+    throw new Error(`Unable to apply recommendation "${recommendation.id}" because its config snippet is invalid: ${sanitizeText(error instanceof Error ? error.message : String(error))}`);
+  }
+}
+
+function cloneConfig(config: VisualHiveConfig): VisualHiveConfig {
+  return JSON.parse(JSON.stringify(config)) as VisualHiveConfig;
+}
+
+function createUnifiedDiff(current: string, proposed: string, fromLabel: string, toLabel: string): string {
+  if (current === proposed) return "No config changes.";
+  const before = current.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const after = proposed.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const diff = [`--- ${fromLabel}`, `+++ ${toLabel}`];
+  const max = Math.max(before.length, after.length);
+  for (let index = 0; index < max; index += 1) {
+    if (before[index] === after[index] && before[index] !== undefined) {
+      diff.push(` ${before[index]}`);
+      continue;
+    }
+    if (before[index] !== undefined) diff.push(`-${before[index]}`);
+    if (after[index] !== undefined) diff.push(`+${after[index]}`);
+  }
+  return diff.join("\n");
 }
 
 function firstViewport(config: VisualHiveConfig, preferred: string): string {

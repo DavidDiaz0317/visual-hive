@@ -277,6 +277,8 @@ program
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--coverage <path>", "coverage artifact path override", ".visual-hive/coverage.json")
   .option("--mutation-report <path>", "mutation report path override", ".visual-hive/mutation-report.json")
+  .option("--apply <id>", "show a config diff for a specific recommendation id")
+  .option("--yes", "write the selected recommendation to visual-hive.config.yaml after reviewing the diff")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -284,9 +286,11 @@ program
         config: options.config,
         coverage: options.coverage,
         mutationReport: options.mutationReport,
+        apply: options.apply,
+        yes: options.yes,
         format: options.format
       });
-      console.log(formatCoverageImprovementReport(result.report, result.reportPath, options.format));
+      console.log(formatCoverageImprovementReport(result.report, result.reportPath, options.format, result.applyResult, Boolean(options.yes && result.applyResult?.applied)));
     } catch (error) {
       fail(error);
     }

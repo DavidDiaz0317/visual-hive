@@ -416,6 +416,88 @@ viewports:
     await expect(access(path.join(tempRoot, ".visual-hive", "coverage-recommendations.json"))).resolves.toBeUndefined();
   });
 
+  it("improve-coverage previews and applies a selected config recommendation only with --yes", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-improve-apply-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    const configPath = path.join(tempRoot, "visual-hive.config.yaml");
+    const originalConfig = `project:
+  name: improve-apply
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "body"
+`;
+    await writeFile(configPath, originalConfig, "utf8");
+    await writeJson(path.join(tempRoot, ".visual-hive", "coverage.json"), {
+      schemaVersion: 1,
+      project: "improve-apply",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      summary: {
+        targetCount: 1,
+        contractCount: 1,
+        selectedContracts: 1,
+        unselectedContracts: 0,
+        prSafeContracts: 1,
+        protectedContracts: 0,
+        scheduleOnlyContracts: 0,
+        routesCovered: 1,
+        viewportsCovered: 1,
+        uncoveredTargets: 0,
+        uncoveredContracts: 0,
+        changedFileRules: 0,
+        matchedChangedFileRules: 0,
+        unmatchedChangedFiles: 1
+      },
+      targets: [],
+      contracts: [],
+      routes: [],
+      viewports: [],
+      changedFileCoverage: [],
+      unmatchedChangedFiles: ["src/auth/Login.tsx"],
+      uncoveredAreas: [
+        {
+          kind: "changed_file_without_rule",
+          severity: "medium",
+          changedFile: "src/auth/Login.tsx",
+          message: "Changed file did not match any selection rule."
+        }
+      ]
+    });
+
+    const preview = await runImproveCoverageCommand({
+      config: configPath,
+      apply: "changed-file-rule:src/auth/Login.tsx"
+    });
+    const previewSummary = formatCoverageImprovementReport(preview.report, preview.reportPath, "markdown", preview.applyResult, false);
+
+    expect(preview.applyResult?.applied).toBe(true);
+    expect(previewSummary).toContain("Selected Recommendation Diff");
+    expect(previewSummary).toContain("re-run with --yes");
+    await expect(readFile(configPath, "utf8")).resolves.toBe(originalConfig);
+
+    const applied = await runImproveCoverageCommand({
+      config: configPath,
+      apply: "changed-file-rule:src/auth/Login.tsx",
+      yes: true
+    });
+    const updated = await readFile(configPath, "utf8");
+
+    expect(formatCoverageImprovementReport(applied.report, applied.reportPath, "markdown", applied.applyResult, true)).toContain("- Applied: yes");
+    expect(updated).toContain("pattern: src/auth/**");
+    expect(updated).toContain("- dashboard");
+  });
+
   it("contracts writes a contract audit artifact", async () => {
     const demoRoot = path.join(repoRoot, "examples/demo-react-app");
     const result = await runContractsCommand({

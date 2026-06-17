@@ -114,6 +114,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
 - `visual-hive coverage`: analyzes config plus the latest plan/changed files and writes `.visual-hive/coverage.json`.
+- `visual-hive improve-coverage`: writes `.visual-hive/coverage-recommendations.json` with missing-coverage and mutation-survivor recommendations. Pass `--apply <recommendation-id>` to preview a validated config diff, then add `--yes` only after review to update `visual-hive.config.yaml`.
 - `visual-hive risk`: builds `.visual-hive/risk.json`, a prioritized register across deterministic failures, baselines, mutation adequacy, coverage, target safety, workflow safety, environment gaps, and provider policy.
 - `visual-hive readiness`: builds `.visual-hive/readiness.json`, a beginner-friendly go/no-go gate across plan, run, baseline, mutation, workflow, security, cost, provider, and LLM evidence.
 - `visual-hive security`: builds `.visual-hive/security.json`, an offline security posture report across workflow safety, protected targets, provider/LLM governance, and optional npm audit evidence.

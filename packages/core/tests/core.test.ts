@@ -7,7 +7,7 @@ import { parse as parseYaml } from "yaml";
 import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/schema.js";
 import { auditContracts } from "../src/contracts/audit.js";
 import { analyzeCoverage } from "../src/coverage/analyze.js";
-import { buildCoverageImprovementReport } from "../src/coverage/improve.js";
+import { applyCoverageImprovementRecommendation, buildCoverageImprovementReport } from "../src/coverage/improve.js";
 import { auditFlows } from "../src/flows/audit.js";
 import { auditTargets } from "../src/targets/audit.js";
 import { resolveTargetUrl } from "../src/targets/resolve.js";
@@ -910,6 +910,20 @@ describe("coverage analysis", () => {
     expect(report.recommendations.find((recommendation) => recommendation.id === "changed-file-rule:scripts/build.js")?.suggestedConfigYaml).toContain(
       "scripts/**"
     );
+  });
+
+  it("applies a selected coverage improvement recommendation as a validated config diff", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["scripts/build.js"] });
+    const coverage = analyzeCoverage(config, { plan, changedFiles: ["scripts/build.js"], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(config, coverage, undefined, { now: new Date("2026-06-15T00:02:00.000Z") });
+    const result = applyCoverageImprovementRecommendation(config, report, "changed-file-rule:scripts/build.js");
+    const parsed = parseConfigText(result.configText);
+
+    expect(result.applied).toBe(true);
+    expect(result.diff).toContain("+    - pattern: scripts/**");
+    expect(parsed.selection.changedFiles.map((rule) => rule.pattern)).toContain("scripts/**");
+    expect(parsed.selection.changedFiles.find((rule) => rule.pattern === "scripts/**")?.contracts.length).toBeGreaterThan(0);
   });
 });
 

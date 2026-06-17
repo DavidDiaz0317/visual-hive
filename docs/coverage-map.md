@@ -21,4 +21,18 @@ visual-hive improve-coverage
 
 `visual-hive improve-coverage` writes `.visual-hive/coverage-recommendations.json`. It is deterministic: it reads coverage gaps and mutation survivors, then emits concrete recommendations such as starter contracts, screenshot additions, changed-file rules, selector assertions, or mutation mappings. It also includes YAML snippets for humans to review before editing `visual-hive.config.yaml`. The artifact schema is tracked at `schemas/visual-hive.coverage-recommendations.schema.json`.
 
+To turn one recommendation into a guarded config edit, copy its `ID` and preview the diff first:
+
+```bash
+visual-hive improve-coverage --apply changed-file-rule:src/auth/Login.tsx
+```
+
+Visual Hive validates the resulting config and prints a diff without writing. After review, apply it explicitly:
+
+```bash
+visual-hive improve-coverage --apply changed-file-rule:src/auth/Login.tsx --yes
+```
+
+This path is intentionally not automatic. It helps beginners make progress from a concrete recommendation while preserving the same review-before-write safety model used by setup generation and the Control Plane config editor.
+
 The artifact schema is tracked at `schemas/visual-hive.coverage.schema.json`. The Control Plane reads the same core coverage model, so CLI and UI coverage views stay consistent.
