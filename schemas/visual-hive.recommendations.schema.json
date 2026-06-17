@@ -63,6 +63,19 @@
         }
       }
     },
+    "detectedStories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["storyFile", "title", "exports", "route"],
+        "properties": {
+          "storyFile": { "type": "string" },
+          "title": { "type": "string" },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "route": { "type": "string" }
+        }
+      }
+    },
     "recommendedTarget": {
       "type": "object",
       "required": ["id", "kind", "url", "confidence", "reasons"],

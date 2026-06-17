@@ -7,8 +7,9 @@ The command detects:
 - package manager and root package scripts
 - frontend framework hints from dependencies
 - stable `data-testid` selectors in source files
+- Storybook story files and first runnable iframe routes when Storybook is detected
 - a likely PR-safe `localPreview` target
-- a starter visual contract with desktop and mobile screenshots
+- a starter visual contract with desktop and mobile screenshots, or a Storybook component contract for component-library repos
 - an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
 - provider recommendations that keep Playwright as the default oracle and external uploads disabled by default
 - CI runtime, screenshot, and external upload cost estimates
@@ -61,7 +62,10 @@ Important fields:
 - `recommendedTarget`: target kind, URL, commands, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs
 - `recommendedContracts`: starter contracts, selectors, screenshots, and reasons
 - `detectedSelectors`: top discovered `data-testid` selectors
+- `detectedStories`: top discovered Storybook story files, CSF titles, named exports, and generated iframe routes
 - `warnings`: setup gaps such as missing preview scripts or missing selectors
+
+For Storybook repositories, the generated starter contract targets the first detected CSF story through a route such as `/iframe.html?id=dashboard-card--primary&viewMode=story`. The generated selection rules include story files and `src/components/**`, so component-only changes can select the component visual lane without running unrelated app routes. Hosted Storybook providers such as Chromatic remain optional; the default contract still runs through Playwright/local artifacts.
 
 ## Control Plane
 

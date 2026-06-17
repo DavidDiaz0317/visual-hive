@@ -2636,8 +2636,17 @@ describe("setup recommendations", () => {
         "@storybook/react-vite": "^8.0.0"
       }
     });
-    await mkdir(path.join(targetRoot, "src"), { recursive: true });
-    await writeFile(path.join(targetRoot, "src", "Card.tsx"), `<section data-testid="dashboard-card">Card</section>`, "utf8");
+    await mkdir(path.join(targetRoot, "src", "components"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "components", "Card.tsx"), `<section data-testid="dashboard-card">Card</section>`, "utf8");
+    await writeFile(
+      path.join(targetRoot, "src", "components", "Card.stories.tsx"),
+      `
+import { Card } from "./Card";
+export default { title: "Dashboard/Card", component: Card };
+export const Primary = {};
+`,
+      "utf8"
+    );
 
     const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
     const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
@@ -2655,6 +2664,45 @@ describe("setup recommendations", () => {
       stories: ["src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
       components: ["src/components/**"]
     });
+    expect(recommendation.detectedStories).toEqual([
+      {
+        storyFile: "src/components/Card.stories.tsx",
+        title: "Dashboard/Card",
+        exports: ["Primary"],
+        route: "/iframe.html?id=dashboard-card--primary&viewMode=story"
+      }
+    ]);
+    expect(recommendation.recommendedContracts[0]).toMatchObject({
+      id: "component-library-visual-stability",
+      targetId: "componentLibrary",
+      selectors: ["[data-testid='dashboard-card']"]
+    });
+    expect(parsedYaml.contracts[0]).toMatchObject({
+      id: "component-library-visual-stability",
+      target: "componentLibrary",
+      selectors: { mustExist: ["[data-testid='dashboard-card']"] }
+    });
+    expect(parsedYaml.contracts[0]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
+      "/iframe.html?id=dashboard-card--primary&viewMode=story",
+      "/iframe.html?id=dashboard-card--primary&viewMode=story"
+    ]);
+    expect(parsedYaml.selection.changedFiles).toEqual([
+      {
+        pattern: "src/**/*.stories.*",
+        contracts: ["component-library-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "src/components/**",
+        contracts: ["component-library-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "src/**",
+        contracts: ["component-library-visual-stability"],
+        risk: "low"
+      }
+    ]);
     expect(recommendation.providerRecommendations.find((provider) => provider.providerId === "chromatic")).toMatchObject({
       recommendation: "optional",
       requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
@@ -2663,6 +2711,10 @@ describe("setup recommendations", () => {
     expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(2);
     expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(2);
     expect(parsedYaml.costPolicy.externalUpload.pullRequest).toBe(false);
+    const setupDocs = buildSetupDocsMarkdown(recommendation);
+    expect(setupDocs).toContain("## Detected Storybook Stories");
+    expect(setupDocs).toContain("src/components/Card.stories.tsx");
+    expect(setupDocs).toContain("/iframe.html?id=dashboard-card--primary&viewMode=story");
   });
 
   it("honors an explicit hosted-review setup profile without enabling PR uploads", async () => {

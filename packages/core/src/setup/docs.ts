@@ -43,6 +43,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...contractLines(report),
     "",
+    "## Detected Storybook Stories",
+    "",
+    ...storyLines(report),
+    "",
     "## Provider Posture",
     "",
     ...providerLines(report),
@@ -106,6 +110,11 @@ function contractLines(report: SetupRecommendationReport): string[] {
     `- Reasons: ${listInline(contract.reasons)}`,
     ""
   ]);
+}
+
+function storyLines(report: SetupRecommendationReport): string[] {
+  if (!report.detectedStories?.length) return ["No Storybook story files were detected."];
+  return report.detectedStories.slice(0, 10).map((story) => `- ${safe(story.storyFile)}: ${safe(story.title)} -> ${safe(story.route)}`);
 }
 
 function providerLines(report: SetupRecommendationReport): string[] {

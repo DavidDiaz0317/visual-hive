@@ -94,6 +94,7 @@ export function formatSetupRecommendation(
     `- Target: ${report.recommendedTarget.id} (${report.recommendedTarget.kind}, ${report.recommendedTarget.confidence} confidence)`,
     `- URL: ${report.recommendedTarget.url}`,
     `- Selector seed: ${report.recommendedContracts[0]?.selectors.join(", ") || "none"}`,
+    `- Story routes: ${report.detectedStories?.length ? report.detectedStories.map((story) => story.route).slice(0, 3).join(", ") : "none detected"}`,
     `- Local screenshots/run: ${report.costEstimate.localScreenshotsPerRun}`,
     `- External screenshots/run: ${report.costEstimate.externalScreenshotsPerRun}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
