@@ -1654,6 +1654,12 @@ contracts:
       expect(appJs).toContain("function connectionMutation");
       expect(appJs).toContain("function connectionCoverage");
       expect(appJs).toContain("function connectionRisk");
+      expect(appJs).toContain("function connectionReadiness");
+      expect(appJs).toContain("function connectionSecurity");
+      expect(appJs).toContain("function connectionCost");
+      expect(appJs).toContain("Readiness gates");
+      expect(appJs).toContain("Security risks");
+      expect(appJs).toContain("Cost policy");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.playwright.status).toBe("present");
@@ -1691,6 +1697,11 @@ contracts:
     expect(controlPlaneJs).toContain("function runbook");
     expect(controlPlaneJs).toContain("function runbookExecuteButton");
     expect(controlPlaneJs).toContain("/api/runbook/execute");
+    expect(controlPlaneJs).toContain("function connectionReadiness");
+    expect(controlPlaneJs).toContain("function connectionSecurity");
+    expect(controlPlaneJs).toContain("function connectionCost");
+    expect(controlPlaneJs).toContain("critical/high");
+    expect(controlPlaneJs).toContain("policy-blocked providers");
     expect(controlPlaneJs).toContain("function profiles");
     expect(controlPlaneJs).toContain("function profileActions");
     expect(controlPlaneJs).toContain("/api/runbook/profile");

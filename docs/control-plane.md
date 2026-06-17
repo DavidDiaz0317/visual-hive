@@ -42,8 +42,8 @@ visual-hive ui --repo . --config visual-hive.config.yaml --port 4317 --open
 - Provider decisions, including explicit local records to skip a supplemental provider, review it later, or approve it only for a future trusted setup review
 - GitHub workflow template snippets for PR, scheduled, and trusted failure issue lanes with copy/write buttons
 - Guarded workflow template generation into `.github/workflows`, with overwrite protection, explicit confirmation, and `.visual-hive/workflow-edits.json`
-- Portfolio queues for connected repositories, grouping repos into broken setup, deterministic failures, stale reports, missing coverage, coverage gaps, weak mutation, high risk, and healthy queues
-- Local repository connections from `.visual-hive/connections.json`, including write-mode add/remove controls and a health dashboard derived from each repo's report, mutation, coverage, and risk artifacts
+- Portfolio queues for connected repositories, grouping repos into broken setup, deterministic failures, stale reports, missing coverage, coverage gaps, weak mutation, high risk, blocked readiness, security risk, cost policy, and healthy queues
+- Local repository connections from `.visual-hive/connections.json`, including write-mode add/remove controls and a health dashboard derived from each repo's report, mutation, coverage, risk, readiness, security, and cost artifacts
 - Safe raw artifact browser for `.visual-hive`, with image previews and redacted text previews from the shared artifact index
 
 ## Safety Boundaries

@@ -1442,14 +1442,20 @@ function connections() {
     metric("Weak mutation", index.summary.weakMutationConnections || 0, index.summary.weakMutationConnections ? "warn" : "ok") +
     metric("Coverage gaps", index.summary.coverageGapConnections || 0, index.summary.highCoverageGapConnections ? "bad" : (index.summary.coverageGapConnections ? "warn" : "ok")) +
     metric("High risk", index.summary.highRiskConnections || 0, index.summary.highRiskConnections ? "bad" : "ok") +
+    metric("Readiness gates", index.summary.readinessBlockedConnections || 0, index.summary.readinessBlockedConnections ? "bad" : "ok") +
+    metric("Security risks", index.summary.securityRiskConnections || 0, index.summary.securityRiskConnections ? "bad" : "ok") +
+    metric("Cost policy", index.summary.costPolicyConnections || 0, index.summary.costPolicyConnections ? "warn" : "ok") +
     '</div><div class="section" style="margin-top:14px">' +
-    card("Connection health dashboard", table(["Repository", "Health", "Latest deterministic", "Mutation", "Coverage", "Risk", "Attention", "Action"], index.connections.map(c => [
+    card("Connection health dashboard", table(["Repository", "Health", "Latest deterministic", "Mutation", "Coverage", "Risk", "Readiness", "Security", "Cost", "Attention", "Action"], index.connections.map(c => [
       '<b>' + esc(c.label) + '</b><p class="muted">' + esc(c.projectName || c.id) + '</p><p class="muted">' + esc((c.tags || []).join(", ") || "no tags") + '</p>',
       connectionHealthBadge(c),
       connectionLatest(c),
       connectionMutation(c),
       connectionCoverage(c),
       connectionRisk(c),
+      connectionReadiness(c),
+      connectionSecurity(c),
+      connectionCost(c),
       connectionAttention(c),
       connectionAction(c)
     ]))) +
@@ -1497,6 +1503,34 @@ function connectionRisk(connection) {
   if (connection.latestRiskScore == null) return '<span class="muted">not run</span>';
   const severe = connection.latestRiskSeverity === "critical" || connection.latestRiskSeverity === "high" || connection.latestRiskScore >= 50;
   return '<span class="' + (severe ? "bad" : connection.latestRiskScore ? "warn" : "ok") + '">' + esc(connection.latestRiskScore) + '/100</span><p class="muted">' + esc(connection.latestRiskSeverity || "unknown") + '</p>';
+}
+
+function connectionReadiness(connection) {
+  if (!connection.latestReadinessStatus) return '<span class="muted">not run</span>';
+  const blocked = connection.latestReadinessStatus === "blocked" || (connection.readinessBlocked || 0) > 0;
+  const attention = connection.latestReadinessStatus === "attention" || (connection.readinessWarnings || 0) > 0;
+  const cls = blocked ? "bad" : (attention ? "warn" : "ok");
+  const score = connection.latestReadinessScore == null ? "" : '<p class="muted">' + esc(connection.latestReadinessScore) + '/100</p>';
+  const gates = (connection.readinessBlocked || connection.readinessWarnings)
+    ? '<p class="muted">' + esc(connection.readinessBlocked || 0) + ' blocked, ' + esc(connection.readinessWarnings || 0) + ' warning</p>'
+    : "";
+  return '<span class="' + cls + '">' + esc(connection.latestReadinessStatus) + '</span>' + score + gates;
+}
+
+function connectionSecurity(connection) {
+  if (connection.latestSecurityScore == null) return '<span class="muted">not run</span>';
+  const criticalHigh = connection.securityCriticalHigh || 0;
+  const cls = criticalHigh ? "bad" : (connection.latestSecurityScore < 90 ? "warn" : "ok");
+  return '<span class="' + cls + '">' + esc(connection.latestSecurityScore) + '/100</span><p class="muted">critical/high ' + esc(criticalHigh) + '</p>';
+}
+
+function connectionCost(connection) {
+  if (!connection.latestCostBudgetStatus) return '<span class="muted">not run</span>';
+  const blocked = connection.latestCostBudgetStatus === "blocked";
+  const warning = connection.latestCostBudgetStatus === "warning" || (connection.costPolicyBlockedProviders || 0) > 0;
+  const cls = blocked ? "bad" : (warning ? "warn" : "ok");
+  const blockedProviders = connection.costPolicyBlockedProviders == null ? "" : '<p class="muted">policy-blocked providers ' + esc(connection.costPolicyBlockedProviders) + '</p>';
+  return '<span class="' + cls + '">' + esc(connection.latestCostBudgetStatus) + '</span>' + blockedProviders;
 }
 
 function connectionAttention(connection) {
