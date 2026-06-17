@@ -61,10 +61,12 @@ viewports:
         generatedAt: "2026-06-15T00:00:00.000Z",
         status: "passed",
         changedFiles: ["src/App.tsx"],
-        selectedTargets: [{ id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+        selectedTargets: [
+          { id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }
+        ],
         selectedContracts: ["dashboard"],
-        excludedContracts: [],
-        targetLifecycle: [],
+        excludedContracts: [{ contractId: "admin", targetId: "protectedTarget", reasons: ["target.prSafe=false", "pass --allow-unsafe-targets to include this target"] }],
+        targetLifecycle: [{ targetId: "localPreview", phase: "serve", status: "passed", durationMs: 42, url: "http://127.0.0.1:4173" }],
         generatedSpecPath: path.join(repoRoot, ".visual-hive", "generated", "visual-hive.generated.spec.ts"),
         results: [
           {
@@ -72,9 +74,12 @@ viewports:
             targetId: "localPreview",
             status: "passed",
             durationMs: 10,
-            errors: [],
-            artifacts: [],
-            selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "passed" }],
+            errors: ["Known harmless warning was captured for evidence."],
+            artifacts: [".visual-hive/artifacts/results/dashboard.json"],
+            selectorAssertions: [
+              { kind: "mustExist", value: "[data-testid='dashboard-page']", status: "passed" },
+              { kind: "mustNotExist", value: "[data-testid='login-page']", status: "passed" }
+            ],
             screenshotAssertions: [
               {
                 contractId: "dashboard",
@@ -85,6 +90,7 @@ viewports:
                 status: "passed",
                 baselinePath: path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"),
                 actualPath: path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"),
+                diffPath: path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.diff.png"),
                 maxDiffPixelRatio: 0.01,
                 actualDiffPixelRatio: 0,
                 actualDiffPixels: 0,
@@ -92,9 +98,9 @@ viewports:
                 totalPixels: 100
               }
             ],
-            consoleErrors: [],
-            pageErrors: [],
-            networkErrors: [],
+            consoleErrors: [{ type: "console", message: "ResizeObserver loop completed with undelivered notifications." }],
+            pageErrors: [{ type: "page", message: "Ignored demo page error" }],
+            networkErrors: [{ type: "network", url: "http://127.0.0.1:4173/api/demo", status: 500, statusText: "Internal Server Error" }],
             reproductionCommand: "visual-hive run --ci"
           }
         ],
@@ -107,12 +113,12 @@ viewports:
           createdBaselines: 0,
           missingBaselines: 0,
           visualDiffs: 0,
-          consoleErrors: 0,
-          pageErrors: 0
+          consoleErrors: 1,
+          pageErrors: 1
         },
-        consoleErrors: [],
-        pageErrors: [],
-        artifacts: [],
+        consoleErrors: ["ResizeObserver loop completed with undelivered notifications."],
+        pageErrors: [{ type: "page", message: "Ignored demo page error" }],
+        artifacts: [".visual-hive/report.json", ".visual-hive/artifacts/results/dashboard.json"],
         providerResults: [
           {
             providerId: "playwright",
@@ -770,6 +776,10 @@ describe("control plane", () => {
       "costPolicy.externalUpload.onFailureOnly=true and deterministic status is passed."
     );
     expect(snapshot.report?.providerResults?.[0]?.status).toBe("passed");
+    expect(snapshot.report?.excludedContracts[0]?.contractId).toBe("admin");
+    expect(snapshot.report?.results[0]?.selectorAssertions?.map((assertion) => assertion.kind)).toContain("mustNotExist");
+    expect(snapshot.report?.results[0]?.screenshotAssertions?.[0]?.diffPath).toContain("dashboard.diff.png");
+    expect(snapshot.report?.results[0]?.networkErrors?.[0]?.status).toBe(500);
     expect(snapshot.triageReport?.summary.findingCount).toBe(1);
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
@@ -1389,6 +1399,16 @@ contracts:
       expect(appJs).toContain("/api/providers/decision");
       expect(appJs).toContain("Playwright remains local and deterministic");
       expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("function reportSelectionCards");
+      expect(appJs).toContain("Selected targets");
+      expect(appJs).toContain("Selected and excluded contracts");
+      expect(appJs).toContain("function reportAssertionCards");
+      expect(appJs).toContain("Selector assertions");
+      expect(appJs).toContain("Screenshot assertions");
+      expect(appJs).toContain("function reportErrorCard");
+      expect(appJs).toContain("Console, page, and network evidence");
+      expect(appJs).toContain("function reportArtifactsCard");
+      expect(appJs).toContain("Report artifacts and reproduction");
       expect(appJs).toContain("runbook-execute");
       expect(appJs).toContain("/api/runbook/execute");
       expect(appJs).toContain("function llmDecisionCard");
@@ -1469,6 +1489,10 @@ contracts:
     expect(controlPlaneJs).toContain("contractTargetPrSafe");
     expect(controlPlaneJs).toContain("Filters are local to the browser");
     expect(controlPlaneJs).toContain("function baselineCardBody");
+    expect(controlPlaneJs).toContain("function reportSelectionCards");
+    expect(controlPlaneJs).toContain("function reportAssertionCards");
+    expect(controlPlaneJs).toContain("function reportErrorCard");
+    expect(controlPlaneJs).toContain("function reportArtifactsCard");
     expect(controlPlaneJs).toContain("function baselineSummaryCard");
     expect(controlPlaneJs).toContain("visual-hive baselines list --write");
     expect(controlPlaneJs).toContain("function coverageImprovementCard");

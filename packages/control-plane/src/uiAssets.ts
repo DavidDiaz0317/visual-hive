@@ -820,12 +820,105 @@ function runs() {
   return '<div class="section">' +
     card("Run metadata", '<table><tr><th>Project</th><td>' + esc(report.project) + '</td></tr><tr><th>Repository</th><td>' + esc(report.repository?.repository || "unknown") + '</td></tr><tr><th>Branch</th><td>' + esc(report.repository?.branch || "unknown") + '</td></tr><tr><th>Commit</th><td>' + esc(report.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown") + '</td></tr><tr><th>Run context</th><td>' + esc(report.repository?.provider || "unknown") + '</td></tr><tr><th>Mode</th><td>' + esc(report.mode) + '</td></tr><tr><th>Status</th><td>' + esc(report.status) + '</td></tr><tr><th>Generated</th><td>' + esc(report.generatedAt) + '</td></tr><tr><th>Spec</th><td>' + link(rel(report.generatedSpecPath), "generated spec") + '</td></tr></table>') +
     historyBlock +
+    reportSelectionCards(report) +
     card("Contract results", table(["Contract", "Target", "Status", "Duration", "Flow", "Reproduce"], report.results.map(r => [r.contractId, r.targetId, r.status, r.durationMs + "ms", ((r.flowSteps || []).filter(s => s.status === "passed").length + "/" + (r.flowSteps || []).length), r.reproductionCommand || ""]))) +
+    reportAssertionCards(report) +
     card("Flow steps", report.results.some(r => (r.flowSteps || []).length) ? table(["Contract", "Action", "Selector/route", "Status", "Duration", "Message"], report.results.flatMap(r => (r.flowSteps || []).map(s => [r.contractId, s.action, s.selector || s.route || s.value || "", s.status, s.durationMs + "ms", s.message || ""]))) : '<p class="muted">No user-flow steps were reported.</p>') +
+    reportErrorCard(report) +
     card("Lifecycle", table(["Target", "Phase", "Status", "Duration", "Message"], report.targetLifecycle.map(e => [e.targetId, e.phase, e.status, e.durationMs + "ms", e.message || e.url || ""]))) +
+    reportArtifactsCard(report) +
     providerResultsCard(report.providerResults) +
     card("Raw JSON", '<pre>' + esc(JSON.stringify(report, null, 2)) + '</pre>') +
     '</div>';
+}
+
+function reportSelectionCards(report) {
+  const selectedTargets = report.selectedTargets || [];
+  const excluded = report.excludedContracts || [];
+  return card(
+    "Selected targets",
+    selectedTargets.length
+      ? table(["Target", "Kind", "URL", "PR-safe", "Cost", "Missing secret names"], selectedTargets.map(target => [
+        esc(target.id),
+        esc(target.kind),
+        esc(target.url || "n/a"),
+        target.prSafe ? '<span class="ok">yes</span>' : '<span class="warn">no</span>',
+        esc(target.cost),
+        esc((target.missingSecrets || []).join(", ") || "none")
+      ]))
+      : '<p class="muted">No selected targets were recorded.</p>'
+  ) +
+    card(
+      "Selected and excluded contracts",
+      '<p><b>Selected:</b> ' + esc((report.selectedContracts || []).join(", ") || "none") + '</p>' +
+        (excluded.length
+          ? table(["Contract", "Target", "Reasons"], excluded.map(item => [esc(item.contractId), esc(item.targetId), (item.reasons || []).map(esc).join("<br>") || "none"]))
+          : '<p class="ok">No excluded contracts were recorded for this run.</p>') +
+        (report.noContractsReason ? '<p class="warn">' + esc(report.noContractsReason) + '</p>' : '')
+    );
+}
+
+function reportAssertionCards(report) {
+  const selectorRows = (report.results || []).flatMap(result =>
+    (result.selectorAssertions || []).map(assertion => [
+      esc(result.contractId),
+      esc(assertion.kind),
+      esc(assertion.value),
+      esc(assertion.status),
+      esc(assertion.message || "")
+    ])
+  );
+  const screenshotRows = (report.results || []).flatMap(result =>
+    (result.screenshotAssertions || []).map(shot => [
+      esc(shot.contractId || result.contractId),
+      esc(shot.screenshotName || shot.name),
+      esc(shot.route),
+      esc(shot.viewport),
+      esc(shot.status),
+      esc(shot.actualDiffPixelRatio == null ? "n/a" : String(shot.actualDiffPixelRatio)),
+      esc(shot.actualDiffPixels == null ? String(shot.diffPixels ?? "n/a") : String(shot.actualDiffPixels)),
+      [link(rel(shot.actualPath), "actual"), link(rel(shot.baselinePath), "baseline"), shot.diffPath ? link(rel(shot.diffPath), "diff") : ""].filter(Boolean).join(" ")
+    ])
+  );
+  return card(
+    "Selector assertions",
+    selectorRows.length ? table(["Contract", "Kind", "Value", "Status", "Message"], selectorRows) : '<p class="muted">No selector assertions were reported.</p>'
+  ) +
+    card(
+      "Screenshot assertions",
+      screenshotRows.length
+        ? table(["Contract", "Screenshot", "Route", "Viewport", "Status", "Diff ratio", "Diff pixels", "Artifacts"], screenshotRows)
+        : '<p class="muted">No screenshot assertions were reported.</p>'
+    );
+}
+
+function reportErrorCard(report) {
+  const rows = (report.results || []).flatMap(result => [
+    ...(result.consoleErrors || []).map(error => [esc(result.contractId), "console", esc(error.message)]),
+    ...(result.pageErrors || []).map(error => [esc(result.contractId), "page", esc(error.message)]),
+    ...(result.networkErrors || []).map(error => [esc(result.contractId), "network", esc(String(error.status) + " " + (error.statusText || "") + " " + (error.url || ""))]),
+    ...(result.errors || []).map(error => [esc(result.contractId), "contract", esc(error)])
+  ]);
+  const aggregate = [
+    ...((report.consoleErrors || []).map(message => ["all", "console", esc(message)])),
+    ...((report.pageErrors || []).map(error => ["all", "page", esc(error.message)]))
+  ];
+  const combined = [...rows, ...aggregate];
+  return card(
+    "Console, page, and network evidence",
+    combined.length ? table(["Contract", "Type", "Message"], combined) : '<p class="ok">No console, page, network, or contract errors were reported.</p>'
+  );
+}
+
+function reportArtifactsCard(report) {
+  const artifacts = [...new Set([...(report.artifacts || []), report.generatedSpecPath].filter(Boolean))];
+  const commands = report.reproductionCommands || [];
+  return card(
+    "Report artifacts and reproduction",
+    (artifacts.length ? '<h3>Artifacts</h3><ul>' + artifacts.slice(0, 20).map(path => '<li>' + link(rel(path), path) + '</li>').join("") + '</ul>' : '<p class="muted">No artifacts were recorded.</p>') +
+      (artifacts.length > 20 ? '<p class="muted">Showing 20 of ' + esc(artifacts.length) + ' artifacts.</p>' : '') +
+      (commands.length ? '<h3>Reproduction commands</h3><ul>' + commands.map(command => '<li><code>' + esc(command) + '</code></li>').join("") + '</ul>' : '<p class="muted">No reproduction commands were recorded.</p>')
+  );
 }
 
 function failures() {
