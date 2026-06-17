@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.setup-progress.schema.json",
+  "title": "Visual Hive Setup Progress",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "status",
+    "phase",
+    "percentComplete",
+    "completedSteps",
+    "totalSteps",
+    "reviewSteps",
+    "blockedSteps",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["not_started", "in_progress", "attention", "ready"]
+    },
+    "phase": { "type": "string" },
+    "percentComplete": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "completedSteps": { "type": "integer", "minimum": 0 },
+    "totalSteps": { "type": "integer", "minimum": 0 },
+    "reviewSteps": { "type": "integer", "minimum": 0 },
+    "blockedSteps": { "type": "integer", "minimum": 0 },
+    "nextStep": { "$ref": "#/$defs/step" },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "status", "description", "evidence", "artifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["complete", "pending", "review", "blocked"]
+        },
+        "description": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "command": { "type": "string" },
+        "artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

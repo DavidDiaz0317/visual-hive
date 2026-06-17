@@ -35,6 +35,7 @@ visual-hive recommend --write-config --force
 visual-hive recommend --write-docs --force
 visual-hive recommend --write-setup-bundle --force
 visual-hive recommend --format json
+visual-hive setup-status
 ```
 
 `--profile` overrides the inferred setup profile. Supported profiles are `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, and `complex-app`. Profile selection changes the generated `project.setupProfile`, provider recommendations, estimated external screenshot budget, scheduled-lane permission guidance, and `costPolicy.maxExternalScreenshotsPerRun`. It still keeps PR external uploads disabled by default and does not make provider calls.
@@ -48,6 +49,8 @@ visual-hive recommend --format json
 The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, can regenerate that recommendation for any supported setup profile, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate the same setup PR bundle after preflighting every output path. `--read-only` disables recommendation regeneration and setup writes.
 
 Regenerating from the Control Plane writes only `.visual-hive/recommendations.json`. It does not overwrite `visual-hive.config.yaml`, docs, or workflows. After reviewing the profile-specific recommendation, use the guarded setup actions to generate config, docs, or the setup PR bundle.
+
+`visual-hive setup-status` writes `.visual-hive/setup-progress.json`, which turns recommendation/config/plan/run/mutation/triage/workflow/provider/readiness artifacts into a current phase and next best action. The Control Plane Setup tab uses the same core analyzer, so users who stay in the CLI and users who open the UI see the same onboarding state.
 
 The recommendation artifact also includes `setupActions`, a deterministic list of next actions with commands, files written, confirmation requirements, safety notes, and expected outcomes. These actions are intended to power beginner-friendly UI buttons without hiding what will happen. Provider actions such as "Skip provider for now" write local governance evidence only; they do not create credentials, enable billing, upload screenshots, or call provider APIs.
 

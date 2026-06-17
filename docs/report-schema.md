@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -19,6 +19,14 @@ Path: `.visual-hive/recommendations.json`
 Schema: `schemas/visual-hive.recommendations.schema.json`
 
 The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, static route hints, detected Storybook story files and iframe routes, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview or Storybook target, starter contracts, a structured onboarding checklist, guarded setup actions, next commands, findings, and warnings. New reports include `onboardingChecklist` rows with `ready | review | blocked` status, evidence, operator action, optional command, and related artifact paths. They also include `setupActions` rows with command, files written, confirmation requirement, safety notes, and expected outcome, so the CLI and Control Plane can show beginner-friendly setup choices without hiding writes or provider-governance boundaries.
+
+## Setup Progress
+
+Path: `.visual-hive/setup-progress.json`
+
+Schema: `schemas/visual-hive.setup-progress.schema.json`
+
+The setup progress report is written by `visual-hive setup-status`. It combines the setup recommendation, config validation state, plan, deterministic report, mutation report, triage report, workflow audit, provider setup plan, and readiness gate into one beginner-facing status. It records `status`, `phase`, completion counts, blocked/review counts, the next best action, commands to run, evidence, and artifact paths. The Control Plane Setup page uses the same core analyzer, so CLI and UI onboarding state stay consistent.
 
 ## Coverage Recommendations
 

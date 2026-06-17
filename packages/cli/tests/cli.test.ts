@@ -40,6 +40,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artif
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
+import { formatSetupProgress, runSetupStatusCommand } from "../src/commands/setupStatus.js";
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
@@ -721,6 +722,7 @@ targets:
   local:
     kind: url
     url: "http://127.0.0.1:4173"
+    prSafe: true
 contracts:
   - id: dashboard
     description: Dashboard
@@ -777,6 +779,7 @@ targets:
   local:
     kind: url
     url: "http://127.0.0.1:4173"
+    prSafe: true
 contracts:
   - id: dashboard
     description: Dashboard
@@ -996,6 +999,7 @@ targets:
   local:
     kind: url
     url: "http://127.0.0.1:4173"
+    prSafe: true
 contracts:
   - id: dashboard
     description: Dashboard
@@ -2088,6 +2092,91 @@ providers:
     await expect(
       runProviderDecisionCommand({ cwd: tempRoot, providerId: "not-real", decision: "skip" })
     ).rejects.toThrow(/Unknown provider/);
+  });
+
+  it("writes setup progress from CLI artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-setup-status-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: setup-status
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+`
+    );
+    const plan = await runPlanCommand({ cwd: tempRoot, mode: "pr", changedFiles: undefined });
+    const report: Report = {
+      schemaVersion: 2,
+      project: "setup-status",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "passed",
+      changedFiles: [],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "passed",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/artifacts/results/dashboard.json"],
+          selectorAssertions: [],
+          screenshotAssertions: [],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 1,
+        failed: 0,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/report.json"],
+      reproductionCommands: ["visual-hive run"]
+    };
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), report);
+
+    const result = await runSetupStatusCommand({ cwd: tempRoot });
+    const summary = formatSetupProgress(result.report, result.reportPath);
+    const written = await readJson<{ schemaVersion: number; project: string; steps: Array<{ id: string; status: string }> }>(result.reportPath);
+
+    expect(plan.items.map((item) => item.contractId)).toContain("dashboard");
+    expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "setup-progress.json"));
+    expect(result.report.project).toBe("setup-status");
+    expect(result.report.steps.find((step) => step.id === "config")?.status).toBe("complete");
+    expect(result.report.steps.find((step) => step.id === "run")?.status).toBe("complete");
+    expect(result.report.nextStep?.command).toBe("visual-hive mutate");
+    expect(summary).toContain("Setup Progress: setup-status");
+    expect(summary).toContain("Next Best Action");
+    expect(written.schemaVersion).toBe(1);
+    expect(written.steps.map((step) => step.id)).toContain("mutation");
   });
 
   it("writes provider setup plans from the CLI without enabling external calls", async () => {

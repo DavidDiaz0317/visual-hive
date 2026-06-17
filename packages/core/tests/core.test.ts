@@ -35,6 +35,7 @@ import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
 import { buildSetupDocsMarkdown } from "../src/setup/docs.js";
+import { buildSetupProgress } from "../src/setup/progress.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
 import type { Report } from "../src/reports/types.js";
@@ -2268,6 +2269,69 @@ jobs:
     );
     expect(readiness.gates.find((gate) => gate.id === "provider:external-enabled")?.artifacts).toContain(".visual-hive/provider-setup-plan.json");
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
+  });
+
+  it("builds artifact-backed setup progress and recommends the next blocked step", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-setup-progress-"));
+    tempDirs.push(tempRoot);
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const report = reportFixture(
+      tempRoot,
+      path.join(tempRoot, ".visual-hive", "artifacts", "screenshots", "actual.png"),
+      path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png")
+    );
+    report.status = "passed";
+    report.summary.passed = 1;
+    report.summary.failed = 0;
+    report.summary.screenshotsFailed = 0;
+    report.summary.visualDiffs = 0;
+    report.results[0]!.status = "passed";
+    report.results[0]!.errors = [];
+    report.results[0]!.screenshotAssertions[0]!.status = "passed";
+    const mutationReport = {
+      schemaVersion: 2 as const,
+      project: "sample",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      minScore: 0.7,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "remove-demo-badge",
+          status: "survived" as const,
+          killed: false,
+          contractIds: ["safe-contract"],
+          applicable: true,
+          expectedFailureKinds: ["missing_element"],
+          durationMs: 10,
+          errors: ["No assertion failed."],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    };
+    const progress = buildSetupProgress({
+      config,
+      plan,
+      report,
+      mutationReport,
+      workflowAudit: auditWorkflows(config, []),
+      readinessReport: analyzeReadiness(config, { plan, report, mutationReport }),
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(progress.schemaVersion).toBe(1);
+    expect(progress.status).toBe("attention");
+    expect(progress.phase).toBe("measure mutation adequacy");
+    expect(progress.nextStep).toMatchObject({
+      id: "mutation",
+      status: "blocked",
+      command: "visual-hive mutate"
+    });
+    expect(progress.steps.find((step) => step.id === "run")?.status).toBe("complete");
+    expect(progress.steps.find((step) => step.id === "provider-governance")?.status).toBe("complete");
+    expect(JSON.stringify(progress)).not.toContain("secret-value");
   });
 
   it("blocks readiness on deterministic failures and missing CI baselines", () => {
