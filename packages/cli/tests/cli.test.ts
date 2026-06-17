@@ -893,7 +893,7 @@ contracts:
     });
     await mkdir(path.join(tempRoot, "src"), { recursive: true });
     await mkdir(path.join(tempRoot, ".github", "workflows"), { recursive: true });
-    await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page"><a href="/clusters">Clusters</a><Route path="/settings" /></main>`, "utf8");
     await writeFile(path.join(tempRoot, "playwright.config.ts"), `export default {};`, "utf8");
     await writeFile(
       path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"),
@@ -922,6 +922,7 @@ jobs:
     expect(report.providerRecommendations.find((provider) => provider.providerId === "playwright")?.recommendation).toBe("use");
     expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
     expect(report.playwright).toMatchObject({ status: "present", dependencies: ["@playwright/test"], configFiles: ["playwright.config.ts"] });
+    expect(report.detectedRoutes.map((route) => route.route)).toEqual(["/clusters", "/settings"]);
     expect(report.detectedWorkflows[0]).toMatchObject({
       path: ".github/workflows/visual-hive-pr.yml",
       triggers: ["pull_request"],
@@ -932,9 +933,11 @@ jobs:
     expect(summary).toContain("Visual Hive Setup Recommendation");
     expect(summary).toContain("Setup profile: free-local");
     expect(summary).toContain("Playwright setup: present");
+    expect(summary).toContain("App routes: /clusters, /settings");
     expect(summary).toContain("Playwright Presence");
     expect(summary).toContain("Provider Recommendation");
     expect(summary).toContain("Existing Workflow Hints");
+    expect(summary).toContain("Detected Route Hints");
     expect(summary).toContain(".github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Workflow Previews");
     expect(summary).toContain("Visual Hive PR: .github/workflows/visual-hive-pr.yml");
@@ -947,6 +950,7 @@ jobs:
     await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Playwright Presence");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("@playwright/test");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("## Detected Route Hints");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Existing Workflow Hints");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Workflow Previews");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("include-hidden-files: true");

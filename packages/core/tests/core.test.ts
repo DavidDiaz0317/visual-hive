@@ -2568,7 +2568,11 @@ describe("setup recommendations", () => {
     });
     await mkdir(path.join(targetRoot, "src"), { recursive: true });
     await mkdir(path.join(targetRoot, ".github", "workflows"), { recursive: true });
-    await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(
+      path.join(targetRoot, "src", "App.tsx"),
+      `<main data-testid="dashboard-page"><a href="/clusters">Clusters</a><a href="/settings">Settings</a><Route path="/workloads" /></main>`,
+      "utf8"
+    );
     await writeFile(path.join(targetRoot, "playwright.config.ts"), `export default {};`, "utf8");
     await writeFile(
       path.join(targetRoot, ".github", "workflows", "ci.yml"),
@@ -2630,7 +2634,9 @@ jobs:
       scripts: ["test:e2e: playwright test"],
       configFiles: ["playwright.config.ts"]
     });
+    expect(recommendation.detectedRoutes.map((route) => route.route)).toEqual(["/clusters", "/settings", "/workloads"]);
     expect(recommendation.onboardingChecklist.find((item) => item.id === "inspect-repository")?.evidence).toContain("playwright=present");
+    expect(recommendation.onboardingChecklist.find((item) => item.id === "inspect-repository")?.evidence).toContain("routes=3");
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
     expect(recommendation.detectedWorkflows).toEqual([
       {
@@ -2686,6 +2692,8 @@ jobs:
     expect(setupDocs).toContain("## Playwright Presence");
     expect(setupDocs).toContain("Status: present");
     expect(setupDocs).toContain("@playwright/test");
+    expect(setupDocs).toContain("## Detected Route Hints");
+    expect(setupDocs).toContain("/clusters");
     expect(setupDocs).toContain("PR checks should run with read-only permissions and no repository secrets.");
     expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
     expect(setupDocs).toContain("app-shell-visual-stability");

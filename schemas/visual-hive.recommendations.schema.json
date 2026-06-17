@@ -67,6 +67,18 @@
         }
       }
     },
+    "detectedRoutes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route", "sourceFile", "occurrences"],
+        "properties": {
+          "route": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "occurrences": { "type": "number" }
+        }
+      }
+    },
     "detectedStories": {
       "type": "array",
       "items": {

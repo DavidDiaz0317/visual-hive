@@ -454,6 +454,18 @@ viewports:
         recommendedConfig: {},
         recommendedConfigYaml: configYaml,
         detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+        detectedRoutes: [
+          {
+            route: "/clusters",
+            sourceFile: "src/App.tsx",
+            occurrences: 1
+          },
+          {
+            route: "/settings",
+            sourceFile: "src/routes.tsx",
+            occurrences: 2
+          }
+        ],
         detectedStories: [
           {
             storyFile: "src/components/DashboardCard.stories.tsx",
@@ -1368,6 +1380,8 @@ contracts:
       expect(appJs).toContain("function setupProfileSelector");
       expect(appJs).toContain("function setupPlaywrightPresence");
       expect(appJs).toContain("Playwright presence");
+      expect(appJs).toContain("function setupDetectedRoutes");
+      expect(appJs).toContain("Detected app routes");
       expect(appJs).toContain("function setupDetectedStories");
       expect(appJs).toContain("Detected Storybook stories");
       expect(appJs).toContain("Iframe route");
@@ -1411,6 +1425,7 @@ contracts:
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.playwright.status).toBe("present");
+      expect(snapshot.setupRecommendation.detectedRoutes[0].route).toBe("/clusters");
       expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
       expect(snapshot.setupRecommendation.detectedWorkflows[0].usesPullRequestTarget).toBe(true);
       expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
@@ -1447,6 +1462,7 @@ contracts:
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function setupPlaywrightPresence");
+    expect(controlPlaneJs).toContain("function setupDetectedRoutes");
     expect(controlPlaneJs).toContain("function setupDetectedStories");
     expect(controlPlaneJs).toContain("function setupDetectedWorkflows");
     expect(controlPlaneJs).toContain("function setupWorkflowPreviews");

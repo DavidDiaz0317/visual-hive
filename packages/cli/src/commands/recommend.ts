@@ -95,6 +95,7 @@ export function formatSetupRecommendation(
     `- Target: ${report.recommendedTarget.id} (${report.recommendedTarget.kind}, ${report.recommendedTarget.confidence} confidence)`,
     `- URL: ${report.recommendedTarget.url}`,
     `- Selector seed: ${report.recommendedContracts[0]?.selectors.join(", ") || "none"}`,
+    `- App routes: ${report.detectedRoutes?.length ? report.detectedRoutes.map((route) => route.route).slice(0, 5).join(", ") : "none detected"}`,
     `- Story routes: ${report.detectedStories?.length ? report.detectedStories.map((story) => story.route).slice(0, 3).join(", ") : "none detected"}`,
     `- Existing workflows: ${report.detectedWorkflows?.length ? report.detectedWorkflows.map((workflow) => workflow.path).slice(0, 3).join(", ") : "none detected"}`,
     `- Local screenshots/run: ${report.costEstimate.localScreenshotsPerRun}`,
@@ -171,6 +172,9 @@ export function formatSetupRecommendation(
   }
   if (report.detectedSelectors.length) {
     lines.push("", "## Detected Selectors", ...report.detectedSelectors.slice(0, 8).map((selector) => `- ${selector.selector} (${selector.sourceFile})`));
+  }
+  if (report.detectedRoutes?.length) {
+    lines.push("", "## Detected Route Hints", ...report.detectedRoutes.slice(0, 8).map((route) => `- ${route.route} (${route.sourceFile})`));
   }
   if (report.detectedWorkflows?.length) {
     lines.push(

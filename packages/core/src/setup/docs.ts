@@ -48,6 +48,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...contractLines(report),
     "",
+    "## Detected Route Hints",
+    "",
+    ...routeLines(report),
+    "",
     "## Detected Storybook Stories",
     "",
     ...storyLines(report),
@@ -123,6 +127,13 @@ function contractLines(report: SetupRecommendationReport): string[] {
     `- Reasons: ${listInline(contract.reasons)}`,
     ""
   ]);
+}
+
+function routeLines(report: SetupRecommendationReport): string[] {
+  if (!report.detectedRoutes?.length) return ["No app route hints were detected."];
+  return report.detectedRoutes
+    .slice(0, 10)
+    .map((route) => `- ${safe(route.route)} (${safe(route.sourceFile)}, ${safe(String(route.occurrences))} occurrence${route.occurrences === 1 ? "" : "s"})`);
 }
 
 function playwrightPresenceLines(report: SetupRecommendationReport): string[] {

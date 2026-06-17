@@ -25,6 +25,7 @@ export interface SetupRecommendationReport {
   recommendedConfig: VisualHiveConfig;
   recommendedConfigYaml: string;
   detectedSelectors: SetupDetectedSelector[];
+  detectedRoutes: SetupDetectedRoute[];
   detectedStories: SetupDetectedStory[];
   detectedWorkflows: SetupDetectedWorkflow[];
   playwright: SetupPlaywrightPresence;
@@ -47,6 +48,12 @@ export interface SetupRecommendationProject {
 
 export interface SetupDetectedSelector {
   selector: string;
+  sourceFile: string;
+  occurrences: number;
+}
+
+export interface SetupDetectedRoute {
+  route: string;
   sourceFile: string;
   occurrences: number;
 }
@@ -183,6 +190,7 @@ interface RepoInventory {
   detectedFrameworks: string[];
   sourceFiles: string[];
   selectors: SetupDetectedSelector[];
+  routes: SetupDetectedRoute[];
   stories: SetupDetectedStory[];
   workflows: SetupDetectedWorkflow[];
   playwright: SetupPlaywrightPresence;
@@ -193,6 +201,7 @@ const STORYBOOK_PORT = 6006;
 const MAX_SOURCE_FILES = 250;
 const MAX_RECOMMENDED_STORYBOOK_CONTRACTS = 3;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
+const ROUTE_HINT_PATTERN = /\b(?:to|href|path)\s*=\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]|(?:route|path)\s*:\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]/g;
 const STORY_TITLE_PATTERN = /title\s*:\s*["'`]([^"'`]+)["'`]/;
 const STORY_EXPORT_PATTERN = /export\s+(?:const|function)\s+([A-Z_a-z]\w*)/g;
 const NON_STORY_EXPORTS = new Set(["meta", "default"]);
@@ -285,6 +294,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     recommendedConfig,
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
+    detectedRoutes: inventory.routes.slice(0, 20),
     detectedStories: inventory.stories.slice(0, 20),
     detectedWorkflows: inventory.workflows.slice(0, 20),
     playwright: inventory.playwright,
@@ -332,10 +342,11 @@ async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
   const detectedFrameworks = detectFrameworks(packageJson);
   const sourceFiles = await collectSourceFiles(repoRoot);
   const selectors = await collectSelectors(repoRoot, sourceFiles);
+  const routes = await collectRoutes(repoRoot, sourceFiles);
   const stories = await collectStories(repoRoot, sourceFiles);
   const workflows = await collectWorkflowHints(repoRoot);
   const playwright = await detectPlaywrightPresence(repoRoot, packageJson);
-  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, stories, workflows, playwright };
+  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, routes, stories, workflows, playwright };
 }
 
 async function readPackageJson(repoRoot: string): Promise<PackageJsonShape | undefined> {
@@ -864,6 +875,7 @@ function buildOnboardingChecklist(input: {
   const prSecrets = input.permissions.pullRequest.secretsRequired;
   const externalProvidersByDefault = input.providerRecommendations.filter((provider) => provider.externalUploadAllowedByDefault);
   const selectorCount = input.inventory.selectors.length;
+  const routeCount = input.inventory.routes.length;
   const screenshotCount = input.recommendedContracts.flatMap((contract) => contract.screenshots).length;
   return [
     {
@@ -876,6 +888,7 @@ function buildOnboardingChecklist(input: {
         `packageManager=${input.inventory.packageManager}`,
         `frameworks=${input.inventory.detectedFrameworks.join(", ") || "none"}`,
         `scripts=${Object.keys(input.inventory.packageJson?.scripts ?? {}).sort().join(", ") || "none"}`,
+        `routes=${routeCount}`,
         `playwright=${input.inventory.playwright.status}`
       ],
       action: "Review detected repo facts before writing setup files.",
@@ -1067,6 +1080,39 @@ async function collectSelectors(repoRoot: string, sourceFiles: string[]): Promis
     }
   }
   return [...counts.values()].sort((a, b) => b.occurrences - a.occurrences || a.selector.localeCompare(b.selector));
+}
+
+async function collectRoutes(repoRoot: string, sourceFiles: string[]): Promise<SetupDetectedRoute[]> {
+  const counts = new Map<string, SetupDetectedRoute>();
+  for (const sourceFile of sourceFiles) {
+    let raw;
+    try {
+      raw = await readFile(path.join(repoRoot, sourceFile), "utf8");
+    } catch {
+      continue;
+    }
+    ROUTE_HINT_PATTERN.lastIndex = 0;
+    for (const match of raw.matchAll(ROUTE_HINT_PATTERN)) {
+      const route = normalizeRouteHint(match[1] ?? match[2] ?? "");
+      if (!route) continue;
+      const existing = counts.get(route);
+      if (existing) {
+        existing.occurrences += 1;
+      } else {
+        counts.set(route, { route, sourceFile: normalizeSlashes(sourceFile), occurrences: 1 });
+      }
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.occurrences - a.occurrences || a.route.localeCompare(b.route));
+}
+
+function normalizeRouteHint(route: string): string | undefined {
+  const trimmed = sanitizeText(route).trim();
+  if (!trimmed || trimmed.includes("*") || trimmed.includes(":") || trimmed.includes("${")) return undefined;
+  const normalized = trimmed.startsWith("#/") ? trimmed.slice(1) : trimmed;
+  if (!normalized.startsWith("/")) return undefined;
+  if (/^\/(?:\/|#|mailto:|tel:)/i.test(normalized)) return undefined;
+  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized;
 }
 
 async function collectStories(repoRoot: string, sourceFiles: string[]): Promise<SetupDetectedStory[]> {
