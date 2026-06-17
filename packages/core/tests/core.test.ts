@@ -2638,12 +2638,21 @@ describe("setup recommendations", () => {
     });
     await mkdir(path.join(targetRoot, "src", "components"), { recursive: true });
     await writeFile(path.join(targetRoot, "src", "components", "Card.tsx"), `<section data-testid="dashboard-card">Card</section>`, "utf8");
+    await writeFile(path.join(targetRoot, "src", "components", "Banner.tsx"), `<section data-testid="dashboard-card">Banner</section>`, "utf8");
     await writeFile(
       path.join(targetRoot, "src", "components", "Card.stories.tsx"),
       `
 import { Card } from "./Card";
 export default { title: "Dashboard/Card", component: Card };
 export const Primary = {};
+`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(targetRoot, "src", "components", "Banner.stories.tsx"),
+      `
+export default { title: "Dashboard/Banner" };
+export const Alert = {};
 `,
       "utf8"
     );
@@ -2666,40 +2675,62 @@ export const Primary = {};
     });
     expect(recommendation.detectedStories).toEqual([
       {
+        storyFile: "src/components/Banner.stories.tsx",
+        title: "Dashboard/Banner",
+        exports: ["Alert"],
+        route: "/iframe.html?id=dashboard-banner--alert&viewMode=story"
+      },
+      {
         storyFile: "src/components/Card.stories.tsx",
         title: "Dashboard/Card",
         exports: ["Primary"],
         route: "/iframe.html?id=dashboard-card--primary&viewMode=story"
       }
     ]);
+    expect(recommendation.recommendedContracts.map((contract) => contract.id)).toEqual([
+      "storybook-dashboard-banner-alert-visual-stability",
+      "storybook-dashboard-card-primary-visual-stability"
+    ]);
     expect(recommendation.recommendedContracts[0]).toMatchObject({
-      id: "component-library-visual-stability",
+      id: "storybook-dashboard-banner-alert-visual-stability",
       targetId: "componentLibrary",
       selectors: ["[data-testid='dashboard-card']"]
     });
+    expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual([
+      "storybook-dashboard-banner-alert-visual-stability",
+      "storybook-dashboard-card-primary-visual-stability"
+    ]);
     expect(parsedYaml.contracts[0]).toMatchObject({
-      id: "component-library-visual-stability",
+      id: "storybook-dashboard-banner-alert-visual-stability",
       target: "componentLibrary",
       selectors: { mustExist: ["[data-testid='dashboard-card']"] }
     });
     expect(parsedYaml.contracts[0]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
+      "/iframe.html?id=dashboard-banner--alert&viewMode=story",
+      "/iframe.html?id=dashboard-banner--alert&viewMode=story"
+    ]);
+    expect(parsedYaml.contracts[1]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
       "/iframe.html?id=dashboard-card--primary&viewMode=story",
       "/iframe.html?id=dashboard-card--primary&viewMode=story"
     ]);
+    const storybookContractIds = [
+      "storybook-dashboard-banner-alert-visual-stability",
+      "storybook-dashboard-card-primary-visual-stability"
+    ];
     expect(parsedYaml.selection.changedFiles).toEqual([
       {
         pattern: "src/**/*.stories.*",
-        contracts: ["component-library-visual-stability"],
+        contracts: storybookContractIds,
         risk: "medium"
       },
       {
         pattern: "src/components/**",
-        contracts: ["component-library-visual-stability"],
+        contracts: storybookContractIds,
         risk: "medium"
       },
       {
         pattern: "src/**",
-        contracts: ["component-library-visual-stability"],
+        contracts: storybookContractIds,
         risk: "low"
       }
     ]);
@@ -2708,12 +2739,15 @@ export const Primary = {};
       requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
       externalUploadAllowedByDefault: false
     });
-    expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(2);
-    expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(2);
+    expect(recommendation.costEstimate.localScreenshotsPerRun).toBe(4);
+    expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(4);
+    expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(4);
     expect(parsedYaml.costPolicy.externalUpload.pullRequest).toBe(false);
     const setupDocs = buildSetupDocsMarkdown(recommendation);
     expect(setupDocs).toContain("## Detected Storybook Stories");
+    expect(setupDocs).toContain("src/components/Banner.stories.tsx");
     expect(setupDocs).toContain("src/components/Card.stories.tsx");
+    expect(setupDocs).toContain("/iframe.html?id=dashboard-banner--alert&viewMode=story");
     expect(setupDocs).toContain("/iframe.html?id=dashboard-card--primary&viewMode=story");
   });
 

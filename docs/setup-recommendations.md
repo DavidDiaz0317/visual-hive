@@ -7,7 +7,7 @@ The command detects:
 - package manager and root package scripts
 - frontend framework hints from dependencies
 - stable `data-testid` selectors in source files
-- Storybook story files and first runnable iframe routes when Storybook is detected
+- Storybook story files and the first few runnable iframe routes when Storybook is detected
 - a likely PR-safe `localPreview` target
 - a starter visual contract with desktop and mobile screenshots, or a Storybook component contract for component-library repos
 - an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
@@ -65,7 +65,7 @@ Important fields:
 - `detectedStories`: top discovered Storybook story files, CSF titles, named exports, and generated iframe routes
 - `warnings`: setup gaps such as missing preview scripts or missing selectors
 
-For Storybook repositories, the generated starter contract targets the first detected CSF story through a route such as `/iframe.html?id=dashboard-card--primary&viewMode=story`. The generated selection rules include story files and `src/components/**`, so component-only changes can select the component visual lane without running unrelated app routes. Hosted Storybook providers such as Chromatic remain optional; the default contract still runs through Playwright/local artifacts.
+For Storybook repositories, the generated starter contracts target up to the first three detected CSF stories through routes such as `/iframe.html?id=dashboard-card--primary&viewMode=story`. The generated selection rules include story files and `src/components/**`, so component-only changes can select the component visual lane without running unrelated app routes. Hosted Storybook providers such as Chromatic remain optional; the default contracts still run through Playwright/local artifacts.
 
 ## Control Plane
 
