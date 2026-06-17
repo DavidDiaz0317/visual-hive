@@ -153,11 +153,26 @@ function overview() {
     metric("Failed contracts", o.failedContracts, o.failedContracts ? "bad" : "ok") +
     metric("Baselines created", o.createdBaselines, o.createdBaselines ? "warn" : "ok") +
     metric("Visual diffs", o.visualDiffs, o.visualDiffs ? "bad" : "ok") +
+    metric("Plan lanes", snapshot.planLaneSummary?.planCount ?? "not summarized", snapshot.planLaneSummary?.summary?.reviewPlans ? "warn" : "") +
     '</div><div class="grid" style="margin-top:14px">' +
     card("Next actions", list(o.nextActions)) +
     card("Why this score?", list(o.explanations)) +
+    planLaneSummaryCard() +
     card("Artifacts", "Issue body: " + yes(snapshot.issueMarkdown) + "<br>PR comment: " + yes(snapshot.prCommentMarkdown) + "<br>Triage prompt: " + yes(snapshot.triagePrompt) + "<br>Repair prompt: " + yes(snapshot.repairPrompt) + "<br>Missing tests: " + yes(snapshot.missingTestsMarkdown) + "<br>Baseline review: " + yes(snapshot.baselineReviewMarkdown)) +
     '</div>';
+}
+
+function planLaneSummaryCard() {
+  const plans = snapshot.planLaneSummary;
+  if (!plans) return card("Plan lanes", '<p class="muted">No <code>.visual-hive/plans.json</code> found. Run <code>visual-hive plans</code> after creating PR, canary, full, or scheduled plans.</p>');
+  return card("Plan lanes", '<p><b>' + esc(plans.planCount) + '</b> plan artifact(s), modes: ' + esc((plans.summary?.modes || []).join(", ") || "none") + '</p>' +
+    '<p class="muted">Selected contracts: ' + esc(plans.summary?.selectedContracts ?? 0) + ', targets: ' + esc(plans.summary?.selectedTargets ?? 0) + ', review lanes: ' + esc(plans.summary?.reviewPlans ?? 0) + '</p>' +
+    table(["Plan", "Mode", "Status", "Signals"], (plans.lanes || []).map(lane => [
+      link(lane.path, lane.path),
+      esc(lane.mode),
+      lane.status === "ready" ? '<span class="ok">ready</span>' : lane.status === "empty" ? '<span class="warn">empty</span>' : '<span class="warn">review</span>',
+      (lane.reasons || []).length ? list(lane.reasons) : '<span class="ok">none</span>'
+    ])));
 }
 
 function portfolio() {

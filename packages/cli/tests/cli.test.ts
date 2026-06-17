@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
 import { formatPlanSummary, parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
+import { formatPlansSummary, runPlansCommand } from "../src/commands/plans.js";
 import { runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
@@ -218,6 +219,61 @@ viewports:
     expect(plan.items.map((item) => item.contractId)).toEqual(["shell"]);
   });
 
+  it("plans summarizes default and sidecar plan artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-plans-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: plans-fixture
+  type: static
+  defaultBranch: main
+targets:
+  app:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    schedule: "*/15 * * * *"
+contracts:
+  - id: shell
+    description: Shell renders
+    target: app
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "body"
+viewports:
+  desktop:
+    width: 1280
+    height: 720
+mutation:
+  enabled: true
+  operators:
+    - broken-image
+`,
+      "utf8"
+    );
+    await runPlanCommand({ cwd: tempRoot, mode: "pr" });
+    await runPlanCommand({ cwd: tempRoot, mode: "canary", output: ".visual-hive/plan.canary.json" });
+    await runPlanCommand({ cwd: tempRoot, mode: "full", output: ".visual-hive/plan.full.json" });
+
+    const result = await runPlansCommand({ cwd: tempRoot });
+    const written = await readJson<typeof result.report>(result.reportPath);
+    const summary = formatPlansSummary(result.report, result.reportPath);
+
+    expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "plans.json"));
+    expect(written.planCount).toBe(3);
+    expect(written.summary.modes).toEqual(["canary", "full", "pr"]);
+    expect(written.lanes.map((lane) => lane.path)).toEqual(
+      expect.arrayContaining([".visual-hive/plan.json", ".visual-hive/plan.canary.json", ".visual-hive/plan.full.json"])
+    );
+    expect(summary).toContain("Plan Lanes: plans-fixture");
+    expect(summary).toContain("| .visual-hive/plan.canary.json | canary |");
+  });
+
   it("demo acceptance scripts exercise management-plane artifacts", async () => {
     const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
@@ -245,6 +301,7 @@ viewports:
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
+      "demo:plans",
       "demo:ui"
     ];
 
@@ -273,10 +330,13 @@ viewports:
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--output .visual-hive/plan.full.json");
     expect(packageJson.scripts["demo:plan:full"]).not.toContain("--allow-unsafe-targets");
-    expect(packageJson.scripts["demo:all"]).toContain("demo:plan:full && npm run demo:run");
-    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:run");
+    expect(packageJson.scripts["demo:plans"]).toContain("plans --config");
+    expect(packageJson.scripts["demo:all"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run");
+    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:auth-plan");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:docs-plan");
+    expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:plans");
+    expect(packageJson.scripts["demo:kubestellar:plans"]).toContain("plans --config");
     expect(packageJson.scripts["demo:kubestellar:auth-plan"]).toContain("--output .visual-hive/plan.auth.json");
     expect(packageJson.scripts["demo:kubestellar:cluster-plan"]).toContain("--output .visual-hive/plan.cluster.json");
     expect(packageJson.scripts["demo:kubestellar:docs-plan"]).toContain("--output .visual-hive/plan.docs.json");

@@ -13,6 +13,7 @@ import { auditTargets } from "../src/targets/audit.js";
 import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
 import { createPlan } from "../src/planner/createPlan.js";
+import { buildPlanLaneSummary } from "../src/planner/laneSummary.js";
 import { calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig, parseConfigText } from "../src/config/load.js";
 import { MUTATION_OPERATOR_METADATA, selectContractsForMutation } from "../src/mutations/operators.js";
@@ -651,6 +652,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.flows.schema.json");
     expect(schemaNames).toContain("visual-hive.connections-portfolio.schema.json");
     expect(schemaNames).toContain("visual-hive.runbook.schema.json");
+    expect(schemaNames).toContain("visual-hive.plans.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -832,6 +834,36 @@ describe("planner", () => {
 
     expect(plan.items.map((item) => item.contractId).sort()).toEqual(["changed-contract", "safe-contract", "unsafe-contract"]);
     expect(plan.mutation.enabled).toBe(true);
+  });
+
+  it("summarizes sidecar plan lanes with safety and mutation signals", () => {
+    const config = sampleConfig();
+    config.targets.safe = { ...config.targets.safe, schedule: "*/15 * * * *" };
+    const prPlan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"], now: new Date("2026-06-15T00:00:00.000Z") });
+    const canaryPlan = createPlan(config, { mode: "canary", changedFiles: [], now: new Date("2026-06-15T00:00:01.000Z") });
+    const fullPlan = createPlan(config, { mode: "full", changedFiles: [], now: new Date("2026-06-15T00:00:02.000Z") });
+
+    const report = buildPlanLaneSummary(
+      [
+        { path: ".visual-hive/plan.json", plan: prPlan },
+        { path: ".visual-hive/plan.canary.json", plan: canaryPlan },
+        { path: ".visual-hive/plan.full.json", plan: fullPlan }
+      ],
+      new Date("2026-06-15T00:00:03.000Z")
+    );
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.planCount).toBe(3);
+    expect(report.summary.modes).toEqual(["canary", "full", "pr"]);
+    expect(report.summary.selectedContracts).toBeGreaterThanOrEqual(2);
+    expect(report.summary.unsafeExcludedContracts).toBeGreaterThan(0);
+    expect(report.summary.mutationEnabledPlans).toBe(1);
+    expect(report.lanes.find((lane) => lane.path.endsWith("plan.full.json"))).toMatchObject({
+      mode: "full",
+      mutationEnabled: true,
+      status: "review"
+    });
+    expect(report.recommendations.join(" ")).toContain("non-PR-safe");
   });
 
   it("selects changed-file contracts", () => {
@@ -3150,6 +3182,7 @@ describe("artifact index", () => {
     await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
     await writeFile(path.join(hiveRoot, "plan.canary.json"), '{"schemaVersion":1,"mode":"canary","changedFiles":["src/App.tsx"]}', "utf8");
+    await writeFile(path.join(hiveRoot, "plans.json"), '{"schemaVersion":1,"lanes":[{"path":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
@@ -3183,7 +3216,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(20);
+    expect(index.summary.artifactCount).toBe(21);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3193,6 +3226,10 @@ describe("artifact index", () => {
     const canaryPlan = index.artifacts.find((artifact) => artifact.path.endsWith("plan.canary.json"));
     expect(canaryPlan?.labels).toContain("plan");
     expect(canaryPlan?.schemaPath).toBe("schemas/visual-hive.plan.schema.json");
+    const planLaneSummary = index.artifacts.find((artifact) => artifact.path.endsWith("plans.json"));
+    expect(planLaneSummary?.preview).toContain("[REDACTED]");
+    expect(planLaneSummary?.labels).toContain("plan-lanes");
+    expect(planLaneSummary?.schemaPath).toBe("schemas/visual-hive.plans.schema.json");
     const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
     expect(triageReport?.preview).toContain("[REDACTED]");
     expect(triageReport?.labels).toContain("triage-report");

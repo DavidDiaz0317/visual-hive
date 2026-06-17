@@ -29,6 +29,9 @@ try {
   if ((snapshot.report?.results ?? []).length < 2) {
     throw new Error("snapshot did not include per-contract deterministic results");
   }
+  if (!snapshot.planLaneSummary || snapshot.planLaneSummary.planCount < 3) {
+    throw new Error("snapshot did not include PR/canary/full plan lane summary evidence");
+  }
   if (!snapshot.mutationReport || typeof snapshot.mutationReport.score !== "number") {
     throw new Error("snapshot did not include mutation score evidence");
   }

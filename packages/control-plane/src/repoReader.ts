@@ -35,6 +35,7 @@ import {
   type MockProviderRunReport,
   type MutationReport,
   type Plan,
+  type PlanLaneSummaryReport,
   type ProviderSetupPlan,
   type Report,
   type RiskRegisterReport,
@@ -98,6 +99,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const hiveRoot = path.join(resolved.configRoot, ".visual-hive");
   const [
     plan,
+    planLaneSummary,
     report,
     triageReport,
     mutationReport,
@@ -126,6 +128,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     connections
   ] = await Promise.all([
     readJsonIfExists<unknown>(path.join(hiveRoot, "plan.json")),
+    readJsonIfExists<PlanLaneSummaryReport>(path.join(hiveRoot, "plans.json")),
     readJsonIfExists<Report>(path.join(hiveRoot, "report.json")),
     readJsonIfExists<TriageReport>(path.join(hiveRoot, "triage.json")),
     readJsonIfExists<MutationReport>(path.join(hiveRoot, "mutation-report.json")),
@@ -238,6 +241,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     config,
     configError,
     plan,
+    planLaneSummary,
     report,
     triageReport,
     runHistory,

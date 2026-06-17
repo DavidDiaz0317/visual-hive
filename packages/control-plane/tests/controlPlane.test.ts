@@ -202,6 +202,72 @@ viewports:
     ),
     "utf8"
   );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "plans.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        planCount: 2,
+        summary: {
+          modes: ["canary", "pr"],
+          selectedContracts: 1,
+          selectedTargets: 1,
+          emptyPlans: 0,
+          reviewPlans: 1,
+          unsafeExcludedContracts: 1,
+          expensiveTargets: 0,
+          mutationEnabledPlans: 0,
+          externalCallsPlanned: 0
+        },
+        lanes: [
+          {
+            path: ".visual-hive/plan.json",
+            mode: "pr",
+            generatedAt: "2026-06-15T00:00:00.000Z",
+            changedFiles: 1,
+            effectiveChangedFiles: 1,
+            ignoredChangedFiles: 0,
+            selectedContracts: ["dashboard"],
+            selectedTargets: ["localPreview"],
+            excludedContracts: 1,
+            unsafeExcludedContracts: 1,
+            expensiveTargets: [],
+            mutationEnabled: false,
+            mutationOperators: [],
+            externalCallsPlanned: 0,
+            providerPolicyBlocked: [],
+            status: "review",
+            reasons: ["1 non-PR-safe contract(s) excluded."]
+          },
+          {
+            path: ".visual-hive/plan.canary.json",
+            mode: "canary",
+            generatedAt: "2026-06-15T00:00:00.000Z",
+            changedFiles: 0,
+            effectiveChangedFiles: 0,
+            ignoredChangedFiles: 0,
+            selectedContracts: ["dashboard"],
+            selectedTargets: ["localPreview"],
+            excludedContracts: 0,
+            unsafeExcludedContracts: 0,
+            expensiveTargets: [],
+            mutationEnabled: false,
+            mutationOperators: [],
+            externalCallsPlanned: 0,
+            providerPolicyBlocked: [],
+            status: "ready",
+            reasons: []
+          }
+        ],
+        recommendations: ["Keep non-PR-safe targets out of untrusted lanes."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
   await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
   await writeFile(
@@ -911,6 +977,10 @@ describe("control plane", () => {
       providerId: "playwright",
       externalCallsPlanned: 0
     });
+    expect(snapshot.planLaneSummary).toMatchObject({
+      planCount: 2,
+      summary: { modes: ["canary", "pr"], reviewPlans: 1 }
+    });
     expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
     expect(snapshot.setupRecommendation?.setupProfile).toBe("free-local");
     expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
@@ -1080,6 +1150,7 @@ describe("control plane", () => {
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("plans.json"))?.labels).toContain("plan-lanes");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
@@ -1914,6 +1985,8 @@ contracts:
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("function setupProgressCard");
+    expect(controlPlaneJs).toContain("function planLaneSummaryCard");
+    expect(controlPlaneJs).toContain(".visual-hive/plans.json");
     expect(controlPlaneJs).toContain("Next best action");
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");

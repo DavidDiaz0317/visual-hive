@@ -9,6 +9,7 @@ import type {
   LLMUsageReport,
   MutationReport,
   MockProviderRunReport,
+  PlanLaneSummaryReport,
   ProviderInspection,
   ProviderSetupPlan,
   Report,
@@ -218,6 +219,7 @@ export interface ControlPlaneSnapshot {
   config?: VisualHiveConfig;
   configError?: string;
   plan?: unknown;
+  planLaneSummary?: PlanLaneSummaryReport;
   report?: Report;
   triageReport?: TriageReport;
   runHistory?: RunHistoryReport;

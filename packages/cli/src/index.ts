@@ -4,6 +4,7 @@ import { sanitizeText } from "@visual-hive/core";
 import { runDoctor, formatDiagnostics } from "./commands/doctor.js";
 import { runInit } from "./commands/init.js";
 import { formatPlanSummary, runPlanCommand } from "./commands/plan.js";
+import { formatPlansSummary, runPlansCommand } from "./commands/plans.js";
 import { runDeterministicCommand } from "./commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "./commands/mutate.js";
 import { runTriageCommand } from "./commands/triage.js";
@@ -131,6 +132,23 @@ program
         skipInstall: options.skipInstall,
         skipBuild: options.skipBuild
       });
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("plans")
+  .description("Summarize .visual-hive/plan*.json lane artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runPlansCommand({
+        config: options.config,
+        format: options.format
+      });
+      console.log(formatPlansSummary(result.report, result.reportPath, options.format));
     } catch (error) {
       fail(error);
     }
