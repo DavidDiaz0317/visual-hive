@@ -68,6 +68,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...onboardingChecklistLines(report),
     "",
+    "## Setup Actions",
+    "",
+    ...setupActionLines(report),
+    "",
     "## Cost Guardrails",
     "",
     `- Local screenshots per run: ${safe(String(report.costEstimate.localScreenshotsPerRun))}`,
@@ -185,6 +189,25 @@ function onboardingChecklistLines(report: SetupRecommendationReport): string[] {
     item.command ? `- Command: \`${safe(item.command)}\`` : "- Command: none",
     `- Evidence: ${listInline(item.evidence)}`,
     `- Related artifacts: ${listInline(item.relatedArtifacts)}`,
+    ""
+  ]);
+}
+
+function setupActionLines(report: SetupRecommendationReport): string[] {
+  if (!report.setupActions?.length) return ["No structured setup actions were generated. Re-run `visual-hive recommend` with a current Visual Hive version."];
+  return report.setupActions.flatMap((action) => [
+    `### ${safe(action.label)}`,
+    "",
+    `- Category: ${safe(action.category)}`,
+    `- Recommended: ${action.recommended ? "yes" : "no"}`,
+    `- Requires confirmation: ${action.requiresConfirmation ? "yes" : "no"}`,
+    `- Writes: ${listInline(action.writes)}`,
+    `- Outcome: ${safe(action.outcome)}`,
+    `- Safety: ${listInline(action.safetyNotes)}`,
+    "",
+    "```bash",
+    safe(action.command),
+    "```",
     ""
   ]);
 }

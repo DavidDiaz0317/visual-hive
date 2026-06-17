@@ -2638,6 +2638,13 @@ jobs:
     expect(recommendation.onboardingChecklist.find((item) => item.id === "inspect-repository")?.evidence).toContain("playwright=present");
     expect(recommendation.onboardingChecklist.find((item) => item.id === "inspect-repository")?.evidence).toContain("routes=3");
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
+    expect(recommendation.setupActions.map((action) => action.id)).toContain("use-free-local-setup");
+    expect(recommendation.setupActions.find((action) => action.id === "skip-provider-for-now")).toMatchObject({
+      category: "provider",
+      requiresConfirmation: false,
+      writes: [".visual-hive/provider-decisions.json"]
+    });
+    expect(recommendation.setupActions.find((action) => action.id === "preview-setup-pr")?.safetyNotes.join(" ")).toContain("pull_request");
     expect(recommendation.detectedWorkflows).toEqual([
       {
         path: ".github/workflows/ci.yml",
@@ -2700,6 +2707,9 @@ jobs:
     expect(setupDocs).toContain("Playwright built-in");
     expect(setupDocs).toContain("## Onboarding Checklist");
     expect(setupDocs).toContain("### Verify PR safety");
+    expect(setupDocs).toContain("## Setup Actions");
+    expect(setupDocs).toContain("Use free local setup");
+    expect(setupDocs).toContain("visual-hive providers decision --provider argos");
     expect(setupDocs).toContain("## Existing Workflow Hints");
     expect(setupDocs).toContain(".github/workflows/legacy.yml");
     expect(setupDocs).toContain("uses pull_request_target");
@@ -2830,6 +2840,7 @@ export const Alert = {};
       requiredEnv: ["CHROMATIC_PROJECT_TOKEN"],
       externalUploadAllowedByDefault: false
     });
+    expect(recommendation.setupActions.find((action) => action.id === "skip-provider-for-now")?.command).toContain("--provider chromatic");
     expect(recommendation.costEstimate.localScreenshotsPerRun).toBe(4);
     expect(recommendation.costEstimate.externalScreenshotsPerRun).toBe(4);
     expect(parsedYaml.costPolicy.maxExternalScreenshotsPerRun).toBeGreaterThanOrEqual(4);

@@ -21,6 +21,7 @@ export interface SetupRecommendationReport {
   costEstimate: SetupCostEstimate;
   permissions: SetupPermissionRecommendation;
   setupPullRequest: SetupPullRequestRecommendation;
+  setupActions: SetupActionRecommendation[];
   workflowPreviews: SetupWorkflowPreview[];
   recommendedConfig: VisualHiveConfig;
   recommendedConfigYaml: string;
@@ -142,6 +143,19 @@ export interface SetupPullRequestRecommendation {
   files: string[];
   steps: string[];
   securityNotes: string[];
+}
+
+export interface SetupActionRecommendation {
+  id: string;
+  label: string;
+  category: "profile" | "write" | "provider" | "validate";
+  description: string;
+  command: string;
+  recommended: boolean;
+  requiresConfirmation: boolean;
+  writes: string[];
+  safetyNotes: string[];
+  outcome: string;
 }
 
 export interface SetupWorkflowPreview {
@@ -272,6 +286,12 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     "visual-hive triage",
     "visual-hive report"
   ];
+  const setupActions = buildSetupActionRecommendations({
+    setupProfile,
+    setupPullRequest,
+    providerRecommendations,
+    recommendedCommands
+  });
 
   return {
     schemaVersion: 1,
@@ -290,6 +310,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     costEstimate,
     permissions,
     setupPullRequest,
+    setupActions,
     workflowPreviews,
     recommendedConfig,
     recommendedConfigYaml,
@@ -750,6 +771,107 @@ function buildSetupPullRequestRecommendation(configPath: string, setupProfile: V
       "LLM output remains advisory and cannot decide pass/fail."
     ]
   };
+}
+
+function buildSetupActionRecommendations(input: {
+  setupProfile: VisualHiveConfig["project"]["setupProfile"];
+  setupPullRequest: SetupPullRequestRecommendation;
+  providerRecommendations: SetupProviderRecommendation[];
+  recommendedCommands: string[];
+}): SetupActionRecommendation[] {
+  const providerEnvNames = unique(input.providerRecommendations.flatMap((provider) => provider.requiredEnv)).sort();
+  const hostedProviderLabels = input.providerRecommendations
+    .filter((provider) => provider.recommendation === "optional" || provider.recommendation === "future")
+    .map((provider) => provider.label);
+  const providerDecisionTarget =
+    input.providerRecommendations.find((provider) => provider.providerId !== "playwright" && provider.recommendation === "optional") ??
+    input.providerRecommendations.find((provider) => provider.providerId !== "playwright" && provider.recommendation === "future");
+  return [
+    {
+      id: "use-free-local-setup",
+      label: "Use free local setup",
+      category: "profile",
+      description: "Regenerate recommendations for a Playwright-only setup with local artifacts and no paid provider assumptions.",
+      command: "visual-hive recommend --profile free-local --write-setup-bundle",
+      recommended: input.setupProfile === "free-local",
+      requiresConfirmation: true,
+      writes: input.setupPullRequest.files,
+      safetyNotes: [
+        "PR workflows remain read-only and secret-free.",
+        "No external provider upload, billing, or LLM call is enabled."
+      ],
+      outcome: "Creates a guarded local-first config, docs, and workflow bundle."
+    },
+    {
+      id: "enable-hosted-review-posture",
+      label: "Enable hosted review posture",
+      category: "profile",
+      description: "Regenerate recommendations for teams that may later connect Argos, Percy, Chromatic, or Applitools in trusted lanes.",
+      command: "visual-hive recommend --profile hosted-review --write-setup-bundle",
+      recommended: input.setupProfile === "hosted-review",
+      requiresConfirmation: true,
+      writes: input.setupPullRequest.files,
+      safetyNotes: [
+        "This only changes recommended posture; it does not create credentials or upload artifacts.",
+        providerEnvNames.length ? `Credential names to review later: ${providerEnvNames.join(", ")}` : "No provider credential names are required for the default path."
+      ],
+      outcome: `Produces hosted-review guidance while keeping provider use opt-in${hostedProviderLabels.length ? ` for ${hostedProviderLabels.join(", ")}` : ""}.`
+    },
+    {
+      id: "skip-provider-for-now",
+      label: "Skip provider for now",
+      category: "provider",
+      description: `Record a local governance decision to keep ${providerDecisionTarget?.label ?? "a supplemental provider"} disabled while using Playwright artifacts.`,
+      command: `visual-hive providers decision --provider ${providerDecisionTarget?.providerId ?? "argos"} --decision skip --reason "Playwright artifacts are enough for this repo right now"`,
+      recommended: input.setupProfile === "free-local",
+      requiresConfirmation: false,
+      writes: [".visual-hive/provider-decisions.json"],
+      safetyNotes: [
+        "Records local audit evidence only.",
+        "Does not create credentials, enable billing, upload screenshots, or call a provider API."
+      ],
+      outcome: "Keeps the default provider posture explicit for reviewers."
+    },
+    {
+      id: "generate-config",
+      label: "Generate config",
+      category: "write",
+      description: "Write the recommended Visual Hive config after reviewing the YAML preview.",
+      command: "visual-hive recommend --write-config",
+      recommended: true,
+      requiresConfirmation: true,
+      writes: ["visual-hive.config.yaml", ".visual-hive/recommendations.json"],
+      safetyNotes: ["Refuses to overwrite an existing config unless --force is passed."],
+      outcome: "Creates the config used by doctor, plan, run, mutate, triage, and report."
+    },
+    {
+      id: "preview-setup-pr",
+      label: "Preview setup PR",
+      category: "write",
+      description: "Generate the config, docs, and workflow bundle that should be reviewed as a setup PR.",
+      command: "visual-hive recommend --write-setup-bundle",
+      recommended: true,
+      requiresConfirmation: true,
+      writes: input.setupPullRequest.files,
+      safetyNotes: input.setupPullRequest.securityNotes,
+      outcome: "Creates a reviewable setup bundle and audit artifacts without opening a PR automatically."
+    },
+    {
+      id: "validate-local-path",
+      label: "Validate local path",
+      category: "validate",
+      description: "Run the deterministic local proof after setup files are generated.",
+      command: input.recommendedCommands.join(" && "),
+      recommended: true,
+      requiresConfirmation: false,
+      writes: [".visual-hive/plan.json", ".visual-hive/report.json", ".visual-hive/triage.json"],
+      safetyNotes: [
+        "Playwright contracts remain the pass/fail oracle.",
+        "First local screenshot runs may create baselines for human review."
+      ],
+      outcome: "Proves the local PR-safe path before making CI required."
+    }
+  ];
 }
 
 function configInput(input: {
@@ -1275,6 +1397,10 @@ async function exists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }
 
 function normalizeSlashes(value: string): string {

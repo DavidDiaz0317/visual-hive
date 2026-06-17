@@ -14,6 +14,7 @@
     "costEstimate",
     "permissions",
     "setupPullRequest",
+    "setupActions",
     "recommendedConfig",
     "recommendedConfigYaml",
     "detectedSelectors",
@@ -49,6 +50,10 @@
     "costEstimate": { "$ref": "#/$defs/costEstimate" },
     "permissions": { "$ref": "#/$defs/permissions" },
     "setupPullRequest": { "$ref": "#/$defs/setupPullRequest" },
+    "setupActions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/setupAction" }
+    },
     "workflowPreviews": {
       "type": "array",
       "items": { "$ref": "#/$defs/workflowPreview" }
@@ -195,6 +200,33 @@
         "files": { "type": "array", "items": { "type": "string" } },
         "steps": { "type": "array", "items": { "type": "string" } },
         "securityNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "setupAction": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "category",
+        "description",
+        "command",
+        "recommended",
+        "requiresConfirmation",
+        "writes",
+        "safetyNotes",
+        "outcome"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "category": { "enum": ["profile", "write", "provider", "validate"] },
+        "description": { "type": "string" },
+        "command": { "type": "string" },
+        "recommended": { "type": "boolean" },
+        "requiresConfirmation": { "type": "boolean" },
+        "writes": { "type": "array", "items": { "type": "string" } },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } },
+        "outcome": { "type": "string" }
       }
     },
     "workflowPreview": {

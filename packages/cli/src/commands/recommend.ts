@@ -134,6 +134,12 @@ export function formatSetupRecommendation(
         `- [${item.status}] ${item.title}: ${item.action}${item.command ? ` Command: \`${item.command}\`` : ""}`
     ),
     "",
+    "## Setup Actions",
+    ...(report.setupActions ?? []).map(
+      (action) =>
+        `- ${action.recommended ? "[recommended] " : ""}${action.label}: ${action.outcome} Command: \`${action.command}\``
+    ),
+    "",
     "## Next Commands",
     ...report.recommendedCommands.map((command) => `- \`${command}\``)
   ];

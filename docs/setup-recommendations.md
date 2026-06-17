@@ -18,6 +18,7 @@ The command detects:
 - CI runtime, screenshot, and external upload cost estimates
 - PR/scheduled permission guidance and required secret names only
 - setup PR file list, steps, and security notes
+- a structured setup action plan for "Use free local setup", "Enable hosted review", "Skip provider", "Generate config", and "Preview setup PR"
 - repo-specific setup documentation for `docs/visual-hive.md`
 - initial changed-file selection and mutation operators
 
@@ -48,6 +49,8 @@ The local Control Plane exposes the same guarded setup path from the Setup tab. 
 
 Regenerating from the Control Plane writes only `.visual-hive/recommendations.json`. It does not overwrite `visual-hive.config.yaml`, docs, or workflows. After reviewing the profile-specific recommendation, use the guarded setup actions to generate config, docs, or the setup PR bundle.
 
+The recommendation artifact also includes `setupActions`, a deterministic list of next actions with commands, files written, confirmation requirements, safety notes, and expected outcomes. These actions are intended to power beginner-friendly UI buttons without hiding what will happen. Provider actions such as "Skip provider for now" write local governance evidence only; they do not create credentials, enable billing, upload screenshots, or call provider APIs.
+
 ## Artifact
 
 The report schema is `schemas/visual-hive.recommendations.schema.json`.
@@ -60,6 +63,7 @@ Important fields:
 - `costEstimate`: local screenshot count, external screenshot count, CI runtime class, monthly external screenshot estimate, and notes
 - `permissions`: least-privilege PR and scheduled-lane recommendations
 - `setupPullRequest`: suggested setup PR title, files, steps, and security notes
+- `setupActions`: guarded setup commands, writes, safety notes, confirmation requirements, and outcomes for profile selection, provider decisions, config generation, setup PR preview, and local validation
 - `workflowPreviews`: built-in PR, scheduled, and trusted failure-issue workflow snippets with paths, descriptions, and safety notes
 - `playwright`: existing Playwright setup status, dependency names, package scripts, config files, and notes
 - `recommendedConfig`: parsed Visual Hive config object
@@ -76,4 +80,4 @@ For Storybook repositories, the generated starter contracts target up to the fir
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, Playwright presence, provider recommendation, cost estimate, permission guidance, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected app route hints, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, Playwright presence, provider recommendation, cost estimate, permission guidance, setup action plan, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected app route hints, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.

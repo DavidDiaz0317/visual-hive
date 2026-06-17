@@ -923,6 +923,8 @@ jobs:
     expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
     expect(report.playwright).toMatchObject({ status: "present", dependencies: ["@playwright/test"], configFiles: ["playwright.config.ts"] });
     expect(report.detectedRoutes.map((route) => route.route)).toEqual(["/clusters", "/settings"]);
+    expect(report.setupActions.find((action) => action.id === "generate-config")?.command).toBe("visual-hive recommend --write-config");
+    expect(report.setupActions.find((action) => action.id === "skip-provider-for-now")?.safetyNotes.join(" ")).toContain("Does not create credentials");
     expect(report.detectedWorkflows[0]).toMatchObject({
       path: ".github/workflows/visual-hive-pr.yml",
       triggers: ["pull_request"],
@@ -943,6 +945,9 @@ jobs:
     expect(summary).toContain("Visual Hive PR: .github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Onboarding Checklist");
     expect(summary).toContain("[ready] Verify PR safety");
+    expect(summary).toContain("Setup Actions");
+    expect(summary).toContain("Use free local setup");
+    expect(summary).toContain("visual-hive recommend --write-setup-bundle");
     expect(summary).toContain("PR secrets required: none");
     expect(summary).toContain("Docs written:");
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
@@ -951,6 +956,8 @@ jobs:
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Playwright Presence");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("@playwright/test");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Detected Route Hints");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("## Setup Actions");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("visual-hive providers decision --provider argos");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Existing Workflow Hints");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Workflow Previews");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("include-hidden-files: true");

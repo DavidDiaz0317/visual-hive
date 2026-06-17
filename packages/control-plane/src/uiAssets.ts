@@ -547,7 +547,7 @@ function setup() {
       ["PR secrets", permissions.pullRequest?.secretsRequired?.join(", ") || "none"],
       ["Scheduled secrets", permissions.scheduled?.secretsRequired?.join(", ") || "none"]
     ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
-    card("Setup actions", setupActions()) +
+    card("Setup actions", setupActions(recommendation)) +
     card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
     setupDetectedWorkflows(recommendation) +
     setupWorkflowPreviews(recommendation) +
@@ -773,12 +773,24 @@ function setupStatusBadge(status) {
   return '<span class="status-' + escAttr(status) + '">' + esc(labels[status] || status) + '</span>';
 }
 
-function setupActions() {
+function setupActions(recommendation) {
   if (snapshot.readOnly) {
     return '<p class="muted">Read-only mode disables setup writes. Restart without <code>--read-only</code> to generate config or docs from this recommendation.</p>';
   }
   const hasConfig = Boolean(snapshot.configRaw);
-  return '<p class="muted">Recommended setup writes use .visual-hive/recommendations.json, require confirmation, and record audit files.</p>' +
+  const actions = recommendation?.setupActions || [];
+  const actionPlan = actions.length
+    ? '<h3>Recommended action plan</h3>' +
+      table(["Action", "Category", "Writes", "Safety", "Command"], actions.map(action => [
+        '<b>' + esc(action.label || action.id || "action") + '</b><p class="muted">' + esc(action.outcome || action.description || "") + (action.recommended ? ' <span class="ok">recommended</span>' : "") + '</p>',
+        action.category || "setup",
+        (action.writes || []).join(", ") || "none",
+        (action.safetyNotes || []).join("<br>") || "review before running",
+        copyButton(action.command || "", (action.label || action.id || "setup action") + " command")
+      ]))
+    : '<p class="muted">No structured setup action plan was found. Re-run <code>visual-hive recommend</code> with a current Visual Hive version.</p>';
+  return actionPlan +
+    '<p class="muted">Recommended setup writes use .visual-hive/recommendations.json, require confirmation, and record audit files.</p>' +
     '<div class="actions">' +
     '<button id="setup-write-config" class="button" data-force="' + (hasConfig ? "true" : "false") + '">' + (hasConfig ? "Overwrite config after review" : "Generate config") + '</button>' +
     '<button class="button copy-button" data-copy="' + escAttr(snapshot.setupRecommendation?.recommendedConfigYaml || "") + '">Copy recommended YAML</button>' +

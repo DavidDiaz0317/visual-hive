@@ -433,6 +433,32 @@ viewports:
           steps: ["Run visual-hive recommend --write-config in the target repo."],
           securityNotes: ["Use pull_request, not pull_request_target, for PR code execution."]
         },
+        setupActions: [
+          {
+            id: "use-free-local-setup",
+            label: "Use free local setup",
+            category: "profile",
+            description: "Regenerate recommendations for local artifacts.",
+            command: "visual-hive recommend --profile free-local --write-setup-bundle",
+            recommended: true,
+            requiresConfirmation: true,
+            writes: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+            safetyNotes: ["No external provider upload is enabled."],
+            outcome: "Creates a guarded local-first setup bundle."
+          },
+          {
+            id: "skip-provider-for-now",
+            label: "Skip provider for now",
+            category: "provider",
+            description: "Record local provider governance.",
+            command: "visual-hive providers decision --provider argos --decision skip --reason \"Playwright artifacts are enough\"",
+            recommended: true,
+            requiresConfirmation: false,
+            writes: [".visual-hive/provider-decisions.json"],
+            safetyNotes: ["Does not create credentials or upload screenshots."],
+            outcome: "Keeps the default provider posture explicit."
+          }
+        ],
         workflowPreviews: [
           {
             id: "pull_request",
@@ -1380,6 +1406,8 @@ contracts:
       expect(appJs).toContain("function setupProfileSelector");
       expect(appJs).toContain("function setupPlaywrightPresence");
       expect(appJs).toContain("Playwright presence");
+      expect(appJs).toContain("Recommended action plan");
+      expect(appJs).toContain("Use free local setup");
       expect(appJs).toContain("function setupDetectedRoutes");
       expect(appJs).toContain("Detected app routes");
       expect(appJs).toContain("function setupDetectedStories");
@@ -1426,6 +1454,7 @@ contracts:
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.playwright.status).toBe("present");
       expect(snapshot.setupRecommendation.detectedRoutes[0].route).toBe("/clusters");
+      expect(snapshot.setupRecommendation.setupActions[0].id).toBe("use-free-local-setup");
       expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
       expect(snapshot.setupRecommendation.detectedWorkflows[0].usesPullRequestTarget).toBe(true);
       expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
