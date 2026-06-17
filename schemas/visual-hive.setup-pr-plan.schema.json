@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.setup-pr-plan.schema.json",
+  "title": "Visual Hive Setup Pull Request Plan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "sourceRecommendationGeneratedAt",
+    "setupProfile",
+    "status",
+    "title",
+    "summary",
+    "files",
+    "workflowPreviews",
+    "providerDecisions",
+    "validationCommands",
+    "steps",
+    "security",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "sourceRecommendationGeneratedAt": { "type": "string" },
+    "setupProfile": {
+      "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"]
+    },
+    "status": { "enum": ["ready", "review", "blocked"] },
+    "title": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["filesPlanned", "workflowsPlanned", "validationCommands", "externalCallsMade", "requiresReview", "blockedReasons"],
+      "properties": {
+        "filesPlanned": { "type": "number" },
+        "workflowsPlanned": { "type": "number" },
+        "validationCommands": { "type": "number" },
+        "externalCallsMade": { "const": 0 },
+        "requiresReview": { "type": "boolean" },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file" }
+    },
+    "workflowPreviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflowPreview" }
+    },
+    "providerDecisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerDecision" }
+    },
+    "validationCommands": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "security": { "$ref": "#/$defs/security" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "required": ["path", "kind", "action", "source", "requiresOverwriteReview"],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "enum": ["config", "docs", "workflow", "audit"] },
+        "action": { "enum": ["create", "review", "audit"] },
+        "source": { "type": "string" },
+        "requiresOverwriteReview": { "type": "boolean" }
+      }
+    },
+    "workflowPreview": {
+      "type": "object",
+      "required": ["id", "label", "path", "description", "safetyNotes"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "description": { "type": "string" },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "providerDecision": {
+      "type": "object",
+      "required": ["providerId", "label", "recommendation", "requiredEnv", "externalUploadAllowedByDefault"],
+      "properties": {
+        "providerId": { "type": "string" },
+        "label": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "externalUploadAllowedByDefault": { "type": "boolean" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "title", "status", "writes", "safetyNotes"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "enum": ["ready", "review", "blocked"] },
+        "command": { "type": "string" },
+        "writes": { "type": "array", "items": { "type": "string" } },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "security": {
+      "type": "object",
+      "required": [
+        "pullRequestPermissions",
+        "pullRequestSecretsRequired",
+        "scheduledSecretsRequired",
+        "generatedWorkflowsUsePullRequestTarget",
+        "generatedPrWorkflowUsesSecrets",
+        "externalUploadsInPullRequest",
+        "issueCreationFromUntrustedPr",
+        "notes"
+      ],
+      "properties": {
+        "pullRequestPermissions": { "type": "array", "items": { "type": "string" } },
+        "pullRequestSecretsRequired": { "type": "array", "items": { "type": "string" } },
+        "scheduledSecretsRequired": { "type": "array", "items": { "type": "string" } },
+        "generatedWorkflowsUsePullRequestTarget": { "type": "boolean" },
+        "generatedPrWorkflowUsesSecrets": { "type": "boolean" },
+        "externalUploadsInPullRequest": { "type": "boolean" },
+        "issueCreationFromUntrustedPr": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

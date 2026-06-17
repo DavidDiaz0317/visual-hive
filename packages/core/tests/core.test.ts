@@ -36,6 +36,7 @@ import { buildTriageReport } from "../src/reports/triageReport.js";
 import { indexArtifacts } from "../src/artifacts/index.js";
 import { addConnection, listConnections, removeConnection } from "../src/connections/manage.js";
 import { buildSetupDocsMarkdown } from "../src/setup/docs.js";
+import { buildSetupPullRequestPlan } from "../src/setup/prPlan.js";
 import { buildSetupProgress } from "../src/setup/progress.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
@@ -653,6 +654,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.connections-portfolio.schema.json");
     expect(schemaNames).toContain("visual-hive.runbook.schema.json");
     expect(schemaNames).toContain("visual-hive.plans.schema.json");
+    expect(schemaNames).toContain("visual-hive.setup-pr-plan.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -3183,6 +3185,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
     await writeFile(path.join(hiveRoot, "plan.canary.json"), '{"schemaVersion":1,"mode":"canary","changedFiles":["src/App.tsx"]}', "utf8");
     await writeFile(path.join(hiveRoot, "plans.json"), '{"schemaVersion":1,"lanes":[{"path":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
@@ -3216,7 +3219,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(21);
+    expect(index.summary.artifactCount).toBe(22);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3230,6 +3233,10 @@ describe("artifact index", () => {
     expect(planLaneSummary?.preview).toContain("[REDACTED]");
     expect(planLaneSummary?.labels).toContain("plan-lanes");
     expect(planLaneSummary?.schemaPath).toBe("schemas/visual-hive.plans.schema.json");
+    const setupPrPlan = index.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"));
+    expect(setupPrPlan?.preview).toContain("[REDACTED]");
+    expect(setupPrPlan?.labels).toContain("setup-pr-plan");
+    expect(setupPrPlan?.schemaPath).toBe("schemas/visual-hive.setup-pr-plan.schema.json");
     const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
     expect(triageReport?.preview).toContain("[REDACTED]");
     expect(triageReport?.labels).toContain("triage-report");
@@ -3473,6 +3480,39 @@ jobs:
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("pull_request:");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("include-hidden-files: true");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_failure_issue")?.content).toContain("workflow_run:");
+    const setupPrPlan = buildSetupPullRequestPlan(recommendation, new Date("2026-06-15T00:00:00.000Z"));
+    expect(setupPrPlan).toMatchObject({
+      schemaVersion: 1,
+      project: "sample-dashboard",
+      setupProfile: "free-local",
+      status: "review",
+      summary: {
+        externalCallsMade: 0,
+        workflowsPlanned: 3,
+        requiresReview: true
+      }
+    });
+    expect(setupPrPlan.files.map((file) => file.path)).toEqual([
+      ".github/workflows/visual-hive-failure-issue.yml",
+      ".github/workflows/visual-hive-pr.yml",
+      ".github/workflows/visual-hive-scheduled.yml",
+      ".visual-hive/recommendations.json",
+      ".visual-hive/setup-bundle-edits.json",
+      ".visual-hive/setup-pr-plan.json",
+      "docs/visual-hive.md",
+      "visual-hive.config.yaml"
+    ]);
+    expect(setupPrPlan.security).toMatchObject({
+      generatedWorkflowsUsePullRequestTarget: false,
+      generatedPrWorkflowUsesSecrets: false,
+      issueCreationFromUntrustedPr: false,
+      pullRequestSecretsRequired: []
+    });
+    expect(setupPrPlan.steps.find((step) => step.id === "write-setup-files")?.command).toBe("visual-hive recommend --write-setup-bundle");
+    expect(setupPrPlan.providerDecisions.find((provider) => provider.providerId === "argos")).toMatchObject({
+      requiredEnv: ["ARGOS_TOKEN"],
+      externalUploadAllowedByDefault: false
+    });
     expect(recommendation.onboardingChecklist.map((item) => item.id)).toEqual([
       "inspect-repository",
       "choose-pr-safe-target",

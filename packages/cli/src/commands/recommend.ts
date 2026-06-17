@@ -3,9 +3,11 @@ import path from "node:path";
 import { writeSetupBundleFromRecommendation, type SetupBundleWriteResult } from "@visual-hive/control-plane";
 import {
   SetupProfileSchema,
+  buildSetupPullRequestPlan,
   buildSetupDocsMarkdown,
   recommendSetup,
   writeJson,
+  type SetupPullRequestPlanReport,
   type SetupRecommendationReport,
   type VisualHiveConfig
 } from "@visual-hive/core";
@@ -24,6 +26,8 @@ export interface RecommendCommandOptions {
 export interface RecommendCommandResult {
   report: SetupRecommendationReport;
   reportPath: string;
+  setupPrPlan: SetupPullRequestPlanReport;
+  setupPrPlanPath: string;
   configWritten?: string;
   docsWritten?: string;
   setupBundle?: SetupBundleWriteResult;
@@ -39,7 +43,10 @@ export async function runRecommendCommand(
   const profile = parseProfileOption(options.profile);
   const report = await recommendSetup({ repoRoot, configPath, setupProfile: profile });
   const reportPath = path.join(repoRoot, ".visual-hive", "recommendations.json");
+  const setupPrPlan = buildSetupPullRequestPlan(report);
+  const setupPrPlanPath = path.join(repoRoot, ".visual-hive", "setup-pr-plan.json");
   await writeJson(reportPath, report);
+  await writeJson(setupPrPlanPath, setupPrPlan);
   let configWritten: string | undefined;
   let docsWritten: string | undefined;
   let setupBundle: SetupBundleWriteResult | undefined;
@@ -71,7 +78,7 @@ export async function runRecommendCommand(
     await writeFile(docsPath, buildSetupDocsMarkdown(report), "utf8");
     docsWritten = docsPath;
   }
-  return { report, reportPath, configWritten, docsWritten, setupBundle };
+  return { report, reportPath, setupPrPlan, setupPrPlanPath, configWritten, docsWritten, setupBundle };
 }
 
 export function formatSetupRecommendation(
@@ -84,6 +91,7 @@ export function formatSetupRecommendation(
   const { report, reportPath, configWritten } = result;
   const lines = [
     `Wrote ${reportPath}`,
+    `Wrote ${result.setupPrPlanPath}`,
     "# Visual Hive Setup Recommendation",
     "",
     `- Project: ${report.project.name}`,
@@ -105,6 +113,7 @@ export function formatSetupRecommendation(
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
     `- Docs written: ${result.docsWritten ?? "no, pass --write-docs to create docs/visual-hive.md"}`,
     `- Setup bundle written: ${result.setupBundle ? `yes, audit ${result.setupBundle.auditPath}` : "no, pass --write-setup-bundle to create config, docs, and workflows"}`,
+    `- Setup PR plan: ${result.setupPrPlan.status}, ${result.setupPrPlan.summary.filesPlanned} file(s), ${result.setupPrPlan.summary.externalCallsMade} external calls`,
     "",
     "## Why",
     ...report.recommendedTarget.reasons.map((reason) => `- ${reason}`),
@@ -150,10 +159,20 @@ export function formatSetupRecommendation(
       "",
       "## Setup PR",
       `- Title: ${report.setupPullRequest.title}`,
+      `- Plan artifact: ${result.setupPrPlanPath}`,
+      `- Status: ${result.setupPrPlan.status}`,
       ...report.setupPullRequest.files.map((file) => `- File: ${file}`),
       ...report.setupPullRequest.securityNotes.map((note) => `- Security: ${note}`)
     );
   }
+  lines.push(
+    "",
+    "## Setup PR Plan",
+    `- External calls made: ${result.setupPrPlan.summary.externalCallsMade}`,
+    `- Workflows planned: ${result.setupPrPlan.summary.workflowsPlanned}`,
+    `- Validation commands: ${result.setupPrPlan.validationCommands.length}`,
+    ...result.setupPrPlan.steps.map((step) => `- [${step.status}] ${step.title}${step.command ? `: \`${step.command}\`` : ""}`)
+  );
   if (report.workflowPreviews?.length) {
     lines.push(
       "",

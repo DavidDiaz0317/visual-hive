@@ -28,6 +28,7 @@ import type {
   LLMDecisionLog,
   ProviderDecisionLog,
   SetupProgressReport,
+  SetupPullRequestPlanReport,
   SetupRecommendationReport,
   WorkflowAuditReport
 } from "@visual-hive/core";
@@ -237,6 +238,7 @@ export interface ControlPlaneSnapshot {
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
   setupRecommendation?: SetupRecommendationReport;
+  setupPullRequestPlan?: SetupPullRequestPlanReport;
   issueMarkdown?: string;
   prCommentMarkdown?: string;
   triagePrompt?: string;

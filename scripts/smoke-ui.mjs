@@ -32,6 +32,9 @@ try {
   if (!snapshot.planLaneSummary || snapshot.planLaneSummary.planCount < 3) {
     throw new Error("snapshot did not include PR/canary/full plan lane summary evidence");
   }
+  if (!snapshot.setupPullRequestPlan || snapshot.setupPullRequestPlan.summary?.externalCallsMade !== 0) {
+    throw new Error("snapshot did not include no-network setup PR plan evidence");
+  }
   if (!snapshot.mutationReport || typeof snapshot.mutationReport.score !== "number") {
     throw new Error("snapshot did not include mutation score evidence");
   }

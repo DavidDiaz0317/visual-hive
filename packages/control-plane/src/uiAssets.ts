@@ -554,6 +554,7 @@ function setup() {
     '</div>' +
     setupProgressCard(snapshot.setupProgress) +
     setupChecklist(recommendation) +
+    setupPrPlanCard(snapshot.setupPullRequestPlan) +
     setupProfileSelector(recommendation) +
     setupPlaywrightPresence(recommendation) +
     card("Recommended target", table(["Field", "Value"], [
@@ -588,6 +589,49 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupPrPlanCard(plan) {
+  if (!plan) {
+    return card(
+      "Setup PR plan",
+      '<p class="muted">No setup PR plan artifact found. Run <code>visual-hive recommend</code> to create <code>.visual-hive/setup-pr-plan.json</code>.</p>'
+    );
+  }
+  const statusClass = plan.status === "blocked" ? "bad" : plan.status === "review" ? "warn" : "ok";
+  return card(
+    "Setup PR plan",
+    '<div class="grid">' +
+      metric("Status", plan.status, statusClass) +
+      metric("Files", plan.summary?.filesPlanned ?? 0, "") +
+      metric("Workflows", plan.summary?.workflowsPlanned ?? 0, "") +
+      metric("External calls", plan.summary?.externalCallsMade ?? 0, (plan.summary?.externalCallsMade ?? 0) ? "bad" : "ok") +
+    '</div>' +
+    '<p><b>' + esc(plan.title || "Visual Hive setup PR") + '</b></p>' +
+    ((plan.summary?.blockedReasons || []).length ? '<h3>Blocked reasons</h3>' + list(plan.summary.blockedReasons) : "") +
+    '<h3>Planned files</h3>' +
+    table(["Path", "Kind", "Action", "Overwrite review"], (plan.files || []).map(file => [
+      link(file.path, file.path),
+      file.kind || "unknown",
+      file.action || "review",
+      file.requiresOverwriteReview ? '<span class="warn">required</span>' : '<span class="ok">no</span>'
+    ])) +
+    '<h3>Setup steps</h3>' +
+    table(["Step", "Status", "Command", "Writes"], (plan.steps || []).map(step => [
+      '<b>' + esc(step.title || step.id) + '</b>',
+      setupStatusBadge(step.status || "review"),
+      step.command ? copyButton(step.command, step.title || step.id) + '<pre>' + esc(step.command) + '</pre>' : '<span class="muted">manual review</span>',
+      (step.writes || []).map(path => link(path, path)).join("<br>") || '<span class="muted">none</span>'
+    ])) +
+    '<h3>Security checks</h3>' +
+    table(["Check", "Value"], [
+      ["PR permissions", (plan.security?.pullRequestPermissions || []).join(", ") || "unknown"],
+      ["PR secrets required", (plan.security?.pullRequestSecretsRequired || []).join(", ") || "none"],
+      ["Generated workflows use pull_request_target", plan.security?.generatedWorkflowsUsePullRequestTarget ? '<span class="bad">yes</span>' : '<span class="ok">no</span>'],
+      ["PR workflow uses secrets", plan.security?.generatedPrWorkflowUsesSecrets ? '<span class="bad">yes</span>' : '<span class="ok">no</span>'],
+      ["Issue creation from PR workflow", plan.security?.issueCreationFromUntrustedPr ? '<span class="bad">yes</span>' : '<span class="ok">no</span>']
+    ])
+  );
 }
 
 function setupProgressCard(progress) {

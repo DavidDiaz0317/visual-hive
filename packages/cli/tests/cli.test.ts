@@ -1295,9 +1295,14 @@ jobs:
     expect(summary).toContain("Setup Actions");
     expect(summary).toContain("Use free local setup");
     expect(summary).toContain("visual-hive recommend --write-setup-bundle");
+    expect(summary).toContain("Setup PR plan: review");
+    expect(summary).toContain("External calls made: 0");
     expect(summary).toContain("PR secrets required: none");
     expect(summary).toContain("Docs written:");
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "setup-pr-plan.json"))).resolves.toBeUndefined();
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "setup-pr-plan.json"), "utf8")).resolves.toContain('"externalCallsMade": 0');
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "setup-pr-plan.json"), "utf8")).resolves.toContain('"generatedWorkflowsUsePullRequestTarget": false');
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Playwright Presence");

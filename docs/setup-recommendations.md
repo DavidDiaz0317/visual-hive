@@ -1,6 +1,6 @@
 # Setup Recommendations
 
-`visual-hive recommend` inspects a target repository and writes `.visual-hive/recommendations.json`. It is a bootstrap aid for real repos that do not yet have a Visual Hive config.
+`visual-hive recommend` inspects a target repository and writes `.visual-hive/recommendations.json` plus `.visual-hive/setup-pr-plan.json`. It is a bootstrap aid for real repos that do not yet have a Visual Hive config.
 
 The command detects:
 
@@ -18,6 +18,7 @@ The command detects:
 - CI runtime, screenshot, and external upload cost estimates
 - PR/scheduled permission guidance and required secret names only
 - setup PR file list, steps, and security notes
+- a no-network setup PR plan with planned files, validation commands, and PR safety checks
 - a structured setup action plan for "Use free local setup", "Enable hosted review", "Skip provider", "Generate config", and "Preview setup PR"
 - repo-specific setup documentation for `docs/visual-hive.md`
 - initial changed-file selection and mutation operators
@@ -46,6 +47,8 @@ visual-hive setup-status
 
 `--write-setup-bundle` creates the recommended config, repo docs, and built-in PR, scheduled, and trusted failure-issue workflow templates in one guarded operation. It preflights every output path and refuses to overwrite existing files unless `--force` is passed after review. The bundle records `.visual-hive/config-edits.json`, `.visual-hive/setup-doc-edits.json`, `.visual-hive/workflow-edits.json`, and `.visual-hive/setup-bundle-edits.json`.
 
+Before writing a bundle, inspect `.visual-hive/setup-pr-plan.json`. It records the files Visual Hive would add, validation commands to run, provider posture, generated workflow safety checks, blocked/review reasons, and `externalCallsMade: 0`. The plan does not create a GitHub PR or call provider APIs; it gives beginners and reviewers a deterministic preview before any setup files are written.
+
 The local Control Plane exposes the same guarded setup path from the Setup tab. It reads `.visual-hive/recommendations.json`, can regenerate that recommendation for any supported setup profile, validates `recommendedConfigYaml` for config writes, can generate `docs/visual-hive.md` from the same recommendation, refuses accidental overwrites, requires explicit confirmation, and records `.visual-hive/config-edits.json` or `.visual-hive/setup-doc-edits.json`. It can also generate the same setup PR bundle after preflighting every output path. `--read-only` disables recommendation regeneration and setup writes.
 
 Regenerating from the Control Plane writes only `.visual-hive/recommendations.json`. It does not overwrite `visual-hive.config.yaml`, docs, or workflows. After reviewing the profile-specific recommendation, use the guarded setup actions to generate config, docs, or the setup PR bundle.
@@ -66,6 +69,7 @@ Important fields:
 - `costEstimate`: local screenshot count, external screenshot count, CI runtime class, monthly external screenshot estimate, and notes
 - `permissions`: least-privilege PR and scheduled-lane recommendations
 - `setupPullRequest`: suggested setup PR title, files, steps, and security notes
+- `.visual-hive/setup-pr-plan.json`: separate no-network setup PR plan with planned files, workflow previews, validation commands, provider posture, and PR safety checks
 - `setupActions`: guarded setup commands, writes, safety notes, confirmation requirements, and outcomes for profile selection, provider decisions, config generation, setup PR preview, and local validation
 - `workflowPreviews`: built-in PR, scheduled, and trusted failure-issue workflow snippets with paths, descriptions, and safety notes
 - `playwright`: existing Playwright setup status, dependency names, package scripts, config files, and notes
@@ -87,6 +91,6 @@ For complex repositories with explicit scripts such as `dev:web`, `dev:api`, and
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and combines it with the current config, plan, report, mutation, triage, workflow, provider, and readiness artifacts. It shows setup progress with a current phase, percent complete, blocked/review counts, next best action, evidence, commands, and artifact links before the detailed setup profile, Playwright presence, provider recommendation, cost estimate, permission guidance, setup action plan, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected app route hints, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json`, then combines them with the current config, plan, report, mutation, triage, workflow, provider, and readiness artifacts. It shows setup progress with a current phase, percent complete, blocked/review counts, next best action, evidence, commands, and artifact links before the detailed setup profile, setup PR file plan, Playwright presence, provider recommendation, cost estimate, permission guidance, setup action plan, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected app route hints, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
 
 `visual-hive setup-status` uses the same progress analyzer as the Control Plane and writes `.visual-hive/setup-progress.json`. Dependent artifacts are checked for freshness: mutation evidence is compared with the latest deterministic report, triage evidence is compared with the latest deterministic and mutation reports, and readiness evidence is compared with the latest run, mutation, triage, workflow, and provider setup artifacts. Stale artifacts are marked `review` rather than `complete`, so a beginner does not accidentally treat an old issue draft or readiness gate as proof of the current run.

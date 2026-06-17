@@ -624,6 +624,84 @@ viewports:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "setup-pr-plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        sourceRecommendationGeneratedAt: "2026-06-15T00:00:00.000Z",
+        setupProfile: "free-local",
+        status: "review",
+        title: "Add Visual Hive deterministic visual QA",
+        summary: {
+          filesPlanned: 5,
+          workflowsPlanned: 2,
+          validationCommands: 2,
+          externalCallsMade: 0,
+          requiresReview: true,
+          blockedReasons: []
+        },
+        files: [
+          { path: "visual-hive.config.yaml", kind: "config", action: "create", source: "setupPullRequest.files", requiresOverwriteReview: true },
+          { path: ".github/workflows/visual-hive-pr.yml", kind: "workflow", action: "create", source: "setupPullRequest.files", requiresOverwriteReview: true },
+          { path: ".visual-hive/setup-pr-plan.json", kind: "audit", action: "audit", source: "visual-hive", requiresOverwriteReview: false }
+        ],
+        workflowPreviews: [
+          {
+            id: "pull_request",
+            label: "Visual Hive PR",
+            path: ".github/workflows/visual-hive-pr.yml",
+            description: "Read-only PR validation.",
+            safetyNotes: ["Uses pull_request, not pull_request_target."]
+          }
+        ],
+        providerDecisions: [
+          {
+            providerId: "argos",
+            label: "Argos",
+            recommendation: "future",
+            requiredEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowedByDefault: false
+          }
+        ],
+        validationCommands: ["visual-hive doctor", "visual-hive run"],
+        steps: [
+          {
+            id: "review-recommendation",
+            title: "Review setup recommendation and generated config",
+            status: "review",
+            command: "visual-hive recommend",
+            writes: [".visual-hive/recommendations.json", ".visual-hive/setup-pr-plan.json"],
+            safetyNotes: ["No external calls are made."]
+          },
+          {
+            id: "write-setup-files",
+            title: "Write config, docs, and safe workflow templates",
+            status: "review",
+            command: "visual-hive recommend --write-setup-bundle",
+            writes: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+            safetyNotes: ["Review generated files before writing."]
+          }
+        ],
+        security: {
+          pullRequestPermissions: ["contents: read"],
+          pullRequestSecretsRequired: [],
+          scheduledSecretsRequired: [],
+          generatedWorkflowsUsePullRequestTarget: false,
+          generatedPrWorkflowUsesSecrets: false,
+          externalUploadsInPullRequest: false,
+          issueCreationFromUntrustedPr: false,
+          notes: ["PR setup must use pull_request with read-only permissions and no secrets."]
+        },
+        warnings: ["Setup PR files should be reviewed before writing."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".github", "workflows", "visual-hive-pr.yml"),
     `name: Visual Hive PR
 on:
@@ -986,6 +1064,18 @@ describe("control plane", () => {
     expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
       "ARGOS_TOKEN"
     ]);
+    expect(snapshot.setupPullRequestPlan).toMatchObject({
+      status: "review",
+      summary: {
+        externalCallsMade: 0,
+        workflowsPlanned: 2
+      },
+      security: {
+        generatedWorkflowsUsePullRequestTarget: false,
+        generatedPrWorkflowUsesSecrets: false
+      }
+    });
+    expect(snapshot.setupPullRequestPlan?.files.map((file) => file.path)).toContain(".visual-hive/setup-pr-plan.json");
     expect(snapshot.setupProgress).toMatchObject({
       status: "attention",
       phase: "measure mutation adequacy",
@@ -1150,6 +1240,7 @@ describe("control plane", () => {
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"))?.labels).toContain("setup-pr-plan");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("plans.json"))?.labels).toContain("plan-lanes");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
@@ -1985,6 +2076,8 @@ contracts:
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("function setupProgressCard");
+    expect(controlPlaneJs).toContain("function setupPrPlanCard");
+    expect(controlPlaneJs).toContain(".visual-hive/setup-pr-plan.json");
     expect(controlPlaneJs).toContain("function planLaneSummaryCard");
     expect(controlPlaneJs).toContain(".visual-hive/plans.json");
     expect(controlPlaneJs).toContain("Next best action");
