@@ -2863,6 +2863,28 @@ describe("artifact index", () => {
     await expect(indexArtifacts({ repoRoot: tempRoot, hiveRoot: path.dirname(tempRoot) })).rejects.toThrow(/outside repository root/);
   });
 
+  it("prioritizes current artifacts over history when the artifact cap is reached", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-priority-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "history", "old"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "report.json"), '{"schemaVersion":2,"status":"passed"}', "utf8");
+    await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('current', async () => {});", "utf8").catch(async () => {
+      await mkdir(path.join(hiveRoot, "generated"), { recursive: true });
+      await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('current', async () => {});", "utf8");
+    });
+    for (let index = 0; index < 8; index += 1) {
+      await writeFile(path.join(hiveRoot, "history", "old", `${index}.json`), `{"index":${index}}`, "utf8");
+    }
+
+    const artifactIndex = await indexArtifacts({ repoRoot: tempRoot, maxArtifacts: 3 });
+    const paths = artifactIndex.artifacts.map((artifact) => artifact.path);
+
+    expect(paths).toContain(".visual-hive/report.json");
+    expect(paths).toContain(".visual-hive/generated/visual-hive.generated.spec.ts");
+    expect(artifactIndex.warnings.join(" ")).toContain("maxArtifacts=3");
+  });
+
   it("labels setup recommendation artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-recommend-"));
     tempDirs.push(tempRoot);

@@ -70,7 +70,6 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
   const artifacts: ArtifactIndexEntry[] = [];
 
   await walk(hiveRoot, async (filePath) => {
-    if (artifacts.length >= maxArtifacts) return;
     const repoRelativePath = toRepoRelativePath(repoRoot, filePath);
     if (isGeneratedArtifactIndex(repoRelativePath)) return;
     const fileStat = await stat(filePath);
@@ -78,10 +77,10 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
     artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
   });
 
-  if (artifacts.length >= maxArtifacts) {
+  const sorted = artifacts.sort(compareArtifactEntries).slice(0, maxArtifacts);
+  if (artifacts.length > maxArtifacts) {
     warnings.push(`Artifact listing reached maxArtifacts=${maxArtifacts}; some files may be omitted.`);
   }
-  const sorted = artifacts.sort((a, b) => a.path.localeCompare(b.path));
   return {
     schemaVersion: 1,
     project: options.project ?? "unknown",
@@ -91,6 +90,17 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
     artifacts: sorted,
     warnings
   };
+}
+
+function compareArtifactEntries(a: ArtifactIndexEntry, b: ArtifactIndexEntry): number {
+  const rankDelta = artifactRank(a) - artifactRank(b);
+  if (rankDelta !== 0) return rankDelta;
+  return a.path.localeCompare(b.path);
+}
+
+function artifactRank(artifact: ArtifactIndexEntry): number {
+  if (!artifact.labels.includes("history")) return 0;
+  return 1;
 }
 
 export function artifactKind(filePath: string): ArtifactKind {

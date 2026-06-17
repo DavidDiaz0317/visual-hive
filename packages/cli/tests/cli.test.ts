@@ -195,7 +195,8 @@ contracts:
       "demo:costs",
       "demo:history",
       "demo:connections",
-      "demo:artifacts"
+      "demo:artifacts",
+      "demo:ui"
     ];
 
     for (const command of expectedCommands) {
@@ -217,6 +218,7 @@ contracts:
     expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+    expect(packageJson.scripts["demo:ui"]).toBe("npm run smoke:ui");
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });
 

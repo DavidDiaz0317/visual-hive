@@ -23,7 +23,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, and a raw artifact index. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, planning, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
 
 Initialize Visual Hive in another repo:
 
