@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.targets.schema.json",
+  "title": "Visual Hive Target Audit",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "targets"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "summary": {
+      "type": "object",
+      "required": [
+        "targetCount",
+        "prSafeTargets",
+        "protectedTargets",
+        "commandTargets",
+        "commandGroupTargets",
+        "deployPreviewTargets",
+        "storybookTargets",
+        "scheduledTargets",
+        "expensiveTargets",
+        "setupRequiredTargets",
+        "targetsRequiringSecrets",
+        "missingSecretNames",
+        "targetsWithContracts",
+        "targetsWithoutContracts",
+        "selectedTargets",
+        "targetsWithFailedLifecycle"
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "url",
+          "prSafe",
+          "cost",
+          "labels",
+          "requiresSecrets",
+          "missingSecrets",
+          "commands",
+          "services",
+          "readinessChecks",
+          "contractIds",
+          "selectedContractIds",
+          "selected",
+          "latestStatus",
+          "lifecycleEvents",
+          "gaps",
+          "recommendations"
+        ],
+        "properties": {
+          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
+          "latestStatus": { "enum": ["passed", "failed", "not_run"] },
+          "labels": {
+            "type": "array",
+            "items": {
+              "enum": ["Safe on PR", "Protected", "Expensive", "Schedule-only", "Needs setup"]
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "severity", "message"],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "target_without_contracts",
+                    "protected_missing_secret",
+                    "protected_pr_safe",
+                    "pr_contract_on_unsafe_target",
+                    "setup_target_not_run",
+                    "failed_lifecycle",
+                    "missing_readiness_timeout",
+                    "deploy_preview_url_unresolved",
+                    "storybook_without_component_scope",
+                    "expensive_pr_safe"
+                  ]
+                },
+                "severity": { "enum": ["low", "medium", "high"] },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

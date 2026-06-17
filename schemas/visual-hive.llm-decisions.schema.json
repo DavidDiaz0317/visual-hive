@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.llm-decisions.schema.json",
+  "title": "Visual Hive LLM Decisions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "decisions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/decision" }
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason", "decidedAt", "source", "externalCallsMade"],
+      "properties": {
+        "decision": {
+          "enum": ["keep_disabled", "review_later", "approve_trusted_prompt_only"]
+        },
+        "reason": { "type": "string" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "source": {
+          "enum": ["cli", "control-plane"]
+        },
+        "externalCallsMade": { "const": 0 }
+      }
+    }
+  }
+}

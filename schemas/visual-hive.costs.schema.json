@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.costs.schema.json",
+  "title": "Visual Hive cost audit",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "mode", "summary", "costPolicy", "targets", "providers", "risks", "recommendations"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "mode": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "selectedContracts",
+        "selectedTargets",
+        "localScreenshots",
+        "estimatedExternalScreenshots",
+        "externalCallsPlanned",
+        "externalCallsMade",
+        "enabledExternalProviders",
+        "policyBlockedProviders",
+        "missingCredentialProviders",
+        "expensiveTargetsSelected",
+        "mutationOperators",
+        "maxExternalScreenshotsPerRun",
+        "maxMonthlyExternalScreenshots",
+        "budgetStatus"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "selectedContracts": { "type": "integer", "minimum": 0 },
+        "selectedTargets": { "type": "integer", "minimum": 0 },
+        "localScreenshots": { "type": "integer", "minimum": 0 },
+        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "externalCallsPlanned": { "type": "integer", "minimum": 0 },
+        "externalCallsMade": { "type": "integer", "minimum": 0 },
+        "enabledExternalProviders": { "type": "integer", "minimum": 0 },
+        "policyBlockedProviders": { "type": "integer", "minimum": 0 },
+        "missingCredentialProviders": { "type": "integer", "minimum": 0 },
+        "expensiveTargetsSelected": { "type": "integer", "minimum": 0 },
+        "mutationOperators": { "type": "integer", "minimum": 0 },
+        "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+        "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "budgetStatus": { "enum": ["ok", "blocked", "warning"] }
+      }
+    },
+    "costPolicy": { "type": "object" },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["targetId", "kind", "cost", "prSafe", "selected", "contractCount", "screenshotCount"],
+        "additionalProperties": false,
+        "properties": {
+          "targetId": { "type": "string" },
+          "kind": { "type": "string" },
+          "cost": { "enum": ["cheap", "medium", "expensive"] },
+          "prSafe": { "type": "boolean" },
+          "selected": { "type": "boolean" },
+          "contractCount": { "type": "integer", "minimum": 0 },
+          "screenshotCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "providerId",
+          "label",
+          "enabled",
+          "mode",
+          "availability",
+          "deterministicRole",
+          "externalUploadAllowed",
+          "blockedReasons",
+          "estimatedExternalScreenshots",
+          "externalCallsPlanned",
+          "externalCallsMade",
+          "missingEnv"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "providerId": { "type": "string" },
+          "label": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "mode": { "enum": ["mock", "external"] },
+          "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
+          "deterministicRole": { "enum": ["oracle", "supplemental"] },
+          "externalUploadAllowed": { "type": "boolean" },
+          "blockedReasons": { "type": "array", "items": { "type": "string" } },
+          "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
+          "externalCallsPlanned": { "type": "integer", "minimum": 0 },
+          "externalCallsMade": { "type": "integer", "minimum": 0 },
+          "missingEnv": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/risk" }
+    },
+    "recommendations": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "risk": {
+      "type": "object",
+      "required": ["id", "category", "severity", "title", "message", "evidence", "recommendation"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "enum": ["external_upload", "budget", "target_cost", "mutation", "provider", "planning"] },
+        "severity": { "enum": ["low", "medium", "high"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "recommendation": { "type": "string" }
+      }
+    }
+  }
+}

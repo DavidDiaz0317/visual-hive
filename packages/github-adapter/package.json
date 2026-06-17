@@ -1,7 +1,22 @@
 {
   "name": "@visual-hive/github-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "GitHub markdown and sanitization helpers for Visual Hive.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavidDiaz0317/visual-hive.git",
+    "directory": "packages/github-adapter"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

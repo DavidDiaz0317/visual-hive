@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.runbook.schema.json",
+  "title": "Visual Hive Runbook",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "repoRoot", "configPath", "runbook", "profiles"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "repoRoot": { "type": "string" },
+    "configPath": { "type": "string" },
+    "runbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generatedAt", "configPath", "commands", "notes"],
+      "properties": {
+        "generatedAt": { "type": "string" },
+        "configPath": { "type": "string" },
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/command" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/profile" }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "status", "startedAt", "completedAt", "durationMs", "message"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "status": { "enum": ["passed", "failed", "blocked"] },
+        "startedAt": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "durationMs": { "type": "number" },
+        "message": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "lane", "command", "cwd", "safety", "description", "requiredSecrets", "expectedArtifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "lane": { "enum": ["local", "pull_request", "ci", "schedule", "protected", "triage", "ui"] },
+        "command": { "type": "string" },
+        "cwd": { "type": "string" },
+        "safety": { "enum": ["pr_safe", "trusted_only", "local_only"] },
+        "description": { "type": "string" },
+        "requiredSecrets": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expectedArtifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "description", "commandIds", "safety", "enabled", "blockedReasons", "expectedArtifacts", "requiredSecrets"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "commandIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "safety": { "enum": ["pr_safe", "trusted_only", "local_only"] },
+        "enabled": { "type": "boolean" },
+        "blockedReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expectedArtifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requiredSecrets": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

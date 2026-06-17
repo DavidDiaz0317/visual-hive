@@ -20,6 +20,38 @@ Percy, Chromatic, Argos, and Applitools are valuable visual testing products. Vi
 
 ## How they work together
 
-Visual Hive can run first to decide which targets/contracts deserve attention. A future adapter can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
+Visual Hive can run first to decide which targets/contracts deserve attention. The v0.2 adapter surface can inspect optional provider readiness, report missing credential names, and run mock-mode adapters without external accounts. `visual-hive providers list --mock-results` writes `.visual-hive/provider-results.json` with availability, artifact upload, compare, fetch, normalize, and report-metadata operation evidence. Future external adapters can forward selected screenshots to Percy, Chromatic, Argos, or Applitools. The hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
 
-The MVP does not require paid accounts or external visual providers.
+Visual Hive also owns external upload policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, and still report `externalCallsMade: 0` unless a future trusted adapter explicitly performs a network call.
+
+The CLI and Control Plane use the same core governance helper to record provider decisions in `.visual-hive/provider-decisions.json`. These decisions are local audit evidence only: skip a provider for now, review it later, or approve it for a future trusted setup review. Recording a decision does not create credentials, enable billing, upload screenshots, or call a provider API. `visual-hive risk` and `visual-hive readiness` load the decision log so governance choices are visible before a team enables trusted provider-backed lanes.
+
+CLI-only example:
+
+```bash
+visual-hive providers plan --provider argos
+visual-hive providers decision --provider argos --decision skip --reason "Playwright artifacts are enough for this repo right now"
+visual-hive providers decision --provider percy --decision review_later
+visual-hive providers decision --provider applitools --decision approve_trusted_setup
+```
+
+`visual-hive providers plan --provider <id>` writes `.visual-hive/provider-setup-plan.json`. The Control Plane Providers page can write the same artifact after explicit confirmation. The plan is a no-network readiness artifact: it lists required environment variable names, missing credential names, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`. It helps a maintainer prepare a provider-backed scheduled lane without silently enabling billing, credentials, external uploads, or provider API calls.
+
+`visual-hive providers handoff --provider <id>` writes `.visual-hive/provider-handoff.json` after a deterministic run. This is the next no-network bridge toward real provider integration: it lists exact actual/diff screenshot artifacts, baseline context, generated spec/report context, upload eligibility, credential/cost-policy blocked reasons, and trusted workflow steps. It still makes zero external calls; a future trusted adapter can consume the manifest after explicit authorization.
+
+`visual-hive risk` and `visual-hive readiness` consume the same handoff manifest automatically. If an external provider is enabled, those commands expect both a setup plan and a handoff manifest before the lane is considered reviewed. Missing or blocked handoff evidence is reported as trusted-only provider policy risk, not as a deterministic test failure.
+
+Each command writes a sanitized local audit entry and records `externalCallsMade: 0`.
+
+The default Visual Hive workflow does not require paid accounts or external visual providers.
+
+## Adapter surface
+
+The core registry exposes one adapter object for each built-in provider: Playwright, Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks. Every adapter has methods for availability, artifact upload, compare, result fetch, result normalization, and report metadata emission. In v0.2, non-Playwright external methods are mock or deferred by default, so no paid provider or network call is required.
+
+`provider-results.json` also includes normalized provider-specific payloads:
+
+- Hosted visual providers include project ID, future review URL shape, and baseline ownership policy.
+- Storybook includes a recommended local command and a coverage mapping hint.
+- GitHub Checks includes a check name, deterministic conclusion, and a trusted-workflow warning.
+- All providers record `externalCallsMade: 0` unless a future trusted adapter explicitly changes that behavior.

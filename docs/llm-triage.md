@@ -1,12 +1,81 @@
 # LLM Triage
 
-LLM support is prompt-only in the MVP. No API key is required and no network call is made.
+LLM support is prompt-only by default. No API key is required and no network call is made.
 
 The LLM adapter builds prompts for:
 
 - visual failure triage
 - missing coverage review
 - mutation survivor review
+- baseline review summary
 - repair planning
 
 Every prompt states that LLM output is advisory only. Deterministic Playwright contracts and mutation results remain the only pass/fail oracle.
+
+`visual-hive triage` writes local artifacts:
+
+- `.visual-hive/triage.json`
+- `.visual-hive/triage-prompt.md`
+- `.visual-hive/repair-prompt.md`
+- `.visual-hive/missing-tests.md`
+- `.visual-hive/baseline-review.md`
+- `.visual-hive/issue.md`
+- `.visual-hive/pr-comment.md`
+- `.visual-hive/llm-usage.json`
+
+The prompt and markdown artifacts are sanitized before writing. They are inputs for a human, a PR comment step, or a separately governed LLM workflow; they do not call an LLM and they do not affect pass/fail status.
+
+`triage.json` is the machine-readable offline finding report. It includes classifications, severity, evidence, related contract/target IDs, suggested files, and suggested next tests for the Control Plane and trusted artifact workflows.
+
+`baseline-review.md` summarizes created, failed, and missing-baseline screenshots plus any local baseline approval or rejection decisions. It is advisory context for human review; it never approves a baseline or changes pass/fail status.
+
+If `.visual-hive/coverage.json` exists, triage includes it in the missing-coverage prompt and converts coverage gaps into `insufficient_coverage` findings. The offline classifier also recognizes:
+
+If `.visual-hive/provider-results.json` exists, triage includes sanitized provider adapter evidence in prompts, issue markdown, and PR comments. Provider missing-credential rows become `provider_failure` findings; cost-policy upload blocks become `provider_cost_policy_skipped` or `external_upload_blocked` findings. No provider upload or external model call is made by triage.
+
+- `visual_diff`
+- `missing_baseline`
+- `created_baseline`
+- `flaky_baseline`
+- `missing_element`
+- `unexpected_element`
+- `login_regression`
+- `api_contract_regression`
+- `console_error`
+- `page_error`
+- `target_startup_failure`
+- `provider_failure`
+- `provider_cost_policy_skipped`
+- `external_upload_blocked`
+- `protected_target_missing_secret`
+- `mutation_survivor`
+- `possible_flake`
+- `no_contracts_selected`
+- `environment_failure`
+- `insufficient_coverage`
+
+`llm-usage.json` records prompt tasks, estimated tokens, estimated input cost, prompt-only status, budget status, and `callsMade: 0`. It includes `baseline_review_summary` when `visual-hive triage` writes `baseline-review.md`, and uses the config values under `ai.model`, `ai.maxPromptTokens`, and `ai.maxEstimatedCostUsd`.
+
+Run `visual-hive llm` to re-audit the existing prompt artifacts without regenerating triage. It reads known `.visual-hive` prompt/markdown artifacts, rewrites `.visual-hive/llm-usage.json`, prints budget status, and still records `callsMade: 0`.
+
+The Control Plane LLM page reads the same artifact and shows prompt availability, budget warnings, and governance recommendations. It never performs a model call.
+
+## Governance Decisions
+
+The CLI and Control Plane use the same core governance helper to record local LLM governance decisions in `.visual-hive/llm-decisions.json`:
+
+- `keep_disabled`: keep the default offline/prompt-only posture.
+- `review_later`: leave LLM usage for a future review.
+- `approve_trusted_prompt_only`: approve a future trusted workflow to review prompts, while preserving deterministic pass/fail.
+
+CLI-only example:
+
+```bash
+visual-hive llm decision --decision keep_disabled --reason "PRs should stay offline"
+visual-hive llm decision --decision review_later
+visual-hive llm decision --decision approve_trusted_prompt_only
+```
+
+Recording a decision does not create API keys, enable billing, call a model, upload artifacts, or change CI pass/fail behavior. Every entry records `externalCallsMade: 0`.
+
+`visual-hive risk` and `visual-hive readiness` load `.visual-hive/llm-decisions.json` when it exists. A recorded `keep_disabled` or `review_later` decision keeps the governance posture visible, and a conflict with a non-none LLM provider becomes a trusted-lane warning. This evidence is advisory governance only; deterministic Playwright contracts and mutation adequacy remain the pass/fail oracle.

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.artifacts.schema.json",
+  "title": "Visual Hive Artifact Index",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "project", "generatedAt", "root", "summary", "artifacts", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "root": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "artifactCount",
+        "totalBytes",
+        "json",
+        "markdown",
+        "image",
+        "text",
+        "typescript",
+        "yaml",
+        "log",
+        "other",
+        "previewed",
+        "redactedPreviews",
+        "truncatedPreviews"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "contentType",
+          "bytes",
+          "safeToRender",
+          "previewTruncated",
+          "previewRedacted",
+          "labels"
+        ],
+        "properties": {
+          "kind": {
+            "enum": ["json", "markdown", "image", "text", "typescript", "yaml", "log", "other"]
+          },
+          "labels": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "schemaPath": { "type": "string" },
+          "schemaId": { "type": "string" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

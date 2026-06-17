@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { loadConfig, sanitizeText } from "@visual-hive/core";
+import { loadConfig, resolveTargetUrl, sanitizeText } from "@visual-hive/core";
 
 const require = createRequire(import.meta.url);
 
@@ -41,16 +41,69 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<{ ok: bool
 
   if (loaded) {
     for (const [targetId, target] of Object.entries(loaded.config.targets)) {
+      const primaryUrl = resolveTargetUrl(target);
       diagnostics.push({
         check: `target:${targetId}:url`,
-        ok: Boolean(target.url),
-        detail: target.url ? target.url : "Target URL is missing"
+        ok: Boolean(primaryUrl.url),
+        detail: primaryUrl.url
+          ? target.kind === "deployPreview" && target.urlEnv && !target.url
+            ? `Resolved from deploy preview env var ${target.urlEnv}`
+            : primaryUrl.url
+          : primaryUrl.reason ?? "Target URL is missing"
       });
+      if (target.kind === "deployPreview") {
+        const envStatus = target.urlEnv ? (process.env[target.urlEnv] ? "present" : "missing") : "not configured";
+        diagnostics.push({
+          check: `target:${targetId}:deploy-preview`,
+          ok: Boolean(primaryUrl.url),
+          detail: `provider=${target.provider}; urlEnv=${target.urlEnv ?? "none"} (${envStatus}); fallback=${target.fallbackUrl ? "configured" : "none"}`
+        });
+      }
       if (target.kind === "command") {
         diagnostics.push({
           check: `target:${targetId}:serve`,
           ok: Boolean(target.serve),
           detail: target.serve ? target.serve : "Command target serve command is missing"
+        });
+      }
+      if (target.kind === "storybook") {
+        diagnostics.push({
+          check: `target:${targetId}:storybook`,
+          ok: Boolean(primaryUrl.url),
+          detail: `stories=${target.stories.length}; components=${target.components.length}; serve=${target.serve ? "configured" : "external/static URL"}`
+        });
+      }
+      if (target.kind === "commandGroup" || target.kind === "protected") {
+        diagnostics.push({
+          check: `target:${targetId}:services`,
+          ok: target.kind === "protected" || target.services.length > 0,
+          detail:
+            target.kind === "protected" && target.services.length === 0
+              ? "Protected URL target has no local services to start"
+              : `${target.services.length} service(s) configured`
+        });
+        for (const service of target.services) {
+          diagnostics.push({
+            check: `target:${targetId}:service:${service.name}`,
+            ok: Boolean(service.command && service.url),
+            detail: `${service.command} -> ${service.url}${service.readinessTimeoutMs ? ` (${service.readinessTimeoutMs}ms timeout)` : ""}`
+          });
+        }
+      }
+      if (target.kind === "protected") {
+        const missing = target.requiresSecrets.filter((name) => !process.env[name]);
+        diagnostics.push({
+          check: `target:${targetId}:protected`,
+          ok: !target.prSafe,
+          detail: target.prSafe ? "Protected targets should not be prSafe" : "Protected target is not PR safe"
+        });
+        diagnostics.push({
+          check: `target:${targetId}:secrets`,
+          ok: true,
+          detail:
+            missing.length === 0
+              ? "All required secret environment variables are present"
+              : `Missing env vars for protected runs only: ${missing.join(", ")}`
         });
       }
     }

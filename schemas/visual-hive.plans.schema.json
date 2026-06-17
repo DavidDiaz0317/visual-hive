@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.plans.schema.json",
+  "title": "Visual Hive Plan Lane Summary",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "planCount", "summary", "lanes", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "planCount": { "type": "integer", "minimum": 0 },
+    "summary": {
+      "type": "object",
+      "required": [
+        "modes",
+        "selectedContracts",
+        "selectedTargets",
+        "emptyPlans",
+        "reviewPlans",
+        "unsafeExcludedContracts",
+        "expensiveTargets",
+        "mutationEnabledPlans",
+        "externalCallsPlanned"
+      ],
+      "properties": {
+        "modes": { "type": "array", "items": { "type": "string" } },
+        "selectedContracts": { "type": "integer", "minimum": 0 },
+        "selectedTargets": { "type": "integer", "minimum": 0 },
+        "emptyPlans": { "type": "integer", "minimum": 0 },
+        "reviewPlans": { "type": "integer", "minimum": 0 },
+        "unsafeExcludedContracts": { "type": "integer", "minimum": 0 },
+        "expensiveTargets": { "type": "integer", "minimum": 0 },
+        "mutationEnabledPlans": { "type": "integer", "minimum": 0 },
+        "externalCallsPlanned": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "mode",
+          "generatedAt",
+          "changedFiles",
+          "effectiveChangedFiles",
+          "ignoredChangedFiles",
+          "selectedContracts",
+          "selectedTargets",
+          "excludedContracts",
+          "unsafeExcludedContracts",
+          "expensiveTargets",
+          "mutationEnabled",
+          "mutationOperators",
+          "externalCallsPlanned",
+          "providerPolicyBlocked",
+          "status",
+          "reasons"
+        ],
+        "properties": {
+          "path": { "type": "string" },
+          "mode": { "type": "string" },
+          "generatedAt": { "type": "string" },
+          "changedFiles": { "type": "integer", "minimum": 0 },
+          "effectiveChangedFiles": { "type": "integer", "minimum": 0 },
+          "ignoredChangedFiles": { "type": "integer", "minimum": 0 },
+          "selectedContracts": { "type": "array", "items": { "type": "string" } },
+          "selectedTargets": { "type": "array", "items": { "type": "string" } },
+          "excludedContracts": { "type": "integer", "minimum": 0 },
+          "unsafeExcludedContracts": { "type": "integer", "minimum": 0 },
+          "expensiveTargets": { "type": "array", "items": { "type": "string" } },
+          "mutationEnabled": { "type": "boolean" },
+          "mutationOperators": { "type": "array", "items": { "type": "string" } },
+          "externalCallsPlanned": { "type": "integer", "minimum": 0 },
+          "providerPolicyBlocked": { "type": "array", "items": { "type": "string" } },
+          "status": { "enum": ["ready", "empty", "review"] },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommendations": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

@@ -1,7 +1,22 @@
 {
   "name": "@visual-hive/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Visual Hive command-line interface.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavidDiaz0317/visual-hive.git",
+    "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "bin": {
     "visual-hive": "./dist/index.js"
   },
@@ -20,6 +35,7 @@
   },
   "dependencies": {
     "@visual-hive/core": "*",
+    "@visual-hive/control-plane": "*",
     "@visual-hive/github-adapter": "*",
     "@visual-hive/llm-adapter": "*",
     "@visual-hive/playwright-adapter": "*",

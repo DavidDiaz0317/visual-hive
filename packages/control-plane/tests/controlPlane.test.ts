@@ -1,0 +1,3046 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { addConnection } from "@visual-hive/core";
+import { createControlPlaneSnapshot, readControlPlaneArtifact, startControlPlaneServer } from "../src/index.js";
+import { controlPlaneJs } from "../src/uiAssets.js";
+
+const sampleRepository = {
+  provider: "local",
+  repository: "visual-hive/ui-fixture",
+  branch: "main",
+  commitSha: "abcdef1234567890"
+};
+
+async function makeFixture(): Promise<{ repoRoot: string; configPath: string }> {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-ui-"));
+  await mkdir(path.join(repoRoot, ".visual-hive", "artifacts", "results"), { recursive: true });
+  await mkdir(path.join(repoRoot, ".visual-hive", "artifacts", "screenshots"), { recursive: true });
+  await mkdir(path.join(repoRoot, ".visual-hive", "snapshots"), { recursive: true });
+  await mkdir(path.join(repoRoot, ".github", "workflows"), { recursive: true });
+  const configPath = path.join(repoRoot, "visual-hive.config.yaml");
+  const configYaml = `project:
+  name: ui-fixture
+  type: react-vite
+  defaultBranch: main
+targets:
+  localPreview:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+contracts:
+  - id: dashboard
+    description: Dashboard shell
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+    screenshots:
+      - name: dashboard
+        route: "/"
+        viewport: desktop
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+`;
+  await writeFile(configPath, configYaml, "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "report.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 2,
+        project: "ui-fixture",
+        repository: sampleRepository,
+        mode: "pr",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        status: "passed",
+        changedFiles: ["src/App.tsx"],
+        selectedTargets: [
+          { id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }
+        ],
+        selectedContracts: ["dashboard"],
+        excludedContracts: [{ contractId: "admin", targetId: "protectedTarget", reasons: ["target.prSafe=false", "pass --allow-unsafe-targets to include this target"] }],
+        targetLifecycle: [{ targetId: "localPreview", phase: "serve", status: "passed", durationMs: 42, url: "http://127.0.0.1:4173" }],
+        generatedSpecPath: path.join(repoRoot, ".visual-hive", "generated", "visual-hive.generated.spec.ts"),
+        results: [
+          {
+            contractId: "dashboard",
+            targetId: "localPreview",
+            status: "passed",
+            durationMs: 10,
+            errors: ["Known harmless warning was captured for evidence."],
+            artifacts: [".visual-hive/artifacts/results/dashboard.json"],
+            selectorAssertions: [
+              { kind: "mustExist", value: "[data-testid='dashboard-page']", status: "passed" },
+              { kind: "mustNotExist", value: "[data-testid='login-page']", status: "passed" }
+            ],
+            screenshotAssertions: [
+              {
+                contractId: "dashboard",
+                screenshotName: "dashboard",
+                name: "dashboard",
+                route: "/",
+                viewport: "desktop",
+                status: "passed",
+                baselinePath: path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"),
+                actualPath: path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"),
+                diffPath: path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.diff.png"),
+                maxDiffPixelRatio: 0.01,
+                actualDiffPixelRatio: 0,
+                actualDiffPixels: 0,
+                diffPixels: 0,
+                totalPixels: 100
+              }
+            ],
+            consoleErrors: [{ type: "console", message: "ResizeObserver loop completed with undelivered notifications." }],
+            pageErrors: [{ type: "page", message: "Ignored demo page error" }],
+            networkErrors: [{ type: "network", url: "http://127.0.0.1:4173/api/demo", status: 500, statusText: "Internal Server Error" }],
+            reproductionCommand: "visual-hive run --ci"
+          }
+        ],
+        summary: {
+          passed: 1,
+          failed: 0,
+          screenshotsPassed: 1,
+          screenshotsFailed: 0,
+          baselinesCreated: 0,
+          createdBaselines: 0,
+          missingBaselines: 0,
+          visualDiffs: 0,
+          consoleErrors: 1,
+          pageErrors: 1
+        },
+        consoleErrors: ["ResizeObserver loop completed with undelivered notifications."],
+        pageErrors: [{ type: "page", message: "Ignored demo page error" }],
+        artifacts: [".visual-hive/report.json", ".visual-hive/artifacts/results/dashboard.json"],
+        providerResults: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            status: "passed",
+            deterministicRole: "oracle",
+            message: "Built-in Playwright deterministic run passed.",
+            requiredEnv: [],
+            missingEnv: [],
+            artifactCount: 1,
+            normalizedAt: "2026-06-15T00:00:00.000Z"
+          }
+        ],
+        reproductionCommands: ["visual-hive run"]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        mode: "pr",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        changedFiles: ["src/App.tsx"],
+        effectiveChangedFiles: ["src/App.tsx"],
+        ignoredChangedFiles: [],
+        targets: [{ id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+        items: [
+          {
+            contractId: "dashboard",
+            targetId: "localPreview",
+            targetUrl: "http://127.0.0.1:4173",
+            severity: "high",
+            cost: "cheap",
+            reasons: ["runOn.pullRequest=true"],
+            screenshots: ["dashboard:/:desktop"]
+          }
+        ],
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: ["mode=pr", "mutation not selected for this mode"] },
+        providerPolicy: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            enabled: true,
+            mode: "external",
+            availability: "available",
+            deterministicRole: "oracle",
+            requiredEnv: [],
+            missingEnv: [],
+            externalUploadAllowed: true,
+            externalUploadBlockedReasons: [],
+            estimatedExternalScreenshots: 1,
+            externalCallsPlanned: 0,
+            reasons: ["Playwright remains the deterministic pass/fail oracle."]
+          },
+          {
+            providerId: "argos",
+            label: "Argos",
+            enabled: false,
+            mode: "external",
+            availability: "disabled",
+            deterministicRole: "supplemental",
+            requiredEnv: ["ARGOS_TOKEN"],
+            missingEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowed: false,
+            externalUploadBlockedReasons: ["costPolicy.externalUpload.pullRequest=false for pr mode."],
+            estimatedExternalScreenshots: 1,
+            externalCallsPlanned: 0,
+            reasons: ["Provider is disabled in config.", "No external provider network calls are planned by the default Visual Hive planner."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "plans.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        planCount: 2,
+        summary: {
+          modes: ["canary", "pr"],
+          selectedContracts: 1,
+          selectedTargets: 1,
+          emptyPlans: 0,
+          reviewPlans: 1,
+          unsafeExcludedContracts: 1,
+          expensiveTargets: 0,
+          mutationEnabledPlans: 0,
+          externalCallsPlanned: 0
+        },
+        lanes: [
+          {
+            path: ".visual-hive/plan.json",
+            mode: "pr",
+            generatedAt: "2026-06-15T00:00:00.000Z",
+            changedFiles: 1,
+            effectiveChangedFiles: 1,
+            ignoredChangedFiles: 0,
+            selectedContracts: ["dashboard"],
+            selectedTargets: ["localPreview"],
+            excludedContracts: 1,
+            unsafeExcludedContracts: 1,
+            expensiveTargets: [],
+            mutationEnabled: false,
+            mutationOperators: [],
+            externalCallsPlanned: 0,
+            providerPolicyBlocked: [],
+            status: "review",
+            reasons: ["1 non-PR-safe contract(s) excluded."]
+          },
+          {
+            path: ".visual-hive/plan.canary.json",
+            mode: "canary",
+            generatedAt: "2026-06-15T00:00:00.000Z",
+            changedFiles: 0,
+            effectiveChangedFiles: 0,
+            ignoredChangedFiles: 0,
+            selectedContracts: ["dashboard"],
+            selectedTargets: ["localPreview"],
+            excludedContracts: 0,
+            unsafeExcludedContracts: 0,
+            expensiveTargets: [],
+            mutationEnabled: false,
+            mutationOperators: [],
+            externalCallsPlanned: 0,
+            providerPolicyBlocked: [],
+            status: "ready",
+            reasons: []
+          }
+        ],
+        recommendations: ["Keep non-PR-safe targets out of untrusted lanes."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "triage.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        sourceArtifacts: { report: ".visual-hive/report.json" },
+        summary: {
+          findingCount: 1,
+          critical: 0,
+          high: 0,
+          medium: 1,
+          low: 0,
+          classifications: { insufficient_coverage: 1 }
+        },
+        findings: [
+          {
+            classification: "insufficient_coverage",
+            severity: "medium",
+            title: "Coverage gap: changed_file_without_rule",
+            evidence: ["Changed file did not match any selection rule."],
+            suggestedFiles: ["src/unmapped.ts"],
+            suggestedNextTests: ["Add a changed-file selection rule."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "missing-tests.md"), "# Missing Test Suggestions\n", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "baseline-review.md"), "# Baseline Review Summary\n", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "results", "console.log"), "authorization: Bearer secret-token", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "llm-usage.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        governance: {
+          enabled: false,
+          provider: "none",
+          model: "offline-heuristics",
+          neverSoleOracle: true,
+          maxDailyRuns: 5,
+          maxPromptTokens: 50000,
+          maxEstimatedCostUsd: 0,
+          callsMade: 0
+        },
+        summary: {
+          promptCount: 2,
+          totalEstimatedTokens: 25,
+          totalEstimatedCostUsd: 0,
+          blockedPrompts: 0,
+          promptOnly: true,
+          advisoryOnly: true,
+          callsMade: 0
+        },
+        records: [
+          {
+            task: "repair_prompt",
+            path: ".visual-hive/repair-prompt.md",
+            provider: "none",
+            model: "offline-heuristics",
+            enabled: false,
+            promptOnly: true,
+            advisoryOnly: true,
+            callsMade: 0,
+            status: "disabled",
+            promptChars: 40,
+            estimatedTokens: 10,
+            estimatedCostUsd: 0,
+            budget: { maxPromptTokens: 50000, maxEstimatedCostUsd: 0 },
+            notes: ["No LLM API call was made."]
+          },
+          {
+            task: "baseline_review_summary",
+            path: ".visual-hive/baseline-review.md",
+            provider: "none",
+            model: "offline-heuristics",
+            enabled: false,
+            promptOnly: true,
+            advisoryOnly: true,
+            callsMade: 0,
+            status: "disabled",
+            promptChars: 60,
+            estimatedTokens: 15,
+            estimatedCostUsd: 0,
+            budget: { maxPromptTokens: 50000, maxEstimatedCostUsd: 0 },
+            notes: ["No LLM API call was made."]
+          }
+        ],
+        warnings: ["LLM usage is disabled; prompts are generated for offline review only."],
+        recommendations: ["Never use LLM output as the sole pass/fail oracle."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "provider-results.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        deterministicStatus: "passed",
+        artifactCount: 1,
+        providers: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            enabled: true,
+            mode: "external",
+            availability: "available",
+            deterministicRole: "oracle",
+            operations: [
+              { operation: "availability", status: "passed", message: "Built-in Playwright adapter is available." },
+              { operation: "compare", status: "passed", message: "Deterministic Playwright run passed.", artifactCount: 1 }
+            ],
+            result: {
+              providerId: "playwright",
+              label: "Playwright built-in",
+              status: "passed",
+              deterministicRole: "oracle",
+              message: "Built-in Playwright deterministic run passed.",
+              requiredEnv: [],
+              missingEnv: [],
+              artifactCount: 1,
+              normalizedAt: "2026-06-15T00:00:00.000Z"
+            },
+            normalized: {
+              providerId: "playwright",
+              category: "built-in",
+              status: "passed",
+              deterministicRole: "oracle",
+              networkMode: "local",
+              externalCallsMade: 0,
+              artifactSummary: {
+                localArtifacts: 1,
+                uploadedArtifacts: 0,
+                comparedArtifacts: 1,
+                uploadMode: "local-only"
+              },
+              notes: ["Playwright is the deterministic pass/fail oracle."]
+            },
+            artifacts: [".visual-hive/report.json"],
+            missingEnv: [],
+            warnings: []
+          }
+        ],
+        summary: {
+          providerCount: 1,
+          enabledProviders: 1,
+          mockProviders: 0,
+          missingCredentialProviders: 0,
+          externalDeferredProviders: 0,
+          skippedProviders: 0,
+          failedProviders: 0
+        },
+        warnings: []
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "provider-handoff.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        providerId: "argos",
+        label: "Argos",
+        status: "review",
+        deterministicStatus: "passed",
+        mode: "manual",
+        externalCallsMade: 0,
+        readiness: {
+          enabled: true,
+          providerMode: "mock",
+          availability: "mock",
+          deterministicRole: "supplemental",
+          requiredEnv: ["ARGOS_TOKEN"],
+          missingEnv: [],
+          externalUploadAllowed: true,
+          externalUploadBlockedReasons: [],
+          projectIdConfigured: true
+        },
+        summary: {
+          totalArtifacts: 3,
+          screenshotArtifacts: 1,
+          diffArtifacts: 1,
+          eligibleArtifacts: 0,
+          blockedArtifacts: 3,
+          estimatedExternalScreenshots: 1,
+          maxExternalScreenshotsPerRun: 10
+        },
+        artifacts: [
+          {
+            path: ".visual-hive/artifacts/screenshots/dashboard.png",
+            kind: "actual_screenshot",
+            contractId: "dashboard",
+            screenshotName: "desktop",
+            route: "/",
+            viewport: "desktop",
+            screenshotStatus: "failed",
+            eligibleForUpload: false,
+            blockedReasons: ["Provider is in mock mode; the handoff is review-only and will not upload externally."]
+          },
+          {
+            path: ".visual-hive/artifacts/screenshots/dashboard.diff.png",
+            kind: "diff_screenshot",
+            contractId: "dashboard",
+            screenshotName: "desktop",
+            route: "/",
+            viewport: "desktop",
+            screenshotStatus: "failed",
+            eligibleForUpload: false,
+            blockedReasons: ["Provider is in mock mode; the handoff is review-only and will not upload externally."]
+          }
+        ],
+        trustedWorkflowSteps: ["Run visual-hive plan/run first and treat Playwright as the pass/fail oracle."],
+        validationCommands: ["visual-hive providers handoff --provider argos"],
+        warnings: ["This manifest made zero external calls and does not upload screenshots."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "recommendations.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: {
+          name: "ui-fixture",
+          repoRoot,
+          type: "react-vite",
+          packageManager: "npm",
+          detectedFrameworks: ["react", "vite"],
+          scripts: ["build", "preview"]
+        },
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        configPath: "visual-hive.config.yaml",
+        setupProfile: "free-local",
+        providerRecommendations: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            recommendation: "use",
+            reason: "Default deterministic oracle. No paid account or external upload is required.",
+            requiredEnv: [],
+            externalUploadAllowedByDefault: false
+          },
+          {
+            providerId: "argos",
+            label: "Argos",
+            recommendation: "future",
+            reason: "Start with local artifacts. Enable hosted review later only if the team needs shared screenshot review/history.",
+            requiredEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowedByDefault: false
+          }
+        ],
+        costEstimate: {
+          localScreenshotsPerRun: 2,
+          externalScreenshotsPerRun: 0,
+          estimatedPrMinutes: 4,
+          estimatedScheduledMinutes: 6,
+          estimatedMonthlyExternalScreenshots: 0,
+          ciRuntimeClass: "medium",
+          notes: ["Default recommendation uses local Playwright artifacts only."]
+        },
+        permissions: {
+          pullRequest: {
+            permissions: ["contents: read"],
+            secretsRequired: [],
+            externalNetwork: false,
+            notes: ["PR lane should run with no repository secrets and should not create issues."]
+          },
+          scheduled: {
+            permissions: ["contents: read", "actions: read"],
+            secretsRequired: [],
+            externalNetwork: false,
+            notes: ["Issue creation should happen from sanitized artifacts in a trusted workflow_run lane."]
+          }
+        },
+        setupPullRequest: {
+          recommended: true,
+          title: "Add Visual Hive deterministic visual QA",
+          files: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+          steps: ["Run visual-hive recommend --write-config in the target repo."],
+          securityNotes: ["Use pull_request, not pull_request_target, for PR code execution."]
+        },
+        setupActions: [
+          {
+            id: "use-free-local-setup",
+            label: "Use free local setup",
+            category: "profile",
+            description: "Regenerate recommendations for local artifacts.",
+            command: "visual-hive recommend --profile free-local --write-setup-bundle",
+            recommended: true,
+            requiresConfirmation: true,
+            writes: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+            safetyNotes: ["No external provider upload is enabled."],
+            outcome: "Creates a guarded local-first setup bundle."
+          },
+          {
+            id: "skip-provider-for-now",
+            label: "Skip provider for now",
+            category: "provider",
+            description: "Record local provider governance.",
+            command: "visual-hive providers decision --provider argos --decision skip --reason \"Playwright artifacts are enough\"",
+            recommended: true,
+            requiresConfirmation: false,
+            writes: [".visual-hive/provider-decisions.json"],
+            safetyNotes: ["Does not create credentials or upload screenshots."],
+            outcome: "Keeps the default provider posture explicit."
+          }
+        ],
+        workflowPreviews: [
+          {
+            id: "pull_request",
+            label: "Visual Hive PR",
+            path: ".github/workflows/visual-hive-pr.yml",
+            description: "Read-only, no-secret PR validation for PR-safe deterministic contracts.",
+            safetyNotes: ["Uses pull_request, not pull_request_target.", "Uses contents: read only."],
+            content: "name: Visual Hive PR\non:\n  pull_request:\npermissions:\n  contents: read\n"
+          },
+          {
+            id: "trusted_failure_issue",
+            label: "Visual Hive Failure Issue",
+            path: ".github/workflows/visual-hive-failure-issue.yml",
+            description: "Trusted workflow_run issue creation from sanitized artifacts.",
+            safetyNotes: ["Does not checkout or execute PR code."],
+            content: "name: Visual Hive Failure Issue\non:\n  workflow_run:\n"
+          }
+        ],
+        recommendedConfig: {},
+        recommendedConfigYaml: configYaml,
+        detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+        detectedRoutes: [
+          {
+            route: "/clusters",
+            sourceFile: "src/App.tsx",
+            occurrences: 1
+          },
+          {
+            route: "/settings",
+            sourceFile: "src/routes.tsx",
+            occurrences: 2
+          }
+        ],
+        detectedStories: [
+          {
+            storyFile: "src/components/DashboardCard.stories.tsx",
+            title: "dashboard/DashboardCard",
+            exports: ["Primary", "Loading"],
+            route: "/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story"
+          }
+        ],
+        detectedWorkflows: [
+          {
+            path: ".github/workflows/legacy.yml",
+            triggers: ["pull_request_target"],
+            permissions: ["contents: write"],
+            usesPullRequestTarget: true,
+            usesSecrets: true,
+            visualHiveRelated: false
+          },
+          {
+            path: ".github/workflows/visual-hive-pr.yml",
+            triggers: ["pull_request"],
+            permissions: ["contents: read"],
+            usesPullRequestTarget: false,
+            usesSecrets: false,
+            visualHiveRelated: true
+          }
+        ],
+        playwright: {
+          status: "present",
+          dependencies: ["@playwright/test"],
+          scripts: ["test:e2e: playwright test"],
+          configFiles: ["playwright.config.ts"],
+          notes: ["Dependencies detected: @playwright/test", "Playwright scripts detected: test:e2e", "Config files detected: playwright.config.ts"]
+        },
+        recommendedTarget: {
+          id: "localPreview",
+          kind: "command",
+          url: "http://127.0.0.1:4173",
+          confidence: "high",
+          reasons: ["Detected preview script."]
+        },
+        recommendedContracts: [
+          {
+            id: "app-shell-visual-stability",
+            targetId: "localPreview",
+            selectors: ["[data-testid='dashboard-page']"],
+            steps: [{ action: "assertVisible", selector: "[data-testid='dashboard-page']" }],
+            screenshots: [{ name: "app-shell-desktop", route: "/", viewport: "desktop" }],
+            reasons: ["Detected stable project-owned selector."]
+          }
+        ],
+        recommendedCommands: ["visual-hive doctor", "visual-hive run"],
+        findings: [],
+        warnings: []
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "setup-pr-plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        sourceRecommendationGeneratedAt: "2026-06-15T00:00:00.000Z",
+        setupProfile: "free-local",
+        status: "review",
+        title: "Add Visual Hive deterministic visual QA",
+        summary: {
+          filesPlanned: 5,
+          workflowsPlanned: 2,
+          validationCommands: 2,
+          externalCallsMade: 0,
+          requiresReview: true,
+          blockedReasons: []
+        },
+        files: [
+          { path: "visual-hive.config.yaml", kind: "config", action: "create", source: "setupPullRequest.files", requiresOverwriteReview: true },
+          { path: ".github/workflows/visual-hive-pr.yml", kind: "workflow", action: "create", source: "setupPullRequest.files", requiresOverwriteReview: true },
+          { path: ".visual-hive/setup-pr-plan.json", kind: "audit", action: "audit", source: "visual-hive", requiresOverwriteReview: false }
+        ],
+        workflowPreviews: [
+          {
+            id: "pull_request",
+            label: "Visual Hive PR",
+            path: ".github/workflows/visual-hive-pr.yml",
+            description: "Read-only PR validation.",
+            safetyNotes: ["Uses pull_request, not pull_request_target."]
+          }
+        ],
+        providerDecisions: [
+          {
+            providerId: "argos",
+            label: "Argos",
+            recommendation: "future",
+            requiredEnv: ["ARGOS_TOKEN"],
+            externalUploadAllowedByDefault: false
+          }
+        ],
+        validationCommands: ["visual-hive doctor", "visual-hive run"],
+        steps: [
+          {
+            id: "review-recommendation",
+            title: "Review setup recommendation and generated config",
+            status: "review",
+            command: "visual-hive recommend",
+            writes: [".visual-hive/recommendations.json", ".visual-hive/setup-pr-plan.json"],
+            safetyNotes: ["No external calls are made."]
+          },
+          {
+            id: "write-setup-files",
+            title: "Write config, docs, and safe workflow templates",
+            status: "review",
+            command: "visual-hive recommend --write-setup-bundle",
+            writes: ["visual-hive.config.yaml", ".github/workflows/visual-hive-pr.yml"],
+            safetyNotes: ["Review generated files before writing."]
+          }
+        ],
+        security: {
+          pullRequestPermissions: ["contents: read"],
+          pullRequestSecretsRequired: [],
+          scheduledSecretsRequired: [],
+          generatedWorkflowsUsePullRequestTarget: false,
+          generatedPrWorkflowUsesSecrets: false,
+          externalUploadsInPullRequest: false,
+          issueCreationFromUntrustedPr: false,
+          notes: ["PR setup must use pull_request with read-only permissions and no secrets."]
+        },
+        warnings: ["Setup PR files should be reviewed before writing."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".github", "workflows", "visual-hive-pr.yml"),
+    `name: Visual Hive PR
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx visual-hive plan --mode pr --ci
+      - run: npx visual-hive run --ci
+      - run: npx visual-hive report --github-step-summary
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-hive
+          path: .visual-hive
+          include-hidden-files: true
+`,
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "risk.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          total: 1,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 1,
+          riskScore: 2,
+          highestSeverity: "low",
+          prBlocking: 0,
+          trustedOnly: 0
+        },
+        inputs: {
+          plan: true,
+          report: true,
+          mutationReport: false,
+          coverageReport: true,
+          targetAudit: true,
+          contractAudit: true,
+          flowAudit: true,
+          scheduleAudit: true,
+          workflowAudit: true
+        },
+        risks: [
+          {
+            id: "coverage:viewport:tablet",
+            category: "coverage_gap",
+            severity: "low",
+            title: "Coverage gap: viewport_without_screenshots",
+            message: "Tablet viewport is configured but has no screenshot coverage.",
+            evidence: ["tablet"],
+            contractIds: ["dashboard"],
+            targetIds: ["localPreview"],
+            artifacts: [".visual-hive/coverage.json", ".visual-hive/report.json"],
+            suggestedActions: ["Add a tablet screenshot if this viewport matters."],
+            prBlocking: false,
+            trustedOnly: false
+          }
+        ],
+        recommendations: ["Add contracts or changed-file rules for uncovered high-risk areas."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "mutation-report.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 2,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        minScore: 0.75,
+        score: 0.5,
+        killed: 1,
+        total: 2,
+        results: [
+          {
+            operator: "force-login-on-demo",
+            status: "killed",
+            killed: true,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["unexpected_element", "login_regression"],
+            failureKind: "unexpected_element",
+            failedAssertion: "[data-testid='login-page'] became visible",
+            durationMs: 1200,
+            errors: [],
+            artifacts: [".visual-hive/artifacts/results/force-login-on-demo.json"]
+          },
+          {
+            operator: "remove-demo-badge",
+            status: "survived",
+            killed: false,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["missing_element"],
+            failureKind: "missing_element",
+            durationMs: 900,
+            errors: ["No assertion failed for missing demo badge."],
+            artifacts: [".visual-hive/mutation-report.json"]
+          },
+          {
+            operator: "hidden-error-banner",
+            status: "not_applicable",
+            killed: false,
+            contractIds: [],
+            applicable: false,
+            expectedFailureKinds: ["missing_element"],
+            durationMs: 10,
+            errors: []
+          },
+          {
+            operator: "api-500",
+            status: "error",
+            killed: false,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["api_contract_regression"],
+            durationMs: 200,
+            errors: ["Mutation runner failed before assertions completed."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "security.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          score: 96,
+          totalFindings: 1,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 1,
+          prBlocking: 0,
+          trustedOnly: 0,
+          npmAuditSource: "not_run",
+          npmAuditTotal: 0
+        },
+        inputs: {
+          workflowAudit: true,
+          npmAudit: false
+        },
+        npmAudit: {
+          source: "not_run",
+          total: 0,
+          critical: 0,
+          high: 0,
+          moderate: 0,
+          low: 0,
+          info: 0
+        },
+        findings: [
+          {
+            id: "dependency:npm-audit-not-run",
+            category: "dependency",
+            severity: "low",
+            title: "Dependency audit was not run",
+            message: "Security audit did not run npm audit by default.",
+            evidence: ["npmAudit.source=not_run"],
+            recommendation: "Run visual-hive security --npm-audit in a trusted environment.",
+            trustedOnly: false
+          }
+        ],
+        recommendations: ["Run npm audit in a trusted environment when reviewing supply-chain risk."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "costs.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        mode: "pr",
+        summary: {
+          selectedContracts: 1,
+          selectedTargets: 1,
+          localScreenshots: 1,
+          estimatedExternalScreenshots: 0,
+          externalCallsPlanned: 0,
+          externalCallsMade: 0,
+          enabledExternalProviders: 0,
+          policyBlockedProviders: 0,
+          missingCredentialProviders: 0,
+          expensiveTargetsSelected: 0,
+          mutationOperators: 1,
+          maxExternalScreenshotsPerRun: 0,
+          maxMonthlyExternalScreenshots: 5000,
+          budgetStatus: "blocked"
+        },
+        costPolicy: {
+          maxExternalScreenshotsPerRun: 0,
+          maxMonthlyExternalScreenshots: 5000,
+          externalUpload: {
+            pullRequest: false,
+            schedule: true,
+            manual: true,
+            canary: false,
+            mutation: false,
+            full: true,
+            onFailureOnly: true,
+            criticalContractsOnly: true
+          }
+        },
+        targets: [
+          {
+            targetId: "localPreview",
+            kind: "command",
+            cost: "cheap",
+            prSafe: true,
+            selected: true,
+            contractCount: 1,
+            screenshotCount: 1
+          }
+        ],
+        providers: [
+          {
+            providerId: "playwright",
+            label: "Playwright built-in",
+            enabled: true,
+            mode: "external",
+            availability: "available",
+            deterministicRole: "oracle",
+            externalUploadAllowed: true,
+            blockedReasons: [],
+            estimatedExternalScreenshots: 0,
+            externalCallsPlanned: 0,
+            externalCallsMade: 0,
+            missingEnv: []
+          }
+        ],
+        risks: [],
+        recommendations: ["Keep default PR runs local-only."]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"), "actual-dashboard", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "old-dashboard", "utf8");
+  return { repoRoot, configPath };
+}
+
+async function writeCoverageRecommendationFixture(repoRoot: string): Promise<void> {
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "coverage-recommendations.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          total: 2,
+          high: 0,
+          medium: 2,
+          low: 0,
+          fromCoverageGaps: 1,
+          fromMutationSurvivors: 1,
+          fromFlowGaps: 0
+        },
+        recommendations: [
+          {
+            id: "changed-file-rule:src/auth/Login.tsx",
+            kind: "add_changed_file_rule",
+            severity: "medium",
+            title: "Map changed file \"src/auth/Login.tsx\" to visual coverage",
+            rationale: ["Changed file did not match any selection rule."],
+            changedFile: "src/auth/Login.tsx",
+            contractId: "dashboard",
+            targetId: "localPreview",
+            suggestedConfigYaml:
+              "selection:\n  changedFiles:\n    - pattern: src/auth/**\n      contracts:\n        - dashboard\n      risk: high",
+            suggestedTests: ["Add a selection.changedFiles rule for src/auth/**."]
+          },
+          {
+            id: "mutation:remove-demo-badge:dashboard",
+            kind: "add_selector_assertion",
+            severity: "medium",
+            title: "Kill mutation \"remove-demo-badge\"",
+            rationale: ["Mutation \"remove-demo-badge\" survived, so current contracts did not catch the intentional breakage."],
+            contractId: "dashboard",
+            targetId: "localPreview",
+            mutationOperator: "remove-demo-badge",
+            suggestedConfigYaml:
+              "selectors:\n  mustExist:\n    - \"[data-testid='demo-badge']\"",
+            suggestedTests: ["Assert the demo badge is visible on dashboard cards."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+}
+
+describe("control plane", () => {
+  it("builds a snapshot from config and report artifacts", async () => {
+    const fixture = await makeFixture();
+    const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+
+    expect(snapshot.config?.project.name).toBe("ui-fixture");
+    expect(snapshot.overview.deterministicStatus).toBe("passed");
+    expect(snapshot.targets).toHaveLength(1);
+    expect(snapshot.contracts).toHaveLength(1);
+    expect(snapshot.providers.find((provider) => provider.id === "playwright")?.availability).toBe("available");
+    expect(snapshot.providers.find((provider) => provider.id === "argos")?.costPolicy.externalUploadAllowed).toBe(false);
+    expect(snapshot.providers.find((provider) => provider.id === "argos")?.costPolicy.blockedReasons).toContain(
+      "costPolicy.externalUpload.onFailureOnly=true and deterministic status is passed."
+    );
+    expect(snapshot.report?.providerResults?.[0]?.status).toBe("passed");
+    expect(snapshot.report?.excludedContracts[0]?.contractId).toBe("admin");
+    expect(snapshot.report?.results[0]?.selectorAssertions?.map((assertion) => assertion.kind)).toContain("mustNotExist");
+    expect(snapshot.report?.results[0]?.screenshotAssertions?.[0]?.diffPath).toContain("dashboard.diff.png");
+    expect(snapshot.report?.results[0]?.networkErrors?.[0]?.status).toBe(500);
+    expect(snapshot.triageReport?.summary.findingCount).toBe(1);
+    expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
+    expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.changedFiles).toContain("src/App.tsx");
+    expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.providerHandoff).toMatchObject({
+      providerId: "argos",
+      status: "review",
+      externalCallsMade: 0,
+      summary: {
+        diffArtifacts: 1
+      }
+    });
+    expect(snapshot.providerSetupPlan).toBeUndefined();
+    expect(snapshot.mutationReport?.score).toBe(0.5);
+    expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
+    expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
+    expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.mutationOperator)).toContain("remove-demo-badge");
+    expect(snapshot.providerDecisionLog).toBeUndefined();
+    expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
+      providerId: "playwright",
+      externalCallsPlanned: 0
+    });
+    expect(snapshot.planLaneSummary).toMatchObject({
+      planCount: 2,
+      summary: { modes: ["canary", "pr"], reviewPlans: 1 }
+    });
+    expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
+    expect(snapshot.setupRecommendation?.setupProfile).toBe("free-local");
+    expect(snapshot.setupRecommendation?.providerRecommendations.find((provider) => provider.providerId === "argos")?.requiredEnv).toEqual([
+      "ARGOS_TOKEN"
+    ]);
+    expect(snapshot.setupPullRequestPlan).toMatchObject({
+      status: "review",
+      summary: {
+        externalCallsMade: 0,
+        workflowsPlanned: 2
+      },
+      security: {
+        generatedWorkflowsUsePullRequestTarget: false,
+        generatedPrWorkflowUsesSecrets: false
+      }
+    });
+    expect(snapshot.setupPullRequestPlan?.files.map((file) => file.path)).toContain(".visual-hive/setup-pr-plan.json");
+    expect(snapshot.setupProgress).toMatchObject({
+      status: "attention",
+      phase: "measure mutation adequacy",
+      completedSteps: 8,
+      totalSteps: 10,
+      blockedSteps: 1,
+      reviewSteps: 1
+    });
+    expect(snapshot.setupProgress.nextStep).toMatchObject({
+      id: "mutation",
+      status: "blocked",
+      command: "visual-hive mutate"
+    });
+    expect(snapshot.setupProgress.steps.map((step) => step.id)).toEqual([
+      "recommend",
+      "config",
+      "plan",
+      "run",
+      "baselines",
+      "mutation",
+      "triage",
+      "workflow-safety",
+      "provider-governance",
+      "readiness"
+    ]);
+    expect(snapshot.setupProgress.steps.find((step) => step.id === "provider-governance")).toMatchObject({
+      label: "Record provider posture and handoff",
+      status: "complete",
+      command: "visual-hive providers list --mock-results"
+    });
+    expect(snapshot.setupProgress.steps.find((step) => step.id === "provider-governance")?.evidence.join(" ")).toContain("handoff=argos:review");
+    expect(snapshot.runHistory?.summary.runCount).toBe(1);
+    expect(snapshot.runHistory?.trend.direction).toBe("unknown");
+    expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
+    expect(snapshot.llmUsage?.summary.callsMade).toBe(0);
+    expect(snapshot.llmUsage?.records[0]?.task).toBe("repair_prompt");
+    expect(snapshot.llmDecisionLog).toBeUndefined();
+    const artifactPreview = snapshot.artifacts.find((artifact) => artifact.path.endsWith("console.log"));
+    expect(artifactPreview?.kind).toBe("log");
+    expect(artifactPreview?.preview).toContain("[REDACTED]");
+    expect(snapshot.targetAudit?.summary.targetCount).toBe(1);
+    expect(snapshot.targetAudit?.targets[0]?.latestStatus).toBe("passed");
+    expect(snapshot.coverage.summary.contractCount).toBe(1);
+    expect(snapshot.coverage.routes[0]?.selectedContracts).toEqual(["dashboard"]);
+    expect(snapshot.coverageImprovementReport?.summary.total).toBeGreaterThan(0);
+    expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
+    expect(snapshot.contractAudit?.summary.contractCount).toBe(1);
+    expect(snapshot.contractAudit?.contracts[0]?.latestStatus).toBe("passed");
+    expect(snapshot.flowAudit?.summary.contractCount).toBe(1);
+    expect(snapshot.flowAudit?.summary.contractsWithoutFlow).toBe(1);
+    expect(snapshot.flowAudit?.recommendations.join(" ")).toContain("flow");
+    expect(snapshot.scheduleAudit?.summary.pullRequestContracts).toBe(1);
+    expect(snapshot.scheduleAudit?.lanes.map((lane) => lane.id)).toContain("trusted_issue");
+    expect(snapshot.workflowAudit?.summary.pullRequestWorkflows).toBe(1);
+    expect(snapshot.workflowAudit?.summary.criticalFindings).toBe(0);
+    expect(snapshot.workflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(snapshot.workflowTemplates.find((template) => template.id === "trusted_failure_issue")?.content).toContain("function walkArtifacts");
+    expect(snapshot.runbook.configPath).toBe("visual-hive.config.yaml");
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-pr")).toMatchObject({
+      lane: "pull_request",
+      safety: "pr_safe",
+      requiredSecrets: []
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-canary")).toMatchObject({
+      lane: "pull_request",
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode canary"),
+      expectedArtifacts: [".visual-hive/plan.canary.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-canary")?.command).toContain("--output .visual-hive/plan.canary.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")).toMatchObject({
+      lane: "local",
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode full"),
+      expectedArtifacts: [".visual-hive/plan.full.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).toContain("--output .visual-hive/plan.full.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).not.toContain("--allow-unsafe-targets");
+    expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
+    expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
+    expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "readiness", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "mutation-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"],
+      safety: "local_only"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "canary-health")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-canary", "readiness"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "full-safe-plan")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-full-safe", "readiness"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")).toMatchObject({
+      enabled: true,
+      commandIds: ["coverage", "improve-coverage"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")?.expectedArtifacts).toEqual(
+      expect.arrayContaining([".visual-hive/coverage.json", ".visual-hive/coverage-recommendations.json"])
+    );
+    expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "providers")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers list"),
+      expectedArtifacts: [".visual-hive/provider-results.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "provider-plan")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers plan"),
+      expectedArtifacts: [".visual-hive/provider-setup-plan.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "provider-handoff")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers handoff"),
+      expectedArtifacts: [".visual-hive/provider-handoff.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "readiness")?.expectedArtifacts).toContain(".visual-hive/readiness.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "connections-portfolio")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/connections-portfolio.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "baselines")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/baselines.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "coverage")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/coverage.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "improve-coverage")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/coverage-recommendations.json"]
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "security", "readiness", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "cost-audit")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "costs", "readiness", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "provider-governance")).toMatchObject({
+      enabled: true,
+      commandIds: ["providers", "provider-plan", "provider-handoff", "costs", "readiness"],
+      expectedArtifacts: expect.arrayContaining([".visual-hive/provider-results.json", ".visual-hive/provider-setup-plan.json", ".visual-hive/provider-handoff.json"]),
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "portfolio-refresh")).toMatchObject({
+      enabled: true,
+      commandIds: ["security", "costs", "readiness", "connections-portfolio"],
+      expectedArtifacts: expect.arrayContaining([".visual-hive/connections-portfolio.json"]),
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")?.commandIds).toEqual([
+      "doctor",
+      "plan-pr",
+      "run-ci",
+      "baselines",
+      "readiness",
+      "triage-report"
+    ]);
+    expect(snapshot.readinessReport?.project).toBe("ui-fixture");
+    expect(snapshot.readinessReport?.gates.map((gate) => gate.id)).toContain("deterministic:status");
+    expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
+    expect(snapshot.riskReport?.project).toBe("ui-fixture");
+    expect(snapshot.securityAudit?.project).toBe("ui-fixture");
+    expect(snapshot.securityAudit?.summary.score).toBe(96);
+    expect(snapshot.costAudit?.project).toBe("ui-fixture");
+    expect(snapshot.costAudit?.summary.localScreenshots).toBe(1);
+    expect(snapshot.riskReport?.inputs.report).toBe(true);
+    expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("coverage_gap");
+    expect(snapshot.riskReport?.risks[0]?.contractIds).toEqual(["dashboard"]);
+    expect(snapshot.riskReport?.risks[0]?.targetIds).toEqual(["localPreview"]);
+    expect(snapshot.screenshots[0]?.name).toBe("dashboard");
+    expect(snapshot.baselineSummary).toMatchObject({ total: 1, passed: 1, pendingReview: 0 });
+    expect(snapshot.issueMarkdown).toContain("Issue");
+    expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
+    expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
+    expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("baseline-review.md"))?.labels).toContain("baseline-review");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"))?.labels).toContain("setup-pr-plan");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-handoff.json"))?.labels).toContain("provider-handoff");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("plans.json"))?.labels).toContain("plan-lanes");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
+  });
+
+  it("computes flow coverage risks when no stored risk artifact exists", async () => {
+    const fixture = await makeFixture();
+    await rm(path.join(fixture.repoRoot, ".visual-hive", "risk.json"), { force: true });
+
+    const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+
+    expect(snapshot.flowAudit?.summary.contractsWithoutFlow).toBe(1);
+    expect(snapshot.riskReport?.inputs.flowAudit).toBe(true);
+    expect(snapshot.riskReport?.risks.map((risk) => risk.category)).toContain("flow_coverage");
+    expect(snapshot.riskReport?.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
+  });
+
+  it("adds trusted protected-lane runbook commands with secret names only", async () => {
+    const fixture = await makeFixture();
+    const config = await readFile(fixture.configPath, "utf8");
+    await writeFile(
+      fixture.configPath,
+      config.replace(
+        "contracts:\n",
+        `  liveCluster:
+    kind: protected
+    url: "https://cluster.example.invalid"
+    requiresSecrets:
+      - KUBECONFIG
+      - KC_AGENT_TOKEN
+    schedule: "0 6 * * *"
+    cost: expensive
+contracts:
+`
+      ),
+      "utf8"
+    );
+    process.env.KC_AGENT_TOKEN = "real-secret-value";
+    try {
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+      const protectedCommand = snapshot.runbook.commands.find((command) => command.id === "schedule-protected");
+
+      expect(protectedCommand).toMatchObject({
+        lane: "protected",
+        safety: "trusted_only",
+        requiredSecrets: ["KC_AGENT_TOKEN", "KUBECONFIG"]
+      });
+      expect(protectedCommand?.command).toContain("--allow-unsafe-targets");
+      expect(JSON.stringify(snapshot.runbook)).not.toContain("real-secret-value");
+    } finally {
+      delete process.env.KC_AGENT_TOKEN;
+    }
+  });
+
+  it("loads a selected connected repository by connection id", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const connectedConfig = await readFile(connected.configPath, "utf8");
+    await writeFile(connected.configPath, connectedConfig.replace("name: ui-fixture", "name: connected-fixture"), "utf8");
+    await addConnection({
+      repoRoot: manager.repoRoot,
+      repoPath: connected.repoRoot,
+      id: "connected",
+      label: "Connected fixture"
+    });
+
+    const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath, readOnly: true }, "connected");
+
+    expect(snapshot.activeConnectionId).toBe("connected");
+    expect(snapshot.repoRoot).toBe(path.resolve(connected.repoRoot));
+    expect(snapshot.config?.project.name).toBe("connected-fixture");
+    expect(snapshot.connections?.connections.map((connection) => connection.id)).toContain("connected");
+  });
+
+  it("surfaces multi-repo connection health from report, mutation, and risk artifacts", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const reportPath = path.join(connected.repoRoot, ".visual-hive", "report.json");
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; generatedAt: string; summary: { passed: number; failed: number } };
+    report.status = "failed";
+    report.generatedAt = "2020-01-01T00:00:00.000Z";
+    report.summary.passed = 0;
+    report.summary.failed = 1;
+    await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "mutation-report.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 2,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:10:00.000Z",
+          minScore: 0.8,
+          score: 0.4,
+          killed: 2,
+          total: 5,
+          results: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "coverage.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:05:00.000Z",
+          mode: "pr",
+          summary: {
+            targetCount: 2,
+            contractCount: 2,
+            selectedContracts: 1,
+            unselectedContracts: 1,
+            prSafeContracts: 1,
+            protectedContracts: 0,
+            scheduleOnlyContracts: 0,
+            routesCovered: 1,
+            viewportsCovered: 1,
+            uncoveredTargets: 1,
+            uncoveredContracts: 0,
+            changedFileRules: 1,
+            matchedChangedFileRules: 1,
+            unmatchedChangedFiles: 0
+          },
+          targets: [],
+          contracts: [],
+          routes: [],
+          viewports: [],
+          changedFileCoverage: [],
+          unmatchedChangedFiles: [],
+          uncoveredAreas: [{ kind: "target_without_contracts", severity: "high", message: "Fullstack target has no contracts.", targetId: "fullstack" }]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "risk.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:20:00.000Z",
+          summary: {
+            total: 1,
+            critical: 1,
+            high: 0,
+            medium: 0,
+            low: 0,
+            riskScore: 80,
+            highestSeverity: "critical",
+            prBlocking: 1,
+            trustedOnly: 0
+          },
+          inputs: {
+            plan: true,
+            report: true,
+            mutationReport: true,
+            coverageReport: false,
+            targetAudit: false,
+            contractAudit: false,
+            flowAudit: false,
+            scheduleAudit: false,
+            workflowAudit: false
+          },
+          risks: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "readiness.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:25:00.000Z",
+          status: "blocked",
+          score: 61,
+          summary: { total: 3, passed: 1, warnings: 0, blocked: 2, missing: 0 },
+          inputs: { plan: true, report: true, mutationReport: true, baselines: true, workflowAudit: true, securityAudit: true, costAudit: true },
+          gates: [],
+          nextActions: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "security.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:30:00.000Z",
+          summary: {
+            score: 70,
+            totalFindings: 1,
+            critical: 0,
+            high: 1,
+            medium: 0,
+            low: 0,
+            prBlocking: 1,
+            trustedOnly: 0,
+            npmAuditSource: "not_run",
+            npmAuditTotal: 0
+          },
+          inputs: { workflowAudit: true, npmAudit: false },
+          npmAudit: { source: "not_run", total: 0, critical: 0, high: 0, moderate: 0, low: 0, info: 0 },
+          findings: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(connected.repoRoot, ".visual-hive", "costs.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "connected-fixture",
+          generatedAt: "2026-06-15T00:35:00.000Z",
+          mode: "pr",
+          summary: { budgetStatus: "blocked", policyBlockedProviders: 1 },
+          targets: [],
+          providers: [],
+          risks: [],
+          recommendations: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await addConnection({
+      repoRoot: manager.repoRoot,
+      repoPath: connected.repoRoot,
+      id: "attention-repo",
+      label: "Attention Repo"
+    });
+
+    const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath, readOnly: true });
+    const connection = snapshot.connections?.connections.find((candidate) => candidate.id === "attention-repo");
+
+    expect(snapshot.connections?.summary.failedConnections).toBe(1);
+    expect(snapshot.connections?.summary.staleReportConnections).toBe(1);
+    expect(snapshot.connections?.summary.weakMutationConnections).toBe(2);
+    expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
+    expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
+    expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
+    expect(snapshot.connections?.summary.readinessBlockedConnections).toBe(1);
+    expect(snapshot.connections?.summary.securityRiskConnections).toBe(1);
+    expect(snapshot.connections?.summary.costPolicyConnections).toBeGreaterThanOrEqual(1);
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "deterministic_failures")?.count).toBe(1);
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "coverage_gaps")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "readiness_blocked")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "security_risks")?.connections[0]?.id).toBe("attention-repo");
+    expect(snapshot.connections?.portfolio.queues.find((queue) => queue.id === "cost_policy")?.connections.map((item) => item.id)).toContain("attention-repo");
+    expect(snapshot.connections?.portfolio.topAttention[0]?.id).toBe("attention-repo");
+    expect(connection?.health).toBe("attention");
+    expect(connection?.staleReport).toBe(true);
+    expect(connection?.latestMutationScore).toBe(0.4);
+    expect(connection?.coverageGapCount).toBe(1);
+    expect(connection?.highCoverageGapCount).toBe(1);
+    expect(connection?.latestRiskSeverity).toBe("critical");
+    expect(connection?.latestReadinessStatus).toBe("blocked");
+    expect(connection?.latestSecurityScore).toBe(70);
+    expect(connection?.latestCostBudgetStatus).toBe("blocked");
+    expect(connection?.attention.join(" ")).toContain("Latest deterministic run failed");
+    expect(connection?.attention.join(" ")).toContain("Coverage has 1 high-severity gap");
+    expect(connection?.attention.join(" ")).toContain("Readiness gate is blocked");
+  });
+
+  it("rejects unknown selected connection ids", async () => {
+    const fixture = await makeFixture();
+
+    await expect(createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true }, "missing")).rejects.toThrow(
+      /Unknown Visual Hive connection/
+    );
+  });
+
+  it("adds and removes local repository connections through the local API", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const connectedConfig = await readFile(connected.configPath, "utf8");
+    await writeFile(connected.configPath, connectedConfig.replace("name: ui-fixture", "name: api-connected-fixture"), "utf8");
+    const server = await startControlPlaneServer({ repo: manager.repoRoot, config: manager.configPath, port: 0 });
+    try {
+      const add = await fetch(`${server.url}/api/connections/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repoPath: connected.repoRoot,
+          configPath: "visual-hive.config.yaml",
+          id: "api-connected",
+          label: "API Connected",
+          tags: "dogfood,ui"
+        })
+      });
+      const addPayload = await add.json();
+      expect(add.status).toBe(200);
+      expect(addPayload.index.connections.find((connection: { id: string }) => connection.id === "api-connected")?.projectName).toBe(
+        "api-connected-fixture"
+      );
+
+      const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath }, "api-connected");
+      expect(snapshot.config?.project.name).toBe("api-connected-fixture");
+
+      const remove = await fetch(`${server.url}/api/connections/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "api-connected" })
+      });
+      const removePayload = await remove.json();
+      expect(remove.status).toBe(200);
+      expect(removePayload.index.connections.map((connection: { id: string }) => connection.id)).not.toContain("api-connected");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes allowlisted runbook commands through the local API and records sanitized output", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[]; cwd: string }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args, cwd: input.cwd });
+        return {
+          exitCode: 0,
+          stdout: "doctor ok token=secret-token authorization: Bearer secret-value",
+          stderr: "cookie=session-secret"
+        };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "doctor" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.steps[0].stdout).toContain("[REDACTED]");
+      expect(payload.execution.steps[0].stdout).not.toContain("secret-token");
+      expect(payload.execution.steps[0].stderr).not.toContain("session-secret");
+      expect(calls[0]).toMatchObject({
+        commandId: "doctor",
+        stepId: "doctor",
+        cwd: fixture.repoRoot
+      });
+      expect(calls[0]?.args).toContain("doctor");
+      expect(calls[0]?.args).toContain("--config");
+      expect(calls[0]?.args).toContain(path.resolve(fixture.configPath));
+
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "control-plane-actions.json"), "utf8");
+      expect(audit).toContain('"commandId": "doctor"');
+      expect(audit).toContain('"summary"');
+      expect(audit).toContain("[REDACTED]");
+      expect(audit).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(1);
+      expect(snapshot.actionHistory?.summary.passed).toBe(1);
+      expect(snapshot.actionHistory?.actions[0]?.commandId).toBe("doctor");
+      expect(snapshot.actionHistory?.actions[0]?.steps[0]?.stdout).not.toContain("secret-token");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("control-plane-actions.json"))?.kind).toBe("json");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes run profiles as allowlisted runbook command sequences", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "pr-acceptance" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "doctor",
+        "plan-pr",
+        "run-ci",
+        "baselines",
+        "readiness",
+        "triage-report"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "doctor:doctor",
+        "plan-pr:plan-pr",
+        "run-ci:run-ci",
+        "baselines:baselines",
+        "readiness:readiness",
+        "triage-report:triage",
+        "triage-report:report"
+      ]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(6);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes the coverage-improvement run profile as an allowlisted recommendation workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "coverage-improvement" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "coverage",
+        "improve-coverage"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "coverage:coverage",
+        "improve-coverage:improve-coverage"
+      ]);
+      expect(calls[0]?.args.slice(-3)).toEqual(["coverage", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[1]?.args.slice(-3)).toEqual(["improve-coverage", "--config", path.resolve(fixture.configPath)]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(2);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("improve-coverage");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes the portfolio-refresh profile as an allowlisted governance workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "portfolio-refresh" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "security",
+        "costs",
+        "readiness",
+        "connections-portfolio"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "security:security",
+        "costs:costs",
+        "readiness:readiness",
+        "connections-portfolio:connections-portfolio"
+      ]);
+      expect(calls.at(-1)?.args.slice(-5)).toEqual([
+        "connections",
+        "list",
+        "--config",
+        path.resolve(fixture.configPath),
+        "--write"
+      ]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(4);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("connections-portfolio");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes the provider-governance profile as no-network provider handoff workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "provider-governance" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "providers",
+        "provider-plan",
+        "provider-handoff",
+        "costs",
+        "readiness"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "providers:providers",
+        "provider-plan:provider-plan",
+        "provider-handoff:provider-handoff",
+        "costs:costs",
+        "readiness:readiness"
+      ]);
+      expect(calls[0]?.args.slice(-5)).toEqual(["providers", "list", "--config", path.resolve(fixture.configPath), "--mock-results"]);
+      expect(calls[1]?.args.slice(-6)).toEqual(["providers", "plan", "--config", path.resolve(fixture.configPath), "--provider", "argos"]);
+      expect(calls[2]?.args.slice(-6)).toEqual(["providers", "handoff", "--config", path.resolve(fixture.configPath), "--provider", "argos"]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(5);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("readiness");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks guidance-only protected run profiles", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "protected-schedule-preview" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("not available");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks runbook execution in read-only mode", async () => {
+    const fixture = await makeFixture();
+    let called = false;
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      readOnly: true,
+      commandRunner: async () => {
+        called = true;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "doctor" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("read-only");
+      expect(called).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps trusted protected runbook commands guidance-only", async () => {
+    const fixture = await makeFixture();
+    const config = await readFile(fixture.configPath, "utf8");
+    await writeFile(
+      fixture.configPath,
+      config.replace(
+        "contracts:\n",
+        `  liveCluster:
+    kind: protected
+    url: "https://cluster.example.invalid"
+    requiresSecrets:
+      - KUBECONFIG
+    schedule: "0 6 * * *"
+    cost: expensive
+contracts:
+`
+      ),
+      "utf8"
+    );
+    let called = false;
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async () => {
+        called = true;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: "schedule-protected" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(payload.execution.status).toBe("blocked");
+      expect(payload.execution.message).toContain("guidance-only");
+      expect(JSON.stringify(payload)).not.toContain("secret-token");
+      expect(called).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks connection writes in read-only mode", async () => {
+    const manager = await makeFixture();
+    const connected = await makeFixture();
+    const server = await startControlPlaneServer({ repo: manager.repoRoot, config: manager.configPath, port: 0, readOnly: true });
+    try {
+      const add = await fetch(`${server.url}/api/connections/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoPath: connected.repoRoot, id: "blocked" })
+      });
+      expect(add.status).toBe(403);
+
+      const remove = await fetch(`${server.url}/api/connections/remove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "blocked" })
+      });
+      expect(remove.status).toBe(403);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: manager.repoRoot, config: manager.configPath, readOnly: true });
+      expect(snapshot.connections?.connections.map((connection) => connection.id)).not.toContain("blocked");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects artifact path traversal", async () => {
+    const fixture = await makeFixture();
+    await expect(readControlPlaneArtifact({ repo: fixture.repoRoot, config: fixture.configPath }, "../visual-hive.config.yaml")).rejects.toThrow(
+      /outside \.visual-hive/
+    );
+  });
+
+  it("serves the UI and snapshot API", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const page = await fetch(server.url).then((response) => response.text());
+      expect(page).toContain("Visual Hive Control Plane");
+      const appJs = await fetch(`${server.url}/assets/app.js`).then((response) => response.text());
+      expect(appJs).toContain("contract-filter-target");
+      expect(appJs).toContain("contract-filter-severity");
+      expect(appJs).toContain("contract-filter-prsafe");
+      expect(appJs).toContain("contract-filter-status");
+      expect(appJs).toContain("contract-filter-route");
+      expect(appJs).toContain("contract-filter-viewport");
+      expect(appJs).toContain("contract-filter-contract");
+      expect(appJs).toContain("copy-button");
+      expect(appJs).toContain("function copyText");
+      expect(appJs).toContain("Diff pixels");
+      expect(appJs).toContain("Coverage improvement plan");
+      expect(appJs).toContain("Flow gaps");
+      expect(appJs).toContain("function coverageImprovementCard");
+      expect(appJs).toContain("/api/coverage/apply-recommendation");
+      expect(appJs).toContain("function applyCoverageRecommendation");
+      expect(appJs).toContain("Apply after review");
+      expect(appJs).toContain("Workflow templates");
+      expect(appJs).toContain("trusted workflow_run lane");
+      expect(appJs).toContain("/api/workflows/write-templates");
+      expect(appJs).toContain("workflow-write-all");
+      expect(appJs).toContain("Provider recommendation");
+      expect(appJs).toContain("Provider plan policy");
+      expect(appJs).toContain("External upload guardrails");
+      expect(appJs).toContain("function providerCostPolicyCard");
+      expect(appJs).toContain("function providerCredentialSummary");
+      expect(appJs).toContain("function providerInspectionPolicy");
+      expect(appJs).toContain("function providerDecisionCard");
+      expect(appJs).toContain("function providerSetupPlanCard");
+      expect(appJs).toContain("provider-decision");
+      expect(appJs).toContain("provider-setup-plan");
+      expect(appJs).toContain("/api/providers/decision");
+      expect(appJs).toContain("/api/providers/setup-plan");
+      expect(appJs).toContain("Playwright remains local and deterministic");
+      expect(appJs).toContain("Runbook");
+      expect(appJs).toContain("function reportSelectionCards");
+      expect(appJs).toContain("Selected targets");
+      expect(appJs).toContain("Selected and excluded contracts");
+      expect(appJs).toContain("function reportAssertionCards");
+      expect(appJs).toContain("Selector assertions");
+      expect(appJs).toContain("Screenshot assertions");
+      expect(appJs).toContain("function reportErrorCard");
+      expect(appJs).toContain("Console, page, and network evidence");
+      expect(appJs).toContain("function reportArtifactsCard");
+      expect(appJs).toContain("Report artifacts and reproduction");
+      expect(appJs).toContain("function runHistoryTrendCard");
+      expect(appJs).toContain("Latest vs previous");
+      expect(appJs).toContain("function failureCard");
+      expect(appJs).toContain("Failure context");
+      expect(appJs).toContain("Changed files");
+      expect(appJs).toContain("Suggested next tests");
+      expect(appJs).toContain("runbook-execute");
+      expect(appJs).toContain("/api/runbook/execute");
+      expect(appJs).toContain("function llmDecisionCard");
+      expect(appJs).toContain("function recordLLMDecision");
+      expect(appJs).toContain("/api/llm/decision");
+      expect(appJs).toContain("Profiles");
+      expect(appJs).toContain("function profiles");
+      expect(appJs).toContain("/api/runbook/profile");
+      expect(appJs).toContain("connections-portfolio");
+      expect(appJs).toContain("Actions");
+      expect(appJs).toContain("function actions");
+      expect(appJs).toContain("Control Plane action history");
+      expect(appJs).toContain("Guided setup checklist");
+      expect(appJs).toContain("function setupChecklist");
+      expect(appJs).toContain("function setupStatusBadge");
+      expect(appJs).toContain("function setupProfileSelector");
+      expect(appJs).toContain("function setupPlaywrightPresence");
+      expect(appJs).toContain("Playwright presence");
+      expect(appJs).toContain("Recommended action plan");
+      expect(appJs).toContain("Use free local setup");
+      expect(appJs).toContain("function setupDetectedRoutes");
+      expect(appJs).toContain("Detected app routes");
+      expect(appJs).toContain("function setupDetectedStories");
+      expect(appJs).toContain("Detected Storybook stories");
+      expect(appJs).toContain("Iframe route");
+      expect(appJs).toContain("setup-profile-select");
+      expect(appJs).toContain("/api/setup/recommend");
+      expect(appJs).toContain("Inspect repository");
+      expect(appJs).toContain("Verify PR safety");
+      expect(appJs).toContain("Risk Register");
+      expect(appJs).toContain("function risk");
+      expect(appJs).toContain("Security findings");
+      expect(appJs).toContain("function security");
+      expect(appJs).toContain("Provider cost policy");
+      expect(appJs).toContain("function costs");
+      expect(appJs).toContain("function severityBadge");
+      expect(appJs).toContain("function riskNavigation");
+      expect(appJs).toContain("risk-nav");
+      expect(appJs).toContain("data-focus-key");
+      expect(appJs).toContain("trusted only");
+      expect(appJs).toContain("visual-hive run");
+      expect(appJs).toContain("Setup PR guidance");
+      expect(appJs).toContain("function setupDetectedWorkflows");
+      expect(appJs).toContain("Existing workflow hints");
+      expect(appJs).toContain("pull_request_target");
+      expect(appJs).toContain("function setupWorkflowPreviews");
+      expect(appJs).toContain("Workflow previews");
+      expect(appJs).toContain("Review the generated workflow snippets");
+      expect(appJs).toContain("setup-write-config");
+      expect(appJs).toContain("/api/setup/write-config");
+      expect(appJs).toContain("setup-write-docs");
+      expect(appJs).toContain("/api/setup/write-docs");
+      expect(appJs).toContain("setup-write-bundle");
+      expect(appJs).toContain("/api/setup/write-bundle");
+      expect(appJs).toContain("Portfolio");
+      expect(appJs).toContain("function portfolio");
+      expect(appJs).toContain("Portfolio attention queue");
+      expect(appJs).toContain("Connection health dashboard");
+      expect(appJs).toContain("function connectionHealthBadge");
+      expect(appJs).toContain("function connectionMutation");
+      expect(appJs).toContain("function connectionCoverage");
+      expect(appJs).toContain("function connectionRisk");
+      expect(appJs).toContain("function connectionReadiness");
+      expect(appJs).toContain("function connectionSecurity");
+      expect(appJs).toContain("function connectionCost");
+      expect(appJs).toContain("Readiness gates");
+      expect(appJs).toContain("Security risks");
+      expect(appJs).toContain("Cost policy");
+      expect(appJs).toContain("What this means");
+      expect(appJs).toContain("Killed means deterministic contracts caught the intentional breakage");
+      expect(appJs).toContain("function mutationStatusBadge");
+      expect(appJs).toContain("function mutationEvidence");
+      expect(appJs).toContain("Missing-test recommendations");
+      const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
+      expect(snapshot.config.project.name).toBe("ui-fixture");
+      expect(snapshot.setupRecommendation.playwright.status).toBe("present");
+      expect(snapshot.setupRecommendation.detectedRoutes[0].route).toBe("/clusters");
+      expect(snapshot.setupRecommendation.setupActions[0].id).toBe("use-free-local-setup");
+      expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
+      expect(snapshot.setupRecommendation.detectedWorkflows[0].usesPullRequestTarget).toBe(true);
+      expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("ships parseable browser JavaScript for contract manager filters", () => {
+    expect(() => new Function(controlPlaneJs)).not.toThrow();
+    expect(controlPlaneJs).toContain("function filterContracts");
+    expect(controlPlaneJs).toContain("contractTargetPrSafe");
+    expect(controlPlaneJs).toContain("Filters are local to the browser");
+    expect(controlPlaneJs).toContain("function baselineCardBody");
+    expect(controlPlaneJs).toContain("function reportSelectionCards");
+    expect(controlPlaneJs).toContain("function reportAssertionCards");
+    expect(controlPlaneJs).toContain("function reportErrorCard");
+    expect(controlPlaneJs).toContain("function reportArtifactsCard");
+    expect(controlPlaneJs).toContain("function failureCard");
+    expect(controlPlaneJs).toContain("Deterministic failures and mutation survivors are the highest priority queues");
+    expect(controlPlaneJs).toContain("function baselineSummaryCard");
+    expect(controlPlaneJs).toContain("visual-hive baselines list --write");
+    expect(controlPlaneJs).toContain("function coverageImprovementCard");
+    expect(controlPlaneJs).toContain('["flows", "Flows"]');
+    expect(controlPlaneJs).toContain("function flows");
+    expect(controlPlaneJs).toContain("Critical without flow");
+    expect(controlPlaneJs).toContain("visual-hive improve-coverage");
+    expect(controlPlaneJs).toContain("navigator.clipboard");
+    expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");
+    expect(controlPlaneJs).toContain("function runbook");
+    expect(controlPlaneJs).toContain("function runbookExecuteButton");
+    expect(controlPlaneJs).toContain("/api/runbook/execute");
+    expect(controlPlaneJs).toContain("function connectionReadiness");
+    expect(controlPlaneJs).toContain("function connectionSecurity");
+    expect(controlPlaneJs).toContain("function connectionCost");
+    expect(controlPlaneJs).toContain("critical/high");
+    expect(controlPlaneJs).toContain("policy-blocked providers");
+    expect(controlPlaneJs).toContain("function providerHandoffCard");
+    expect(controlPlaneJs).toContain("visual-hive providers handoff --provider argos");
+    expect(controlPlaneJs).toContain("function profiles");
+    expect(controlPlaneJs).toContain("function profileActions");
+    expect(controlPlaneJs).toContain("/api/runbook/profile");
+    expect(controlPlaneJs).toContain("connections-portfolio");
+    expect(controlPlaneJs).toContain("function actions");
+    expect(controlPlaneJs).toContain("function actionOutput");
+    expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
+    expect(controlPlaneJs).toContain("function setupChecklist");
+    expect(controlPlaneJs).toContain("function setupProgressCard");
+    expect(controlPlaneJs).toContain("function setupPrPlanCard");
+    expect(controlPlaneJs).toContain(".visual-hive/setup-pr-plan.json");
+    expect(controlPlaneJs).toContain("function planLaneSummaryCard");
+    expect(controlPlaneJs).toContain(".visual-hive/plans.json");
+    expect(controlPlaneJs).toContain("Next best action");
+    expect(controlPlaneJs).toContain("onboardingChecklist");
+    expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
+    expect(controlPlaneJs).toContain("function setupPlaywrightPresence");
+    expect(controlPlaneJs).toContain("function setupDetectedRoutes");
+    expect(controlPlaneJs).toContain("function setupDetectedStories");
+    expect(controlPlaneJs).toContain("function setupDetectedWorkflows");
+    expect(controlPlaneJs).toContain("function setupWorkflowPreviews");
+    expect(controlPlaneJs).toContain("Storybook repositories can start with component contracts");
+    expect(controlPlaneJs).toContain("function setupProfileSelector");
+    expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");
+    expect(controlPlaneJs).toContain("/api/setup/recommend");
+    expect(controlPlaneJs).toContain("function risk");
+    expect(controlPlaneJs).toContain("function navButton");
+    expect(controlPlaneJs).toContain("function scrollToFocusedElement");
+    expect(controlPlaneJs).toContain("function safetyBadge");
+    expect(controlPlaneJs).toContain("function workflowTemplatesCard");
+    expect(controlPlaneJs).toContain("function writeRecommendedDocs");
+    expect(controlPlaneJs).toContain("function writeSetupBundle");
+    expect(controlPlaneJs).toContain("function providers");
+    expect(controlPlaneJs).toContain("function providerDetailBody");
+    expect(controlPlaneJs).toContain("function providerDecisionCard");
+    expect(controlPlaneJs).toContain("function recordProviderDecision");
+    expect(controlPlaneJs).toContain("function providerSetupPlanCard");
+    expect(controlPlaneJs).toContain("function writeProviderSetupPlan");
+    expect(controlPlaneJs).toContain("/api/providers/decision");
+    expect(controlPlaneJs).toContain("/api/providers/setup-plan");
+    expect(controlPlaneJs).toContain("function llmDecisionCard");
+    expect(controlPlaneJs).toContain("function recordLLMDecision");
+    expect(controlPlaneJs).toContain("/api/llm/decision");
+    expect(controlPlaneJs).toContain("Approve actual screenshot as the new baseline");
+    expect(controlPlaneJs).toContain("confirm: true");
+    expect(controlPlaneJs).toContain("External upload guardrails");
+    expect(controlPlaneJs).toContain("function portfolio");
+    expect(controlPlaneJs).toContain("function portfolioItemRow");
+    expect(controlPlaneJs).toContain("function connectionHealthBadge");
+    expect(controlPlaneJs).toContain("function connectionCoverage");
+    expect(controlPlaneJs).toContain("Connection health dashboard");
+    expect(controlPlaneJs).toContain("function mutationStatusBadge");
+    expect(controlPlaneJs).toContain("function mutationEvidence");
+    expect(controlPlaneJs).toContain("Missing-test recommendations");
+    expect(controlPlaneJs).toContain("Not applicable means the operator did not match selected contracts");
+  });
+
+  it("approves a baseline through the local API when write mode is enabled", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/baseline/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.approval.contractId).toBe("dashboard");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("actual-dashboard");
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.screenshots[0]?.approvedAt).toBeTruthy();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects a baseline through the local API without changing the baseline image", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs design review", confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.rejection.reason).toBe("Needs design review");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.screenshots[0]?.rejectedAt).toBeTruthy();
+      expect(snapshot.screenshots[0]?.rejectionReason).toBe("Needs design review");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("requires explicit confirmation before baseline approval or rejection", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const approval = await fetch(`${server.url}/api/baseline/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop" })
+      });
+      await expect(approval.text()).resolves.toContain("Baseline approval requires explicit confirmation");
+      expect(approval.status).toBe(400);
+
+      const rejection = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "Needs review" })
+      });
+      await expect(rejection.text()).resolves.toContain("Baseline rejection requires explicit confirmation");
+      expect(rejection.status).toBe(400);
+
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("blocks baseline approval in read-only mode", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const response = await fetch(`${server.url}/api/baseline/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop" })
+      });
+      expect(response.status).toBe(403);
+      const rejected = await fetch(`${server.url}/api/baseline/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: "dashboard", screenshotName: "dashboard", viewport: "desktop", reason: "blocked" })
+      });
+      expect(rejected.status).toBe(403);
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "snapshots", "dashboard.png"), "utf8")).resolves.toBe("old-dashboard");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("validates config drafts and returns a review diff without saving", async () => {
+    const fixture = await makeFixture();
+    const original = await readFile(fixture.configPath, "utf8");
+    const draft = original.replace("name: ui-fixture", "name: ui-fixture-edited");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/config/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: draft })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(200);
+      expect(payload.ok).toBe(true);
+      expect(payload.diff).toContain("-  name: ui-fixture");
+      expect(payload.diff).toContain("+  name: ui-fixture-edited");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toBe(original);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("saves config drafts only with confirmation and records an audit entry", async () => {
+    const fixture = await makeFixture();
+    const draft = (await readFile(fixture.configPath, "utf8")).replace("name: ui-fixture", "name: ui-fixture-saved");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/config/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: draft, confirm: false })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const response = await fetch(`${server.url}/api/config/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: draft, confirm: true })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(200);
+      expect(payload.auditPath).toBe(".visual-hive/config-edits.json");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture-saved");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8")).resolves.toContain("ui-fixture-saved");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("previews and applies coverage recommendation config edits through the local API", async () => {
+    const fixture = await makeFixture();
+    await writeCoverageRecommendationFixture(fixture.repoRoot);
+    const originalConfig = await readFile(fixture.configPath, "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const preview = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx" })
+      });
+      const previewPayload = await preview.json();
+      expect(preview.status).toBe(200);
+      expect(previewPayload.saved).toBe(false);
+      expect(previewPayload.applyResult.diff).toContain("+    - pattern: src/auth/**");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toBe(originalConfig);
+
+      const applied = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx", confirm: true })
+      });
+      const appliedPayload = await applied.json();
+      expect(applied.status).toBe(200);
+      expect(appliedPayload.saved).toBe(true);
+      expect(appliedPayload.config.auditPath).toBe(".visual-hive/config-edits.json");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("pattern: src/auth/**");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8")).resolves.toContain("src/auth/**");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("allows coverage recommendation previews but blocks applying them in read-only mode", async () => {
+    const fixture = await makeFixture();
+    await writeCoverageRecommendationFixture(fixture.repoRoot);
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const preview = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx" })
+      });
+      expect(preview.status).toBe(200);
+
+      const blocked = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx", confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(403);
+      expect(blockedPayload.error).toContain("read-only");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.not.toContain("src/auth/**");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("writes recommended config from setup artifact when config is missing", async () => {
+    const fixture = await makeFixture();
+    await rm(fixture.configPath);
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.overwritten).toBe(false);
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture");
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.config?.project.name).toBe("ui-fixture");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects existing config from setup writes unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing Visual Hive config");
+
+      const forced = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("regenerates setup recommendations for an explicit setup profile", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "hosted-review" })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.profile).toBe("hosted-review");
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      expect(payload.costEstimate.externalScreenshotsPerRun).toBeGreaterThan(0);
+
+      const recommendation = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8"));
+      expect(recommendation.setupProfile).toBe("hosted-review");
+      expect(recommendation.providerRecommendations.find((provider: { providerId: string }) => provider.providerId === "percy")?.recommendation).toBe(
+        "optional"
+      );
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.setupRecommendation?.setupProfile).toBe("hosted-review");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects invalid setup profiles without changing recommendations", async () => {
+    const fixture = await makeFixture();
+    const before = await readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "paid-everything" })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(400);
+      expect(payload.error).toContain("Invalid setup profile");
+      expect(payload.error).toContain("free-local");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "recommendations.json"), "utf8")).resolves.toBe(before);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("writes recommended setup docs from setup artifact with audit and overwrite protection", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.docsPath).toBe("docs/visual-hive.md");
+      expect(payload.recommendationPath).toBe(".visual-hive/recommendations.json");
+      expect(payload.auditPath).toBe(".visual-hive/setup-doc-edits.json");
+      expect(payload.overwritten).toBe(false);
+
+      const docs = await readFile(path.join(fixture.repoRoot, "docs", "visual-hive.md"), "utf8");
+      expect(docs).toContain("# Visual Hive");
+      expect(docs).toContain("PR checks should run with read-only permissions");
+      expect(docs).toContain("Playwright built-in");
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-doc-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      expect(audit).toContain("docs/visual-hive.md");
+
+      const blocked = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing Visual Hive docs");
+
+      const forced = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("writes a full setup PR bundle from setup recommendations when files are missing", async () => {
+    const fixture = await makeFixture();
+    await rm(fixture.configPath);
+    await rm(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml"), { force: true });
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.auditPath).toBe(".visual-hive/setup-bundle-edits.json");
+      expect(payload.config.configPath).toBe("visual-hive.config.yaml");
+      expect(payload.docs.docsPath).toBe("docs/visual-hive.md");
+      expect(payload.workflows.written.map((entry: { path: string }) => entry.path).sort()).toEqual([
+        ".github/workflows/visual-hive-failure-issue.yml",
+        ".github/workflows/visual-hive-pr.yml",
+        ".github/workflows/visual-hive-scheduled.yml"
+      ]);
+
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture");
+      await expect(readFile(path.join(fixture.repoRoot, "docs", "visual-hive.md"), "utf8")).resolves.toContain("## PR Lane");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8")).resolves.toContain("pull_request");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8")).resolves.toContain(
+        "workflow_dispatch"
+      );
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8")).resolves.toContain(
+        "workflow_run"
+      );
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-bundle-edits.json"), "utf8");
+      expect(audit).toContain("setup-recommendation");
+      expect(audit).toContain("docs/visual-hive.md");
+      expect(audit).toContain(".github/workflows/visual-hive-pr.yml");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects setup bundle files from accidental overwrite unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to write setup bundle because files already exist");
+
+      const forced = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.overwritten).toBe(true);
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "setup-bundle-edits.json"), "utf8")).resolves.toContain("force");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("writes built-in workflow templates through the local API", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["scheduled"] })
+      });
+      const payload = await response.json();
+      expect(response.status).toBe(200);
+      expect(payload.written[0].path).toBe(".github/workflows/visual-hive-scheduled.yml");
+      await expect(readFile(path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8")).resolves.toContain(
+        "Visual Hive Scheduled"
+      );
+      const audit = await readFile(path.join(fixture.repoRoot, ".visual-hive", "workflow-edits.json"), "utf8");
+      expect(audit).toContain("scheduled");
+
+      const unknown = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["missing-template"] })
+      });
+      const unknownPayload = await unknown.json();
+      expect(unknown.status).toBe(400);
+      expect(unknownPayload.error).toContain("Unknown Visual Hive workflow template id");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("records provider decisions without making external provider calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: "argos",
+          decision: "skip",
+          reason: "No hosted review yet; token=secret-value",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.decisionPath).toBe(".visual-hive/provider-decisions.json");
+      expect(payload.decision).toMatchObject({
+        providerId: "argos",
+        label: "Argos",
+        decision: "skip",
+        source: "control-plane",
+        externalCallsMade: 0
+      });
+      expect(payload.decision.reason).toContain("[REDACTED]");
+
+      const log = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-decisions.json"), "utf8"));
+      expect(log.decisions[0]).toMatchObject({ providerId: "argos", decision: "skip", externalCallsMade: 0 });
+      expect(log.decisions[0].reason).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.providerDecisionLog?.decisions[0]?.decision).toBe("skip");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"))?.labels).toContain("provider-decisions");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("writes provider setup plans without making external provider calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: "argos",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.planPath).toBe(".visual-hive/provider-setup-plan.json");
+      expect(payload.plan).toMatchObject({
+        schemaVersion: 1,
+        providerId: "argos",
+        label: "Argos",
+        recommendation: "keep_disabled",
+        authorizationRequired: true,
+        externalCallsMade: 0
+      });
+      expect(payload.plan.readiness.requiredEnv).toEqual(["ARGOS_TOKEN"]);
+      expect(JSON.stringify(payload)).not.toContain("secret-value");
+
+      const plan = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-setup-plan.json"), "utf8"));
+      expect(plan.providerId).toBe("argos");
+      expect(plan.externalCallsMade).toBe(0);
+      expect(plan.validationCommands).toContain("visual-hive providers list --mock-results");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.providerSetupPlan?.providerId).toBe("argos");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-setup-plan.json"))?.labels).toContain("provider-setup-plan");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects unconfirmed, unknown, and invalid provider decisions", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "skip" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const unknown = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "unknown-provider", decision: "skip", confirm: true })
+      });
+      expect(unknown.status).toBe(404);
+
+      const invalid = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "enable_now", confirm: true })
+      });
+      const invalidPayload = await invalid.json();
+      expect(invalid.status).toBe(400);
+      expect(invalidPayload.error).toContain("Invalid provider decision");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-decisions.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects unconfirmed, unknown, and read-only provider setup planning", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    const readOnlyServer = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const unknown = await fetch(`${server.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "unknown-provider", confirm: true })
+      });
+      expect(unknown.status).toBe(404);
+
+      const readOnly = await fetch(`${readOnlyServer.url}/api/providers/setup-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", confirm: true })
+      });
+      const readOnlyPayload = await readOnly.json();
+      expect(readOnly.status).toBe(403);
+      expect(readOnlyPayload.error).toContain("read-only");
+
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-setup-plan.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+      await readOnlyServer.close();
+    }
+  });
+
+  it("records LLM governance decisions without making model calls", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const response = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: "keep_disabled",
+          reason: "No LLM calls before review; token=secret-value",
+          confirm: true
+        })
+      });
+      const responseText = await response.text();
+      expect(response.status, responseText).toBe(200);
+      const payload = JSON.parse(responseText);
+      expect(payload.ok).toBe(true);
+      expect(payload.decisionPath).toBe(".visual-hive/llm-decisions.json");
+      expect(payload.decision).toMatchObject({
+        decision: "keep_disabled",
+        source: "control-plane",
+        externalCallsMade: 0
+      });
+      expect(payload.decision.reason).toContain("[REDACTED]");
+
+      const log = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "llm-decisions.json"), "utf8"));
+      expect(log.decisions[0]).toMatchObject({ decision: "keep_disabled", externalCallsMade: 0 });
+      expect(log.decisions[0].reason).not.toContain("secret-value");
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.llmDecisionLog?.decisions[0]?.decision).toBe("keep_disabled");
+      expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"))?.labels).toContain("llm-decisions");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects unconfirmed and invalid LLM decisions", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const unconfirmed = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "keep_disabled" })
+      });
+      expect(unconfirmed.status).toBe(400);
+
+      const invalid = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "call_openai_now", confirm: true })
+      });
+      const invalidPayload = await invalid.json();
+      expect(invalid.status).toBe(400);
+      expect(invalidPayload.error).toContain("Invalid LLM decision");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "llm-decisions.json"), "utf8")).rejects.toMatchObject({
+        code: "ENOENT"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects existing workflow templates unless force is confirmed", async () => {
+    const fixture = await makeFixture();
+    const workflowPath = path.join(fixture.repoRoot, ".github", "workflows", "visual-hive-pr.yml");
+    const original = await readFile(workflowPath, "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const blocked = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, templateIds: ["pull_request"] })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(400);
+      expect(blockedPayload.error).toContain("Refusing to overwrite existing workflow template");
+      await expect(readFile(workflowPath, "utf8")).resolves.toBe(original);
+
+      const forced = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true, templateIds: ["pull_request"] })
+      });
+      const forcedPayload = await forced.json();
+      expect(forced.status).toBe(200);
+      expect(forcedPayload.written[0].overwritten).toBe(true);
+      await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects invalid config drafts and blocks config saves in read-only mode", async () => {
+    const fixture = await makeFixture();
+    const invalidDraft = "project:\n  name: broken\ncontracts: []\ntargets: {}\n";
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const invalid = await fetch(`${server.url}/api/config/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: invalidDraft })
+      });
+      const invalidPayload = await invalid.json();
+      expect(invalid.status).toBe(422);
+      expect(invalidPayload.error).toContain("Invalid Visual Hive config");
+
+      const blocked = await fetch(`${server.url}/api/config/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: invalidDraft, confirm: true })
+      });
+      expect(blocked.status).toBe(403);
+
+      const setupBlocked = await fetch(`${server.url}/api/setup/write-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupBlocked.status).toBe(403);
+
+      const setupRecommendBlocked = await fetch(`${server.url}/api/setup/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "hosted-review" })
+      });
+      expect(setupRecommendBlocked.status).toBe(403);
+
+      const setupDocsBlocked = await fetch(`${server.url}/api/setup/write-docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupDocsBlocked.status).toBe(403);
+
+      const setupBundleBlocked = await fetch(`${server.url}/api/setup/write-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(setupBundleBlocked.status).toBe(403);
+
+      const workflowsBlocked = await fetch(`${server.url}/api/workflows/write-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, force: true })
+      });
+      expect(workflowsBlocked.status).toBe(403);
+
+      const providerDecisionBlocked = await fetch(`${server.url}/api/providers/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: "argos", decision: "skip", confirm: true })
+      });
+      expect(providerDecisionBlocked.status).toBe(403);
+
+      const llmDecisionBlocked = await fetch(`${server.url}/api/llm/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "keep_disabled", confirm: true })
+      });
+      expect(llmDecisionBlocked.status).toBe(403);
+    } finally {
+      await server.close();
+    }
+  });
+});

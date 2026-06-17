@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.local/schemas/visual-hive.workflows.schema.json",
+  "title": "Visual Hive Workflow Safety Audit",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "workflowRoot", "summary", "workflows", "findings", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "workflowRoot": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "workflowCount",
+        "pullRequestWorkflows",
+        "scheduledWorkflows",
+        "trustedIssueWorkflows",
+        "unknownWorkflows",
+        "criticalFindings",
+        "highFindings",
+        "workflowsUsingPullRequestTarget",
+        "prWorkflowsUsingSecrets",
+        "prWorkflowsWithWritePermissions",
+        "workflowsUploadingArtifacts",
+        "workflowsMissingHiddenArtifactUpload",
+        "trustedIssueWorkflowsCheckingOutCode",
+        "workflowsUsingUnpinnedActions",
+        "unpinnedActionReferences"
+      ],
+      "properties": {
+        "workflowCount": { "type": "integer", "minimum": 0 },
+        "pullRequestWorkflows": { "type": "integer", "minimum": 0 },
+        "scheduledWorkflows": { "type": "integer", "minimum": 0 },
+        "trustedIssueWorkflows": { "type": "integer", "minimum": 0 },
+        "unknownWorkflows": { "type": "integer", "minimum": 0 },
+        "criticalFindings": { "type": "integer", "minimum": 0 },
+        "highFindings": { "type": "integer", "minimum": 0 },
+        "workflowsUsingPullRequestTarget": { "type": "integer", "minimum": 0 },
+        "prWorkflowsUsingSecrets": { "type": "integer", "minimum": 0 },
+        "prWorkflowsWithWritePermissions": { "type": "integer", "minimum": 0 },
+        "workflowsUploadingArtifacts": { "type": "integer", "minimum": 0 },
+        "workflowsMissingHiddenArtifactUpload": { "type": "integer", "minimum": 0 },
+        "trustedIssueWorkflowsCheckingOutCode": { "type": "integer", "minimum": 0 },
+        "workflowsUsingUnpinnedActions": { "type": "integer", "minimum": 0 },
+        "unpinnedActionReferences": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "workflows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflow" }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "workflow": {
+      "type": "object",
+      "required": [
+        "path",
+        "kind",
+        "triggers",
+        "permissions",
+        "usesPullRequestTarget",
+        "usesSecrets",
+        "usesWritePermissions",
+        "uploadsVisualHiveArtifacts",
+        "includesHiddenArtifacts",
+        "appendsStepSummary",
+        "createsIssues",
+        "downloadsArtifacts",
+        "checksOutCode",
+        "readsIssueArtifact",
+        "usesRecursiveArtifactDiscovery",
+        "reSanitizesIssueBody",
+        "runsVisualHive",
+        "runsMutation",
+        "writesBaselineReview",
+        "hasDedupeSignature",
+        "actions",
+        "unpinnedActions",
+        "usesUnpinnedActions",
+        "risk",
+        "findings",
+        "recommendations"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": { "enum": ["pull_request", "scheduled", "trusted_issue", "unknown"] },
+        "triggers": { "type": "array", "items": { "type": "string" } },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "usesPullRequestTarget": { "type": "boolean" },
+        "usesSecrets": { "type": "boolean" },
+        "usesWritePermissions": { "type": "boolean" },
+        "uploadsVisualHiveArtifacts": { "type": "boolean" },
+        "includesHiddenArtifacts": { "type": "boolean" },
+        "appendsStepSummary": { "type": "boolean" },
+        "createsIssues": { "type": "boolean" },
+        "downloadsArtifacts": { "type": "boolean" },
+        "checksOutCode": { "type": "boolean" },
+        "readsIssueArtifact": { "type": "boolean" },
+        "usesRecursiveArtifactDiscovery": { "type": "boolean" },
+        "reSanitizesIssueBody": { "type": "boolean" },
+        "runsVisualHive": { "type": "boolean" },
+        "runsMutation": { "type": "boolean" },
+        "writesBaselineReview": { "type": "boolean" },
+        "hasDedupeSignature": { "type": "boolean" },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/actionReference" } },
+        "unpinnedActions": { "type": "array", "items": { "$ref": "#/$defs/actionReference" } },
+        "usesUnpinnedActions": { "type": "boolean" },
+        "risk": { "enum": ["low", "medium", "high", "critical"] },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+        "recommendations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "actionReference": {
+      "type": "object",
+      "required": ["value", "action", "pinning", "line"],
+      "properties": {
+        "value": { "type": "string" },
+        "action": { "type": "string" },
+        "ref": { "type": "string" },
+        "pinning": { "enum": ["sha", "tag", "unpinned", "local"] },
+        "line": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["workflowPath", "kind", "severity", "message", "evidence"],
+      "properties": {
+        "workflowPath": { "type": "string" },
+        "kind": { "type": "string" },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "message": { "type": "string" },
+        "evidence": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

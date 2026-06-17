@@ -1,4 +1,5 @@
 import type { PromptInput } from "./types.js";
+import { sanitizeText } from "@visual-hive/core";
 
 const ORACLE_NOTICE =
   "Important: LLM output is advisory only. Deterministic Playwright contracts and mutation results are the only pass/fail oracle.";
@@ -19,6 +20,26 @@ export function buildMissingCoverageReviewPrompt(input: PromptInput): string {
   ]);
 }
 
+export function buildMissingTestsMarkdown(input: PromptInput): string {
+  const suggestions = collectMissingTestSuggestions(input);
+  return [
+    "# Missing Test Suggestions",
+    "",
+    ORACLE_NOTICE,
+    "",
+    suggestions.length ? suggestions.join("\n\n") : "No immediate missing-test recommendation was produced from the current deterministic evidence.",
+    "",
+    "## Evidence Inputs",
+    "",
+    `- Deterministic report: ${input.report ? `${input.report.status} (${input.report.results.length} contract results)` : "missing"}`,
+    `- Mutation report: ${input.mutationReport ? `${Math.round(input.mutationReport.score * 100)}% (${input.mutationReport.killed}/${input.mutationReport.total})` : "missing"}`,
+    `- Coverage report: ${input.coverageReport ? `${input.coverageReport.uncoveredAreas.length} uncovered areas` : "missing"}`,
+    `- Provider adapter report: ${input.providerRunReport ? `${input.providerRunReport.providers.length} provider rows, ${input.providerRunReport.summary.failedProviders} failed` : "missing"}`,
+    `- Offline findings: ${input.findings?.length ?? 0}`,
+    ""
+  ].join("\n");
+}
+
 export function buildMutationSurvivorReviewPrompt(input: PromptInput): string {
   return buildPrompt("Mutation survivor review", input, [
     "Review survived mutations and suggest assertions that would kill them.",
@@ -34,6 +55,88 @@ export function buildRepairPrompt(input: PromptInput): string {
   ]);
 }
 
+export function buildBaselineReviewSummaryMarkdown(input: PromptInput): string {
+  const screenshots = input.report?.results.flatMap((result) => result.screenshotAssertions ?? []) ?? [];
+  const reviewable = screenshots.filter((screenshot) => ["created", "failed", "missing_baseline"].includes(screenshot.status));
+  const approvals = input.baselineApprovalLog?.approvals ?? [];
+  const rejections = input.baselineRejectionLog?.rejections ?? [];
+  const lines = [
+    "# Baseline Review Summary",
+    "",
+    ORACLE_NOTICE,
+    "",
+    "This artifact summarizes deterministic screenshot evidence and local baseline review decisions. It does not approve or reject anything by itself.",
+    "",
+    "## Summary",
+    "",
+    `- Screenshots in latest report: ${screenshots.length}`,
+    `- Screenshots needing review: ${reviewable.length}`,
+    `- Approved review decisions: ${approvals.length}`,
+    `- Rejected review decisions: ${rejections.length}`,
+    "",
+    "## Screenshots Needing Review",
+    "",
+    reviewable.length
+      ? reviewable
+          .map((screenshot) =>
+            [
+              `- ${sanitizeText(screenshot.contractId)}/${sanitizeText(screenshot.screenshotName || screenshot.name)} ` +
+                `route=${sanitizeText(screenshot.route)} viewport=${sanitizeText(screenshot.viewport)} status=${sanitizeText(screenshot.status)}`,
+              `  - baseline: ${sanitizeText(screenshot.baselinePath)}`,
+              `  - actual: ${sanitizeText(screenshot.actualPath)}`,
+              screenshot.diffPath ? `  - diff: ${sanitizeText(screenshot.diffPath)}` : "",
+              screenshot.actualDiffPixelRatio !== undefined ? `  - diff ratio: ${screenshot.actualDiffPixelRatio}` : "",
+              screenshot.actualDiffPixels !== undefined ? `  - diff pixels: ${screenshot.actualDiffPixels}` : ""
+            ]
+              .filter(Boolean)
+              .join("\n")
+          )
+          .join("\n")
+      : "No created, failed, or missing-baseline screenshots need review in the latest report.",
+    "",
+    "## Approved Decisions",
+    "",
+    approvals.length
+      ? approvals
+          .map((approval) =>
+            [
+              `- ${sanitizeText(approval.contractId)}/${sanitizeText(approval.screenshotName)} approved=${sanitizeText(approval.approvedAt)}`,
+              `  - source status: ${sanitizeText(approval.sourceStatus)}`,
+              `  - baseline: ${sanitizeText(approval.baselinePath)}`,
+              `  - actual: ${sanitizeText(approval.actualPath)}`
+            ].join("\n")
+          )
+          .join("\n")
+      : "No baseline approvals have been recorded.",
+    "",
+    "## Rejected Decisions",
+    "",
+    rejections.length
+      ? rejections
+          .map((rejection) =>
+            [
+              `- ${sanitizeText(rejection.contractId)}/${sanitizeText(rejection.screenshotName)} rejected=${sanitizeText(rejection.rejectedAt)}`,
+              `  - source status: ${sanitizeText(rejection.sourceStatus)}`,
+              `  - baseline unchanged: ${sanitizeText(rejection.baselinePath)}`,
+              `  - actual: ${sanitizeText(rejection.actualPath)}`,
+              rejection.reason ? `  - reason: ${sanitizeText(rejection.reason)}` : ""
+            ]
+              .filter(Boolean)
+              .join("\n")
+          )
+          .join("\n")
+      : "No baseline rejections have been recorded.",
+    "",
+    "## Recommended Next Steps",
+    "",
+    "- Review screenshots in the Control Plane Baselines page before changing baselines.",
+    "- Approve intentional changes explicitly, reject unintended changes with a reason, then rerun `visual-hive run --ci`.",
+    "- Keep deterministic Playwright results as the pass/fail source; LLM output may only explain or summarize the evidence.",
+    ""
+  ];
+  return lines.join("\n");
+}
+
 function buildPrompt(title: string, input: PromptInput, tasks: string[]): string {
   return [
     `# ${title}`,
@@ -45,18 +148,110 @@ function buildPrompt(title: string, input: PromptInput, tasks: string[]): string
     "",
     "## Deterministic report JSON",
     "```json",
-    JSON.stringify(input.report ?? null, null, 2),
+    safeJson(input.report ?? null),
     "```",
     "",
     "## Mutation report JSON",
     "```json",
-    JSON.stringify(input.mutationReport ?? null, null, 2),
+    safeJson(input.mutationReport ?? null),
+    "```",
+    "",
+    "## Coverage report JSON",
+    "```json",
+    safeJson(input.coverageReport ?? null),
+    "```",
+    "",
+    "## Provider adapter results JSON",
+    "```json",
+    safeJson(input.providerRunReport ?? null),
+    "```",
+    "",
+    "## Baseline approval log JSON",
+    "```json",
+    safeJson(input.baselineApprovalLog ?? null),
+    "```",
+    "",
+    "## Baseline rejection log JSON",
+    "```json",
+    safeJson(input.baselineRejectionLog ?? null),
     "```",
     "",
     "## Offline findings",
     "```json",
-    JSON.stringify(input.findings ?? [], null, 2),
+    safeJson(input.findings ?? []),
     "```",
     ""
   ].join("\n");
+}
+
+function safeJson(value: unknown): string {
+  return sanitizeText(JSON.stringify(value, null, 2));
+}
+
+function collectMissingTestSuggestions(input: PromptInput): string[] {
+  const suggestions: string[] = [];
+  const findings = input.findings ?? [];
+  for (const finding of findings) {
+    if (finding.suggestedNextTests.length === 0) continue;
+    suggestions.push(
+      [
+        `## ${sanitizeText(finding.title)}`,
+        "",
+        `Classification: \`${finding.classification}\``,
+        "",
+        "Suggested deterministic checks:",
+        ...finding.suggestedNextTests.map((test) => `- ${sanitizeText(test)}`),
+        "",
+        finding.evidence.length ? "Evidence:" : "",
+        ...finding.evidence.slice(0, 5).map((item) => `- ${sanitizeText(item)}`)
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
+
+  const createdBaselines =
+    input.report?.results.flatMap((result) => result.screenshotAssertions ?? []).filter((screenshot) => screenshot.status === "created") ?? [];
+  if (createdBaselines.length > 0) {
+    suggestions.push(
+      [
+        "## Review Created Baselines",
+        "",
+        "Suggested deterministic checks:",
+        "- Review each created baseline image in the Control Plane Baselines page.",
+        "- Approve intentional baselines explicitly, then rerun `visual-hive run --ci`.",
+        "",
+        "Created baselines:",
+        ...createdBaselines.map((screenshot) => `- ${sanitizeText(screenshot.contractId)}/${sanitizeText(screenshot.screenshotName)} at ${sanitizeText(screenshot.baselinePath)}`)
+      ].join("\n")
+    );
+  }
+
+  const missingMutationRun = !input.mutationReport && input.report;
+  if (missingMutationRun) {
+    suggestions.push(
+      [
+        "## Add Mutation Adequacy Signal",
+        "",
+        "Suggested deterministic checks:",
+        "- Run `visual-hive mutate` on scheduled or manual lanes to verify that intentional UI/API breakages are caught.",
+        "- Map mutation operators to the contracts that should detect them."
+      ].join("\n")
+    );
+  }
+
+  const report = input.report;
+  if (report && report.selectedContracts.length === 0) {
+    suggestions.push(
+      [
+        "## Add A PR-Safe Smoke Contract",
+        "",
+        "Suggested deterministic checks:",
+        "- Add one PR-safe route screenshot for the main dashboard or landing page.",
+        "- Add selector assertions for the page shell and one critical user action."
+      ].join("\n")
+    );
+  }
+
+  return suggestions;
 }

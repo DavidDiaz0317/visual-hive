@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.recommendations.schema.json",
+  "title": "Visual Hive Setup Recommendation Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "configPath",
+    "setupProfile",
+    "providerRecommendations",
+    "costEstimate",
+    "permissions",
+    "setupPullRequest",
+    "setupActions",
+    "recommendedConfig",
+    "recommendedConfigYaml",
+    "detectedSelectors",
+    "recommendedTarget",
+    "recommendedContracts",
+    "recommendedCommands",
+    "findings",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": {
+      "type": "object",
+      "required": ["name", "repoRoot", "type", "packageManager", "detectedFrameworks", "scripts"],
+      "properties": {
+        "name": { "type": "string" },
+        "repoRoot": { "type": "string" },
+        "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"] },
+        "packageManager": { "enum": ["npm", "pnpm", "yarn", "unknown"] },
+        "detectedFrameworks": { "type": "array", "items": { "type": "string" } },
+        "scripts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "generatedAt": { "type": "string" },
+    "configPath": { "type": "string" },
+    "setupProfile": {
+      "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"]
+    },
+    "providerRecommendations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerRecommendation" }
+    },
+    "costEstimate": { "$ref": "#/$defs/costEstimate" },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "setupPullRequest": { "$ref": "#/$defs/setupPullRequest" },
+    "setupActions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/setupAction" }
+    },
+    "workflowPreviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflowPreview" }
+    },
+    "recommendedConfig": { "type": "object" },
+    "recommendedConfigYaml": { "type": "string" },
+    "detectedSelectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["selector", "sourceFile", "occurrences"],
+        "properties": {
+          "selector": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "occurrences": { "type": "number" }
+        }
+      }
+    },
+    "detectedRoutes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route", "sourceFile", "occurrences"],
+        "properties": {
+          "route": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "occurrences": { "type": "number" }
+        }
+      }
+    },
+    "detectedStories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["storyFile", "title", "exports", "route"],
+        "properties": {
+          "storyFile": { "type": "string" },
+          "title": { "type": "string" },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "route": { "type": "string" }
+        }
+      }
+    },
+    "detectedWorkflows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/detectedWorkflow" }
+    },
+    "playwright": { "$ref": "#/$defs/playwrightPresence" },
+    "recommendedTarget": {
+      "type": "object",
+      "required": ["id", "kind", "url", "confidence", "reasons"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
+        "url": { "type": "string" },
+        "install": { "type": "string" },
+        "build": { "type": "string" },
+        "serve": { "type": "string" },
+        "setup": { "type": "array", "items": { "type": "string" } },
+        "services": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/recommendedService" }
+        },
+        "teardown": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recommendedContracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "targetId", "selectors", "steps", "screenshots", "reasons"],
+        "properties": {
+          "id": { "type": "string" },
+          "targetId": { "type": "string" },
+          "selectors": { "type": "array", "items": { "type": "string" } },
+          "steps": { "type": "array", "items": { "type": "object" } },
+          "screenshots": { "type": "array" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "onboardingChecklist": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/checklistItem" }
+    },
+    "recommendedCommands": { "type": "array", "items": { "type": "string" } },
+    "findings": { "type": "array" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "recommendedService": {
+      "type": "object",
+      "required": ["name", "command", "url"],
+      "properties": {
+        "name": { "type": "string" },
+        "command": { "type": "string" },
+        "url": { "type": "string" },
+        "readinessTimeoutMs": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "providerRecommendation": {
+      "type": "object",
+      "required": ["providerId", "label", "recommendation", "reason", "requiredEnv", "externalUploadAllowedByDefault"],
+      "properties": {
+        "providerId": { "type": "string" },
+        "label": { "type": "string" },
+        "recommendation": { "enum": ["use", "optional", "skip", "future"] },
+        "reason": { "type": "string" },
+        "requiredEnv": { "type": "array", "items": { "type": "string" } },
+        "externalUploadAllowedByDefault": { "type": "boolean" }
+      }
+    },
+    "costEstimate": {
+      "type": "object",
+      "required": [
+        "localScreenshotsPerRun",
+        "externalScreenshotsPerRun",
+        "estimatedPrMinutes",
+        "estimatedScheduledMinutes",
+        "estimatedMonthlyExternalScreenshots",
+        "ciRuntimeClass",
+        "notes"
+      ],
+      "properties": {
+        "localScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+        "externalScreenshotsPerRun": { "type": "integer", "minimum": 0 },
+        "estimatedPrMinutes": { "type": "integer", "minimum": 0 },
+        "estimatedScheduledMinutes": { "type": "integer", "minimum": 0 },
+        "estimatedMonthlyExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "ciRuntimeClass": { "enum": ["cheap", "medium", "expensive"] },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["pullRequest", "scheduled"],
+      "properties": {
+        "pullRequest": { "$ref": "#/$defs/permissionLane" },
+        "scheduled": { "$ref": "#/$defs/permissionLane" }
+      }
+    },
+    "permissionLane": {
+      "type": "object",
+      "required": ["permissions", "secretsRequired", "externalNetwork", "notes"],
+      "properties": {
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "secretsRequired": { "type": "array", "items": { "type": "string" } },
+        "externalNetwork": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "setupPullRequest": {
+      "type": "object",
+      "required": ["recommended", "title", "files", "steps", "securityNotes"],
+      "properties": {
+        "recommended": { "type": "boolean" },
+        "title": { "type": "string" },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "securityNotes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "setupAction": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "category",
+        "description",
+        "command",
+        "recommended",
+        "requiresConfirmation",
+        "writes",
+        "safetyNotes",
+        "outcome"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "category": { "enum": ["profile", "write", "provider", "validate"] },
+        "description": { "type": "string" },
+        "command": { "type": "string" },
+        "recommended": { "type": "boolean" },
+        "requiresConfirmation": { "type": "boolean" },
+        "writes": { "type": "array", "items": { "type": "string" } },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } },
+        "outcome": { "type": "string" }
+      }
+    },
+    "workflowPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "path", "description", "safetyNotes", "content"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "description": { "type": "string" },
+        "safetyNotes": { "type": "array", "items": { "type": "string" } },
+        "content": { "type": "string" }
+      }
+    },
+    "detectedWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "triggers", "permissions", "usesPullRequestTarget", "usesSecrets", "visualHiveRelated"],
+      "properties": {
+        "path": { "type": "string" },
+        "triggers": { "type": "array", "items": { "type": "string" } },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "usesPullRequestTarget": { "type": "boolean" },
+        "usesSecrets": { "type": "boolean" },
+        "visualHiveRelated": { "type": "boolean" }
+      }
+    },
+    "playwrightPresence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "dependencies", "scripts", "configFiles", "notes"],
+      "properties": {
+        "status": { "enum": ["present", "partial", "missing"] },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "scripts": { "type": "array", "items": { "type": "string" } },
+        "configFiles": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status", "description", "evidence", "action", "relatedArtifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "enum": ["ready", "review", "blocked"] },
+        "description": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "action": { "type": "string" },
+        "command": { "type": "string" },
+        "relatedArtifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

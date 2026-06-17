@@ -16,15 +16,35 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npx visual-hive plan --mode pr --base origin/main --ci
-      - run: npx visual-hive run --ci
-      - run: npx visual-hive triage
+      - run: npm run demo:ci
+      - run: npm run demo:baselines
         if: always()
-      - run: npx visual-hive report --github-step-summary
+      - run: npm run demo:workflows
         if: always()
+      - run: npm run demo:providers
+        if: always()
+      - run: npm run demo:risk
+        if: always()
+      - run: npm run demo:security
+        if: always()
+      - run: npm run demo:costs
+        if: always()
+      - run: npm run demo:readiness
+        if: always()
+      - run: npm run demo:triage
+        if: always()
+      - run: node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml --github-step-summary
+        if: always()
+      - run: npm run demo:artifacts
+        if: always()
+      # Do not create issues from untrusted PR execution. Upload artifacts and let
+      # a trusted workflow_run workflow consume them if issue creation is needed.
+      # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: visual-hive
-          path: .visual-hive
+          path: examples/demo-react-app/.visual-hive
+          include-hidden-files: true

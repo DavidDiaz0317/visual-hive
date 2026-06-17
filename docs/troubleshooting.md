@@ -1,0 +1,43 @@
+# Troubleshooting
+
+## Missing Baseline
+
+In local non-CI mode, Visual Hive creates missing baselines in `visual.snapshotDir`, which defaults to `.visual-hive/snapshots`. Review the image before relying on it. In CI, missing baselines fail by default unless `visual.updateSnapshots` is true.
+
+After reviewing a created or changed screenshot, approve it explicitly:
+
+```bash
+visual-hive baselines list --config visual-hive.config.yaml
+visual-hive baselines list --config visual-hive.config.yaml --write
+visual-hive baselines approve --config visual-hive.config.yaml --contract <contract-id> --screenshot <screenshot-name> --viewport <viewport>
+visual-hive baselines reject --config visual-hive.config.yaml --contract <contract-id> --screenshot <screenshot-name> --viewport <viewport> --reason "Not intentional"
+visual-hive run --ci
+```
+
+The Control Plane Baselines page exposes the same actions unless it was started with `--read-only`. It also shows baseline, actual, and diff artifact paths with copy buttons so reviewers can attach exact files to design review or issue discussions. Approval and rejection actions require an explicit confirmation prompt after review. `baselines list --write` refreshes `.visual-hive/baselines.json`, which records the current pending/approved/rejected review queue. Approvals are recorded in `.visual-hive/baseline-approvals.json`; rejections are recorded in `.visual-hive/baseline-rejections.json` without changing the baseline image.
+
+## Target Server Failed To Start
+
+Check the target command, working directory, port, and health URL. Visual Hive reports the command and a sanitized log tail. Secret-looking values are redacted.
+
+## No Contracts Selected
+
+Check `runOn`, changed-file selection rules, target `prSafe`, and whether the current mode is `pr`, `schedule`, `manual`, `canary`, `mutation`, or `full`. Protected targets are not selected for PR, canary, or mutation runs unless unsafe targets are explicitly allowed. Canary mode also skips expensive targets.
+
+If the plan was intentionally empty because every changed file matched `selection.ignoreChangedFiles`, this is not a setup failure. `visual-hive run` writes a passed no-op report with `noContractsReason` so PR workflows can skip docs-only visual work while preserving audit evidence.
+
+If you used `--exclude-contract` or `--exclude-target`, check the `Excluded` section in `plan` output. Explicit excludes override changed-file selection and explicit includes.
+
+## Playwright Browser Missing
+
+Run:
+
+```bash
+npx playwright install chromium
+```
+
+CI templates use `npx playwright install --with-deps chromium`.
+
+## CI vs Local Snapshot Differences
+
+Use deterministic viewports, disable animations, mask dynamic regions, and prefer stable fixture data. Increase `visual.maxDiffPixelRatio` only when the difference is expected and reviewed.

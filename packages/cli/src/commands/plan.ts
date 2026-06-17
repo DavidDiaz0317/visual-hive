@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { createPlan, loadConfig, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
+import { createPlan, loadConfig, mutationOperatorId, PLAN_MODES, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
 import { readFile } from "node:fs/promises";
 
 export interface PlanCommandOptions {
@@ -10,6 +10,11 @@ export interface PlanCommandOptions {
   changedFiles?: string;
   base?: string;
   allowUnsafeTargets?: boolean;
+  includeContracts?: string[];
+  excludeContracts?: string[];
+  includeTargets?: string[];
+  excludeTargets?: string[];
+  output?: string;
 }
 
 export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<Plan> {
@@ -17,11 +22,15 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
   const loaded = await loadConfig(options.config, cwd);
   const changedFiles = await resolveChangedFiles(options, cwd, loaded.config.project.defaultBranch);
   const plan = createPlan(loaded.config, {
-    mode: options.mode ?? "pr",
+    mode: parsePlanMode(options.mode),
     changedFiles,
-    allowUnsafeTargets: options.allowUnsafeTargets
+    allowUnsafeTargets: options.allowUnsafeTargets,
+    includeContracts: options.includeContracts,
+    excludeContracts: options.excludeContracts,
+    includeTargets: options.includeTargets,
+    excludeTargets: options.excludeTargets
   });
-  if (plan.items.length === 0) {
+  if (plan.items.length === 0 && !isIntentionalIgnoredFilesPlan(plan)) {
     const excluded = plan.excluded.length
       ? ` Excluded contracts: ${plan.excluded.map((item) => `${item.contractId} (${item.reasons.join("; ")})`).join(", ")}.`
       : "";
@@ -29,8 +38,23 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
       `No contracts selected for mode "${plan.mode}". Check runOn settings, changed-file rules, target prSafe settings, or pass --allow-unsafe-targets for trusted runs.${excluded}`
     );
   }
-  await writeJson(path.join(loaded.rootDir, ".visual-hive", "plan.json"), plan);
+  await writeJson(resolvePlanOutputPath(loaded.rootDir, options.output), plan);
   return plan;
+}
+
+function resolvePlanOutputPath(rootDir: string, output: string | undefined): string {
+  if (!output) {
+    return path.join(rootDir, ".visual-hive", "plan.json");
+  }
+  return path.isAbsolute(output) ? output : path.resolve(rootDir, output);
+}
+
+export function parsePlanMode(mode: string | undefined): PlanMode {
+  const value = mode ?? "pr";
+  if ((PLAN_MODES as readonly string[]).includes(value)) {
+    return value as PlanMode;
+  }
+  throw new Error(`Invalid plan mode "${value}". Expected one of: ${PLAN_MODES.join(", ")}`);
 }
 
 export function formatPlanSummary(plan: Plan): string {
@@ -39,8 +63,15 @@ export function formatPlanSummary(plan: Plan): string {
     `Mode: ${plan.mode}`,
     `Contracts selected: ${plan.items.length}`,
     `Targets selected: ${plan.targets.map((target) => target.id).join(", ") || "none"}`,
-    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.join(", ")})` : "disabled"}`
+    `Mutation: ${plan.mutation.enabled ? `enabled (${plan.mutation.operators.map((operator) => mutationOperatorId(operator)).join(", ")})` : "disabled"}`,
+    `Provider policy: ${formatProviderPolicyLine(plan)}`
   ];
+  if (plan.mode === "pr" && plan.ignoredChangedFiles.length > 0) {
+    lines.push(`Ignored changed files: ${plan.ignoredChangedFiles.length}`);
+    for (const ignored of plan.ignoredChangedFiles) {
+      lines.push(`- ${ignored.file} ignored by ${ignored.pattern}: ${ignored.reason}`);
+    }
+  }
   for (const item of plan.items) {
     lines.push(`- ${item.contractId} on ${item.targetId} [${item.cost}] because ${item.reasons.join("; ")}`);
   }
@@ -51,6 +82,29 @@ export function formatPlanSummary(plan: Plan): string {
     }
   }
   return lines.join("\n");
+}
+
+function formatProviderPolicyLine(plan: Plan): string {
+  if (!plan.providerPolicy.length) return "none";
+  return plan.providerPolicy
+    .map((provider) => {
+      const external =
+        provider.providerId === "playwright"
+          ? "local"
+          : !provider.enabled
+            ? "external-disabled"
+          : provider.externalUploadAllowed
+            ? "external-allowed"
+            : provider.externalUploadBlockedReasons.length
+              ? "external-blocked"
+              : "external-disabled";
+      return `${provider.label}=${provider.availability}/${external}/calls=${provider.externalCallsPlanned}`;
+    })
+    .join(", ");
+}
+
+export function isIntentionalIgnoredFilesPlan(plan: Plan): boolean {
+  return plan.mode === "pr" && plan.changedFiles.length > 0 && plan.effectiveChangedFiles.length === 0 && plan.ignoredChangedFiles.length > 0;
 }
 
 async function resolveChangedFiles(options: PlanCommandOptions, cwd: string, defaultBranch: string): Promise<string[]> {

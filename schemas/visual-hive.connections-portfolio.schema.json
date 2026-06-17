@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.connections-portfolio.schema.json",
+  "title": "Visual Hive Local Repository Connections Portfolio",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "generatedAt", "rootRepo", "connectionsPath", "summary", "portfolio", "connections", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "rootRepo": { "type": "string", "minLength": 1 },
+    "connectionsPath": { "type": "string", "minLength": 1 },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectionCount",
+        "storedConnections",
+        "readyConnections",
+        "missingConfigConnections",
+        "invalidConfigConnections",
+        "missingRepoConnections",
+        "blockedConnections",
+        "connectionsNeedingAttention",
+        "failedConnections",
+        "missingReportConnections",
+        "weakMutationConnections",
+        "highRiskConnections",
+        "staleReportConnections",
+        "missingCoverageConnections",
+        "coverageGapConnections",
+        "highCoverageGapConnections",
+        "readinessBlockedConnections",
+        "securityRiskConnections",
+        "costPolicyConnections"
+      ],
+      "properties": {
+        "connectionCount": { "type": "integer", "minimum": 0 },
+        "storedConnections": { "type": "integer", "minimum": 0 },
+        "readyConnections": { "type": "integer", "minimum": 0 },
+        "missingConfigConnections": { "type": "integer", "minimum": 0 },
+        "invalidConfigConnections": { "type": "integer", "minimum": 0 },
+        "missingRepoConnections": { "type": "integer", "minimum": 0 },
+        "blockedConnections": { "type": "integer", "minimum": 0 },
+        "connectionsNeedingAttention": { "type": "integer", "minimum": 0 },
+        "failedConnections": { "type": "integer", "minimum": 0 },
+        "missingReportConnections": { "type": "integer", "minimum": 0 },
+        "weakMutationConnections": { "type": "integer", "minimum": 0 },
+        "highRiskConnections": { "type": "integer", "minimum": 0 },
+        "staleReportConnections": { "type": "integer", "minimum": 0 },
+        "missingCoverageConnections": { "type": "integer", "minimum": 0 },
+        "coverageGapConnections": { "type": "integer", "minimum": 0 },
+        "highCoverageGapConnections": { "type": "integer", "minimum": 0 },
+        "readinessBlockedConnections": { "type": "integer", "minimum": 0 },
+        "securityRiskConnections": { "type": "integer", "minimum": 0 },
+        "costPolicyConnections": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "portfolio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queues", "topAttention"],
+      "properties": {
+        "queues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/queue" }
+        },
+        "topAttention": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/portfolioItem" }
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/connection" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "queue": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "label", "description", "severity", "nextAction", "count", "connections"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "severity": { "enum": ["critical", "warning", "ok"] },
+        "nextAction": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "connections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/portfolioItem" }
+        }
+      }
+    },
+    "portfolioItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "label", "health", "status", "score", "reasons"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "projectName": { "type": "string" },
+        "health": { "enum": ["ready", "attention", "blocked"] },
+        "status": { "enum": ["ready", "missing_repo", "missing_config", "invalid_config"] },
+        "score": { "type": "integer", "minimum": 0 },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "label", "repoRoot", "configPath", "tags", "stored", "status", "health", "staleReport", "missingCoverage", "attention", "warnings"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "repoRoot": { "type": "string", "minLength": 1 },
+        "configPath": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "stored": { "type": "boolean" },
+        "status": { "enum": ["ready", "missing_repo", "missing_config", "invalid_config"] },
+        "health": { "enum": ["ready", "attention", "blocked"] },
+        "staleReport": { "type": "boolean" },
+        "missingCoverage": { "type": "boolean" },
+        "attention": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

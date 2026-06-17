@@ -1,0 +1,142 @@
+import path from "node:path";
+import {
+  addConnection,
+  listConnections,
+  loadConfig,
+  removeConnection,
+  writeJson,
+  type RepoConnectionIndex
+} from "@visual-hive/core";
+
+export interface ConnectionsCommandOptions {
+  config?: string;
+  cwd?: string;
+  format?: "markdown" | "json";
+  write?: boolean;
+}
+
+export interface AddConnectionCommandOptions extends ConnectionsCommandOptions {
+  repo: string;
+  connectionConfig?: string;
+  id?: string;
+  label?: string;
+  tags?: string[];
+}
+
+export interface RemoveConnectionCommandOptions extends ConnectionsCommandOptions {
+  id: string;
+}
+
+export async function runConnectionsListCommand(options: ConnectionsCommandOptions = {}): Promise<{ index: RepoConnectionIndex; indexPath: string; portfolioPath: string; written?: boolean }> {
+  const resolved = await resolveConnectionsCommand(options);
+  const index = await listConnections({ repoRoot: resolved.rootDir });
+  if (options.write) {
+    await writeJson(resolved.portfolioPath, index);
+  }
+  return { index, indexPath: resolved.indexPath, portfolioPath: resolved.portfolioPath, written: Boolean(options.write) };
+}
+
+export async function runConnectionsAddCommand(options: AddConnectionCommandOptions): Promise<{ index: RepoConnectionIndex; indexPath: string }> {
+  const resolved = await resolveConnectionsCommand(options);
+  const index = await addConnection({
+    repoRoot: resolved.rootDir,
+    repoPath: options.repo,
+    configPath: options.connectionConfig,
+    id: options.id,
+    label: options.label,
+    tags: options.tags
+  });
+  return { index, indexPath: resolved.indexPath };
+}
+
+export async function runConnectionsRemoveCommand(options: RemoveConnectionCommandOptions): Promise<{ index: RepoConnectionIndex; indexPath: string }> {
+  const resolved = await resolveConnectionsCommand(options);
+  const index = await removeConnection({ repoRoot: resolved.rootDir, id: options.id });
+  return { index, indexPath: resolved.indexPath };
+}
+
+export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: string, format: "markdown" | "json" = "markdown", writtenPath?: string): string {
+  if (format === "json") return JSON.stringify(index, null, 2);
+  const lines = [
+    `Connections file: ${indexPath}`,
+    ...(writtenPath ? [`Portfolio artifact: ${writtenPath}`] : []),
+    `# Visual Hive Connections`,
+    "",
+    `- Connections: ${index.summary.connectionCount}`,
+    `- Stored: ${index.summary.storedConnections}`,
+    `- Ready: ${index.summary.readyConnections}`,
+    `- Needs attention: ${index.summary.connectionsNeedingAttention}`,
+    `- Blocked: ${index.summary.blockedConnections}`,
+    `- Failed deterministic reports: ${index.summary.failedConnections}`,
+    `- Missing deterministic reports: ${index.summary.missingReportConnections}`,
+    `- Stale deterministic reports: ${index.summary.staleReportConnections}`,
+    `- Weak mutation scores: ${index.summary.weakMutationConnections}`,
+    `- Missing coverage audits: ${index.summary.missingCoverageConnections}`,
+    `- Coverage gaps: ${index.summary.coverageGapConnections}`,
+    `- High coverage gaps: ${index.summary.highCoverageGapConnections}`,
+    `- High risk registers: ${index.summary.highRiskConnections}`,
+    `- Readiness gates needing review: ${index.summary.readinessBlockedConnections}`,
+    `- Security audits needing review: ${index.summary.securityRiskConnections}`,
+    `- Cost policies needing review: ${index.summary.costPolicyConnections}`,
+    `- Missing config: ${index.summary.missingConfigConnections}`,
+    `- Invalid config: ${index.summary.invalidConfigConnections}`,
+    `- Missing repo: ${index.summary.missingRepoConnections}`,
+    "",
+    "## Repositories"
+  ];
+  for (const connection of index.connections) {
+    const status = connection.projectName ? `${connection.status} (${connection.projectName})` : connection.status;
+    const tags = connection.tags.length ? ` tags=${connection.tags.join(",")}` : "";
+    const mutation =
+      connection.latestMutationScore === undefined
+        ? "mutation=not run"
+        : `mutation=${Math.round(connection.latestMutationScore * 100)}%${connection.mutationMinScore === undefined ? "" : ` min=${Math.round(connection.mutationMinScore * 100)}%`}`;
+    const coverage =
+      connection.missingCoverage || connection.coverageGapCount === undefined
+        ? "coverage=not run"
+        : `coverage=${connection.coverageGapCount} gap(s), high=${connection.highCoverageGapCount ?? 0}`;
+    const risk = connection.latestRiskScore === undefined ? "risk=not run" : `risk=${connection.latestRiskScore}/100 ${connection.latestRiskSeverity ?? ""}`.trim();
+    const readiness =
+      connection.latestReadinessStatus === undefined
+        ? "readiness=not run"
+        : `readiness=${connection.latestReadinessStatus}${connection.latestReadinessScore === undefined ? "" : ` ${connection.latestReadinessScore}/100`}`;
+    const security = connection.latestSecurityScore === undefined ? "security=not run" : `security=${connection.latestSecurityScore}/100 criticalHigh=${connection.securityCriticalHigh ?? 0}`;
+    const cost = connection.latestCostBudgetStatus === undefined ? "cost=not run" : `cost=${connection.latestCostBudgetStatus}`;
+    lines.push(`- ${connection.id}: ${connection.label} - ${connection.health} / ${status}${tags}`);
+    lines.push(`  repo: ${connection.repoRoot}`);
+    lines.push(`  config: ${connection.configPath}`);
+    lines.push(
+      `  latest: ${connection.latestDeterministicStatus ?? "no report"}${connection.latestReportAgeDays === undefined ? "" : ` (${connection.latestReportAgeDays}d old)`}; ${mutation}; ${coverage}; ${risk}; ${readiness}; ${security}; ${cost}`
+    );
+    if (connection.attention.length) lines.push(`  attention: ${connection.attention.join(" ")}`);
+  }
+  const activeQueues = index.portfolio.queues.filter((queue) => queue.count > 0);
+  if (activeQueues.length) {
+    lines.push("", "## Portfolio Queues");
+    for (const queue of activeQueues) {
+      const repos = queue.connections.map((connection) => `${connection.id}(${connection.score})`).join(", ");
+      lines.push(`- ${queue.label}: ${queue.count} - ${repos}`);
+      lines.push(`  next: ${queue.nextAction}`);
+    }
+  }
+  if (index.portfolio.topAttention.length) {
+    lines.push("", "## Top Attention");
+    for (const connection of index.portfolio.topAttention) {
+      lines.push(`- ${connection.id}: ${connection.label} score=${connection.score} reasons=${connection.reasons.join(" ")}`);
+    }
+  }
+  if (index.warnings.length) {
+    lines.push("", "## Warnings", ...index.warnings.map((warning) => `- ${warning}`));
+  }
+  return lines.join("\n");
+}
+
+async function resolveConnectionsCommand(options: ConnectionsCommandOptions): Promise<{ rootDir: string; indexPath: string; portfolioPath: string }> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
+  return {
+    rootDir: loaded.rootDir,
+    indexPath: path.join(loaded.rootDir, ".visual-hive", "connections.json"),
+    portfolioPath: path.join(loaded.rootDir, ".visual-hive", "connections-portfolio.json")
+  };
+}

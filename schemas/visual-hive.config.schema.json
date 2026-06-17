@@ -13,7 +13,11 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"], "default": "custom" },
-        "defaultBranch": { "type": "string", "default": "main" }
+        "defaultBranch": { "type": "string", "default": "main" },
+        "setupProfile": {
+          "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"],
+          "default": "free-local"
+        }
       }
     },
     "targets": {
@@ -21,28 +25,35 @@
       "minProperties": 1,
       "additionalProperties": {
         "oneOf": [
+          { "$ref": "#/$defs/urlTarget" },
+          { "$ref": "#/$defs/deployPreviewTarget" },
+          { "$ref": "#/$defs/storybookTarget" },
           { "$ref": "#/$defs/commandTarget" },
-          { "$ref": "#/$defs/urlTarget" }
+          { "$ref": "#/$defs/commandGroupTarget" },
+          { "$ref": "#/$defs/protectedTarget" }
         ]
       }
     },
-    "contracts": {
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/contract" }
-    },
-    "viewports": {
+    "contracts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contract" } },
+    "viewports": { "type": "object", "additionalProperties": { "$ref": "#/$defs/viewport" } },
+    "visual": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/viewport" }
+      "additionalProperties": false,
+      "properties": {
+        "maxDiffPixelRatio": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.01 },
+        "maxDiffPixels": { "type": "integer", "minimum": 0 },
+        "updateSnapshots": { "type": "boolean", "default": false },
+        "failOnMissingBaselineInCI": { "type": "boolean", "default": true },
+        "snapshotDir": { "$ref": "#/$defs/repoRelativePath", "default": ".visual-hive/snapshots" },
+        "artifactDir": { "$ref": "#/$defs/repoRelativePath", "default": ".visual-hive/artifacts" }
+      }
     },
     "selection": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "changedFiles": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/changedFileRule" }
-        }
+        "changedFiles": { "type": "array", "items": { "$ref": "#/$defs/changedFileRule" } },
+        "ignoreChangedFiles": { "type": "array", "items": { "$ref": "#/$defs/ignoredChangedFileRule" } }
       }
     },
     "mutation": {
@@ -54,7 +65,20 @@
         "minScore": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
         "operators": {
           "type": "array",
-          "items": { "$ref": "#/$defs/mutationOperator" }
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/mutationOperator" },
+              {
+                "type": "object",
+                "required": ["id"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "$ref": "#/$defs/mutationOperator" },
+                  "contracts": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -64,11 +88,28 @@
       "properties": {
         "enabled": { "type": "boolean", "default": false },
         "provider": { "type": "string", "default": "none" },
+        "model": { "type": "string", "default": "offline-heuristics" },
         "neverSoleOracle": { "type": "boolean", "const": true },
         "createIssuePrompt": { "type": "boolean", "default": true },
-        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 }
+        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 },
+        "maxPromptTokens": { "type": "integer", "minimum": 1, "default": 50000 },
+        "maxEstimatedCostUsd": { "type": "number", "minimum": 0, "default": 0 }
       }
     },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playwright": { "$ref": "#/$defs/providerConfig" },
+        "argos": { "$ref": "#/$defs/providerConfig" },
+        "percy": { "$ref": "#/$defs/providerConfig" },
+        "chromatic": { "$ref": "#/$defs/providerConfig" },
+        "applitools": { "$ref": "#/$defs/providerConfig" },
+        "storybook": { "$ref": "#/$defs/providerConfig" },
+        "github-checks": { "$ref": "#/$defs/providerConfig" }
+      }
+    },
+    "costPolicy": { "$ref": "#/$defs/costPolicy" },
     "github": {
       "type": "object",
       "additionalProperties": false,
@@ -99,6 +140,37 @@
         "height": { "type": "integer", "minimum": 1 }
       }
     },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$)).+"
+    },
+    "targetBase": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": false },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "urlTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        {
+          "type": "object",
+          "required": ["kind", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "url" },
+            "url": { "type": "string", "format": "uri" },
+            "prSafe": { "type": "boolean", "default": false },
+            "schedule": { "type": "string" },
+            "cost": { "$ref": "#/$defs/cost" }
+          }
+        }
+      ]
+    },
     "commandTarget": {
       "type": "object",
       "required": ["kind", "serve", "url"],
@@ -114,16 +186,90 @@
         "cost": { "$ref": "#/$defs/cost" }
       }
     },
-    "urlTarget": {
+    "deployPreviewTarget": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["url"] }, { "required": ["urlEnv"] }, { "required": ["fallbackUrl"] }],
+      "properties": {
+        "kind": { "const": "deployPreview" },
+        "provider": { "enum": ["vercel", "netlify", "github-pages", "custom"], "default": "custom" },
+        "url": { "type": "string", "format": "uri" },
+        "urlEnv": { "type": "string", "minLength": 1 },
+        "urlTemplate": { "type": "string", "minLength": 1 },
+        "fallbackUrl": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": true },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost", "default": "cheap" }
+      }
+    },
+    "storybookTarget": {
       "type": "object",
       "required": ["kind", "url"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "url" },
+        "kind": { "const": "storybook" },
+        "url": { "type": "string", "format": "uri" },
+        "install": { "type": "string" },
+        "build": { "type": "string" },
+        "serve": { "type": "string" },
+        "stories": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "components": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "prSafe": { "type": "boolean", "default": true },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost", "default": "cheap" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["name", "command", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "command": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "healthPath": { "type": "string" },
+        "readinessTimeoutMs": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "commandGroupTarget": {
+      "type": "object",
+      "required": ["kind", "services", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "commandGroup" },
+        "setup": { "type": "array", "items": { "type": "string" } },
+        "services": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/service" } },
+        "teardown": { "type": "array", "items": { "type": "string" } },
         "url": { "type": "string", "format": "uri" },
         "prSafe": { "type": "boolean", "default": false },
         "schedule": { "type": "string" },
         "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "protectedTarget": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["url"] },
+        {
+          "properties": {
+            "services": { "type": "array", "minItems": 1 }
+          },
+          "required": ["services"]
+        }
+      ],
+      "properties": {
+        "kind": { "const": "protected" },
+        "setup": { "type": "array", "items": { "type": "string" } },
+        "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
+        "teardown": { "type": "array", "items": { "type": "string" } },
+        "url": { "type": "string", "format": "uri" },
+        "prSafe": { "type": "boolean", "default": false },
+        "schedule": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost", "default": "expensive" },
+        "requiresSecrets": { "type": "array", "items": { "type": "string" } }
       }
     },
     "contract": {
@@ -136,6 +282,23 @@
         "target": { "type": "string", "minLength": 1 },
         "severity": { "$ref": "#/$defs/severity" },
         "runOn": { "$ref": "#/$defs/runOn" },
+        "timeoutMs": { "type": "integer", "minimum": 1 },
+        "waitFor": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["selector"],
+            "additionalProperties": false,
+            "properties": {
+              "selector": { "type": "string", "minLength": 1 },
+              "state": { "enum": ["visible", "attached", "hidden"], "default": "visible" },
+              "timeoutMs": { "type": "integer", "minimum": 1, "default": 5000 }
+            }
+          }
+        },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/flowStep" } },
+        "failOnConsoleError": { "type": "boolean", "default": false },
+        "expectedConsoleErrors": { "type": "array", "items": { "type": "string" } },
         "selectors": {
           "type": "object",
           "additionalProperties": false,
@@ -146,10 +309,7 @@
             "textMustNotExist": { "type": "array", "items": { "type": "string" } }
           }
         },
-        "screenshots": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/screenshot" }
-        }
+        "screenshots": { "type": "array", "items": { "$ref": "#/$defs/screenshot" } }
       }
     },
     "screenshot": {
@@ -164,6 +324,48 @@
         "mask": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "flowStep": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "goto" } } },
+          "then": { "required": ["route"] }
+        },
+        {
+          "if": { "properties": { "action": { "enum": ["click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText"] } } },
+          "then": { "required": ["selector"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "fill" } } },
+          "then": { "required": ["value"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "press" } } },
+          "then": { "required": ["key"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "assertText" } } },
+          "then": { "required": ["text"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "assertUrl" } } },
+          "then": { "required": ["value"] }
+        }
+      ],
+      "properties": {
+        "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
+        "description": { "type": "string" },
+        "selector": { "type": "string" },
+        "route": { "type": "string" },
+        "value": { "type": "string" },
+        "key": { "type": "string" },
+        "text": { "type": "string" },
+        "state": { "enum": ["visible", "attached", "hidden"], "default": "visible" },
+        "timeoutMs": { "type": "integer", "minimum": 1, "default": 5000 }
+      }
+    },
     "changedFileRule": {
       "type": "object",
       "required": ["pattern"],
@@ -174,6 +376,15 @@
         "risk": { "$ref": "#/$defs/severity" }
       }
     },
+    "ignoredChangedFileRule": {
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1, "default": "changed file is ignored for visual planning" }
+      }
+    },
     "mutationOperator": {
       "enum": [
         "hide-critical-button",
@@ -181,8 +392,47 @@
         "remove-demo-badge",
         "api-500",
         "empty-data",
-        "mobile-overflow"
+        "mobile-overflow",
+        "route-guard-bypass",
+        "hidden-error-banner",
+        "broken-image",
+        "removed-accessible-name",
+        "theme-token-drift",
+        "stale-loading-state"
       ]
+    },
+    "providerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "mode": { "enum": ["mock", "external"], "default": "external" },
+        "requiredEnv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "projectId": { "type": "string", "minLength": 1 },
+        "failOnProviderFailure": { "type": "boolean", "default": false }
+      }
+    },
+    "costPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0, "default": 0 },
+        "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0, "default": 5000 },
+        "externalUpload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pullRequest": { "type": "boolean", "default": false },
+            "schedule": { "type": "boolean", "default": true },
+            "manual": { "type": "boolean", "default": true },
+            "canary": { "type": "boolean", "default": false },
+            "mutation": { "type": "boolean", "default": false },
+            "full": { "type": "boolean", "default": true },
+            "onFailureOnly": { "type": "boolean", "default": true },
+            "criticalContractsOnly": { "type": "boolean", "default": true }
+          }
+        }
+      }
     }
   }
 }

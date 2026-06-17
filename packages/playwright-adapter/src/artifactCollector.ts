@@ -2,10 +2,10 @@ import { constants } from "node:fs";
 import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 
-export async function collectArtifacts(rootDir: string): Promise<string[]> {
-  const artifactDir = path.join(rootDir, ".visual-hive", "artifacts");
-  const generatedSpec = path.join(rootDir, ".visual-hive", "generated", "visual-hive.generated.spec.ts");
-  const files = await listFilesSafe(artifactDir);
+export async function collectArtifacts(rootDir: string, artifactDir = ".visual-hive/artifacts", generatedSpecPath?: string): Promise<string[]> {
+  const resolvedArtifactDir = path.resolve(rootDir, artifactDir);
+  const generatedSpec = generatedSpecPath ?? path.join(rootDir, ".visual-hive", "generated", "visual-hive.generated.spec.ts");
+  const files = await listFilesSafe(resolvedArtifactDir);
   if (await exists(generatedSpec)) {
     files.push(generatedSpec);
   }

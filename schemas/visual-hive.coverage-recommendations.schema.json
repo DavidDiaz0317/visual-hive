@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.coverage-recommendations.schema.json",
+  "title": "Visual Hive Coverage Improvement Recommendations",
+  "type": "object",
+  "required": ["schemaVersion", "project", "generatedAt", "summary", "recommendations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["total", "high", "medium", "low", "fromCoverageGaps", "fromMutationSurvivors", "fromFlowGaps"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "medium": { "type": "integer", "minimum": 0 },
+        "low": { "type": "integer", "minimum": 0 },
+        "fromCoverageGaps": { "type": "integer", "minimum": 0 },
+        "fromMutationSurvivors": { "type": "integer", "minimum": 0 },
+        "fromFlowGaps": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "severity", "title", "rationale", "suggestedTests"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": {
+            "enum": ["add_contract", "add_screenshot", "add_selector_assertion", "add_flow_steps", "add_changed_file_rule", "map_mutation_operator"]
+          },
+          "severity": { "enum": ["low", "medium", "high"] },
+          "title": { "type": "string" },
+          "rationale": { "type": "array", "items": { "type": "string" } },
+          "targetId": { "type": "string" },
+          "contractId": { "type": "string" },
+          "route": { "type": "string" },
+          "viewport": { "type": "string" },
+          "changedFile": { "type": "string" },
+          "mutationOperator": { "type": "string" },
+          "lane": { "enum": ["pull_request", "scheduled", "protected", "manual"] },
+          "trustedOnly": { "type": "boolean" },
+          "suggestedConfigYaml": { "type": "string" },
+          "suggestedTests": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

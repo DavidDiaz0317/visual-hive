@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.baselines.schema.json",
+  "title": "Visual Hive Baseline Review Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "reportGeneratedAt",
+    "reportPath",
+    "approvalLogPath",
+    "rejectionLogPath",
+    "summary",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "reportGeneratedAt": { "type": "string" },
+    "reportPath": { "type": "string" },
+    "approvalLogPath": { "type": "string" },
+    "rejectionLogPath": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "created",
+        "missingBaseline",
+        "approvable",
+        "approved",
+        "rejected",
+        "pendingReview"
+      ],
+      "properties": {
+        "total": { "type": "number", "minimum": 0 },
+        "passed": { "type": "number", "minimum": 0 },
+        "failed": { "type": "number", "minimum": 0 },
+        "created": { "type": "number", "minimum": 0 },
+        "missingBaseline": { "type": "number", "minimum": 0 },
+        "approvable": { "type": "number", "minimum": 0 },
+        "approved": { "type": "number", "minimum": 0 },
+        "rejected": { "type": "number", "minimum": 0 },
+        "pendingReview": { "type": "number", "minimum": 0 }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contractId",
+          "screenshotName",
+          "route",
+          "viewport",
+          "status",
+          "baselinePath",
+          "actualPath",
+          "maxDiffPixelRatio",
+          "canApprove",
+          "canReject"
+        ],
+        "properties": {
+          "contractId": { "type": "string" },
+          "screenshotName": { "type": "string" },
+          "route": { "type": "string" },
+          "viewport": { "type": "string" },
+          "status": { "enum": ["passed", "failed", "created", "missing_baseline"] },
+          "baselinePath": { "type": "string" },
+          "actualPath": { "type": "string" },
+          "diffPath": { "type": "string" },
+          "maxDiffPixelRatio": { "type": "number", "minimum": 0 },
+          "actualDiffPixelRatio": { "type": "number", "minimum": 0 },
+          "actualDiffPixels": { "type": "number", "minimum": 0 },
+          "canApprove": { "type": "boolean" },
+          "canReject": { "type": "boolean" },
+          "approvedAt": { "type": "string" },
+          "rejectedAt": { "type": "string" },
+          "rejectionReason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

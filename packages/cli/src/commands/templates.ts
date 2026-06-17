@@ -1,3 +1,7 @@
+import { failureIssueWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate } from "@visual-hive/core";
+
+export { failureIssueWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate };
+
 export const defaultConfigTemplate = `project:
   name: visual-hive-target
   type: react-vite
@@ -43,6 +47,13 @@ viewports:
     width: 390
     height: 844
 
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
+
 selection:
   changedFiles:
     - pattern: "src/**"
@@ -62,13 +73,22 @@ mutation:
     - api-500
     - empty-data
     - mobile-overflow
+    - route-guard-bypass
+    - hidden-error-banner
+    - broken-image
+    - removed-accessible-name
+    - theme-token-drift
+    - stale-loading-state
 
 ai:
   enabled: false
   provider: none
+  model: offline-heuristics
   neverSoleOracle: true
   createIssuePrompt: true
   maxDailyRuns: 5
+  maxPromptTokens: 50000
+  maxEstimatedCostUsd: 0
 
 github:
   enabled: true
@@ -76,72 +96,4 @@ github:
     - visual-hive
     - test-failure
   commentMarker: "<!-- visual-hive-report -->"
-`;
-
-export const prWorkflowTemplate = `name: Visual Hive PR
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-
-jobs:
-  visual-hive:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npx visual-hive plan --mode pr --base origin/main --ci
-      - run: npx visual-hive run --ci
-      - run: npx visual-hive triage
-        if: always()
-      - run: npx visual-hive report --github-step-summary
-        if: always()
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: visual-hive
-          path: .visual-hive
-`;
-
-export const scheduledWorkflowTemplate = `name: Visual Hive Scheduled
-
-on:
-  schedule:
-    - cron: "0 */4 * * *"
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  visual-hive:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npx visual-hive plan --mode schedule --ci
-      - run: npx visual-hive run --ci
-      - run: npx visual-hive mutate --enforce-min-score
-      - run: npx visual-hive triage
-        if: always()
-      - run: npx visual-hive report --github-step-summary
-        if: always()
-      # A trusted follow-up workflow can create issues from .visual-hive/issue.md.
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: visual-hive
-          path: .visual-hive
 `;
