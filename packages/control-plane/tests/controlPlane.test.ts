@@ -633,6 +633,70 @@ jobs:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "mutation-report.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 2,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        minScore: 0.75,
+        score: 0.5,
+        killed: 1,
+        total: 2,
+        results: [
+          {
+            operator: "force-login-on-demo",
+            status: "killed",
+            killed: true,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["unexpected_element", "login_regression"],
+            failureKind: "unexpected_element",
+            failedAssertion: "[data-testid='login-page'] became visible",
+            durationMs: 1200,
+            errors: [],
+            artifacts: [".visual-hive/artifacts/results/force-login-on-demo.json"]
+          },
+          {
+            operator: "remove-demo-badge",
+            status: "survived",
+            killed: false,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["missing_element"],
+            failureKind: "missing_element",
+            durationMs: 900,
+            errors: ["No assertion failed for missing demo badge."],
+            artifacts: [".visual-hive/mutation-report.json"]
+          },
+          {
+            operator: "hidden-error-banner",
+            status: "not_applicable",
+            killed: false,
+            contractIds: [],
+            applicable: false,
+            expectedFailureKinds: ["missing_element"],
+            durationMs: 10,
+            errors: []
+          },
+          {
+            operator: "api-500",
+            status: "error",
+            killed: false,
+            contractIds: ["dashboard"],
+            applicable: true,
+            expectedFailureKinds: ["api_contract_regression"],
+            durationMs: 200,
+            errors: ["Mutation runner failed before assertions completed."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".visual-hive", "security.json"),
     JSON.stringify(
       {
@@ -770,12 +834,12 @@ async function writeCoverageRecommendationFixture(repoRoot: string): Promise<voi
         project: "ui-fixture",
         generatedAt: "2026-06-15T00:00:00.000Z",
         summary: {
-          total: 1,
+          total: 2,
           high: 0,
-          medium: 1,
+          medium: 2,
           low: 0,
           fromCoverageGaps: 1,
-          fromMutationSurvivors: 0
+          fromMutationSurvivors: 1
         },
         recommendations: [
           {
@@ -790,6 +854,19 @@ async function writeCoverageRecommendationFixture(repoRoot: string): Promise<voi
             suggestedConfigYaml:
               "selection:\n  changedFiles:\n    - pattern: src/auth/**\n      contracts:\n        - dashboard\n      risk: high",
             suggestedTests: ["Add a selection.changedFiles rule for src/auth/**."]
+          },
+          {
+            id: "mutation:remove-demo-badge:dashboard",
+            kind: "add_selector_assertion",
+            severity: "medium",
+            title: "Kill mutation \"remove-demo-badge\"",
+            rationale: ["Mutation \"remove-demo-badge\" survived, so current contracts did not catch the intentional breakage."],
+            contractId: "dashboard",
+            targetId: "localPreview",
+            mutationOperator: "remove-demo-badge",
+            suggestedConfigYaml:
+              "selectors:\n  mustExist:\n    - \"[data-testid='demo-badge']\"",
+            suggestedTests: ["Assert the demo badge is visible on dashboard cards."]
           }
         ]
       },
@@ -823,6 +900,10 @@ describe("control plane", () => {
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.changedFiles).toContain("src/App.tsx");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
+    expect(snapshot.mutationReport?.score).toBe(0.5);
+    expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
+    expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
+    expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.mutationOperator)).toContain("remove-demo-badge");
     expect(snapshot.providerDecisionLog).toBeUndefined();
     expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
       providerId: "playwright",
@@ -1202,7 +1283,7 @@ contracts:
 
     expect(snapshot.connections?.summary.failedConnections).toBe(1);
     expect(snapshot.connections?.summary.staleReportConnections).toBe(1);
-    expect(snapshot.connections?.summary.weakMutationConnections).toBe(1);
+    expect(snapshot.connections?.summary.weakMutationConnections).toBe(2);
     expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highRiskConnections).toBe(1);
@@ -1721,6 +1802,11 @@ contracts:
       expect(appJs).toContain("Readiness gates");
       expect(appJs).toContain("Security risks");
       expect(appJs).toContain("Cost policy");
+      expect(appJs).toContain("What this means");
+      expect(appJs).toContain("Killed means deterministic contracts caught the intentional breakage");
+      expect(appJs).toContain("function mutationStatusBadge");
+      expect(appJs).toContain("function mutationEvidence");
+      expect(appJs).toContain("Missing-test recommendations");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.playwright.status).toBe("present");
@@ -1805,6 +1891,10 @@ contracts:
     expect(controlPlaneJs).toContain("function connectionHealthBadge");
     expect(controlPlaneJs).toContain("function connectionCoverage");
     expect(controlPlaneJs).toContain("Connection health dashboard");
+    expect(controlPlaneJs).toContain("function mutationStatusBadge");
+    expect(controlPlaneJs).toContain("function mutationEvidence");
+    expect(controlPlaneJs).toContain("Missing-test recommendations");
+    expect(controlPlaneJs).toContain("Not applicable means the operator did not match selected contracts");
   });
 
   it("approves a baseline through the local API when write mode is enabled", async () => {

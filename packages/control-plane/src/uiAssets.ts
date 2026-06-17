@@ -1005,7 +1005,57 @@ function baselineSummaryCard() {
 function mutation() {
   const report = snapshot.mutationReport;
   if (!report) return empty("No mutation report found. Run visual-hive mutate.");
-  return '<div class="section">' + metric("Mutation score", Math.round(report.score * 100) + "%", report.score >= report.minScore ? "ok" : "bad") + card("Operator results", table(["Operator", "Status", "Contracts", "Duration", "Excerpt"], report.results.map(r => [r.operator, r.status, r.contractIds.join(", "), r.durationMs + "ms", r.failedAssertion || r.errors?.[0] || ""]))) + '</div>';
+  const killed = report.results.filter(result => result.status === "killed").length;
+  const survived = report.results.filter(result => result.status === "survived").length;
+  const notApplicable = report.results.filter(result => result.status === "not_applicable").length;
+  const errors = report.results.filter(result => result.status === "error").length;
+  const recommendations = snapshot.coverageImprovementReport?.recommendations?.filter(recommendation => recommendation.mutationOperator) || [];
+  return '<div class="grid">' +
+    metric("Mutation score", Math.round(report.score * 100) + "%", report.score >= report.minScore ? "ok" : "bad") +
+    metric("Minimum score", Math.round(report.minScore * 100) + "%", report.score >= report.minScore ? "ok" : "bad") +
+    metric("Killed", killed + "/" + report.total, killed === report.total && !errors ? "ok" : "warn") +
+    metric("Survived", survived, survived ? "bad" : "ok") +
+    metric("Not applicable", notApplicable, "muted") +
+    metric("Errors", errors, errors ? "bad" : "ok") +
+    '</div><div class="section" style="margin-top:14px">' +
+    card("What this means", list([
+      "Killed means deterministic contracts caught the intentional breakage.",
+      "Survived means the current contracts missed the intentional breakage and need stronger assertions, screenshots, or flows.",
+      "Not applicable means the operator did not match selected contracts and is excluded from the score denominator.",
+      "Errors mean the mutation run itself needs inspection before trusting the adequacy score."
+    ])) +
+    card("Operator results", table(["Operator", "Status", "Selected contracts", "Expected failure", "Actual evidence", "Duration", "Artifacts"], report.results.map(r => [
+      '<b>' + esc(r.operator) + '</b><p class="muted">' + esc(r.failureKind || "failure kind not reported") + '</p>',
+      mutationStatusBadge(r.status),
+      r.contractIds?.length ? r.contractIds.map(esc).join("<br>") : '<span class="muted">not applicable</span>',
+      r.expectedFailureKinds?.length ? r.expectedFailureKinds.map(esc).join("<br>") : '<span class="muted">not declared</span>',
+      mutationEvidence(r),
+      esc(r.durationMs ?? 0) + "ms",
+      r.artifacts?.length ? r.artifacts.map(path => link(path, rel(path))).join("<br>") : '<span class="muted">none</span>'
+    ]))) +
+    card("Missing-test recommendations", recommendations.length ? table(["Mutation", "Recommendation", "Suggested tests", "Config snippet"], recommendations.slice(0, 8).map(r => [
+      esc(r.mutationOperator || "unknown"),
+      '<b>' + esc(r.title) + '</b><p class="muted">' + esc(r.severity) + " / " + esc(r.kind) + '</p>',
+      list(r.suggestedTests || []),
+      r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' : '<span class="muted">none</span>'
+    ])) : '<p class="ok">No mutation-survivor recommendations were produced from the current artifacts.</p>') +
+    '</div>';
+}
+
+function mutationStatusBadge(status) {
+  if (status === "killed") return '<span class="ok">killed</span>';
+  if (status === "survived") return '<span class="bad">survived</span>';
+  if (status === "not_applicable") return '<span class="muted">not applicable</span>';
+  if (status === "error") return '<span class="bad">error</span>';
+  return '<span class="muted">' + esc(status || "unknown") + '</span>';
+}
+
+function mutationEvidence(result) {
+  const lines = [
+    result.failedAssertion,
+    ...(result.errors || [])
+  ].filter(Boolean);
+  return lines.length ? lines.map(esc).join("<br>") : '<span class="muted">No failure excerpt reported.</span>';
 }
 
 function coverage() {
