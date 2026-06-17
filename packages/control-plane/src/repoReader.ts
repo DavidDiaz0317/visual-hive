@@ -301,6 +301,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["doctor", "costs", "readiness", "triage-report"]
     },
     {
+      id: "portfolio-refresh",
+      label: "Portfolio refresh",
+      description: "Refresh readiness, security, cost, and local connection portfolio evidence for multi-repo governance review.",
+      commandIds: ["security", "costs", "readiness", "connections-portfolio"]
+    },
+    {
       id: "protected-schedule-preview",
       label: "Protected scheduled lane preview",
       description: "Show the trusted protected-lane command sequence when protected targets exist. This profile remains guidance-only in the local UI.",
@@ -472,6 +478,17 @@ function buildRunbook(
       description: "Combine plan, deterministic run, baselines, mutation, workflows, security, cost, provider, and LLM evidence into one beginner-friendly go/no-go artifact.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/readiness.json"]
+    },
+    {
+      id: "connections-portfolio",
+      label: "Refresh connection portfolio",
+      lane: "local",
+      command: `visual-hive connections list ${configFlag} --write`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write .visual-hive/connections-portfolio.json with local repository health, readiness, security, cost, and portfolio queues for upload or Control Plane review.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/connections-portfolio.json"]
     },
     {
       id: "control-plane",

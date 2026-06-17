@@ -27,7 +27,8 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "mutate",
   "security",
   "costs",
-  "readiness"
+  "readiness",
+  "connections-portfolio"
 ]);
 const OUTPUT_TAIL_CHARS = 12_000;
 const MAX_OUTPUT_BYTES = 2_000_000;
@@ -201,6 +202,8 @@ function commandSteps(commandId: string, configPath: string): CommandStep[] {
       return [{ stepId: "costs", args: ["costs", "--config", configPath] }];
     case "readiness":
       return [{ stepId: "readiness", args: ["readiness", "--config", configPath] }];
+    case "connections-portfolio":
+      return [{ stepId: "connections-portfolio", args: ["connections", "list", "--config", configPath, "--write"] }];
     default:
       return [];
   }

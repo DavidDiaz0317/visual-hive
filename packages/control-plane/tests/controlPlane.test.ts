@@ -888,6 +888,10 @@ describe("control plane", () => {
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "readiness")?.expectedArtifacts).toContain(".visual-hive/readiness.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "connections-portfolio")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/connections-portfolio.json"]
+    });
     expect(snapshot.runbook.commands.find((command) => command.id === "baselines")).toMatchObject({
       safety: "pr_safe",
       expectedArtifacts: [".visual-hive/baselines.json"]
@@ -908,6 +912,12 @@ describe("control plane", () => {
     expect(snapshot.runProfiles.find((profile) => profile.id === "cost-audit")).toMatchObject({
       enabled: true,
       commandIds: ["doctor", "costs", "readiness", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "portfolio-refresh")).toMatchObject({
+      enabled: true,
+      commandIds: ["security", "costs", "readiness", "connections-portfolio"],
+      expectedArtifacts: expect.arrayContaining([".visual-hive/connections-portfolio.json"]),
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")?.commandIds).toEqual([
@@ -1411,6 +1421,56 @@ contracts:
     }
   });
 
+  it("executes the portfolio-refresh profile as an allowlisted governance workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "portfolio-refresh" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "security",
+        "costs",
+        "readiness",
+        "connections-portfolio"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "security:security",
+        "costs:costs",
+        "readiness:readiness",
+        "connections-portfolio:connections-portfolio"
+      ]);
+      expect(calls.at(-1)?.args.slice(-5)).toEqual([
+        "connections",
+        "list",
+        "--config",
+        path.resolve(fixture.configPath),
+        "--write"
+      ]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(4);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("connections-portfolio");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("blocks guidance-only protected run profiles", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
@@ -1601,6 +1661,7 @@ contracts:
       expect(appJs).toContain("Profiles");
       expect(appJs).toContain("function profiles");
       expect(appJs).toContain("/api/runbook/profile");
+      expect(appJs).toContain("connections-portfolio");
       expect(appJs).toContain("Actions");
       expect(appJs).toContain("function actions");
       expect(appJs).toContain("Control Plane action history");
@@ -1705,6 +1766,7 @@ contracts:
     expect(controlPlaneJs).toContain("function profiles");
     expect(controlPlaneJs).toContain("function profileActions");
     expect(controlPlaneJs).toContain("/api/runbook/profile");
+    expect(controlPlaneJs).toContain("connections-portfolio");
     expect(controlPlaneJs).toContain("function actions");
     expect(controlPlaneJs).toContain("function actionOutput");
     expect(controlPlaneJs).toContain("stdout and stderr are sanitized");

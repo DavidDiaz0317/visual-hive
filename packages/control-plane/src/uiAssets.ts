@@ -321,7 +321,7 @@ function runbookActions(command) {
 }
 
 function runbookExecuteButton(command) {
-  const executable = ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "mutate", "security", "costs", "readiness"].includes(command.id);
+  const executable = ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "mutate", "security", "costs", "readiness", "connections-portfolio"].includes(command.id);
   if (snapshot.readOnly) return '<button class="button link-button" disabled>Read-only</button>';
   if (!executable || command.safety === "trusted_only" || command.requiredSecrets?.length) return '<button class="button link-button" disabled>Guidance only</button>';
   return '<button class="button link-button runbook-execute" data-command="' + escAttr(command.id) + '">Run</button>';
