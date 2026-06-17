@@ -986,9 +986,25 @@ describe("coverage analysis", () => {
 
     expect(report.summary.fromFlowGaps).toBeGreaterThan(0);
     expect(flowRecommendation).toMatchObject({ contractId: "safe-contract", route: "/" });
+    expect(flowRecommendation).toMatchObject({ lane: "pull_request", trustedOnly: false });
     expect(result.applied).toBe(true);
     expect(steps.map((step) => step.action)).toEqual(expect.arrayContaining(["goto", "assertVisible"]));
     expect(steps.find((step) => step.action === "assertVisible")?.selector).toBe("main");
+  });
+
+  it("marks protected flow recommendations as trusted-only", () => {
+    const config = sampleConfig();
+    const flowAudit = auditFlows(config, { selectedContractIds: ["safe-contract"], now: new Date("2026-06-15T00:01:00.000Z") });
+    const coverage = analyzeCoverage(config, { changedFiles: [], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(config, coverage, undefined, { flowAudit });
+    const protectedRecommendation = report.recommendations.find((recommendation) => recommendation.id === "flow-steps:unsafe-contract");
+
+    expect(protectedRecommendation).toMatchObject({
+      contractId: "unsafe-contract",
+      lane: "protected",
+      trustedOnly: true
+    });
+    expect(protectedRecommendation?.suggestedTests.join(" ")).toContain("trusted scheduled/manual lane");
   });
 });
 

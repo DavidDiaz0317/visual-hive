@@ -1104,7 +1104,9 @@ function coverageImprovementCard(report) {
         r.route ? "route=" + r.route : "",
         r.viewport ? "viewport=" + r.viewport : "",
         r.changedFile ? "file=" + r.changedFile : "",
-        r.mutationOperator ? "mutation=" + r.mutationOperator : ""
+        r.mutationOperator ? "mutation=" + r.mutationOperator : "",
+        r.lane ? "lane=" + r.lane : "",
+        r.trustedOnly ? "trusted-only" : ""
       ].filter(Boolean).map(esc).join("<br>") || '<span class="muted">global</span>',
       list(r.suggestedTests || []),
       r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' + copyButton(r.suggestedConfigYaml, r.title + " config snippet") : '<span class="muted">none</span>',

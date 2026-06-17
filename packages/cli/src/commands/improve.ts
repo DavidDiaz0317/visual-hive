@@ -87,7 +87,7 @@ export function formatCoverageImprovementReport(
   lines.push("", "## Recommendations");
   for (const recommendation of report.recommendations.slice(0, 12)) {
     lines.push(
-      `- [${recommendation.severity}] ${recommendation.title} (${recommendation.kind})`,
+      `- [${recommendation.severity}] ${recommendation.title} (${recommendation.kind}${recommendation.lane ? `, lane=${recommendation.lane}` : ""}${recommendation.trustedOnly ? ", trusted-only" : ""})`,
       `  ID: ${recommendation.id}`,
       `  ${recommendation.rationale.join(" ")}`,
       `  Suggested tests: ${recommendation.suggestedTests.join(" ")}`,

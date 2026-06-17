@@ -45,6 +45,8 @@ export interface CoverageImprovementRecommendation {
   viewport?: string;
   changedFile?: string;
   mutationOperator?: string;
+  lane?: "pull_request" | "scheduled" | "protected" | "manual";
+  trustedOnly?: boolean;
   suggestedConfigYaml?: string;
   suggestedTests: string[];
 }
@@ -471,6 +473,9 @@ function flowStepRecommendation(
   const selector = preferredFlowSelector(contract);
   const steps = buildSuggestedFlowSteps(route, selector, actions);
   const severity = flow.severity === "critical" ? "high" : flow.severity === "high" ? "medium" : "low";
+  const target = config.targets[contract.target];
+  const lane = recommendationLane(contract, target, flow.selected);
+  const trustedOnly = lane === "protected";
   return {
     id: `${idPrefix}:${contract.id}`,
     kind: "add_flow_steps",
@@ -491,11 +496,10 @@ function flowStepRecommendation(
     targetId: contract.target,
     contractId: contract.id,
     route,
+    lane,
+    trustedOnly,
     suggestedConfigYaml: yamlSnippet({ steps }),
-    suggestedTests: [
-      `Run ${contract.id} locally and verify the flow steps pass before making CI required.`,
-      "Prefer stable data-testid selectors and avoid typing real credentials into flow steps."
-    ]
+    suggestedTests: flowSuggestedTests(contract.id, trustedOnly)
   };
 }
 
@@ -510,6 +514,30 @@ function buildSuggestedFlowSteps(route: string, selector: string, actions?: Arra
 
 function preferredFlowSelector(contract: VisualHiveConfig["contracts"][number]): string {
   return contract.selectors.mustExist[0] ?? contract.waitFor[0]?.selector ?? "body";
+}
+
+function recommendationLane(
+  contract: VisualHiveConfig["contracts"][number],
+  target: VisualHiveConfig["targets"][string],
+  selected: boolean
+): CoverageImprovementRecommendation["lane"] {
+  if (target.kind === "protected" || !target.prSafe) return "protected";
+  if (selected && contract.runOn.pullRequest) return "pull_request";
+  if (contract.runOn.schedule || target.schedule) return "scheduled";
+  return "manual";
+}
+
+function flowSuggestedTests(contractId: string, trustedOnly: boolean): string[] {
+  if (trustedOnly) {
+    return [
+      `Review ${contractId} in a trusted scheduled/manual lane before applying flow steps.`,
+      "Do not run protected or secret-bearing targets from untrusted pull_request workflows."
+    ];
+  }
+  return [
+    `Run ${contractId} locally and verify the flow steps pass before making CI required.`,
+    "Prefer stable data-testid selectors and avoid typing real credentials into flow steps."
+  ];
 }
 
 function selectorsForOperator(operator: string): Record<string, string[]> {

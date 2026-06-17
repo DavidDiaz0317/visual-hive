@@ -41,6 +41,8 @@
           "viewport": { "type": "string" },
           "changedFile": { "type": "string" },
           "mutationOperator": { "type": "string" },
+          "lane": { "enum": ["pull_request", "scheduled", "protected", "manual"] },
+          "trustedOnly": { "type": "boolean" },
           "suggestedConfigYaml": { "type": "string" },
           "suggestedTests": { "type": "array", "items": { "type": "string" } }
         },

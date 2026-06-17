@@ -26,7 +26,7 @@ Path: `.visual-hive/coverage-recommendations.json`
 
 Schema: `schemas/visual-hive.coverage-recommendations.schema.json`
 
-The coverage improvement report is written by `visual-hive improve-coverage`. It combines `.visual-hive/coverage.json`, optional `.visual-hive/flows.json`, and optional `.visual-hive/mutation-report.json` into deterministic config recommendations. Summary counters separate recommendations from coverage gaps, flow gaps, and mutation survivors. Recommendation kinds include starter contracts, screenshots, selector assertions, flow steps, changed-file rules, and mutation mappings. `visual-hive improve-coverage --apply <id>` previews a validated diff; `--yes` is required before writing `visual-hive.config.yaml`.
+The coverage improvement report is written by `visual-hive improve-coverage`. It combines `.visual-hive/coverage.json`, optional `.visual-hive/flows.json`, and optional `.visual-hive/mutation-report.json` into deterministic config recommendations. Summary counters separate recommendations from coverage gaps, flow gaps, and mutation survivors. Recommendation kinds include starter contracts, screenshots, selector assertions, flow steps, changed-file rules, and mutation mappings. Recommendations may include `lane` and `trustedOnly` so protected or secret-bearing work is not presented as PR-safe beginner work. `visual-hive improve-coverage --apply <id>` previews a validated diff; `--yes` is required before writing `visual-hive.config.yaml`.
 
 ## Deterministic Report
 

@@ -456,6 +456,7 @@ viewports:
     );
     expect(summary).toContain("Coverage Improvement Plan: improve-fixture");
     expect(summary).toContain("- From flow gaps: 1");
+    expect(summary).toContain("add_flow_steps, lane=pull_request");
     await expect(access(path.join(tempRoot, ".visual-hive", "coverage-recommendations.json"))).resolves.toBeUndefined();
   });
 
