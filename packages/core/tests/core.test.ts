@@ -584,6 +584,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.provider-decisions.schema.json");
     expect(schemaNames).toContain("visual-hive.llm-decisions.schema.json");
     expect(schemaNames).toContain("visual-hive.flows.schema.json");
+    expect(schemaNames).toContain("visual-hive.connections-portfolio.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -2697,6 +2698,11 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "readiness.json"), '{"gates":[{"evidence":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
+    await writeFile(
+      path.join(hiveRoot, "connections-portfolio.json"),
+      '{"schemaVersion":1,"portfolio":{"queues":[{"id":"security_risks","connections":[]}]},"connections":[{"id":"repo","attention":["token=abc123"]}]}',
+      "utf8"
+    );
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
     await writeFile(path.join(hiveRoot, "generated", "visual-hive.generated.spec.ts"), "test('dashboard', async () => {});", "utf8").catch(async () => {
       await mkdir(path.join(hiveRoot, "generated"), { recursive: true });
@@ -2710,7 +2716,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(16);
+    expect(index.summary.artifactCount).toBe(17);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -2763,6 +2769,10 @@ describe("artifact index", () => {
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");
     expect(llmDecisions?.schemaPath).toBe("schemas/visual-hive.llm-decisions.schema.json");
+    const connectionsPortfolio = index.artifacts.find((artifact) => artifact.path.endsWith("connections-portfolio.json"));
+    expect(connectionsPortfolio?.preview).toContain("[REDACTED]");
+    expect(connectionsPortfolio?.labels).toContain("connections-portfolio");
+    expect(connectionsPortfolio?.schemaPath).toBe("schemas/visual-hive.connections-portfolio.schema.json");
     const spec = index.artifacts.find((artifact) => artifact.kind === "typescript");
     expect(spec?.labels).toContain("generated-spec");
   });

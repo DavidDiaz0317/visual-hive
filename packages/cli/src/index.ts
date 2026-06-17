@@ -713,11 +713,12 @@ connections
   .command("list")
   .description("List connected local repositories")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--write", "write .visual-hive/connections-portfolio.json with derived health and portfolio queues")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
-      const result = await runConnectionsListCommand({ config: options.config, format: options.format });
-      console.log(formatConnectionsIndex(result.index, result.indexPath, options.format));
+      const result = await runConnectionsListCommand({ config: options.config, format: options.format, write: options.write });
+      console.log(formatConnectionsIndex(result.index, result.indexPath, options.format, result.written ? result.portfolioPath : undefined));
     } catch (error) {
       fail(error);
     }

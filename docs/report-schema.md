@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `provider-results.json`, `provider-decisions.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `recommendations.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -181,6 +181,12 @@ Path: `.visual-hive/connections.json`
 Schema: `schemas/visual-hive.connections.schema.json`
 
 The connections store records local repository paths, config paths, labels, and tags for repos managed from the local Control Plane. Readiness status, latest deterministic status, mutation score, coverage gaps, risk score, readiness gates, security score, and cost budget status are inspected at runtime by `visual-hive connections list` and the Control Plane. It stores no credentials or secret values.
+
+Path: `.visual-hive/connections-portfolio.json`
+
+Schema: `schemas/visual-hive.connections-portfolio.schema.json`
+
+The connections portfolio artifact is written by `visual-hive connections list --write`. It records the derived runtime index: current and stored connections, health summaries, portfolio queues, top attention items, and warnings. It is intended for GitHub artifact uploads, Control Plane ingestion, and local multi-repo governance review. It is derived from local artifacts and should not be edited by hand.
 
 ## Baseline Review Logs
 

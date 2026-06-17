@@ -18,6 +18,7 @@ Example:
 ```bash
 visual-hive connections add --repo ../console --id kubestellar-console --label "KubeStellar Console" --tag dogfood
 visual-hive connections list
+visual-hive connections list --write
 ```
 
 The Control Plane `Connections` page reads and can manage the same store in write mode. It can add a local repo path, optional config path, stable ID, label, and tags, then switch only to stored ready connection IDs. Removing a connection deletes only the local connection record; it does not delete the target repository or any Visual Hive artifacts inside that repository.
@@ -64,4 +65,7 @@ The runtime connection index also derives portfolio queues for multi-repo triage
 
 The Control Plane Portfolio page renders these queues as an operator view. `visual-hive connections list` prints the same queues in markdown so the CLI/core path remains usable without the UI.
 
+Pass `--write` to persist the derived runtime view to `.visual-hive/connections-portfolio.json`. That artifact is safe to upload from CI because it contains local paths, health summaries, artifact-derived scores, and required secret names only; it must not contain secret values. The editable connection store remains `.visual-hive/connections.json`.
+
 Schema: `schemas/visual-hive.connections.schema.json`.
+Portfolio schema: `schemas/visual-hive.connections-portfolio.schema.json`.

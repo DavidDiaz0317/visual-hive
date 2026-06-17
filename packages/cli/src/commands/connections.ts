@@ -4,6 +4,7 @@ import {
   listConnections,
   loadConfig,
   removeConnection,
+  writeJson,
   type RepoConnectionIndex
 } from "@visual-hive/core";
 
@@ -11,6 +12,7 @@ export interface ConnectionsCommandOptions {
   config?: string;
   cwd?: string;
   format?: "markdown" | "json";
+  write?: boolean;
 }
 
 export interface AddConnectionCommandOptions extends ConnectionsCommandOptions {
@@ -25,10 +27,13 @@ export interface RemoveConnectionCommandOptions extends ConnectionsCommandOption
   id: string;
 }
 
-export async function runConnectionsListCommand(options: ConnectionsCommandOptions = {}): Promise<{ index: RepoConnectionIndex; indexPath: string }> {
+export async function runConnectionsListCommand(options: ConnectionsCommandOptions = {}): Promise<{ index: RepoConnectionIndex; indexPath: string; portfolioPath: string; written?: boolean }> {
   const resolved = await resolveConnectionsCommand(options);
   const index = await listConnections({ repoRoot: resolved.rootDir });
-  return { index, indexPath: resolved.indexPath };
+  if (options.write) {
+    await writeJson(resolved.portfolioPath, index);
+  }
+  return { index, indexPath: resolved.indexPath, portfolioPath: resolved.portfolioPath, written: Boolean(options.write) };
 }
 
 export async function runConnectionsAddCommand(options: AddConnectionCommandOptions): Promise<{ index: RepoConnectionIndex; indexPath: string }> {
@@ -50,10 +55,11 @@ export async function runConnectionsRemoveCommand(options: RemoveConnectionComma
   return { index, indexPath: resolved.indexPath };
 }
 
-export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: string, format: "markdown" | "json" = "markdown"): string {
+export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: string, format: "markdown" | "json" = "markdown", writtenPath?: string): string {
   if (format === "json") return JSON.stringify(index, null, 2);
   const lines = [
     `Connections file: ${indexPath}`,
+    ...(writtenPath ? [`Portfolio artifact: ${writtenPath}`] : []),
     `# Visual Hive Connections`,
     "",
     `- Connections: ${index.summary.connectionCount}`,
@@ -125,11 +131,12 @@ export function formatConnectionsIndex(index: RepoConnectionIndex, indexPath: st
   return lines.join("\n");
 }
 
-async function resolveConnectionsCommand(options: ConnectionsCommandOptions): Promise<{ rootDir: string; indexPath: string }> {
+async function resolveConnectionsCommand(options: ConnectionsCommandOptions): Promise<{ rootDir: string; indexPath: string; portfolioPath: string }> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
   return {
     rootDir: loaded.rootDir,
-    indexPath: path.join(loaded.rootDir, ".visual-hive", "connections.json")
+    indexPath: path.join(loaded.rootDir, ".visual-hive", "connections.json"),
+    portfolioPath: path.join(loaded.rootDir, ".visual-hive", "connections-portfolio.json")
   };
 }

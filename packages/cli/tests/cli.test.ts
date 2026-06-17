@@ -194,6 +194,7 @@ contracts:
       "demo:security",
       "demo:costs",
       "demo:history",
+      "demo:connections",
       "demo:artifacts"
     ];
 
@@ -211,6 +212,8 @@ contracts:
     expect(packageJson.scripts["demo:costs"]).toContain("costs --config");
     expect(packageJson.scripts["demo:history"]).toContain("history --config");
     expect(packageJson.scripts["demo:history"]).toContain("--record");
+    expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
+    expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });
@@ -1221,6 +1224,15 @@ contracts:
 
     const listed = await runConnectionsListCommand({ cwd: managerRoot });
     expect(listed.index.connections.map((connection) => connection.id)).toContain("connected");
+
+    const written = await runConnectionsListCommand({ cwd: managerRoot, write: true });
+    const portfolioArtifact = await readJson<{ schemaVersion: 1; portfolio: { queues: Array<{ id: string }> }; connections: Array<{ id: string }> }>(
+      written.portfolioPath
+    );
+    expect(written.written).toBe(true);
+    expect(formatConnectionsIndex(written.index, written.indexPath, "markdown", written.portfolioPath)).toContain("Portfolio artifact:");
+    expect(portfolioArtifact.connections.map((connection) => connection.id)).toContain("connected");
+    expect(portfolioArtifact.portfolio.queues.map((queue) => queue.id)).toContain("cost_policy");
 
     const removed = await runConnectionsRemoveCommand({ cwd: managerRoot, id: "connected" });
     expect(removed.index.connections.map((connection) => connection.id)).not.toContain("connected");
