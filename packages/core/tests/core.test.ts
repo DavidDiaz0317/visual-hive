@@ -3062,8 +3062,22 @@ jobs:
     expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
     expect(recommendation.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(recommendation.recommendedContracts[0]?.steps[0]).toMatchObject({ action: "assertVisible", selector: "[data-testid='dashboard-page']" });
+    expect(recommendation.recommendedContracts.map((contract) => contract.id)).toEqual([
+      "app-shell-visual-stability",
+      "route-clusters-visual-stability",
+      "route-settings-visual-stability",
+      "route-workloads-visual-stability"
+    ]);
+    expect(recommendation.recommendedContracts.find((contract) => contract.id === "route-clusters-visual-stability")).toMatchObject({
+      targetId: "localPreview",
+      screenshots: [{ name: "clusters-desktop", route: "/clusters", viewport: "desktop" }],
+      steps: [
+        { action: "goto", route: "/clusters" },
+        { action: "assertVisible", selector: "[data-testid='dashboard-page']" }
+      ]
+    });
     expect(recommendation.costEstimate).toMatchObject({
-      localScreenshotsPerRun: 2,
+      localScreenshotsPerRun: 5,
       externalScreenshotsPerRun: 0,
       estimatedMonthlyExternalScreenshots: 0
     });
@@ -3138,6 +3152,49 @@ jobs:
     expect(recommendation.onboardingChecklist.find((item) => item.id === "validate-locally")?.command).toContain("visual-hive doctor");
     expect(parsedYaml.contracts[0]?.id).toBe("app-shell-visual-stability");
     expect(parsedYaml.contracts[0]?.steps[0]?.action).toBe("assertVisible");
+    expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual([
+      "app-shell-visual-stability",
+      "route-clusters-visual-stability",
+      "route-settings-visual-stability",
+      "route-workloads-visual-stability"
+    ]);
+    expect(parsedYaml.contracts.find((contract) => contract.id === "route-settings-visual-stability")).toMatchObject({
+      target: "localPreview",
+      severity: "medium",
+      selectors: { mustExist: ["[data-testid='dashboard-page']"] }
+    });
+    expect(parsedYaml.selection.changedFiles).toEqual([
+      {
+        pattern: "src/routes/**",
+        contracts: ["route-clusters-visual-stability", "route-settings-visual-stability", "route-workloads-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "src/pages/**",
+        contracts: ["route-clusters-visual-stability", "route-settings-visual-stability", "route-workloads-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "app/**",
+        contracts: ["route-clusters-visual-stability", "route-settings-visual-stability", "route-workloads-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "pages/**",
+        contracts: ["route-clusters-visual-stability", "route-settings-visual-stability", "route-workloads-visual-stability"],
+        risk: "medium"
+      },
+      {
+        pattern: "src/**",
+        contracts: [
+          "app-shell-visual-stability",
+          "route-clusters-visual-stability",
+          "route-settings-visual-stability",
+          "route-workloads-visual-stability"
+        ],
+        risk: "medium"
+      }
+    ]);
     expect(parsedYaml.project.setupProfile).toBe("free-local");
     expect(parsedYaml.targets.localPreview.kind).toBe("command");
 
@@ -3152,6 +3209,7 @@ jobs:
     expect(setupDocs).toContain("PR checks should run with read-only permissions and no repository secrets.");
     expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
     expect(setupDocs).toContain("app-shell-visual-stability");
+    expect(setupDocs).toContain("route-clusters-visual-stability");
     expect(setupDocs).toContain("Playwright built-in");
     expect(setupDocs).toContain("## Onboarding Checklist");
     expect(setupDocs).toContain("### Verify PR safety");
