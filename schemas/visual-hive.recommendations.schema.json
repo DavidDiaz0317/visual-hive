@@ -84,6 +84,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/detectedWorkflow" }
     },
+    "playwright": { "$ref": "#/$defs/playwrightPresence" },
     "recommendedTarget": {
       "type": "object",
       "required": ["id", "kind", "url", "confidence", "reasons"],
@@ -208,6 +209,18 @@
         "usesPullRequestTarget": { "type": "boolean" },
         "usesSecrets": { "type": "boolean" },
         "visualHiveRelated": { "type": "boolean" }
+      }
+    },
+    "playwrightPresence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "dependencies", "scripts", "configFiles", "notes"],
+      "properties": {
+        "status": { "enum": ["present", "partial", "missing"] },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "scripts": { "type": "array", "items": { "type": "string" } },
+        "configFiles": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
       }
     },
     "checklistItem": {

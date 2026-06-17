@@ -528,6 +528,7 @@ function setup() {
     metric("Setup profile", recommendation.setupProfile || "unknown", "") +
     metric("Detected type", recommendation.project.type, "") +
     metric("Package manager", recommendation.project.packageManager, "") +
+    metric("Playwright", recommendation.playwright?.status || "unknown", recommendation.playwright?.status === "present" ? "ok" : recommendation.playwright?.status === "partial" ? "warn" : "bad") +
     metric("Target confidence", recommendation.recommendedTarget.confidence, recommendation.recommendedTarget.confidence === "low" ? "warn" : "ok") +
     metric("Selectors", recommendation.detectedSelectors.length, recommendation.detectedSelectors.length ? "ok" : "warn") +
     metric("PR runtime", cost.estimatedPrMinutes == null ? "unknown" : cost.estimatedPrMinutes + "m", cost.ciRuntimeClass === "expensive" ? "bad" : "") +
@@ -535,6 +536,7 @@ function setup() {
     '</div>' +
     setupChecklist(recommendation) +
     setupProfileSelector(recommendation) +
+    setupPlaywrightPresence(recommendation) +
     card("Recommended target", table(["Field", "Value"], [["ID", recommendation.recommendedTarget.id], ["Kind", recommendation.recommendedTarget.kind], ["URL", recommendation.recommendedTarget.url], ["Install", recommendation.recommendedTarget.install || "n/a"], ["Build", recommendation.recommendedTarget.build || "n/a"], ["Serve", recommendation.recommendedTarget.serve || "n/a"]])) +
     card("Provider recommendation", recommendation.providerRecommendations?.length ? table(["Provider", "Recommendation", "External by default", "Required env names", "Reason"], recommendation.providerRecommendations.map(p => [p.label, p.recommendation, p.externalUploadAllowedByDefault ? "yes" : "no", p.requiredEnv?.join(", ") || "none", p.reason])) : '<p class="muted">No provider recommendation found. Run a newer visual-hive recommend.</p>') +
     card("Cost and permissions", table(["Area", "Value"], [
@@ -556,6 +558,27 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupPlaywrightPresence(recommendation) {
+  const playwright = recommendation.playwright || {};
+  return card(
+    "Playwright presence",
+    table(["Field", "Value"], [
+      ["Status", setupPlaywrightStatus(playwright.status || "unknown")],
+      ["Dependencies", (playwright.dependencies || []).join(", ") || "none"],
+      ["Scripts", (playwright.scripts || []).join(", ") || "none"],
+      ["Config files", (playwright.configFiles || []).join(", ") || "none"]
+    ]) +
+      ((playwright.notes || []).length ? '<h3>Notes</h3>' + list(playwright.notes) : "")
+  );
+}
+
+function setupPlaywrightStatus(status) {
+  if (status === "present") return '<span class="ok">present</span>';
+  if (status === "partial") return '<span class="warn">partial</span>';
+  if (status === "missing") return '<span class="bad">missing</span>';
+  return '<span class="muted">' + esc(status) + '</span>';
 }
 
 function setupDetectedWorkflows(recommendation) {

@@ -6,6 +6,7 @@ The command detects:
 
 - package manager and root package scripts
 - frontend framework hints from dependencies
+- existing Playwright dependency, script, and config-file hints
 - stable `data-testid` selectors in source files
 - Storybook story files and the first few runnable iframe routes when Storybook is detected
 - existing GitHub workflow hints, including triggers, permissions, secret references, Visual Hive usage, and `pull_request_target`
@@ -59,6 +60,7 @@ Important fields:
 - `permissions`: least-privilege PR and scheduled-lane recommendations
 - `setupPullRequest`: suggested setup PR title, files, steps, and security notes
 - `workflowPreviews`: built-in PR, scheduled, and trusted failure-issue workflow snippets with paths, descriptions, and safety notes
+- `playwright`: existing Playwright setup status, dependency names, package scripts, config files, and notes
 - `recommendedConfig`: parsed Visual Hive config object
 - `recommendedConfigYaml`: YAML that can be written as `visual-hive.config.yaml`
 - `recommendedTarget`: target kind, URL, commands, confidence, and reasons; Storybook repos can receive a `storybook` target with story/component globs
@@ -72,4 +74,4 @@ For Storybook repositories, the generated starter contracts target up to the fir
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, Playwright presence, provider recommendation, cost estimate, permission guidance, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.

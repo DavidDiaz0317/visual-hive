@@ -17,6 +17,11 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     `- Package manager: ${safe(report.project.packageManager)}`,
     `- Frameworks: ${listInline(report.project.detectedFrameworks)}`,
     `- Config path: ${safe(report.configPath)}`,
+    `- Playwright setup: ${safe(report.playwright.status)}`,
+    "",
+    "## Playwright Presence",
+    "",
+    ...playwrightPresenceLines(report),
     "",
     "## PR Lane",
     "",
@@ -118,6 +123,18 @@ function contractLines(report: SetupRecommendationReport): string[] {
     `- Reasons: ${listInline(contract.reasons)}`,
     ""
   ]);
+}
+
+function playwrightPresenceLines(report: SetupRecommendationReport): string[] {
+  const playwright = report.playwright;
+  if (!playwright) return ["No Playwright setup information was recorded."];
+  return [
+    `- Status: ${safe(playwright.status)}`,
+    `- Dependencies: ${listInline(playwright.dependencies)}`,
+    `- Scripts: ${listInline(playwright.scripts)}`,
+    `- Config files: ${listInline(playwright.configFiles)}`,
+    ...playwright.notes.map((note) => `- ${safe(note)}`)
+  ];
 }
 
 function storyLines(report: SetupRecommendationReport): string[] {

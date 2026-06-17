@@ -27,6 +27,7 @@ export interface SetupRecommendationReport {
   detectedSelectors: SetupDetectedSelector[];
   detectedStories: SetupDetectedStory[];
   detectedWorkflows: SetupDetectedWorkflow[];
+  playwright: SetupPlaywrightPresence;
   recommendedTarget: SetupRecommendedTarget;
   recommendedContracts: SetupRecommendedContract[];
   onboardingChecklist: SetupChecklistItem[];
@@ -64,6 +65,14 @@ export interface SetupDetectedWorkflow {
   usesPullRequestTarget: boolean;
   usesSecrets: boolean;
   visualHiveRelated: boolean;
+}
+
+export interface SetupPlaywrightPresence {
+  status: "present" | "partial" | "missing";
+  dependencies: string[];
+  scripts: string[];
+  configFiles: string[];
+  notes: string[];
 }
 
 export interface SetupRecommendedTarget {
@@ -176,6 +185,7 @@ interface RepoInventory {
   selectors: SetupDetectedSelector[];
   stories: SetupDetectedStory[];
   workflows: SetupDetectedWorkflow[];
+  playwright: SetupPlaywrightPresence;
 }
 
 const DEFAULT_PORT = 4173;
@@ -277,6 +287,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     detectedSelectors: inventory.selectors.slice(0, 20),
     detectedStories: inventory.stories.slice(0, 20),
     detectedWorkflows: inventory.workflows.slice(0, 20),
+    playwright: inventory.playwright,
     recommendedTarget: {
       id: target.id,
       kind: target.config.kind,
@@ -323,7 +334,8 @@ async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
   const selectors = await collectSelectors(repoRoot, sourceFiles);
   const stories = await collectStories(repoRoot, sourceFiles);
   const workflows = await collectWorkflowHints(repoRoot);
-  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, stories, workflows };
+  const playwright = await detectPlaywrightPresence(repoRoot, packageJson);
+  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, stories, workflows, playwright };
 }
 
 async function readPackageJson(repoRoot: string): Promise<PackageJsonShape | undefined> {
@@ -863,7 +875,8 @@ function buildOnboardingChecklist(input: {
         `project=${input.projectName}`,
         `packageManager=${input.inventory.packageManager}`,
         `frameworks=${input.inventory.detectedFrameworks.join(", ") || "none"}`,
-        `scripts=${Object.keys(input.inventory.packageJson?.scripts ?? {}).sort().join(", ") || "none"}`
+        `scripts=${Object.keys(input.inventory.packageJson?.scripts ?? {}).sort().join(", ") || "none"}`,
+        `playwright=${input.inventory.playwright.status}`
       ],
       action: "Review detected repo facts before writing setup files.",
       command: "visual-hive recommend --repo .",
@@ -967,6 +980,12 @@ function buildFindings(
       message: "No local preview command was found. Add a dev, preview, or start script before enabling deterministic PR runs."
     });
   }
+  if (inventory.playwright.status === "missing") {
+    findings.push({
+      severity: "info",
+      message: "No Playwright dependency, script, or config file was detected. Visual Hive can still generate setup, but the target repo should install Visual Hive/Playwright before CI runs."
+    });
+  }
   const unsafeWorkflow = inventory.workflows.find((workflow) => workflow.usesPullRequestTarget);
   if (unsafeWorkflow) {
     findings.push({
@@ -991,6 +1010,7 @@ function buildWarnings(inventory: RepoInventory, serve: string | undefined, sele
   if (!inventory.packageJson) warnings.push("No package.json was found at the repository root.");
   if (!serve) warnings.push("No preview/dev/start script was detected for a command target.");
   if (selector === "body") warnings.push("Starter contract uses body because no data-testid selectors were detected.");
+  if (inventory.playwright.status === "missing") warnings.push("No Playwright setup was detected in the target repo.");
   if (inventory.workflows.some((workflow) => workflow.usesPullRequestTarget)) {
     warnings.push("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");
   }
@@ -1099,6 +1119,42 @@ async function collectWorkflowHints(repoRoot: string): Promise<SetupDetectedWork
     });
   }
   return workflows.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+async function detectPlaywrightPresence(repoRoot: string, packageJson?: PackageJsonShape): Promise<SetupPlaywrightPresence> {
+  const deps = { ...(packageJson?.dependencies ?? {}), ...(packageJson?.devDependencies ?? {}) };
+  const dependencies = Object.keys(deps)
+    .filter((name) => name === "@playwright/test" || name === "playwright" || name.startsWith("@playwright/"))
+    .sort();
+  const scripts = Object.entries(packageJson?.scripts ?? {})
+    .filter(([, command]) => /\bplaywright\b/i.test(command))
+    .map(([name, command]) => `${name}: ${command}`)
+    .sort();
+  const configCandidates = [
+    "playwright.config.ts",
+    "playwright.config.mts",
+    "playwright.config.cts",
+    "playwright.config.js",
+    "playwright.config.mjs",
+    "playwright.config.cjs"
+  ];
+  const configFiles: string[] = [];
+  for (const candidate of configCandidates) {
+    if (await exists(path.join(repoRoot, candidate))) configFiles.push(candidate);
+  }
+  const evidenceCount = dependencies.length + scripts.length + configFiles.length;
+  const status: SetupPlaywrightPresence["status"] = dependencies.length && (scripts.length || configFiles.length) ? "present" : evidenceCount > 0 ? "partial" : "missing";
+  const notes = [
+    dependencies.length ? `Dependencies detected: ${dependencies.join(", ")}` : "No Playwright dependency was detected.",
+    scripts.length ? `Playwright scripts detected: ${scripts.map(scriptNameFromEntry).join(", ")}` : "No package script references Playwright.",
+    configFiles.length ? `Config files detected: ${configFiles.join(", ")}` : "No Playwright config file was detected."
+  ];
+  return { status, dependencies, scripts, configFiles, notes };
+}
+
+function scriptNameFromEntry(entry: string): string {
+  const separator = entry.indexOf(": ");
+  return separator >= 0 ? entry.slice(0, separator) : entry;
 }
 
 function detectWorkflowTriggers(raw: string): string[] {

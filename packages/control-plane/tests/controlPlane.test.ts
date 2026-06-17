@@ -480,6 +480,13 @@ viewports:
             visualHiveRelated: true
           }
         ],
+        playwright: {
+          status: "present",
+          dependencies: ["@playwright/test"],
+          scripts: ["test:e2e: playwright test"],
+          configFiles: ["playwright.config.ts"],
+          notes: ["Dependencies detected: @playwright/test", "Playwright scripts detected: test:e2e", "Config files detected: playwright.config.ts"]
+        },
         recommendedTarget: {
           id: "localPreview",
           kind: "command",
@@ -1359,6 +1366,8 @@ contracts:
       expect(appJs).toContain("function setupChecklist");
       expect(appJs).toContain("function setupStatusBadge");
       expect(appJs).toContain("function setupProfileSelector");
+      expect(appJs).toContain("function setupPlaywrightPresence");
+      expect(appJs).toContain("Playwright presence");
       expect(appJs).toContain("function setupDetectedStories");
       expect(appJs).toContain("Detected Storybook stories");
       expect(appJs).toContain("Iframe route");
@@ -1401,6 +1410,7 @@ contracts:
       expect(appJs).toContain("function connectionRisk");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
+      expect(snapshot.setupRecommendation.playwright.status).toBe("present");
       expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
       expect(snapshot.setupRecommendation.detectedWorkflows[0].usesPullRequestTarget).toBe(true);
       expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
@@ -1436,6 +1446,7 @@ contracts:
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
+    expect(controlPlaneJs).toContain("function setupPlaywrightPresence");
     expect(controlPlaneJs).toContain("function setupDetectedStories");
     expect(controlPlaneJs).toContain("function setupDetectedWorkflows");
     expect(controlPlaneJs).toContain("function setupWorkflowPreviews");

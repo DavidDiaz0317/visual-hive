@@ -880,16 +880,21 @@ contracts:
       name: "recommend-fixture",
       scripts: {
         build: "vite build",
-        preview: "vite preview"
+        preview: "vite preview",
+        "test:e2e": "playwright test"
       },
       dependencies: {
         react: "^19.0.0",
         vite: "^6.0.0"
+      },
+      devDependencies: {
+        "@playwright/test": "^1.50.0"
       }
     });
     await mkdir(path.join(tempRoot, "src"), { recursive: true });
     await mkdir(path.join(tempRoot, ".github", "workflows"), { recursive: true });
     await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(path.join(tempRoot, "playwright.config.ts"), `export default {};`, "utf8");
     await writeFile(
       path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"),
       `name: Visual Hive PR
@@ -916,6 +921,7 @@ jobs:
     expect(report.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(report.providerRecommendations.find((provider) => provider.providerId === "playwright")?.recommendation).toBe("use");
     expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
+    expect(report.playwright).toMatchObject({ status: "present", dependencies: ["@playwright/test"], configFiles: ["playwright.config.ts"] });
     expect(report.detectedWorkflows[0]).toMatchObject({
       path: ".github/workflows/visual-hive-pr.yml",
       triggers: ["pull_request"],
@@ -925,6 +931,8 @@ jobs:
     expect(report.workflowPreviews.map((workflow) => workflow.path)).toContain(".github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Visual Hive Setup Recommendation");
     expect(summary).toContain("Setup profile: free-local");
+    expect(summary).toContain("Playwright setup: present");
+    expect(summary).toContain("Playwright Presence");
     expect(summary).toContain("Provider Recommendation");
     expect(summary).toContain("Existing Workflow Hints");
     expect(summary).toContain(".github/workflows/visual-hive-pr.yml");
@@ -937,6 +945,8 @@ jobs:
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("## Playwright Presence");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("@playwright/test");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Existing Workflow Hints");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Workflow Previews");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("include-hidden-files: true");

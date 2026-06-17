@@ -2555,16 +2555,21 @@ describe("setup recommendations", () => {
       name: "sample-dashboard",
       scripts: {
         build: "vite build",
-        preview: "vite preview"
+        preview: "vite preview",
+        "test:e2e": "playwright test"
       },
       dependencies: {
         react: "^19.0.0",
         vite: "^6.0.0"
+      },
+      devDependencies: {
+        "@playwright/test": "^1.50.0"
       }
     });
     await mkdir(path.join(targetRoot, "src"), { recursive: true });
     await mkdir(path.join(targetRoot, ".github", "workflows"), { recursive: true });
     await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(path.join(targetRoot, "playwright.config.ts"), `export default {};`, "utf8");
     await writeFile(
       path.join(targetRoot, ".github", "workflows", "ci.yml"),
       `name: CI
@@ -2619,6 +2624,13 @@ jobs:
       recommendation: "future",
       requiredEnv: ["ARGOS_TOKEN"]
     });
+    expect(recommendation.playwright).toMatchObject({
+      status: "present",
+      dependencies: ["@playwright/test"],
+      scripts: ["test:e2e: playwright test"],
+      configFiles: ["playwright.config.ts"]
+    });
+    expect(recommendation.onboardingChecklist.find((item) => item.id === "inspect-repository")?.evidence).toContain("playwright=present");
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
     expect(recommendation.detectedWorkflows).toEqual([
       {
@@ -2671,6 +2683,9 @@ jobs:
     const setupDocs = buildSetupDocsMarkdown(recommendation);
     expect(setupDocs).toContain("# Visual Hive");
     expect(setupDocs).toContain("## PR Lane");
+    expect(setupDocs).toContain("## Playwright Presence");
+    expect(setupDocs).toContain("Status: present");
+    expect(setupDocs).toContain("@playwright/test");
     expect(setupDocs).toContain("PR checks should run with read-only permissions and no repository secrets.");
     expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
     expect(setupDocs).toContain("app-shell-visual-stability");
