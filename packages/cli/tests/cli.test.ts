@@ -888,7 +888,23 @@ contracts:
       }
     });
     await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await mkdir(path.join(tempRoot, ".github", "workflows"), { recursive: true });
     await writeFile(path.join(tempRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(
+      path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"),
+      `name: Visual Hive PR
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  visual-hive:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx visual-hive plan --mode pr
+`,
+      "utf8"
+    );
 
     const result = await runRecommendCommand({ cwd: tempRoot, writeConfig: true, writeDocs: true });
     const summary = formatSetupRecommendation(result);
@@ -900,10 +916,18 @@ contracts:
     expect(report.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(report.providerRecommendations.find((provider) => provider.providerId === "playwright")?.recommendation).toBe("use");
     expect(report.costEstimate.externalScreenshotsPerRun).toBe(0);
+    expect(report.detectedWorkflows[0]).toMatchObject({
+      path: ".github/workflows/visual-hive-pr.yml",
+      triggers: ["pull_request"],
+      permissions: ["contents: read"],
+      visualHiveRelated: true
+    });
     expect(report.workflowPreviews.map((workflow) => workflow.path)).toContain(".github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Visual Hive Setup Recommendation");
     expect(summary).toContain("Setup profile: free-local");
     expect(summary).toContain("Provider Recommendation");
+    expect(summary).toContain("Existing Workflow Hints");
+    expect(summary).toContain(".github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Workflow Previews");
     expect(summary).toContain("Visual Hive PR: .github/workflows/visual-hive-pr.yml");
     expect(summary).toContain("Onboarding Checklist");
@@ -913,6 +937,7 @@ contracts:
     await expect(access(path.join(tempRoot, ".visual-hive", "recommendations.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(readFile(docsPath, "utf8")).resolves.toContain("PR checks should run with read-only permissions and no repository secrets.");
+    await expect(readFile(docsPath, "utf8")).resolves.toContain("## Existing Workflow Hints");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("## Workflow Previews");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("include-hidden-files: true");
     await expect(readFile(docsPath, "utf8")).resolves.toContain("visual-hive workflows --write-templates");

@@ -462,6 +462,24 @@ viewports:
             route: "/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story"
           }
         ],
+        detectedWorkflows: [
+          {
+            path: ".github/workflows/legacy.yml",
+            triggers: ["pull_request_target"],
+            permissions: ["contents: write"],
+            usesPullRequestTarget: true,
+            usesSecrets: true,
+            visualHiveRelated: false
+          },
+          {
+            path: ".github/workflows/visual-hive-pr.yml",
+            triggers: ["pull_request"],
+            permissions: ["contents: read"],
+            usesPullRequestTarget: false,
+            usesSecrets: false,
+            visualHiveRelated: true
+          }
+        ],
         recommendedTarget: {
           id: "localPreview",
           kind: "command",
@@ -1361,6 +1379,9 @@ contracts:
       expect(appJs).toContain("trusted only");
       expect(appJs).toContain("visual-hive run");
       expect(appJs).toContain("Setup PR guidance");
+      expect(appJs).toContain("function setupDetectedWorkflows");
+      expect(appJs).toContain("Existing workflow hints");
+      expect(appJs).toContain("pull_request_target");
       expect(appJs).toContain("function setupWorkflowPreviews");
       expect(appJs).toContain("Workflow previews");
       expect(appJs).toContain("Review the generated workflow snippets");
@@ -1381,6 +1402,7 @@ contracts:
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
+      expect(snapshot.setupRecommendation.detectedWorkflows[0].usesPullRequestTarget).toBe(true);
       expect(snapshot.setupRecommendation.workflowPreviews[0].path).toBe(".github/workflows/visual-hive-pr.yml");
     } finally {
       await server.close();
@@ -1415,6 +1437,7 @@ contracts:
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
     expect(controlPlaneJs).toContain("function setupDetectedStories");
+    expect(controlPlaneJs).toContain("function setupDetectedWorkflows");
     expect(controlPlaneJs).toContain("function setupWorkflowPreviews");
     expect(controlPlaneJs).toContain("Storybook repositories can start with component contracts");
     expect(controlPlaneJs).toContain("function setupProfileSelector");

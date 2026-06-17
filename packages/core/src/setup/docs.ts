@@ -47,6 +47,10 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     "",
     ...storyLines(report),
     "",
+    "## Existing Workflow Hints",
+    "",
+    ...workflowHintLines(report),
+    "",
     "## Provider Posture",
     "",
     ...providerLines(report),
@@ -119,6 +123,17 @@ function contractLines(report: SetupRecommendationReport): string[] {
 function storyLines(report: SetupRecommendationReport): string[] {
   if (!report.detectedStories?.length) return ["No Storybook story files were detected."];
   return report.detectedStories.slice(0, 10).map((story) => `- ${safe(story.storyFile)}: ${safe(story.title)} -> ${safe(story.route)}`);
+}
+
+function workflowHintLines(report: SetupRecommendationReport): string[] {
+  if (!report.detectedWorkflows?.length) return ["No existing GitHub workflow files were detected."];
+  return report.detectedWorkflows.slice(0, 10).map((workflow) => {
+    const risks = [
+      workflow.usesPullRequestTarget ? "uses pull_request_target" : "",
+      workflow.usesSecrets ? "references secrets" : ""
+    ].filter(Boolean);
+    return `- ${safe(workflow.path)}: triggers=${listInline(workflow.triggers)}, permissions=${listInline(workflow.permissions)}, Visual Hive=${workflow.visualHiveRelated ? "yes" : "no"}${risks.length ? `. Review: ${safe(risks.join(", "))}` : ""}`;
+  });
 }
 
 function providerLines(report: SetupRecommendationReport): string[] {

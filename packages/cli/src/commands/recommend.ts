@@ -95,6 +95,7 @@ export function formatSetupRecommendation(
     `- URL: ${report.recommendedTarget.url}`,
     `- Selector seed: ${report.recommendedContracts[0]?.selectors.join(", ") || "none"}`,
     `- Story routes: ${report.detectedStories?.length ? report.detectedStories.map((story) => story.route).slice(0, 3).join(", ") : "none detected"}`,
+    `- Existing workflows: ${report.detectedWorkflows?.length ? report.detectedWorkflows.map((workflow) => workflow.path).slice(0, 3).join(", ") : "none detected"}`,
     `- Local screenshots/run: ${report.costEstimate.localScreenshotsPerRun}`,
     `- External screenshots/run: ${report.costEstimate.externalScreenshotsPerRun}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to create visual-hive.config.yaml"}`,
@@ -163,6 +164,21 @@ export function formatSetupRecommendation(
   }
   if (report.detectedSelectors.length) {
     lines.push("", "## Detected Selectors", ...report.detectedSelectors.slice(0, 8).map((selector) => `- ${selector.selector} (${selector.sourceFile})`));
+  }
+  if (report.detectedWorkflows?.length) {
+    lines.push(
+      "",
+      "## Existing Workflow Hints",
+      ...report.detectedWorkflows.slice(0, 8).map((workflow) => {
+        const risks = [
+          workflow.usesPullRequestTarget ? "uses pull_request_target" : "",
+          workflow.usesSecrets ? "references secrets" : ""
+        ].filter(Boolean);
+        return `- ${workflow.path}: triggers=${workflow.triggers.join(", ") || "unknown"} permissions=${workflow.permissions.join(", ") || "unspecified"}${
+          risks.length ? ` review=${risks.join(", ")}` : ""
+        }`;
+      })
+    );
   }
   return lines.join("\n");
 }

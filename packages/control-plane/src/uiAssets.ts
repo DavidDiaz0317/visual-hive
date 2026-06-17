@@ -547,6 +547,7 @@ function setup() {
     ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
     card("Setup actions", setupActions()) +
     card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
+    setupDetectedWorkflows(recommendation) +
     setupWorkflowPreviews(recommendation) +
     setupDetectedStories(recommendation) +
     card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
@@ -555,6 +556,32 @@ function setup() {
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupDetectedWorkflows(recommendation) {
+  const workflows = recommendation.detectedWorkflows || [];
+  if (!workflows.length) {
+    return card("Existing workflow hints", '<p class="muted">No existing GitHub workflow files were detected.</p>');
+  }
+  return card(
+    "Existing workflow hints",
+    '<p class="muted">Use these hints to decide whether Visual Hive should add new workflows or adapt existing CI. Secret values are never read or shown.</p>' +
+      table(["Workflow", "Triggers", "Permissions", "Risk hints", "Visual Hive"], workflows.slice(0, 10).map(workflow => [
+        '<code>' + esc(workflow.path || "") + '</code>',
+        (workflow.triggers || []).join(", ") || "unknown",
+        (workflow.permissions || []).join(", ") || "unspecified",
+        workflowRiskHints(workflow),
+        workflow.visualHiveRelated ? '<span class="ok">yes</span>' : '<span class="muted">no</span>'
+      ])) +
+      (workflows.length > 10 ? '<p class="muted">Showing 10 of ' + esc(workflows.length) + ' detected workflows.</p>' : "")
+  );
+}
+
+function workflowRiskHints(workflow) {
+  const hints = [];
+  if (workflow.usesPullRequestTarget) hints.push('<span class="bad">pull_request_target</span>');
+  if (workflow.usesSecrets) hints.push('<span class="warn">references secrets</span>');
+  return hints.length ? hints.join("<br>") : '<span class="ok">none</span>';
 }
 
 function setupWorkflowPreviews(recommendation) {

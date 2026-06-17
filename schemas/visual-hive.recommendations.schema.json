@@ -80,6 +80,10 @@
         }
       }
     },
+    "detectedWorkflows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/detectedWorkflow" }
+    },
     "recommendedTarget": {
       "type": "object",
       "required": ["id", "kind", "url", "confidence", "reasons"],
@@ -191,6 +195,19 @@
         "description": { "type": "string" },
         "safetyNotes": { "type": "array", "items": { "type": "string" } },
         "content": { "type": "string" }
+      }
+    },
+    "detectedWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "triggers", "permissions", "usesPullRequestTarget", "usesSecrets", "visualHiveRelated"],
+      "properties": {
+        "path": { "type": "string" },
+        "triggers": { "type": "array", "items": { "type": "string" } },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "usesPullRequestTarget": { "type": "boolean" },
+        "usesSecrets": { "type": "boolean" },
+        "visualHiveRelated": { "type": "boolean" }
       }
     },
     "checklistItem": {

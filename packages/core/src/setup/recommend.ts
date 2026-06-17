@@ -26,6 +26,7 @@ export interface SetupRecommendationReport {
   recommendedConfigYaml: string;
   detectedSelectors: SetupDetectedSelector[];
   detectedStories: SetupDetectedStory[];
+  detectedWorkflows: SetupDetectedWorkflow[];
   recommendedTarget: SetupRecommendedTarget;
   recommendedContracts: SetupRecommendedContract[];
   onboardingChecklist: SetupChecklistItem[];
@@ -54,6 +55,15 @@ export interface SetupDetectedStory {
   title: string;
   exports: string[];
   route: string;
+}
+
+export interface SetupDetectedWorkflow {
+  path: string;
+  triggers: string[];
+  permissions: string[];
+  usesPullRequestTarget: boolean;
+  usesSecrets: boolean;
+  visualHiveRelated: boolean;
 }
 
 export interface SetupRecommendedTarget {
@@ -165,6 +175,7 @@ interface RepoInventory {
   sourceFiles: string[];
   selectors: SetupDetectedSelector[];
   stories: SetupDetectedStory[];
+  workflows: SetupDetectedWorkflow[];
 }
 
 const DEFAULT_PORT = 4173;
@@ -265,6 +276,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
     detectedStories: inventory.stories.slice(0, 20),
+    detectedWorkflows: inventory.workflows.slice(0, 20),
     recommendedTarget: {
       id: target.id,
       kind: target.config.kind,
@@ -310,7 +322,8 @@ async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
   const sourceFiles = await collectSourceFiles(repoRoot);
   const selectors = await collectSelectors(repoRoot, sourceFiles);
   const stories = await collectStories(repoRoot, sourceFiles);
-  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, stories };
+  const workflows = await collectWorkflowHints(repoRoot);
+  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, stories, workflows };
 }
 
 async function readPackageJson(repoRoot: string): Promise<PackageJsonShape | undefined> {
@@ -954,6 +967,22 @@ function buildFindings(
       message: "No local preview command was found. Add a dev, preview, or start script before enabling deterministic PR runs."
     });
   }
+  const unsafeWorkflow = inventory.workflows.find((workflow) => workflow.usesPullRequestTarget);
+  if (unsafeWorkflow) {
+    findings.push({
+      severity: "warning",
+      message: "Existing workflow uses pull_request_target. Do not execute untrusted PR code in that workflow.",
+      evidence: unsafeWorkflow.path
+    });
+  }
+  const secretPrWorkflow = inventory.workflows.find((workflow) => workflow.triggers.includes("pull_request") && workflow.usesSecrets);
+  if (secretPrWorkflow) {
+    findings.push({
+      severity: "warning",
+      message: "Existing pull_request workflow appears to reference secrets. Visual Hive PR lanes should stay secret-free.",
+      evidence: secretPrWorkflow.path
+    });
+  }
   return findings;
 }
 
@@ -962,6 +991,9 @@ function buildWarnings(inventory: RepoInventory, serve: string | undefined, sele
   if (!inventory.packageJson) warnings.push("No package.json was found at the repository root.");
   if (!serve) warnings.push("No preview/dev/start script was detected for a command target.");
   if (selector === "body") warnings.push("Starter contract uses body because no data-testid selectors were detected.");
+  if (inventory.workflows.some((workflow) => workflow.usesPullRequestTarget)) {
+    warnings.push("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");
+  }
   return warnings;
 }
 
@@ -1037,6 +1069,55 @@ async function collectStories(repoRoot: string, sourceFiles: string[]): Promise<
     });
   }
   return stories.sort((a, b) => a.storyFile.localeCompare(b.storyFile));
+}
+
+async function collectWorkflowHints(repoRoot: string): Promise<SetupDetectedWorkflow[]> {
+  const workflowRoot = path.join(repoRoot, ".github", "workflows");
+  let entries;
+  try {
+    entries = await readdir(workflowRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const workflows: SetupDetectedWorkflow[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !/\.ya?ml$/i.test(entry.name)) continue;
+    const fullPath = path.join(workflowRoot, entry.name);
+    let raw;
+    try {
+      raw = await readFile(fullPath, "utf8");
+    } catch {
+      continue;
+    }
+    workflows.push({
+      path: normalizeSlashes(path.join(".github", "workflows", entry.name)),
+      triggers: detectWorkflowTriggers(raw),
+      permissions: detectWorkflowPermissions(raw),
+      usesPullRequestTarget: /\bpull_request_target\s*:/i.test(raw),
+      usesSecrets: /\bsecrets\./i.test(raw) || /\$\{\{\s*secrets\./i.test(raw),
+      visualHiveRelated: /\bvisual-hive\b/i.test(raw)
+    });
+  }
+  return workflows.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function detectWorkflowTriggers(raw: string): string[] {
+  const triggers = new Set<string>();
+  const triggerNames = ["pull_request_target", "pull_request", "schedule", "workflow_dispatch", "push", "workflow_run"];
+  for (const trigger of triggerNames) {
+    if (new RegExp(`\\b${trigger}\\s*:`, "i").test(raw)) triggers.add(trigger);
+  }
+  return [...triggers];
+}
+
+function detectWorkflowPermissions(raw: string): string[] {
+  const permissions = new Set<string>();
+  const block = /permissions\s*:\s*\n((?:\s+[A-Za-z_-]+\s*:\s*[A-Za-z_-]+\s*\n?)+)/i.exec(raw)?.[1] ?? "";
+  for (const line of block.split(/\r?\n/)) {
+    const match = /^\s+([A-Za-z_-]+)\s*:\s*([A-Za-z_-]+)\s*$/.exec(line);
+    if (match) permissions.add(`${match[1]}: ${match[2]}`);
+  }
+  return [...permissions].sort();
 }
 
 function isStoryFile(sourceFile: string): boolean {

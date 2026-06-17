@@ -2563,7 +2563,38 @@ describe("setup recommendations", () => {
       }
     });
     await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await mkdir(path.join(targetRoot, ".github", "workflows"), { recursive: true });
     await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(
+      path.join(targetRoot, ".github", "workflows", "ci.yml"),
+      `name: CI
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm test
+`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(targetRoot, ".github", "workflows", "legacy.yml"),
+      `name: Legacy privileged
+on:
+  pull_request_target:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo \${{ secrets.LEGACY_TOKEN }}
+`,
+      "utf8"
+    );
 
     const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
     const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
@@ -2589,6 +2620,28 @@ describe("setup recommendations", () => {
       requiredEnv: ["ARGOS_TOKEN"]
     });
     expect(recommendation.setupPullRequest.securityNotes.join(" ")).toContain("pull_request");
+    expect(recommendation.detectedWorkflows).toEqual([
+      {
+        path: ".github/workflows/ci.yml",
+        triggers: ["pull_request"],
+        permissions: ["contents: read"],
+        usesPullRequestTarget: false,
+        usesSecrets: false,
+        visualHiveRelated: false
+      },
+      {
+        path: ".github/workflows/legacy.yml",
+        triggers: ["pull_request_target"],
+        permissions: ["contents: write"],
+        usesPullRequestTarget: true,
+        usesSecrets: true,
+        visualHiveRelated: false
+      }
+    ]);
+    expect(recommendation.findings.map((finding) => finding.message)).toContain(
+      "Existing workflow uses pull_request_target. Do not execute untrusted PR code in that workflow."
+    );
+    expect(recommendation.warnings).toContain("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");
     expect(recommendation.workflowPreviews.map((workflow) => workflow.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")).toMatchObject({
       path: ".github/workflows/visual-hive-pr.yml",
@@ -2624,6 +2677,9 @@ describe("setup recommendations", () => {
     expect(setupDocs).toContain("Playwright built-in");
     expect(setupDocs).toContain("## Onboarding Checklist");
     expect(setupDocs).toContain("### Verify PR safety");
+    expect(setupDocs).toContain("## Existing Workflow Hints");
+    expect(setupDocs).toContain(".github/workflows/legacy.yml");
+    expect(setupDocs).toContain("uses pull_request_target");
     expect(setupDocs).toContain("## Workflow Previews");
     expect(setupDocs).toContain("### Visual Hive PR");
     expect(setupDocs).toContain(".github/workflows/visual-hive-pr.yml");

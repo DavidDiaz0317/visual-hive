@@ -8,6 +8,7 @@ The command detects:
 - frontend framework hints from dependencies
 - stable `data-testid` selectors in source files
 - Storybook story files and the first few runnable iframe routes when Storybook is detected
+- existing GitHub workflow hints, including triggers, permissions, secret references, Visual Hive usage, and `pull_request_target`
 - a likely PR-safe `localPreview` target
 - a starter visual contract with desktop and mobile screenshots, or a Storybook component contract for component-library repos
 - an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
@@ -64,10 +65,11 @@ Important fields:
 - `recommendedContracts`: starter contracts, selectors, screenshots, and reasons
 - `detectedSelectors`: top discovered `data-testid` selectors
 - `detectedStories`: top discovered Storybook story files, CSF titles, named exports, and generated iframe routes
+- `detectedWorkflows`: existing `.github/workflows/*.yml|yaml` files with trigger, permission, secret-reference, Visual Hive, and `pull_request_target` hints
 - `warnings`: setup gaps such as missing preview scripts or missing selectors
 
 For Storybook repositories, the generated starter contracts target up to the first three detected CSF stories through routes such as `/iframe.html?id=dashboard-card--primary&viewMode=story`. The generated selection rules include story files and `src/components/**`, so component-only changes can select the component visual lane without running unrelated app routes. Hosted Storybook providers such as Chromatic remain optional; the default contracts still run through Playwright/local artifacts.
 
 ## Control Plane
 
-The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, workflow previews, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
+The Control Plane Setup tab reads `.visual-hive/recommendations.json` and shows the setup profile, provider recommendation, cost estimate, permission guidance, setup PR guidance, existing workflow hints, workflow previews, recommended target, detected Storybook story iframe routes, contracts, warnings, and YAML preview. In write mode it can regenerate recommendations for `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`, then generate the recommended config, `docs/visual-hive.md`, or the full setup PR bundle with confirmation and audit logging. In `--read-only` mode it remains display-only.
