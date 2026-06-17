@@ -834,6 +834,7 @@ describe("control plane", () => {
       "ARGOS_TOKEN"
     ]);
     expect(snapshot.runHistory?.summary.runCount).toBe(1);
+    expect(snapshot.runHistory?.trend.direction).toBe("unknown");
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
     expect(snapshot.llmUsage?.summary.callsMade).toBe(0);
     expect(snapshot.llmUsage?.records[0]?.task).toBe("repair_prompt");
@@ -1509,6 +1510,8 @@ contracts:
       expect(appJs).toContain("Console, page, and network evidence");
       expect(appJs).toContain("function reportArtifactsCard");
       expect(appJs).toContain("Report artifacts and reproduction");
+      expect(appJs).toContain("function runHistoryTrendCard");
+      expect(appJs).toContain("Latest vs previous");
       expect(appJs).toContain("function failureCard");
       expect(appJs).toContain("Failure context");
       expect(appJs).toContain("Changed files");

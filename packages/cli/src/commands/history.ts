@@ -51,6 +51,7 @@ export function formatHistorySummary(history: RunHistoryReport, historyPath: str
     `- Failed: ${history.summary.failedRuns}`,
     `- Latest status: ${history.summary.latestStatus ?? "unknown"}`,
     `- Latest mutation score: ${history.summary.latestMutationScore === undefined ? "not available" : `${Math.round(history.summary.latestMutationScore * 100)}%`}`,
+    `- Trend: ${history.trend.direction}${history.trend.hasPrevious ? trendDetail(history) : " (needs at least two recorded runs)"}`,
     `- Total visual diffs: ${history.summary.totalVisualDiffs}`,
     `- Total missing baselines: ${history.summary.totalMissingBaselines}`,
     "",
@@ -64,6 +65,31 @@ export function formatHistorySummary(history: RunHistoryReport, historyPath: str
     );
   }
   return lines.join("\n");
+}
+
+function trendDetail(history: RunHistoryReport): string {
+  const parts = [];
+  if (history.trend.statusChanged) {
+    parts.push(`status ${history.trend.statusChanged.from ?? "unknown"} -> ${history.trend.statusChanged.to ?? "unknown"}`);
+  }
+  if (history.trend.mutationScoreDelta !== undefined && history.trend.mutationScoreDelta !== 0) {
+    parts.push(`mutation ${signedPercent(history.trend.mutationScoreDelta)}`);
+  }
+  if (history.trend.failedContractsDelta) {
+    parts.push(`failed contracts ${signedNumber(history.trend.failedContractsDelta)}`);
+  }
+  if (history.trend.visualDiffsDelta) {
+    parts.push(`visual diffs ${signedNumber(history.trend.visualDiffsDelta)}`);
+  }
+  return parts.length ? ` (${parts.join(", ")})` : "";
+}
+
+function signedPercent(value: number): string {
+  return `${value > 0 ? "+" : ""}${Math.round(value * 100)}%`;
+}
+
+function signedNumber(value: number): string {
+  return `${value > 0 ? "+" : ""}${value}`;
 }
 
 async function transientLatestHistory(repoRoot: string, hiveRoot: string): Promise<RunHistoryReport> {

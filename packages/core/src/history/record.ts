@@ -10,6 +10,7 @@ export interface RunHistoryReport {
   project: string;
   generatedAt: string;
   summary: RunHistorySummary;
+  trend: RunHistoryTrend;
   entries: RunHistoryEntry[];
 }
 
@@ -25,6 +26,23 @@ export interface RunHistorySummary {
   totalVisualDiffs: number;
   totalMissingBaselines: number;
   totalCreatedBaselines: number;
+}
+
+export interface RunHistoryTrend {
+  hasPrevious: boolean;
+  direction: "improved" | "regressed" | "unchanged" | "unknown";
+  statusChanged?: {
+    from?: "passed" | "failed";
+    to?: "passed" | "failed";
+  };
+  mutationScoreDelta?: number;
+  failedContractsDelta?: number;
+  visualDiffsDelta?: number;
+  missingBaselinesDelta?: number;
+  createdBaselinesDelta?: number;
+  consoleErrorsDelta?: number;
+  pageErrorsDelta?: number;
+  reasons: string[];
 }
 
 export interface RunHistoryEntry {
@@ -233,8 +251,87 @@ export function createRunHistoryReport(input: { project: string; generatedAt: st
       totalMissingBaselines: entries.reduce((sum, entry) => sum + entry.missingBaselines, 0),
       totalCreatedBaselines: entries.reduce((sum, entry) => sum + entry.createdBaselines, 0)
     },
+    trend: createRunHistoryTrend(entries),
     entries
   };
+}
+
+function createRunHistoryTrend(entries: RunHistoryEntry[]): RunHistoryTrend {
+  const [latest, previous] = entries;
+  if (!latest || !previous) {
+    return {
+      hasPrevious: false,
+      direction: "unknown",
+      reasons: ["At least two recorded runs are required to calculate a trend."]
+    };
+  }
+
+  let score = 0;
+  const reasons: string[] = [];
+  if (latest.deterministicStatus !== previous.deterministicStatus) {
+    if (previous.deterministicStatus === "failed" && latest.deterministicStatus === "passed") {
+      score += 3;
+      reasons.push("Deterministic status recovered from failed to passed.");
+    } else if (previous.deterministicStatus === "passed" && latest.deterministicStatus === "failed") {
+      score -= 3;
+      reasons.push("Deterministic status regressed from passed to failed.");
+    } else {
+      reasons.push("Deterministic status changed.");
+    }
+  }
+
+  score += scoreDelta(latest.mutationScore, previous.mutationScore, 1, "Mutation score", reasons, true);
+  score += scoreDelta(latest.failedContracts, previous.failedContracts, 2, "Failed contracts", reasons, false);
+  score += scoreDelta(latest.visualDiffs, previous.visualDiffs, 1, "Visual diffs", reasons, false);
+  score += scoreDelta(latest.missingBaselines, previous.missingBaselines, 1, "Missing baselines", reasons, false);
+  score += scoreDelta(latest.createdBaselines, previous.createdBaselines, 1, "Created baselines", reasons, false);
+  score += scoreDelta(latest.consoleErrors, previous.consoleErrors, 1, "Console errors", reasons, false);
+  score += scoreDelta(latest.pageErrors, previous.pageErrors, 1, "Page errors", reasons, false);
+
+  return {
+    hasPrevious: true,
+    direction: score > 0 ? "improved" : score < 0 ? "regressed" : "unchanged",
+    statusChanged:
+      latest.deterministicStatus !== previous.deterministicStatus
+        ? {
+            from: previous.deterministicStatus,
+            to: latest.deterministicStatus
+          }
+        : undefined,
+    mutationScoreDelta: numericDelta(latest.mutationScore, previous.mutationScore),
+    failedContractsDelta: latest.failedContracts - previous.failedContracts,
+    visualDiffsDelta: latest.visualDiffs - previous.visualDiffs,
+    missingBaselinesDelta: latest.missingBaselines - previous.missingBaselines,
+    createdBaselinesDelta: latest.createdBaselines - previous.createdBaselines,
+    consoleErrorsDelta: latest.consoleErrors - previous.consoleErrors,
+    pageErrorsDelta: latest.pageErrors - previous.pageErrors,
+    reasons: reasons.length ? reasons : ["Latest run is unchanged from the previous recorded run."]
+  };
+}
+
+function scoreDelta(
+  latest: number | undefined,
+  previous: number | undefined,
+  weight: number,
+  label: string,
+  reasons: string[],
+  higherIsBetter: boolean
+): number {
+  const delta = numericDelta(latest, previous);
+  if (delta === undefined || delta === 0) return 0;
+  const improved = higherIsBetter ? delta > 0 : delta < 0;
+  reasons.push(`${label} ${improved ? "improved" : "regressed"} by ${formatDelta(delta)}.`);
+  return improved ? weight : -weight;
+}
+
+function numericDelta(latest: number | undefined, previous: number | undefined): number | undefined {
+  if (latest === undefined || previous === undefined) return undefined;
+  return latest - previous;
+}
+
+function formatDelta(delta: number): string {
+  const rounded = Math.abs(delta) < 1 ? Math.round(delta * 1000) / 1000 : delta;
+  return `${delta > 0 ? "+" : ""}${rounded}`;
 }
 
 async function readOptionalHistory(historyPath: string): Promise<RunHistoryReport | undefined> {

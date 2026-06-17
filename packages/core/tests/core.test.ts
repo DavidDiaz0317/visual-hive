@@ -21,7 +21,7 @@ import { listProviderAdapters, PROVIDER_ADAPTER_OPERATION_SEQUENCE } from "../sr
 import { readProviderDecisionLog, recordProviderDecision } from "../src/providers/decisions.js";
 import { inspectProviders, normalizeProviderResults } from "../src/providers/inspect.js";
 import { runMockProviderAdapters } from "../src/providers/mock.js";
-import { recordRunHistory } from "../src/history/record.js";
+import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -2363,6 +2363,10 @@ describe("run history", () => {
       latestMutationScore: 0.5,
       totalVisualDiffs: 1
     });
+    expect(history.trend).toMatchObject({
+      hasPrevious: false,
+      direction: "unknown"
+    });
     expect(history.entries[0]?.files.report).toBe(".visual-hive/history/run-one/report.json");
     expect(history.entries[0]?.files.issue).toBe(".visual-hive/history/run-one/issue.md");
     expect(history.entries[0]?.files.prComment).toBe(".visual-hive/history/run-one/pr-comment.md");
@@ -2374,6 +2378,72 @@ describe("run history", () => {
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "baseline-review.md"), "utf8")).resolves.toContain("[REDACTED]");
     const index = JSON.parse(await readFile(path.join(hiveRoot, "history.json"), "utf8")) as { entries: unknown[] };
     expect(index.entries).toHaveLength(1);
+  });
+
+  it("calculates latest-vs-previous run trend evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-history-trend-"));
+    tempDirs.push(tempRoot);
+    const previousReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "previous.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    const latestReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "latest.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    latestReport.status = "passed";
+    latestReport.summary.failed = 0;
+    latestReport.summary.visualDiffs = 0;
+    latestReport.summary.screenshotsFailed = 0;
+    latestReport.results[0]!.status = "passed";
+    latestReport.results[0]!.errors = [];
+
+    const previousEntry = createRunHistoryEntry({
+      repoRoot: tempRoot,
+      id: "previous",
+      recordedAt: "2026-06-15T00:00:00.000Z",
+      files: { report: ".visual-hive/history/previous/report.json" },
+      report: previousReport,
+      mutationReport: {
+        schemaVersion: 2,
+        project: "baseline-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        minScore: 0.7,
+        score: 0.4,
+        killed: 2,
+        total: 5,
+        results: []
+      }
+    });
+    const latestEntry = createRunHistoryEntry({
+      repoRoot: tempRoot,
+      id: "latest",
+      recordedAt: "2026-06-15T01:00:00.000Z",
+      files: { report: ".visual-hive/history/latest/report.json" },
+      report: latestReport,
+      mutationReport: {
+        schemaVersion: 2,
+        project: "baseline-fixture",
+        generatedAt: "2026-06-15T01:00:00.000Z",
+        minScore: 0.7,
+        score: 0.8,
+        killed: 4,
+        total: 5,
+        results: []
+      }
+    });
+
+    const history = createRunHistoryReport({
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T01:01:00.000Z",
+      entries: [previousEntry, latestEntry]
+    });
+
+    expect(history.entries.map((entry) => entry.id)).toEqual(["latest", "previous"]);
+    expect(history.trend).toMatchObject({
+      hasPrevious: true,
+      direction: "improved",
+      statusChanged: { from: "failed", to: "passed" },
+      mutationScoreDelta: 0.4,
+      failedContractsDelta: -1,
+      visualDiffsDelta: -1
+    });
+    expect(history.trend.reasons.join(" ")).toContain("Deterministic status recovered");
+    expect(history.trend.reasons.join(" ")).toContain("Mutation score improved");
   });
 });
 

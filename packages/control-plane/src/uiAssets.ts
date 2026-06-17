@@ -810,12 +810,14 @@ function runs() {
   const report = snapshot.report;
   const history = snapshot.runHistory;
   if (!report && !history) return empty("No report found. Run visual-hive run.");
+  const trend = history?.trend;
   const historyBlock = history ? '<div class="grid" style="margin-top:14px">' +
     metric("Recorded runs", history.summary.runCount, "") +
     metric("Passed runs", history.summary.passedRuns, "ok") +
     metric("Failed runs", history.summary.failedRuns, history.summary.failedRuns ? "bad" : "ok") +
     metric("Avg mutation", history.summary.averageMutationScore == null ? "n/a" : Math.round(history.summary.averageMutationScore * 100) + "%", "") +
-    '</div>' + card("Run history", table(["Run", "Recorded", "Status", "Mode", "Failed", "Visual diffs", "Mutation", "Report"], history.entries.map(e => [e.id, e.recordedAt, e.deterministicStatus || "unknown", e.mode || "unknown", String(e.failedContracts), String(e.visualDiffs), e.mutationScore == null ? "n/a" : Math.round(e.mutationScore * 100) + "%", e.files.report ? link(e.files.report, "report") : "latest"]))) : "";
+    metric("Trend", trend ? trend.direction : "unknown", trend?.direction === "improved" ? "ok" : trend?.direction === "regressed" ? "bad" : "muted") +
+    '</div>' + runHistoryTrendCard(trend) + card("Run history", table(["Run", "Recorded", "Status", "Mode", "Failed", "Visual diffs", "Mutation", "Report"], history.entries.map(e => [e.id, e.recordedAt, e.deterministicStatus || "unknown", e.mode || "unknown", String(e.failedContracts), String(e.visualDiffs), e.mutationScore == null ? "n/a" : Math.round(e.mutationScore * 100) + "%", e.files.report ? link(e.files.report, "report") : "latest"]))) : "";
   if (!report) return '<div class="section">' + historyBlock + '</div>';
   return '<div class="section">' +
     card("Run metadata", '<table><tr><th>Project</th><td>' + esc(report.project) + '</td></tr><tr><th>Repository</th><td>' + esc(report.repository?.repository || "unknown") + '</td></tr><tr><th>Branch</th><td>' + esc(report.repository?.branch || "unknown") + '</td></tr><tr><th>Commit</th><td>' + esc(report.repository?.commitSha ? report.repository.commitSha.slice(0, 12) : "unknown") + '</td></tr><tr><th>Run context</th><td>' + esc(report.repository?.provider || "unknown") + '</td></tr><tr><th>Mode</th><td>' + esc(report.mode) + '</td></tr><tr><th>Status</th><td>' + esc(report.status) + '</td></tr><tr><th>Generated</th><td>' + esc(report.generatedAt) + '</td></tr><tr><th>Spec</th><td>' + link(rel(report.generatedSpecPath), "generated spec") + '</td></tr></table>') +
@@ -830,6 +832,23 @@ function runs() {
     providerResultsCard(report.providerResults) +
     card("Raw JSON", '<pre>' + esc(JSON.stringify(report, null, 2)) + '</pre>') +
     '</div>';
+}
+
+function runHistoryTrendCard(trend) {
+  if (!trend) return "";
+  const deltas = [
+    ["Status", trend.statusChanged ? (trend.statusChanged.from || "unknown") + " -> " + (trend.statusChanged.to || "unknown") : "unchanged"],
+    ["Mutation", trend.mutationScoreDelta == null ? "n/a" : signedPercent(trend.mutationScoreDelta)],
+    ["Failed contracts", signedNumber(trend.failedContractsDelta)],
+    ["Visual diffs", signedNumber(trend.visualDiffsDelta)],
+    ["Missing baselines", signedNumber(trend.missingBaselinesDelta)],
+    ["Created baselines", signedNumber(trend.createdBaselinesDelta)],
+    ["Console errors", signedNumber(trend.consoleErrorsDelta)],
+    ["Page errors", signedNumber(trend.pageErrorsDelta)]
+  ];
+  return card("Run trend", '<p class="' + (trend.direction === "improved" ? "ok" : trend.direction === "regressed" ? "bad" : "muted") + '">' + esc(trend.direction) + '</p>' +
+    table(["Signal", "Latest vs previous"], deltas) +
+    failureList("Why", trend.reasons || []));
 }
 
 function reportSelectionCards(report) {
@@ -2098,6 +2117,8 @@ function failureList(title, items) { return items && items.length ? '<h3>' + esc
 function table(headers, rows) { return '<table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join("") + '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join("") + '</tr>').join("") + '</tbody></table>'; }
 function rel(path) { if (!path) return ""; const root = snapshot.repoRoot.replaceAll('\\\\', '/'); const value = String(path).replaceAll('\\\\', '/'); return value.startsWith(root) ? value.slice(root.length + 1) : value; }
 function escAttr(value) { return esc(value).replaceAll('"', "&quot;"); }
+function signedPercent(value) { return value == null ? "n/a" : (value > 0 ? "+" : "") + Math.round(value * 100) + "%"; }
+function signedNumber(value) { return value == null ? "n/a" : (value > 0 ? "+" : "") + String(value); }
 
 function focusKey(kind, value) {
   return kind + ":" + String(value ?? "");
