@@ -1062,6 +1062,48 @@ describe("risk register", () => {
     expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
     expect(risk.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
   });
+
+  it("turns regressed run history into actionable risk evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-risk-history-"));
+    tempDirs.push(tempRoot);
+    const previousReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "previous.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    previousReport.status = "passed";
+    previousReport.summary.failed = 0;
+    previousReport.summary.visualDiffs = 0;
+    previousReport.results[0]!.status = "passed";
+    previousReport.results[0]!.errors = [];
+    const latestReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "latest.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    const runHistory = createRunHistoryReport({
+      project: "sample",
+      generatedAt: "2026-06-15T01:01:00.000Z",
+      entries: [
+        createRunHistoryEntry({
+          repoRoot: tempRoot,
+          id: "previous",
+          recordedAt: "2026-06-15T00:00:00.000Z",
+          files: { report: ".visual-hive/history/previous/report.json" },
+          report: previousReport
+        }),
+        createRunHistoryEntry({
+          repoRoot: tempRoot,
+          id: "latest",
+          recordedAt: "2026-06-15T01:00:00.000Z",
+          files: { report: ".visual-hive/history/latest/report.json" },
+          report: latestReport
+        })
+      ]
+    });
+
+    const risk = analyzeRisk(sampleConfig(), { runHistory, now: new Date("2026-06-15T01:02:00.000Z") });
+
+    expect(risk.inputs.runHistory).toBe(true);
+    expect(risk.risks.find((item) => item.category === "history_regression")).toMatchObject({
+      id: "history:latest-run-regressed",
+      severity: "high",
+      prBlocking: true
+    });
+    expect(risk.recommendations).toContain("Compare latest and previous run history before accepting the current visual QA state.");
+  });
 });
 
 describe("contract audit", () => {
@@ -1934,6 +1976,48 @@ jobs:
     expect(readiness.status).toBe("attention");
     expect(readiness.summary.missing).toBeGreaterThanOrEqual(3);
     expect(readiness.gates.map((gate) => gate.id)).toEqual(expect.arrayContaining(["planning:missing", "deterministic:missing", "workflow:missing"]));
+  });
+
+  it("blocks readiness when run history shows a pass-to-fail regression", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-readiness-history-"));
+    tempDirs.push(tempRoot);
+    const previousReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "previous.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    previousReport.status = "passed";
+    previousReport.summary.failed = 0;
+    previousReport.summary.visualDiffs = 0;
+    previousReport.results[0]!.status = "passed";
+    previousReport.results[0]!.errors = [];
+    const latestReport = reportFixture(tempRoot, path.join(tempRoot, ".visual-hive", "artifacts", "latest.png"), path.join(tempRoot, ".visual-hive", "snapshots", "baseline.png"));
+    const runHistory = createRunHistoryReport({
+      project: "sample",
+      generatedAt: "2026-06-15T01:01:00.000Z",
+      entries: [
+        createRunHistoryEntry({
+          repoRoot: tempRoot,
+          id: "previous",
+          recordedAt: "2026-06-15T00:00:00.000Z",
+          files: { report: ".visual-hive/history/previous/report.json" },
+          report: previousReport
+        }),
+        createRunHistoryEntry({
+          repoRoot: tempRoot,
+          id: "latest",
+          recordedAt: "2026-06-15T01:00:00.000Z",
+          files: { report: ".visual-hive/history/latest/report.json" },
+          report: latestReport
+        })
+      ]
+    });
+
+    const readiness = analyzeReadiness(sampleConfig(), { runHistory, now: new Date("2026-06-15T01:02:00.000Z") });
+
+    expect(readiness.inputs.runHistory).toBe(true);
+    expect(readiness.status).toBe("blocked");
+    expect(readiness.gates.find((gate) => gate.id === "history:regressed")).toMatchObject({
+      category: "history",
+      status: "blocked"
+    });
+    expect(readiness.nextActions.join(" ")).toContain("archived reports");
   });
 });
 

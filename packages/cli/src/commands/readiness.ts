@@ -14,6 +14,7 @@ import {
   type Plan,
   type ReadinessReport,
   type Report,
+  type RunHistoryReport,
   type SecurityAuditReport,
   type WorkflowAuditInputFile,
   type WorkflowAuditReport
@@ -30,6 +31,7 @@ export interface ReadinessCommandOptions {
   workflowDir?: string;
   security?: string;
   costs?: string;
+  history?: string;
   format?: "markdown" | "json";
 }
 
@@ -52,6 +54,7 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
   const costAudit =
     (await readOptionalJson<CostAuditReport>(path.resolve(loaded.rootDir, options.costs ?? path.join(".visual-hive", "costs.json")))) ??
     analyzeCosts(loaded.config, { plan, report, mutationReport });
+  const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
   const readiness = analyzeReadiness(loaded.config, {
     plan,
     report,
@@ -59,7 +62,8 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
     baselines,
     workflowAudit,
     securityAudit,
-    costAudit
+    costAudit,
+    runHistory
   });
   const reportPath = path.join(hiveRoot, "readiness.json");
   await writeJson(reportPath, readiness);

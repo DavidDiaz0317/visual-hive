@@ -558,6 +558,7 @@ program
   .option("--flows <path>", "flow audit artifact path override")
   .option("--schedules <path>", "schedules audit artifact path override")
   .option("--workflows <path>", "workflow audit artifact path override")
+  .option("--history <path>", "run history artifact path override")
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
@@ -573,6 +574,7 @@ program
         flows: options.flows,
         schedules: options.schedules,
         workflows: options.workflows,
+        history: options.history,
         workflowDir: options.workflowDir,
         format: options.format
       });
@@ -594,6 +596,7 @@ program
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
   .option("--security <path>", "security audit artifact path", ".visual-hive/security.json")
   .option("--costs <path>", "cost audit artifact path", ".visual-hive/costs.json")
+  .option("--history <path>", "run history artifact path", ".visual-hive/history.json")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -607,6 +610,7 @@ program
         workflowDir: options.workflowDir,
         security: options.security,
         costs: options.costs,
+        history: options.history,
         format: options.format
       });
       console.log(formatReadinessReport(result.report, result.reportPath, options.format));

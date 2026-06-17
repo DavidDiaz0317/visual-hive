@@ -1,6 +1,7 @@
 import type { CostAuditReport } from "../costs/analyze.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
+import type { RunHistoryReport } from "../history/record.js";
 import type { Plan } from "../planner/types.js";
 import type { BaselineList } from "../baselines/manage.js";
 import type { MutationReport, Report } from "../reports/types.js";
@@ -19,7 +20,8 @@ export type ReadinessGateCategory =
   | "security"
   | "provider"
   | "llm"
-  | "cost";
+  | "cost"
+  | "history";
 
 export interface ReadinessGate {
   id: string;
@@ -53,6 +55,7 @@ export interface ReadinessReport {
     workflowAudit: boolean;
     securityAudit: boolean;
     costAudit: boolean;
+    runHistory: boolean;
   };
   gates: ReadinessGate[];
   nextActions: string[];
@@ -66,6 +69,7 @@ export interface AnalyzeReadinessOptions {
   workflowAudit?: WorkflowAuditReport;
   securityAudit?: SecurityAuditReport;
   costAudit?: CostAuditReport;
+  runHistory?: RunHistoryReport;
   now?: Date;
 }
 
@@ -80,7 +84,8 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     ...securityGates(options.securityAudit),
     ...providerGates(config, options.costAudit),
     ...llmGates(config),
-    ...costGates(options.costAudit)
+    ...costGates(options.costAudit),
+    ...historyGates(options.runHistory)
   ].map(sanitizeGate);
   const summary = summarize(gates);
   return {
@@ -97,11 +102,52 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
       baselines: Boolean(options.baselines),
       workflowAudit: Boolean(options.workflowAudit),
       securityAudit: Boolean(options.securityAudit),
-      costAudit: Boolean(options.costAudit)
+      costAudit: Boolean(options.costAudit),
+      runHistory: Boolean(options.runHistory)
     },
     gates,
     nextActions: nextActions(gates)
   };
+}
+
+function historyGates(runHistory?: RunHistoryReport): ReadinessGate[] {
+  if (!runHistory?.trend.hasPrevious) return [];
+  if (runHistory.trend.direction === "regressed") {
+    const statusRegressed = runHistory.trend.statusChanged?.to === "failed";
+    return [
+      gate(
+        "history:regressed",
+        "history",
+        statusRegressed ? "blocked" : "warning",
+        "Latest run regressed from previous history",
+        statusRegressed
+          ? "The latest recorded run changed from passing to failing."
+          : "The latest recorded run is worse than the previous run in one or more visual QA signals.",
+        [
+          `direction=${runHistory.trend.direction}`,
+          runHistory.trend.statusChanged
+            ? `status=${runHistory.trend.statusChanged.from ?? "unknown"}->${runHistory.trend.statusChanged.to ?? "unknown"}`
+            : "",
+          runHistory.trend.mutationScoreDelta === undefined ? "" : `mutationScoreDelta=${runHistory.trend.mutationScoreDelta}`,
+          runHistory.trend.failedContractsDelta === undefined ? "" : `failedContractsDelta=${runHistory.trend.failedContractsDelta}`,
+          runHistory.trend.visualDiffsDelta === undefined ? "" : `visualDiffsDelta=${runHistory.trend.visualDiffsDelta}`
+        ].filter(Boolean),
+        [".visual-hive/history.json"],
+        ["Compare latest and previous archived reports before accepting the current run."]
+      )
+    ];
+  }
+  return [
+    gate(
+      "history:stable-or-improved",
+      "history",
+      "passed",
+      "Run history is stable or improved",
+      `Latest trend is ${runHistory.trend.direction}.`,
+      runHistory.trend.reasons.slice(0, 5),
+      [".visual-hive/history.json"]
+    )
+  ];
 }
 
 function configGate(config: VisualHiveConfig): ReadinessGate {

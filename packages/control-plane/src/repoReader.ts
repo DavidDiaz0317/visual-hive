@@ -185,7 +185,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         contractAudit,
         flowAudit,
         scheduleAudit,
-        workflowAudit
+        workflowAudit,
+        runHistory
       })
     : undefined;
   const readinessReport = config
@@ -197,7 +198,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         baselines: baselineList,
         workflowAudit,
         securityAudit,
-        costAudit
+        costAudit,
+        runHistory
       })
     : undefined;
 

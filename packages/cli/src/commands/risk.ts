@@ -18,6 +18,7 @@ import {
   type Plan,
   type Report,
   type RiskRegisterReport,
+  type RunHistoryReport,
   type ScheduleAuditReport,
   type TargetAuditReport,
   type WorkflowAuditReport
@@ -35,6 +36,7 @@ export interface RiskCommandOptions {
   flows?: string;
   schedules?: string;
   workflows?: string;
+  history?: string;
   workflowDir?: string;
   format?: "markdown" | "json";
 }
@@ -66,6 +68,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
   const workflowAudit =
     (await readOptionalJson<WorkflowAuditReport>(path.resolve(loaded.rootDir, options.workflows ?? path.join(".visual-hive", "workflows.json")))) ??
     (await auditWorkflowDirIfPresent(loaded.config, loaded.rootDir, options.workflowDir));
+  const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
 
   const risk = analyzeRisk(loaded.config, {
     plan,
@@ -76,7 +79,8 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
     contractAudit,
     flowAudit,
     scheduleAudit,
-    workflowAudit
+    workflowAudit,
+    runHistory
   });
   const reportPath = path.join(hiveRoot, "risk.json");
   await writeJson(reportPath, risk);

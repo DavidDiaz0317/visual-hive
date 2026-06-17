@@ -38,7 +38,8 @@
         "contractAudit": { "type": "boolean" },
         "flowAudit": { "type": "boolean" },
         "scheduleAudit": { "type": "boolean" },
-        "workflowAudit": { "type": "boolean" }
+        "workflowAudit": { "type": "boolean" },
+        "runHistory": { "type": "boolean" }
       }
     },
     "risks": {
@@ -81,6 +82,7 @@
             "workflow_safety",
             "provider_policy",
             "environment",
+            "history_regression",
             "planning"
           ]
         },

@@ -3,6 +3,7 @@ import type { ContractAuditReport } from "../contracts/audit.js";
 import type { CoverageReport } from "../coverage/analyze.js";
 import type { FlowAuditReport } from "../flows/audit.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
+import type { RunHistoryReport } from "../history/record.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { ScheduleAuditReport } from "../schedules/audit.js";
 import type { TargetAuditReport } from "../targets/audit.js";
@@ -20,6 +21,7 @@ export type RiskCategory =
   | "workflow_safety"
   | "provider_policy"
   | "environment"
+  | "history_regression"
   | "planning";
 
 export interface RiskRegisterReport {
@@ -54,6 +56,7 @@ export interface RiskInputs {
   flowAudit: boolean;
   scheduleAudit: boolean;
   workflowAudit: boolean;
+  runHistory: boolean;
 }
 
 export interface RiskItem {
@@ -81,6 +84,7 @@ export interface AnalyzeRiskOptions {
   flowAudit?: FlowAuditReport;
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
+  runHistory?: RunHistoryReport;
   now?: Date;
 }
 
@@ -95,7 +99,8 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...flowRisks(options.flowAudit),
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
-    ...providerRisks(options.plan, options.report)
+    ...providerRisks(options.plan, options.report),
+    ...historyRisks(options.runHistory)
   ]
     .map((risk) => sanitizeRisk(risk))
     .sort(compareRisks);
@@ -114,11 +119,47 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       contractAudit: Boolean(options.contractAudit),
       flowAudit: Boolean(options.flowAudit),
       scheduleAudit: Boolean(options.scheduleAudit),
-      workflowAudit: Boolean(options.workflowAudit)
+      workflowAudit: Boolean(options.workflowAudit),
+      runHistory: Boolean(options.runHistory)
     },
     risks,
     recommendations: recommendations(risks)
   };
+}
+
+function historyRisks(runHistory?: RunHistoryReport): RiskItem[] {
+  if (!runHistory?.trend.hasPrevious || runHistory.trend.direction !== "regressed") return [];
+  const statusRegressed = runHistory.trend.statusChanged?.to === "failed";
+  return [
+    {
+      id: "history:latest-run-regressed",
+      category: "history_regression",
+      severity: statusRegressed ? "high" : "medium",
+      title: "Latest run regressed compared with previous history",
+      message: statusRegressed
+        ? "The latest recorded run changed from passing to failing."
+        : "The latest recorded run shows worse visual QA signals than the previous recorded run.",
+      evidence: [
+        `direction=${runHistory.trend.direction}`,
+        runHistory.trend.statusChanged
+          ? `status=${runHistory.trend.statusChanged.from ?? "unknown"}->${runHistory.trend.statusChanged.to ?? "unknown"}`
+          : "",
+        runHistory.trend.mutationScoreDelta === undefined ? "" : `mutationScoreDelta=${runHistory.trend.mutationScoreDelta}`,
+        runHistory.trend.failedContractsDelta === undefined ? "" : `failedContractsDelta=${runHistory.trend.failedContractsDelta}`,
+        runHistory.trend.visualDiffsDelta === undefined ? "" : `visualDiffsDelta=${runHistory.trend.visualDiffsDelta}`,
+        ...runHistory.trend.reasons.slice(0, 5)
+      ].filter(Boolean),
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/history.json"],
+      suggestedActions: [
+        "Compare the latest and previous archived reports before approving baselines.",
+        "Inspect changed contracts, mutation score, visual diffs, and baseline deltas in the run history."
+      ],
+      prBlocking: statusRegressed,
+      trustedOnly: false
+    }
+  ];
 }
 
 function planningRisks(plan?: Plan): RiskItem[] {
@@ -432,6 +473,7 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "workflow_safety")) recs.add("Repair GitHub workflow safety findings before relying on CI automation.");
   if (risks.some((risk) => risk.category === "environment")) recs.add("Configure required secret names only in trusted scheduled/manual environments.");
   if (risks.some((risk) => risk.category === "coverage_gap")) recs.add("Add contracts or changed-file rules for uncovered high-risk areas.");
+  if (risks.some((risk) => risk.category === "history_regression")) recs.add("Compare latest and previous run history before accepting the current visual QA state.");
   return [...recs];
 }
 

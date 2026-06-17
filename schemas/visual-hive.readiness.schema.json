@@ -32,7 +32,8 @@
         "baselines": { "type": "boolean" },
         "workflowAudit": { "type": "boolean" },
         "securityAudit": { "type": "boolean" },
-        "costAudit": { "type": "boolean" }
+        "costAudit": { "type": "boolean" },
+        "runHistory": { "type": "boolean" }
       },
       "additionalProperties": false
     },
@@ -44,7 +45,7 @@
         "properties": {
           "id": { "type": "string" },
           "category": {
-            "enum": ["config", "planning", "deterministic", "baselines", "mutation", "workflow", "security", "provider", "llm", "cost"]
+            "enum": ["config", "planning", "deterministic", "baselines", "mutation", "workflow", "security", "provider", "llm", "cost", "history"]
           },
           "status": { "enum": ["passed", "warning", "blocked", "missing"] },
           "title": { "type": "string" },

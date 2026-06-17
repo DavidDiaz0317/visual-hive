@@ -31,4 +31,6 @@ Use `visual-hive history` without `--record` to print the existing history index
 
 The `trend` section compares the latest recorded run with the previous recorded run. It is intentionally simple and deterministic: a recovered deterministic status, higher mutation score, fewer failed contracts, fewer visual diffs, fewer missing/created baselines, and fewer console/page errors move the direction toward `improved`; the opposite moves it toward `regressed`. With fewer than two runs, the trend is `unknown`.
 
+When `.visual-hive/history.json` is present, `visual-hive risk` and `visual-hive readiness` consume it as optional evidence. A pass-to-fail regression becomes a high-risk, blocking signal; smaller regressions become review warnings. Missing history does not block first-run onboarding.
+
 The artifact schema is tracked at `schemas/visual-hive.history.schema.json`. The Control Plane Runs page uses the same model to show run trends and archived report links.

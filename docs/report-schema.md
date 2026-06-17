@@ -144,6 +144,8 @@ Schema: `schemas/visual-hive.history.schema.json`
 
 The run history index records archived run entries created by `visual-hive history --record`. Each entry summarizes deterministic status, selected contracts and targets, changed files, visual diff counts, baseline counts, console/page errors, mutation score, provider statuses, and links to archived artifacts. The top-level `trend` object compares the latest recorded run with the previous one and records direction, deterministic status change, mutation score delta, failed contract delta, visual diff delta, baseline deltas, console/page error deltas, and human-readable reasons. Text artifacts copied into history, including `issue.md`, `pr-comment.md`, and `baseline-review.md`, are sanitized. `triage.json` is archived as structured sanitized JSON.
 
+`risk.json` and `readiness.json` may include optional run-history evidence when `.visual-hive/history.json` exists. A regressed trend is reported as `history_regression` risk evidence and as a `history` readiness gate; missing history is not treated as missing readiness evidence for first-time setup.
+
 ## LLM Usage
 
 Path: `.visual-hive/llm-usage.json`
