@@ -876,12 +876,28 @@ describe("control plane", () => {
       commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"],
       safety: "local_only"
     });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")).toMatchObject({
+      enabled: true,
+      commandIds: ["coverage", "improve-coverage"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")?.expectedArtifacts).toEqual(
+      expect.arrayContaining([".visual-hive/coverage.json", ".visual-hive/coverage-recommendations.json"])
+    );
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "readiness")?.expectedArtifacts).toContain(".visual-hive/readiness.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "baselines")).toMatchObject({
       safety: "pr_safe",
       expectedArtifacts: [".visual-hive/baselines.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "coverage")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/coverage.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "improve-coverage")).toMatchObject({
+      safety: "pr_safe",
+      expectedArtifacts: [".visual-hive/coverage-recommendations.json"]
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
@@ -1271,6 +1287,47 @@ contracts:
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
       expect(snapshot.actionHistory?.summary.total).toBe(6);
       expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes the coverage-improvement run profile as an allowlisted recommendation workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "coverage-improvement" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "coverage",
+        "improve-coverage"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "coverage:coverage",
+        "improve-coverage:improve-coverage"
+      ]);
+      expect(calls[0]?.args.slice(-3)).toEqual(["coverage", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[1]?.args.slice(-3)).toEqual(["improve-coverage", "--config", path.resolve(fixture.configPath)]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(2);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("improve-coverage");
     } finally {
       await server.close();
     }

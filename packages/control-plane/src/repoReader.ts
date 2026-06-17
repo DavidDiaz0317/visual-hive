@@ -277,6 +277,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"]
     },
     {
+      id: "coverage-improvement",
+      label: "Coverage improvement",
+      description: "Refresh deterministic coverage evidence and generate guarded config recommendations that can be previewed or applied from the Coverage page.",
+      commandIds: ["coverage", "improve-coverage"]
+    },
+    {
       id: "security-audit",
       label: "Security posture audit",
       description: "Validate readiness, audit workflow/config/provider/LLM security posture, then refresh the markdown report.",
@@ -405,6 +411,28 @@ function buildRunbook(
       description: "Run contract-aware mutation operators to verify that deterministic contracts catch intentional UI/auth/API breakage.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/mutation-report.json"]
+    },
+    {
+      id: "coverage",
+      label: "Analyze visual coverage",
+      lane: "local",
+      command: `visual-hive coverage ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write .visual-hive/coverage.json from the current config, plan, changed-file selection, routes, viewports, targets, and contract coverage gaps.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/coverage.json"]
+    },
+    {
+      id: "improve-coverage",
+      label: "Generate coverage recommendations",
+      lane: "local",
+      command: `visual-hive improve-coverage ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write .visual-hive/coverage-recommendations.json with deterministic missing-test and config recommendations for review before any guarded apply action.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/coverage-recommendations.json"]
     },
     {
       id: "security",

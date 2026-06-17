@@ -16,7 +16,19 @@ import type {
   ResolvedControlPlaneOptions
 } from "./types.js";
 
-const EXECUTABLE_COMMAND_IDS = new Set(["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "mutate", "security", "costs", "readiness"]);
+const EXECUTABLE_COMMAND_IDS = new Set([
+  "doctor",
+  "plan-pr",
+  "run-ci",
+  "baselines",
+  "coverage",
+  "improve-coverage",
+  "triage-report",
+  "mutate",
+  "security",
+  "costs",
+  "readiness"
+]);
 const OUTPUT_TAIL_CHARS = 12_000;
 const MAX_OUTPUT_BYTES = 2_000_000;
 
@@ -172,6 +184,10 @@ function commandSteps(commandId: string, configPath: string): CommandStep[] {
       return [{ stepId: "run-ci", args: ["run", "--config", configPath, "--ci"] }];
     case "baselines":
       return [{ stepId: "baselines", args: ["baselines", "list", "--config", configPath, "--write"] }];
+    case "coverage":
+      return [{ stepId: "coverage", args: ["coverage", "--config", configPath] }];
+    case "improve-coverage":
+      return [{ stepId: "improve-coverage", args: ["improve-coverage", "--config", configPath] }];
     case "triage-report":
       return [
         { stepId: "triage", args: ["triage", "--config", configPath] },
