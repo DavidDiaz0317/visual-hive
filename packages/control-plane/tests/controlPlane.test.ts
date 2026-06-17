@@ -761,6 +761,45 @@ jobs:
   return { repoRoot, configPath };
 }
 
+async function writeCoverageRecommendationFixture(repoRoot: string): Promise<void> {
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "coverage-recommendations.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        summary: {
+          total: 1,
+          high: 0,
+          medium: 1,
+          low: 0,
+          fromCoverageGaps: 1,
+          fromMutationSurvivors: 0
+        },
+        recommendations: [
+          {
+            id: "changed-file-rule:src/auth/Login.tsx",
+            kind: "add_changed_file_rule",
+            severity: "medium",
+            title: "Map changed file \"src/auth/Login.tsx\" to visual coverage",
+            rationale: ["Changed file did not match any selection rule."],
+            changedFile: "src/auth/Login.tsx",
+            contractId: "dashboard",
+            targetId: "localPreview",
+            suggestedConfigYaml:
+              "selection:\n  changedFiles:\n    - pattern: src/auth/**\n      contracts:\n        - dashboard\n      risk: high",
+            suggestedTests: ["Add a selection.changedFiles rule for src/auth/**."]
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+}
+
 describe("control plane", () => {
   it("builds a snapshot from config and report artifacts", async () => {
     const fixture = await makeFixture();
@@ -1385,6 +1424,9 @@ contracts:
       expect(appJs).toContain("Diff pixels");
       expect(appJs).toContain("Coverage improvement plan");
       expect(appJs).toContain("function coverageImprovementCard");
+      expect(appJs).toContain("/api/coverage/apply-recommendation");
+      expect(appJs).toContain("function applyCoverageRecommendation");
+      expect(appJs).toContain("Apply after review");
       expect(appJs).toContain("Workflow templates");
       expect(appJs).toContain("trusted workflow_run lane");
       expect(appJs).toContain("/api/workflows/write-templates");
@@ -1690,6 +1732,65 @@ contracts:
       expect(payload.auditPath).toBe(".visual-hive/config-edits.json");
       await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("name: ui-fixture-saved");
       await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8")).resolves.toContain("ui-fixture-saved");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("previews and applies coverage recommendation config edits through the local API", async () => {
+    const fixture = await makeFixture();
+    await writeCoverageRecommendationFixture(fixture.repoRoot);
+    const originalConfig = await readFile(fixture.configPath, "utf8");
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });
+    try {
+      const preview = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx" })
+      });
+      const previewPayload = await preview.json();
+      expect(preview.status).toBe(200);
+      expect(previewPayload.saved).toBe(false);
+      expect(previewPayload.applyResult.diff).toContain("+    - pattern: src/auth/**");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toBe(originalConfig);
+
+      const applied = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx", confirm: true })
+      });
+      const appliedPayload = await applied.json();
+      expect(applied.status).toBe(200);
+      expect(appliedPayload.saved).toBe(true);
+      expect(appliedPayload.config.auditPath).toBe(".visual-hive/config-edits.json");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("pattern: src/auth/**");
+      await expect(readFile(path.join(fixture.repoRoot, ".visual-hive", "config-edits.json"), "utf8")).resolves.toContain("src/auth/**");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("allows coverage recommendation previews but blocks applying them in read-only mode", async () => {
+    const fixture = await makeFixture();
+    await writeCoverageRecommendationFixture(fixture.repoRoot);
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const preview = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx" })
+      });
+      expect(preview.status).toBe(200);
+
+      const blocked = await fetch(`${server.url}/api/coverage/apply-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId: "changed-file-rule:src/auth/Login.tsx", confirm: true })
+      });
+      const blockedPayload = await blocked.json();
+      expect(blocked.status).toBe(403);
+      expect(blockedPayload.error).toContain("read-only");
+      await expect(readFile(fixture.configPath, "utf8")).resolves.not.toContain("src/auth/**");
     } finally {
       await server.close();
     }

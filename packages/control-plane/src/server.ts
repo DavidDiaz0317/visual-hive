@@ -1,16 +1,19 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import {
   SetupProfileSchema,
   addConnection,
+  applyCoverageImprovementRecommendation,
   approveBaseline,
   recommendSetup,
   rejectBaseline,
   removeConnection,
   sanitizeText,
-  writeJson
+  writeJson,
+  type CoverageImprovementReport
 } from "@visual-hive/core";
 import { executeRunbookCommand, executeRunbookProfile } from "./commandExecutor.js";
 import { saveConfigDraft, validateConfigDraft, writeRecommendedConfigFromSetup, writeRecommendedDocsFromSetup } from "./configEditor.js";
@@ -142,6 +145,49 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       }
       const result = await saveConfigDraft(await optionsForRequest(options, url), requiredString(body.content, "content"), true);
       sendJson(response, result);
+      return;
+    }
+    if (url.pathname === "/api/coverage/apply-recommendation") {
+      if (request.method !== "POST") return methodNotAllowed(response);
+      const body = await readJsonBody(request);
+      const resolved = await resolveRequestOptions(options, url);
+      if (body.confirm === true && resolved.readOnly) {
+        sendJson(response, { ok: false, error: "Control Plane is read-only. Restart without --read-only to apply coverage recommendations." }, 403);
+        return;
+      }
+      try {
+        const recommendationId = requiredString(body.recommendationId, "recommendationId");
+        const snapshot = await createControlPlaneSnapshot(options, connectionIdFromUrl(url));
+        if (!snapshot.config) {
+          sendJson(response, { ok: false, error: "A valid Visual Hive config is required before applying coverage recommendations." }, 400);
+          return;
+        }
+        const recommendationPath = path.join(resolved.configRoot, ".visual-hive", "coverage-recommendations.json");
+        const recommendationReport = await readCoverageImprovementReport(recommendationPath);
+        const currentConfig = await readFile(resolved.configPath, "utf8");
+        const applyResult = applyCoverageImprovementRecommendation(snapshot.config, recommendationReport, recommendationId, currentConfig);
+        if (body.confirm !== true) {
+          sendJson(response, {
+            ok: true,
+            saved: false,
+            recommendationPath: ".visual-hive/coverage-recommendations.json",
+            applyResult
+          });
+          return;
+        }
+        const saveResult = applyResult.applied
+          ? await saveConfigDraft(await optionsForRequest(options, url), applyResult.configText, true)
+          : undefined;
+        sendJson(response, {
+          ok: true,
+          saved: Boolean(saveResult),
+          recommendationPath: ".visual-hive/coverage-recommendations.json",
+          applyResult,
+          config: saveResult
+        });
+      } catch (error) {
+        sendJson(response, { ok: false, error: sanitizeText(error instanceof Error ? error.message : String(error)) }, 400);
+      }
       return;
     }
     if (url.pathname === "/api/setup/write-config") {
@@ -458,6 +504,24 @@ async function optionsForRequest(options: ControlPlaneOptions, url: URL): Promis
     readOnly: resolved.readOnly,
     demo: false
   };
+}
+
+async function readCoverageImprovementReport(filePath: string): Promise<CoverageImprovementReport> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    throw new Error(`Missing coverage recommendation artifact. Run "visual-hive improve-coverage" first. Details: ${sanitizeText(error instanceof Error ? error.message : String(error))}`);
+  }
+  try {
+    const parsed = JSON.parse(raw) as CoverageImprovementReport;
+    if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.recommendations)) {
+      throw new Error("schemaVersion or recommendations array is invalid");
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`Invalid coverage recommendation artifact. Re-run "visual-hive improve-coverage". Details: ${sanitizeText(error instanceof Error ? error.message : String(error))}`);
+  }
 }
 
 function sendJson(response: ServerResponse, value: unknown, status = 200): void {

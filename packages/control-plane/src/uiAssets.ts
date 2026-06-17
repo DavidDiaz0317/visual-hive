@@ -1025,7 +1025,8 @@ function coverageImprovementCard(report) {
       esc(report.summary.fromCoverageGaps),
       report.summary.fromMutationSurvivors ? '<span class="bad">' + esc(report.summary.fromMutationSurvivors) + '</span>' : '<span class="ok">0</span>'
     ]]) +
-    table(["Recommendation", "Context", "Suggested tests", "Config snippet"], report.recommendations.slice(0, 10).map(r => [
+    '<p class="muted">Preview a validated config diff before applying any recommendation. Apply writes through the same guarded config editor audit path.</p><pre id="coverage-repair-status" class="muted">No coverage recommendation selected.</pre>' +
+    table(["Recommendation", "Context", "Suggested tests", "Config snippet", "Actions"], report.recommendations.slice(0, 10).map(r => [
       '<b>' + esc(r.title) + '</b><p class="muted">' + esc(r.kind) + ' / ' + esc(r.severity) + '</p>' + failureList("Rationale", r.rationale || []),
       [
         r.targetId ? "target=" + r.targetId : "",
@@ -1036,7 +1037,8 @@ function coverageImprovementCard(report) {
         r.mutationOperator ? "mutation=" + r.mutationOperator : ""
       ].filter(Boolean).map(esc).join("<br>") || '<span class="muted">global</span>',
       list(r.suggestedTests || []),
-      r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' + copyButton(r.suggestedConfigYaml, r.title + " config snippet") : '<span class="muted">none</span>'
+      r.suggestedConfigYaml ? '<pre>' + esc(r.suggestedConfigYaml) + '</pre>' + copyButton(r.suggestedConfigYaml, r.title + " config snippet") : '<span class="muted">none</span>',
+      '<div class="actions compact"><button class="button link-button coverage-apply" data-id="' + escAttr(r.id) + '" data-save="false">Preview diff</button><button class="button link-button coverage-apply" data-id="' + escAttr(r.id) + '" data-save="true" ' + (snapshot.readOnly ? "disabled" : "") + '>Apply after review</button></div>'
     ])) +
     (report.recommendations.length > 10 ? '<p class="muted">Showing 10 of ' + esc(report.recommendations.length) + ' recommendations.</p>' : ''));
 }
@@ -1673,6 +1675,7 @@ function wireActions() {
   document.querySelectorAll(".setup-profile-select").forEach((button) => button.addEventListener("click", () => regenerateSetupRecommendation(button.dataset.profile || "")));
   document.querySelectorAll(".provider-decision").forEach((button) => button.addEventListener("click", () => recordProviderDecision(button.dataset.provider || "", button.dataset.decision || "")));
   document.querySelectorAll(".llm-decision").forEach((button) => button.addEventListener("click", () => recordLLMDecision(button.dataset.decision || "")));
+  document.querySelectorAll(".coverage-apply").forEach((button) => button.addEventListener("click", () => applyCoverageRecommendation(button.dataset.id || "", button.dataset.save === "true")));
   const workflowWriteAll = document.querySelector("#workflow-write-all");
   if (workflowWriteAll) workflowWriteAll.addEventListener("click", () => writeWorkflowTemplates(false));
   const workflowOverwriteAll = document.querySelector("#workflow-overwrite-all");
@@ -1935,6 +1938,34 @@ async function recordLLMDecision(decision) {
   status.textContent = "LLM decision recorded: " + payload.decision.decision + ". Artifact: " + payload.decisionPath;
   snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
   render();
+}
+
+async function applyCoverageRecommendation(recommendationId, save) {
+  const status = document.querySelector("#coverage-repair-status");
+  if (!recommendationId || !status) return;
+  if (save && !confirm("Apply coverage recommendation " + recommendationId + " to visual-hive.config.yaml after reviewing the diff?")) return;
+  status.className = "muted";
+  status.textContent = save ? "Applying coverage recommendation..." : "Previewing coverage recommendation diff...";
+  const response = await fetch(apiUrl("/api/coverage/apply-recommendation"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recommendationId, confirm: save })
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { error: text }; }
+  if (!response.ok || payload.ok === false) {
+    status.className = "bad";
+    status.textContent = payload.error || "Coverage recommendation failed.";
+    return;
+  }
+  const diff = payload.applyResult?.diff || "No config diff was returned.";
+  status.className = payload.saved ? "ok" : "muted";
+  status.textContent = (payload.saved ? "Saved config. Audit: " + (payload.config?.auditPath || "unknown") : "Preview only. Review this diff, then click Apply after review.") + "\\n\\n" + diff;
+  if (payload.saved) {
+    snapshot = await fetch(apiUrl("/api/snapshot")).then(r => r.json());
+    render();
+  }
 }
 
 async function writeRecommendedConfig() {
