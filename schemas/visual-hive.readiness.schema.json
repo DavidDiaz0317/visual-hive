@@ -33,7 +33,8 @@
         "workflowAudit": { "type": "boolean" },
         "securityAudit": { "type": "boolean" },
         "costAudit": { "type": "boolean" },
-        "runHistory": { "type": "boolean" }
+        "runHistory": { "type": "boolean" },
+        "providerDecisions": { "type": "boolean" }
       },
       "additionalProperties": false
     },

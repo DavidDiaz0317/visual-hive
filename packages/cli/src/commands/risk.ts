@@ -9,6 +9,7 @@ import {
   auditTargets,
   auditWorkflows,
   loadConfig,
+  readProviderDecisionLog,
   readJson,
   writeJson,
   type ContractAuditReport,
@@ -16,6 +17,7 @@ import {
   type FlowAuditReport,
   type MutationReport,
   type Plan,
+  type ProviderDecisionLog,
   type Report,
   type RiskRegisterReport,
   type RunHistoryReport,
@@ -36,6 +38,7 @@ export interface RiskCommandOptions {
   flows?: string;
   schedules?: string;
   workflows?: string;
+  providerDecisions?: string;
   history?: string;
   workflowDir?: string;
   format?: "markdown" | "json";
@@ -68,6 +71,9 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
   const workflowAudit =
     (await readOptionalJson<WorkflowAuditReport>(path.resolve(loaded.rootDir, options.workflows ?? path.join(".visual-hive", "workflows.json")))) ??
     (await auditWorkflowDirIfPresent(loaded.config, loaded.rootDir, options.workflowDir));
+  const providerDecisions = await readOptionalProviderDecisions(
+    path.resolve(loaded.rootDir, options.providerDecisions ?? path.join(".visual-hive", "provider-decisions.json"))
+  );
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
 
   const risk = analyzeRisk(loaded.config, {
@@ -80,6 +86,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
     flowAudit,
     scheduleAudit,
     workflowAudit,
+    providerDecisions,
     runHistory
   });
   const reportPath = path.join(hiveRoot, "risk.json");
@@ -117,6 +124,14 @@ export function formatRiskRegister(report: RiskRegisterReport, reportPath: strin
 async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {
   try {
     return await readJson<T>(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readOptionalProviderDecisions(filePath: string): Promise<ProviderDecisionLog | undefined> {
+  try {
+    return await readProviderDecisionLog(filePath);
   } catch {
     return undefined;
   }

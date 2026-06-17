@@ -39,7 +39,8 @@
         "flowAudit": { "type": "boolean" },
         "scheduleAudit": { "type": "boolean" },
         "workflowAudit": { "type": "boolean" },
-        "runHistory": { "type": "boolean" }
+        "runHistory": { "type": "boolean" },
+        "providerDecisions": { "type": "boolean" }
       }
     },
     "risks": {

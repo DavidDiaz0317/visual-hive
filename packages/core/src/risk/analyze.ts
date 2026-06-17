@@ -8,6 +8,7 @@ import type { MutationReport, Report } from "../reports/types.js";
 import type { ScheduleAuditReport } from "../schedules/audit.js";
 import type { TargetAuditReport } from "../targets/audit.js";
 import type { Plan } from "../planner/types.js";
+import type { ProviderDecisionLog } from "../providers/decisions.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type RiskSeverity = "low" | "medium" | "high" | "critical";
@@ -57,6 +58,7 @@ export interface RiskInputs {
   scheduleAudit: boolean;
   workflowAudit: boolean;
   runHistory: boolean;
+  providerDecisions: boolean;
 }
 
 export interface RiskItem {
@@ -85,6 +87,7 @@ export interface AnalyzeRiskOptions {
   scheduleAudit?: ScheduleAuditReport;
   workflowAudit?: WorkflowAuditReport;
   runHistory?: RunHistoryReport;
+  providerDecisions?: ProviderDecisionLog;
   now?: Date;
 }
 
@@ -99,7 +102,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...flowRisks(options.flowAudit),
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
-    ...providerRisks(options.plan, options.report),
+    ...providerRisks(options.plan, options.report, options.providerDecisions),
     ...historyRisks(options.runHistory)
   ]
     .map((risk) => sanitizeRisk(risk))
@@ -120,7 +123,8 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       flowAudit: Boolean(options.flowAudit),
       scheduleAudit: Boolean(options.scheduleAudit),
       workflowAudit: Boolean(options.workflowAudit),
-      runHistory: Boolean(options.runHistory)
+      runHistory: Boolean(options.runHistory),
+      providerDecisions: Boolean(options.providerDecisions)
     },
     risks,
     recommendations: recommendations(risks)
@@ -406,7 +410,7 @@ function workflowRisks(workflowAudit?: WorkflowAuditReport): RiskItem[] {
   }));
 }
 
-function providerRisks(plan?: Plan, report?: Report): RiskItem[] {
+function providerRisks(plan?: Plan, report?: Report, providerDecisions?: ProviderDecisionLog): RiskItem[] {
   const planRisks =
     plan?.providerPolicy
       .filter((provider) => provider.enabled && !provider.externalUploadAllowed && provider.providerId !== "playwright")
@@ -441,7 +445,43 @@ function providerRisks(plan?: Plan, report?: Report): RiskItem[] {
         prBlocking: false,
         trustedOnly: true
       })) ?? [];
-  return [...planRisks, ...resultRisks];
+  const decisionRisks =
+    providerDecisions?.decisions.map((decision) => {
+      const providerEnabledExternally = plan?.providerPolicy.some(
+        (provider) => provider.providerId === decision.providerId && provider.enabled && provider.mode === "external"
+      );
+      const skippedButEnabled = decision.decision === "skip" && providerEnabledExternally;
+      const needsReviewButEnabled = decision.decision === "review_later" && providerEnabledExternally;
+      return {
+        id: `provider-decision:${decision.providerId}`,
+        category: "provider_policy" as const,
+        severity: skippedButEnabled || needsReviewButEnabled ? ("medium" as const) : ("low" as const),
+        title:
+          skippedButEnabled || needsReviewButEnabled
+            ? `Provider decision conflicts with enabled provider: ${decision.providerId}`
+            : `Provider decision recorded: ${decision.providerId}`,
+        message:
+          skippedButEnabled || needsReviewButEnabled
+            ? "A provider has a local governance decision to skip or review later, but the current plan shows it enabled in external mode."
+            : `Provider governance decision is ${decision.decision}.`,
+        evidence: [
+          `decision=${decision.decision}`,
+          `source=${decision.source}`,
+          `externalCallsMade=${decision.externalCallsMade}`,
+          decision.reason
+        ],
+        contractIds: [],
+        targetIds: [],
+        artifacts: [".visual-hive/provider-decisions.json"],
+        suggestedActions:
+          skippedButEnabled || needsReviewButEnabled
+            ? ["Align provider config with the recorded governance decision before enabling trusted external uploads."]
+            : ["Keep provider decisions under review when moving from local-only to trusted provider-backed lanes."],
+        prBlocking: false,
+        trustedOnly: true
+      };
+    }) ?? [];
+  return [...planRisks, ...resultRisks, ...decisionRisks];
 }
 
 function summarizeRisks(risks: RiskItem[]): RiskSummary {

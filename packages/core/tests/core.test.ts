@@ -1040,6 +1040,21 @@ describe("risk register", () => {
       flowAudit: auditFlows(config, { plan, report }),
       targetAudit: targets,
       workflowAudit: workflows,
+      providerDecisions: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        decisions: [
+          {
+            providerId: "argos",
+            label: "Argos",
+            decision: "skip",
+            reason: "Use local Playwright artifacts for now.",
+            decidedAt: "2026-06-15T00:00:00.000Z",
+            source: "cli",
+            externalCallsMade: 0
+          }
+        ]
+      },
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
@@ -1047,6 +1062,7 @@ describe("risk register", () => {
     expect(risk.summary.total).toBeGreaterThan(0);
     expect(risk.summary.prBlocking).toBeGreaterThan(0);
     expect(risk.inputs.flowAudit).toBe(true);
+    expect(risk.inputs.providerDecisions).toBe(true);
     expect(risk.risks.map((item) => item.category)).toEqual(
       expect.arrayContaining([
         "deterministic_failure",
@@ -1058,6 +1074,10 @@ describe("risk register", () => {
         "provider_policy"
       ])
     );
+    expect(risk.risks.find((item) => item.id === "provider-decision:argos")).toMatchObject({
+      category: "provider_policy",
+      trustedOnly: true
+    });
     expect(risk.risks.find((item) => item.category === "deterministic_failure")?.message).toContain("[REDACTED]");
     expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
     expect(risk.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
@@ -1916,6 +1936,21 @@ jobs:
       workflowAudit: workflows,
       securityAudit,
       costAudit,
+      providerDecisions: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        decisions: [
+          {
+            providerId: "argos",
+            label: "Argos",
+            decision: "skip",
+            reason: "No paid provider for this repo.",
+            decidedAt: "2026-06-15T00:00:00.000Z",
+            source: "cli",
+            externalCallsMade: 0
+          }
+        ]
+      },
       now: new Date("2026-06-15T00:03:00.000Z")
     });
 
@@ -1923,6 +1958,7 @@ jobs:
     expect(readiness.status).toBe("attention");
     expect(readiness.gates.find((gate) => gate.id === "deterministic:status")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "baselines:clean")?.status).toBe("passed");
+    expect(readiness.gates.find((gate) => gate.id === "provider:decisions-recorded")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "security:posture")?.status).toBe("warning");
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
   });

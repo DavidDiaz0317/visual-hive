@@ -62,6 +62,8 @@ Schema: `schemas/visual-hive.provider-decisions.schema.json`
 
 Provider decisions are local governance records written through the shared core helper used by both the CLI and Control Plane. They record provider ID, optional label, decision (`skip`, `review_later`, or `approve_trusted_setup`), sanitized reason, timestamp, source (`cli` or `control-plane`), and `externalCallsMade: 0`. They do not enable credentials, billing, external uploads, or provider network calls.
 
+When present, `.visual-hive/provider-decisions.json` is also loaded by `visual-hive risk` and `visual-hive readiness`. Risk reports surface provider-decision rows as trusted-only governance evidence, and readiness reports show whether optional providers remain local-only, have recorded skip/review decisions, or conflict with an enabled external-provider config. These gates are advisory governance evidence only; deterministic Playwright contracts remain the pass/fail oracle.
+
 ## Schedule Audit
 
 Path: `.visual-hive/schedules.json`
@@ -94,7 +96,7 @@ Path: `.visual-hive/risk.json`
 
 Schema: `schemas/visual-hive.risk.schema.json`
 
-The risk register is written by `visual-hive risk`. It prioritizes evidence from the current plan, deterministic report, mutation report, coverage, flow audit, target audit, contract audit, schedule audit, workflow audit, and provider policy. It records a bounded risk score, severity counts, PR-blocking count, trusted-only count, loaded input artifacts, and one row per risk.
+The risk register is written by `visual-hive risk`. It prioritizes evidence from the current plan, deterministic report, mutation report, coverage, flow audit, target audit, contract audit, schedule audit, workflow audit, provider policy, provider decisions, and run history. It records a bounded risk score, severity counts, PR-blocking count, trusted-only count, loaded input artifacts, and one row per risk.
 
 Risk categories include deterministic failures, baseline review needs, mutation adequacy gaps, coverage gaps, flow coverage gaps, target safety, workflow safety, provider policy, environment gaps, and planning gaps. Risk rows include sanitized evidence, related contract/target IDs, artifact paths, suggested actions, and whether the issue blocks the PR-safe lane or belongs in a trusted lane. The risk register is a prioritization layer only; deterministic Playwright contracts and mutation adequacy remain the evidence source.
 
@@ -104,7 +106,7 @@ Path: `.visual-hive/readiness.json`
 
 Schema: `schemas/visual-hive.readiness.schema.json`
 
-The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
+The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, provider decisions, run history, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
 
 When `.visual-hive/readiness.json` exists, `visual-hive report` includes a readiness summary in both Markdown and JSON output. `visual-hive triage` also threads the readiness result into sanitized `.visual-hive/issue.md` and `.visual-hive/pr-comment.md` so PR reviewers can see whether adoption gates are ready, blocked, or missing evidence without opening every supporting artifact.
 

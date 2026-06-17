@@ -6,12 +6,14 @@ import {
   analyzeSecurity,
   auditWorkflows,
   loadConfig,
+  readProviderDecisionLog,
   readJson,
   writeJson,
   type BaselineList,
   type CostAuditReport,
   type MutationReport,
   type Plan,
+  type ProviderDecisionLog,
   type ReadinessReport,
   type Report,
   type RunHistoryReport,
@@ -31,6 +33,7 @@ export interface ReadinessCommandOptions {
   workflowDir?: string;
   security?: string;
   costs?: string;
+  providerDecisions?: string;
   history?: string;
   format?: "markdown" | "json";
 }
@@ -54,6 +57,9 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
   const costAudit =
     (await readOptionalJson<CostAuditReport>(path.resolve(loaded.rootDir, options.costs ?? path.join(".visual-hive", "costs.json")))) ??
     analyzeCosts(loaded.config, { plan, report, mutationReport });
+  const providerDecisions = await readOptionalProviderDecisions(
+    path.resolve(loaded.rootDir, options.providerDecisions ?? path.join(".visual-hive", "provider-decisions.json"))
+  );
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
   const readiness = analyzeReadiness(loaded.config, {
     plan,
@@ -63,6 +69,7 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
     workflowAudit,
     securityAudit,
     costAudit,
+    providerDecisions,
     runHistory
   });
   const reportPath = path.join(hiveRoot, "readiness.json");
@@ -99,6 +106,14 @@ export function formatReadinessReport(report: ReadinessReport, reportPath: strin
 async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {
   try {
     return await readJson<T>(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readOptionalProviderDecisions(filePath: string): Promise<ProviderDecisionLog | undefined> {
+  try {
+    return await readProviderDecisionLog(filePath);
   } catch {
     return undefined;
   }

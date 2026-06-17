@@ -5,6 +5,7 @@ import type { RunHistoryReport } from "../history/record.js";
 import type { Plan } from "../planner/types.js";
 import type { BaselineList } from "../baselines/manage.js";
 import type { MutationReport, Report } from "../reports/types.js";
+import type { ProviderDecisionLog } from "../providers/decisions.js";
 import type { SecurityAuditReport } from "../security/audit.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -56,6 +57,7 @@ export interface ReadinessReport {
     securityAudit: boolean;
     costAudit: boolean;
     runHistory: boolean;
+    providerDecisions: boolean;
   };
   gates: ReadinessGate[];
   nextActions: string[];
@@ -70,6 +72,7 @@ export interface AnalyzeReadinessOptions {
   securityAudit?: SecurityAuditReport;
   costAudit?: CostAuditReport;
   runHistory?: RunHistoryReport;
+  providerDecisions?: ProviderDecisionLog;
   now?: Date;
 }
 
@@ -82,7 +85,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     ...mutationGates(config, options.mutationReport),
     ...workflowGates(options.workflowAudit),
     ...securityGates(options.securityAudit),
-    ...providerGates(config, options.costAudit),
+    ...providerGates(config, options.costAudit, options.providerDecisions),
     ...llmGates(config),
     ...costGates(options.costAudit),
     ...historyGates(options.runHistory)
@@ -103,7 +106,8 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
       workflowAudit: Boolean(options.workflowAudit),
       securityAudit: Boolean(options.securityAudit),
       costAudit: Boolean(options.costAudit),
-      runHistory: Boolean(options.runHistory)
+      runHistory: Boolean(options.runHistory),
+      providerDecisions: Boolean(options.providerDecisions)
     },
     gates,
     nextActions: nextActions(gates)
@@ -346,14 +350,48 @@ function securityGates(securityAudit?: SecurityAuditReport): ReadinessGate[] {
   ];
 }
 
-function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport): ReadinessGate[] {
+function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport, providerDecisions?: ProviderDecisionLog): ReadinessGate[] {
   const externalEnabled = Object.entries(config.providers).filter(
     ([providerId, provider]) => providerId !== "playwright" && provider.enabled && provider.mode === "external"
   );
+  const decisions = providerDecisions?.decisions ?? [];
+  const decisionByProvider = new Map(decisions.map((decision) => [decision.providerId, decision]));
+  const conflictingDecisions = externalEnabled
+    .map(([providerId]) => decisionByProvider.get(providerId))
+    .filter((decision) => decision?.decision === "skip" || decision?.decision === "review_later");
+
+  if (conflictingDecisions.length) {
+    return [
+      gate(
+        "provider:decision-conflict",
+        "provider",
+        "warning",
+        "Provider config conflicts with governance decision",
+        "A provider is enabled in external mode even though the local governance decision is skip or review later.",
+        conflictingDecisions.map((decision) => `${decision!.providerId}=${decision!.decision}`),
+        [".visual-hive/provider-decisions.json", ".visual-hive/costs.json"],
+        ["Align provider config with recorded provider decisions before enabling external uploads in trusted lanes."]
+      )
+    ];
+  }
   if (!externalEnabled.length) {
+    if (decisions.length) {
+      return [
+        gate(
+          "provider:decisions-recorded",
+          "provider",
+          "passed",
+          "Provider governance decisions are recorded",
+          "Optional providers remain governed by local decisions; no external provider is required for the default lane.",
+          decisions.map((decision) => `${decision.providerId}=${decision.decision}; externalCallsMade=${decision.externalCallsMade}`),
+          [".visual-hive/provider-decisions.json"]
+        )
+      ];
+    }
     return [gate("provider:local-only", "provider", "passed", "No external provider is required", "Default Playwright/local artifact mode remains usable without paid services.", [])];
   }
   const missing = costAudit?.providers.filter((provider) => provider.enabled && provider.mode === "external" && provider.missingEnv.length > 0) ?? [];
+  const approved = externalEnabled.filter(([providerId]) => decisionByProvider.get(providerId)?.decision === "approve_trusted_setup");
   return [
     gate(
       "provider:external-enabled",
@@ -361,8 +399,8 @@ function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport): R
       missing.length ? "warning" : "passed",
       "External provider requires trusted setup review",
       `${externalEnabled.length} external provider(s) are enabled.`,
-      externalEnabled.map(([providerId]) => `provider=${providerId}`),
-      [".visual-hive/costs.json"],
+      [...externalEnabled.map(([providerId]) => `provider=${providerId}`), ...approved.map(([providerId]) => `approvedForTrustedSetup=${providerId}`)],
+      [".visual-hive/costs.json", ".visual-hive/provider-decisions.json"],
       ["Confirm credentials, budget policy, and trusted workflow boundaries before external upload."]
     )
   ];

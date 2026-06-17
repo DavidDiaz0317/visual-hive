@@ -1874,6 +1874,21 @@ providers:
     expect(summary).toContain("Provider Decision");
     expect(summary).toContain("does not enable credentials");
     expect(summary).not.toContain("secret-value");
+
+    const risk = await runRiskCommand({ cwd: tempRoot });
+    expect(risk.report.inputs.providerDecisions).toBe(true);
+    expect(risk.report.risks.find((item) => item.id === "provider-decision:argos")).toMatchObject({
+      category: "provider_policy",
+      trustedOnly: true
+    });
+
+    const readiness = await runReadinessCommand({ cwd: tempRoot });
+    expect(readiness.report.inputs.providerDecisions).toBe(true);
+    expect(readiness.report.gates.find((gate) => gate.id === "provider:decisions-recorded")).toMatchObject({
+      category: "provider",
+      status: "passed"
+    });
+
     await expect(
       runProviderDecisionCommand({ cwd: tempRoot, providerId: "not-real", decision: "skip" })
     ).rejects.toThrow(/Unknown provider/);
