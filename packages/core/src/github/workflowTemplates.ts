@@ -46,12 +46,6 @@ jobs:
         if: always()
       - run: npx visual-hive providers --mock-results
         if: always()
-      - run: npx visual-hive triage
-        if: always()
-      - run: npx visual-hive llm
-        if: always()
-      - run: npx visual-hive report --github-step-summary
-        if: always()
       - run: npx visual-hive risk
         if: always()
       - run: npx visual-hive security
@@ -59,6 +53,12 @@ jobs:
       - run: npx visual-hive costs
         if: always()
       - run: npx visual-hive readiness
+        if: always()
+      - run: npx visual-hive triage
+        if: always()
+      - run: npx visual-hive llm
+        if: always()
+      - run: npx visual-hive report --github-step-summary
         if: always()
       - run: npx visual-hive artifacts
         if: always()
@@ -240,12 +240,6 @@ jobs:
         if: always()
       - run: npx visual-hive providers --mock-results
         if: always()
-      - run: npx visual-hive triage
-        if: always()
-      - run: npx visual-hive llm
-        if: always()
-      - run: npx visual-hive report --github-step-summary
-        if: always()
       - run: npx visual-hive risk
         if: always()
       - run: npx visual-hive security
@@ -253,6 +247,12 @@ jobs:
       - run: npx visual-hive costs
         if: always()
       - run: npx visual-hive readiness
+        if: always()
+      - run: npx visual-hive triage
+        if: always()
+      - run: npx visual-hive llm
+        if: always()
+      - run: npx visual-hive report --github-step-summary
         if: always()
       - run: npx visual-hive artifacts
         if: always()

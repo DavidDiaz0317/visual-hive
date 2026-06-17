@@ -106,6 +106,8 @@ Schema: `schemas/visual-hive.readiness.schema.json`
 
 The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
 
+When `.visual-hive/readiness.json` exists, `visual-hive report` includes a readiness summary in both Markdown and JSON output. `visual-hive triage` also threads the readiness result into sanitized `.visual-hive/issue.md` and `.visual-hive/pr-comment.md` so PR reviewers can see whether adoption gates are ready, blocked, or missing evidence without opening every supporting artifact.
+
 ## Security Audit
 
 Path: `.visual-hive/security.json`

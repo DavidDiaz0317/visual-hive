@@ -1175,6 +1175,8 @@ contracts:
     expect(prWorkflow).toContain("npx visual-hive artifacts");
     expect(prWorkflow).toContain("npx visual-hive readiness");
     expect(prWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
+    expect(prWorkflow.indexOf("npx visual-hive readiness")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
+    expect(prWorkflow.indexOf("npx visual-hive triage")).toBeLessThan(prWorkflow.indexOf("npx visual-hive report"));
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
     expect(scheduledWorkflow).toContain("npx visual-hive baselines list --write");
     expect(scheduledWorkflow).toContain("npx visual-hive workflows");
@@ -1185,6 +1187,8 @@ contracts:
     expect(scheduledWorkflow).toContain("npx visual-hive artifacts");
     expect(scheduledWorkflow).toContain("npx visual-hive readiness");
     expect(scheduledWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
+    expect(scheduledWorkflow.indexOf("npx visual-hive readiness")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
+    expect(scheduledWorkflow.indexOf("npx visual-hive triage")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive report"));
     expect(failureWorkflow).toContain("function walkArtifacts");
     expect(failureWorkflow).toContain("function findIssueBody");
     expect(failureWorkflow).toContain("redactSecretValues");
@@ -1534,6 +1538,42 @@ contracts:
       ],
       recommendations: ["Keep PR workflows read-only and secret-free."]
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "readiness.json"), {
+      schemaVersion: 1,
+      project: "cli-triage",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "blocked",
+      score: 58,
+      summary: {
+        total: 3,
+        passed: 1,
+        warnings: 1,
+        blocked: 1,
+        missing: 0
+      },
+      inputs: {
+        plan: true,
+        report: true,
+        mutationReport: true,
+        baselines: true,
+        workflowAudit: true,
+        securityAudit: false,
+        costAudit: false
+      },
+      gates: [
+        {
+          id: "workflow:unsafe",
+          category: "workflow",
+          status: "blocked",
+          title: "Workflow safety has high-risk findings",
+          message: "PR workflow references token=secret-value",
+          evidence: ["token=secret-value"],
+          artifacts: [".visual-hive/workflows.json"],
+          nextActions: ["Fix workflow before enabling CI."]
+        }
+      ],
+      nextActions: ["Fix workflow before enabling CI."]
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "baseline-rejections.json"), {
       schemaVersion: 1,
       project: "cli-triage",
@@ -1580,9 +1620,12 @@ contracts:
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("## Visual Hive report");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Workflow safety findings: 1");
     await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Provider adapter evidence: 1 providers");
+    await expect(readFile(result.prCommentPath, "utf8")).resolves.toContain("Readiness: blocked (58/100");
     const issue = await readFile(result.issuePath, "utf8");
     expect(issue).toContain("dashboard");
     expect(issue).toContain("Workflow safety");
+    expect(issue).toContain("Readiness gate");
+    expect(issue).toContain("Status: blocked");
     expect(issue).toContain("Provider adapter evidence");
     expect(issue).toContain("Argos");
     expect(issue).toContain("high/pr_secrets");
@@ -1876,10 +1919,42 @@ providers:
         }
       ],
       reproductionCommands: []
+    }, undefined, {
+      schemaVersion: 1,
+      project: "provider-report",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "attention",
+      score: 84,
+      summary: { total: 2, passed: 1, warnings: 1, blocked: 0, missing: 0 },
+      inputs: {
+        plan: true,
+        report: true,
+        mutationReport: false,
+        baselines: true,
+        workflowAudit: true,
+        securityAudit: true,
+        costAudit: true
+      },
+      gates: [
+        {
+          id: "cost:policy",
+          category: "cost",
+          status: "warning",
+          title: "Cost policy needs review",
+          message: "Budget status is blocked.",
+          evidence: [],
+          artifacts: [".visual-hive/costs.json"],
+          nextActions: ["Review cost policy."]
+        }
+      ],
+      nextActions: ["Review cost policy."]
     });
 
     expect(output).toContain("Providers: Playwright built-in=passed");
     expect(output).toContain("### Provider Results");
+    expect(output).toContain("Readiness: attention (84/100)");
+    expect(output).toContain("### Readiness Gate");
+    expect(output).toContain("Cost policy needs review");
   });
 
   it("writes a readiness gate artifact from current evidence", async () => {

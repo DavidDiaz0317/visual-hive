@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MockProviderRunReport, MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import type { MockProviderRunReport, MutationReport, ReadinessReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { buildIssueBody } from "../src/issueBody.js";
 import { buildPrComment } from "../src/prComment.js";
 import { sanitizeText } from "../src/sanitize.js";
@@ -195,6 +195,7 @@ describe("buildIssueBody", () => {
     const body = buildIssueBody({
       report,
       mutationReport,
+      readinessReport: sampleReadinessReport(),
       providerRunReport: sampleProviderRunReport(),
       workflowAudit,
       findings: [finding],
@@ -206,6 +207,7 @@ describe("buildIssueBody", () => {
     expect(body).toContain("abcdef123456");
     expect(body).toContain("visual-hive run --ci");
     expect(body).toContain("50% (1/2)");
+    expect(body).toContain("Readiness: blocked (58/100");
     expect(body).toContain("Missing dashboard element");
     expect(body).toContain("Visual diffs");
     expect(body).toContain("Suggested files to inspect");
@@ -215,6 +217,8 @@ describe("buildIssueBody", () => {
     expect(body).toContain("availability=missing_credentials");
     expect(body).toContain("Playwright built-in");
     expect(body).toContain("Workflow safety");
+    expect(body).toContain("Readiness gate");
+    expect(body).toContain("workflow: Workflow safety has high-risk findings");
     expect(body).toContain("pull_request_target workflows: 1");
     expect(body).toContain("critical/pull_request_target");
     expect(body).toContain("token=[REDACTED]");
@@ -260,6 +264,7 @@ describe("buildPrComment", () => {
         results: []
       },
       providerRunReport: sampleProviderRunReport(),
+      readinessReport: sampleReadinessReport(),
       workflowAudit: {
         schemaVersion: 1,
         project: "sample",
@@ -296,6 +301,7 @@ describe("buildPrComment", () => {
 
     expect(body).toContain("<!-- visual-hive-report -->");
     expect(body).toContain("Workflow safety findings: 1");
+    expect(body).toContain("Readiness: blocked (58/100");
     expect(body).toContain("Provider adapter evidence: 1 providers, 1 failed operations, 1 missing credentials");
     expect(body).toContain("token=[REDACTED]");
     expect(body).not.toContain("secret-token");
@@ -377,5 +383,54 @@ function sampleProviderRunReport(): MockProviderRunReport {
       failedProviders: 1
     },
     warnings: ["Argos is enabled but missing credential names: ARGOS_TOKEN"]
+  };
+}
+
+function sampleReadinessReport(): ReadinessReport {
+  return {
+    schemaVersion: 1,
+    project: "sample",
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    status: "blocked",
+    score: 58,
+    summary: {
+      total: 3,
+      passed: 1,
+      warnings: 1,
+      blocked: 1,
+      missing: 0
+    },
+    inputs: {
+      plan: true,
+      report: true,
+      mutationReport: true,
+      baselines: true,
+      workflowAudit: true,
+      securityAudit: false,
+      costAudit: false
+    },
+    gates: [
+      {
+        id: "workflow:unsafe",
+        category: "workflow",
+        status: "blocked",
+        title: "Workflow safety has high-risk findings",
+        message: "Workflow uses token=secret-token",
+        evidence: ["token=secret-token"],
+        artifacts: [".visual-hive/workflows.json"],
+        nextActions: ["Fix workflow before enabling required checks."]
+      },
+      {
+        id: "cost:missing",
+        category: "cost",
+        status: "missing",
+        title: "Cost audit is missing",
+        message: "Run visual-hive costs.",
+        evidence: [],
+        artifacts: [".visual-hive/costs.json"],
+        nextActions: ["Run visual-hive costs."]
+      }
+    ],
+    nextActions: ["Fix workflow before enabling required checks."]
   };
 }

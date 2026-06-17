@@ -25,8 +25,6 @@ jobs:
         if: always()
       - run: npm run demo:providers
         if: always()
-      - run: node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml --github-step-summary
-        if: always()
       - run: npm run demo:risk
         if: always()
       - run: npm run demo:security
@@ -34,6 +32,10 @@ jobs:
       - run: npm run demo:costs
         if: always()
       - run: npm run demo:readiness
+        if: always()
+      - run: npm run demo:triage
+        if: always()
+      - run: node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml --github-step-summary
         if: always()
       - run: npm run demo:artifacts
         if: always()

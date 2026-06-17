@@ -37,12 +37,6 @@ jobs:
         if: always()
       - run: npx visual-hive providers --config examples/kubestellar-console/visual-hive.config.yaml --mock-results
         if: always()
-      - run: npx visual-hive triage --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive llm --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive report --config examples/kubestellar-console/visual-hive.config.yaml --github-step-summary
-        if: always()
       - run: npx visual-hive risk --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
       - run: npx visual-hive security --config examples/kubestellar-console/visual-hive.config.yaml
@@ -50,6 +44,12 @@ jobs:
       - run: npx visual-hive costs --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()
       - run: npx visual-hive readiness --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive triage --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive llm --config examples/kubestellar-console/visual-hive.config.yaml
+        if: always()
+      - run: npx visual-hive report --config examples/kubestellar-console/visual-hive.config.yaml --github-step-summary
         if: always()
       - run: npx visual-hive artifacts --config examples/kubestellar-console/visual-hive.config.yaml
         if: always()

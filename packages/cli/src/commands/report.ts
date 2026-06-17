@@ -1,6 +1,6 @@
 import { appendFile } from "node:fs/promises";
 import path from "node:path";
-import { loadConfig, readJson, type MutationReport, type Report } from "@visual-hive/core";
+import { loadConfig, readJson, type MutationReport, type ReadinessReport, type Report } from "@visual-hive/core";
 
 export interface ReportCommandOptions {
   config?: string;
@@ -14,10 +14,11 @@ export async function runReportCommand(options: ReportCommandOptions = {}): Prom
   const loaded = await loadConfig(options.config, cwd);
   const report = await readOptional<Report>(path.join(loaded.rootDir, ".visual-hive", "report.json"));
   const mutationReport = await readOptional<MutationReport>(path.join(loaded.rootDir, ".visual-hive", "mutation-report.json"));
+  const readinessReport = await readOptional<ReadinessReport>(path.join(loaded.rootDir, ".visual-hive", "readiness.json"));
   const output =
     options.format === "json"
-      ? `${JSON.stringify({ report, mutationReport }, null, 2)}\n`
-      : renderMarkdownReport(report, mutationReport);
+      ? `${JSON.stringify({ report, mutationReport, readinessReport }, null, 2)}\n`
+      : renderMarkdownReport(report, mutationReport, readinessReport);
 
   if (options.githubStepSummary) {
     const summaryPath = process.env.GITHUB_STEP_SUMMARY;
@@ -29,7 +30,7 @@ export async function runReportCommand(options: ReportCommandOptions = {}): Prom
   return output;
 }
 
-export function renderMarkdownReport(report?: Report, mutationReport?: MutationReport): string {
+export function renderMarkdownReport(report?: Report, mutationReport?: MutationReport, readinessReport?: ReadinessReport): string {
   const failed = report?.results.filter((result) => result.status === "failed") ?? [];
   const visualDiffs = report?.results.flatMap((result) => result.screenshotAssertions ?? []).filter((screenshot) => screenshot.status === "failed") ?? [];
   const lines = [
@@ -49,6 +50,7 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
     `- Flow steps: ${report?.summary?.flowStepsPassed ?? 0} passed, ${report?.summary?.flowStepsFailed ?? 0} failed`,
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
+    `- Readiness: ${readinessReport ? `${readinessReport.status} (${readinessReport.score}/100)` : "not available"}`,
     `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
     ""
   ];
@@ -76,6 +78,20 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
       if (provider.externalUploadAllowed === false && provider.externalUploadBlockedReasons?.length) {
         lines.push(`  - External upload blocked: ${provider.externalUploadBlockedReasons.join(" ")}`);
       }
+    }
+    lines.push("");
+  }
+
+  if (readinessReport) {
+    const blocking = readinessReport.gates.filter((gate) => gate.status === "blocked" || gate.status === "missing" || gate.status === "warning");
+    lines.push("### Readiness Gate", "");
+    lines.push(`- Status: ${readinessReport.status}`);
+    lines.push(`- Score: ${readinessReport.score}/100`);
+    lines.push(`- Blocked: ${readinessReport.summary.blocked}`);
+    lines.push(`- Warnings: ${readinessReport.summary.warnings}`);
+    lines.push(`- Missing evidence: ${readinessReport.summary.missing}`);
+    for (const gate of blocking.slice(0, 6)) {
+      lines.push(`- [${gate.status}] ${gate.title}: ${gate.message}`);
     }
     lines.push("");
   }

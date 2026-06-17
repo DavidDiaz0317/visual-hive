@@ -262,7 +262,7 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "pr-acceptance",
       label: "PR acceptance",
       description: "Check readiness, produce a PR plan, run deterministic CI contracts, then refresh triage and the markdown report.",
-      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "readiness"]
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "readiness", "triage-report"]
     },
     {
       id: "triage-refresh",
@@ -274,7 +274,7 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "mutation-audit",
       label: "Mutation adequacy audit",
       description: "Validate readiness, refresh the PR plan, run contract-aware mutation adequacy, then regenerate triage/report evidence.",
-      commandIds: ["doctor", "plan-pr", "mutate", "triage-report"]
+      commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"]
     },
     {
       id: "security-audit",

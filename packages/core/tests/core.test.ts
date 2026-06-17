@@ -1708,6 +1708,10 @@ jobs:
     for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
       expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
     }
+    expect(prTemplate.indexOf("npx visual-hive readiness")).toBeLessThan(prTemplate.indexOf("npx visual-hive triage"));
+    expect(prTemplate.indexOf("npx visual-hive triage")).toBeLessThan(prTemplate.indexOf("npx visual-hive report"));
+    expect(scheduledTemplate.indexOf("npx visual-hive readiness")).toBeLessThan(scheduledTemplate.indexOf("npx visual-hive triage"));
+    expect(scheduledTemplate.indexOf("npx visual-hive triage")).toBeLessThan(scheduledTemplate.indexOf("npx visual-hive report"));
     expect(audit.summary).toMatchObject({
       pullRequestWorkflows: 1,
       scheduledWorkflows: 1,

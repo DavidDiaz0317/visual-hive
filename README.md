@@ -129,7 +129,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive triage`: builds `.visual-hive/triage.json`, offline findings, prompts, missing-test suggestions, baseline review summary, issue markdown, and `.visual-hive/llm-usage.json` governance records.
 - `visual-hive llm`: re-audits prompt-only LLM governance, token/cost estimates, and available prompt artifacts without making model calls.
 - `visual-hive llm decision`: records a local sanitized LLM governance decision in `.visual-hive/llm-decisions.json` without enabling API keys or model calls.
-- `visual-hive report`: prints markdown or JSON and can append to `GITHUB_STEP_SUMMARY`.
+- `visual-hive report`: prints markdown or JSON, includes readiness evidence when `.visual-hive/readiness.json` exists, and can append to `GITHUB_STEP_SUMMARY`.
 - `visual-hive baselines list|approve|reject`: inspect screenshot baselines, write `.visual-hive/baselines.json` with `baselines list --write`, and explicitly approve or reject reviewed screenshots with audit records.
 - `visual-hive providers`: inspect optional provider adapters and missing credential names without calling paid services.
 - `visual-hive providers --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.

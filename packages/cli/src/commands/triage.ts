@@ -10,6 +10,7 @@ import {
   writeText,
   type MutationReport,
   type MockProviderRunReport,
+  type ReadinessReport,
   type Report,
   type CoverageReport,
   type WorkflowAuditReport,
@@ -49,6 +50,7 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
   const mutationReport = await readOptionalJson<MutationReport>(path.join(loaded.rootDir, ".visual-hive", "mutation-report.json"));
   const coverageReport = await readOptionalJson<CoverageReport>(path.join(loaded.rootDir, ".visual-hive", "coverage.json"));
   const providerRunReport = await readOptionalJson<MockProviderRunReport>(path.join(loaded.rootDir, ".visual-hive", "provider-results.json"));
+  const readinessReport = await readOptionalJson<ReadinessReport>(path.join(loaded.rootDir, ".visual-hive", "readiness.json"));
   const workflowAudit = await readOptionalJson<WorkflowAuditReport>(path.join(loaded.rootDir, ".visual-hive", "workflows.json"));
   const baselineApprovalLog = await readOptionalJson<BaselineApprovalLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-approvals.json"));
   const baselineRejectionLog = await readOptionalJson<BaselineRejectionLog>(path.join(loaded.rootDir, ".visual-hive", "baseline-rejections.json"));
@@ -73,8 +75,8 @@ export async function runTriageCommand(options: TriageCommandOptions = {}): Prom
   const repairPrompt = buildRepairPrompt({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
   const missingTests = buildMissingTestsMarkdown({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
   const baselineReview = buildBaselineReviewSummaryMarkdown({ report, mutationReport, coverageReport, providerRunReport, baselineApprovalLog, baselineRejectionLog, findings });
-  const issue = buildIssueBody({ report, mutationReport, providerRunReport, workflowAudit, findings });
-  const prComment = buildPrComment({ marker: loaded.config.github.commentMarker, report, mutationReport, providerRunReport, workflowAudit, findings });
+  const issue = buildIssueBody({ report, mutationReport, readinessReport, providerRunReport, workflowAudit, findings });
+  const prComment = buildPrComment({ marker: loaded.config.github.commentMarker, report, mutationReport, readinessReport, providerRunReport, workflowAudit, findings });
   const triageReportPath = path.join(loaded.rootDir, ".visual-hive", "triage.json");
   const promptPath = path.join(loaded.rootDir, ".visual-hive", "triage-prompt.md");
   const repairPromptPath = path.join(loaded.rootDir, ".visual-hive", "repair-prompt.md");

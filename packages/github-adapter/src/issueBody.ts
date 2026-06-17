@@ -1,10 +1,11 @@
-import type { MockProviderRunReport, MutationReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import type { MockProviderRunReport, MutationReport, ReadinessReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface IssueBodyInput {
   report?: Report;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
+  readinessReport?: ReadinessReport;
   workflowAudit?: WorkflowAuditReport;
   findings?: TriageFinding[];
   reproductionCommands?: string[];
@@ -39,6 +40,7 @@ export function buildIssueBody(input: IssueBodyInput): string {
     `- Console errors: ${report?.summary?.consoleErrors ?? 0}`,
     `- Page errors: ${report?.summary?.pageErrors ?? 0}`,
     `- Mutation score: ${formatMutationScore(mutationReport)}`,
+    `- Readiness: ${formatReadiness(input.readinessReport)}`,
     "",
     "## Failed contracts"
   ];
@@ -113,6 +115,9 @@ export function buildIssueBody(input: IssueBodyInput): string {
   lines.push("", "## Workflow safety");
   appendWorkflowSafety(lines, input.workflowAudit);
 
+  lines.push("", "## Readiness gate");
+  appendReadiness(lines, input.readinessReport);
+
   lines.push("", "## Reproduction commands");
   for (const command of report?.reproductionCommands.length ? report.reproductionCommands : commands) {
     lines.push(`- \`${command}\``);
@@ -161,6 +166,39 @@ export function buildIssueBody(input: IssueBodyInput): string {
   }
 
   return sanitizeMarkdown(`${lines.join("\n")}\n`);
+}
+
+function formatReadiness(report?: ReadinessReport): string {
+  if (!report) return "not available";
+  return `${report.status} (${report.score}/100, blocked=${report.summary.blocked}, warnings=${report.summary.warnings}, missing=${report.summary.missing})`;
+}
+
+function appendReadiness(lines: string[], report?: ReadinessReport): void {
+  if (!report) {
+    lines.push("- No readiness gate artifact was reported.");
+    lines.push("- Run `visual-hive readiness` after report/security/cost/workflow artifacts to include go/no-go evidence.");
+    return;
+  }
+
+  lines.push(`- Status: ${report.status}`);
+  lines.push(`- Score: ${report.score}/100`);
+  lines.push(`- Gates: ${report.summary.total}`);
+  lines.push(`- Blocked: ${report.summary.blocked}`);
+  lines.push(`- Warnings: ${report.summary.warnings}`);
+  lines.push(`- Missing evidence: ${report.summary.missing}`);
+
+  const attention = report.gates.filter((gate) => gate.status !== "passed");
+  if (attention.length === 0) {
+    lines.push("- All readiness gates passed.");
+    return;
+  }
+  lines.push("- Gates needing attention:");
+  for (const gate of attention.slice(0, 8)) {
+    lines.push(`  - ${gate.status}/${gate.category}: ${gate.title} - ${gate.message}`);
+  }
+  if (attention.length > 8) {
+    lines.push(`  - ${attention.length - 8} additional readiness gates omitted from issue summary.`);
+  }
 }
 
 function appendProviderAdapterEvidence(lines: string[], providerRunReport?: MockProviderRunReport): void {

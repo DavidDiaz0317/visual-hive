@@ -729,12 +729,12 @@ describe("control plane", () => {
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "triage-report", "readiness"],
+      commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "readiness", "triage-report"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "mutation-audit")).toMatchObject({
       enabled: true,
-      commandIds: ["doctor", "plan-pr", "mutate", "triage-report"],
+      commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"],
       safety: "local_only"
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
@@ -759,8 +759,8 @@ describe("control plane", () => {
       "plan-pr",
       "run-ci",
       "baselines",
-      "triage-report",
-      "readiness"
+      "readiness",
+      "triage-report"
     ]);
     expect(snapshot.readinessReport?.project).toBe("ui-fixture");
     expect(snapshot.readinessReport?.gates.map((gate) => gate.id)).toContain("deterministic:status");
@@ -1116,22 +1116,22 @@ contracts:
         "plan-pr",
         "run-ci",
         "baselines",
-        "triage-report",
-        "readiness"
+        "readiness",
+        "triage-report"
       ]);
       expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
         "doctor:doctor",
         "plan-pr:plan-pr",
         "run-ci:run-ci",
         "baselines:baselines",
+        "readiness:readiness",
         "triage-report:triage",
-        "triage-report:report",
-        "readiness:readiness"
+        "triage-report:report"
       ]);
 
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
       expect(snapshot.actionHistory?.summary.total).toBe(6);
-      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("readiness");
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("triage-report");
     } finally {
       await server.close();
     }
