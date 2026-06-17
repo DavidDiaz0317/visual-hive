@@ -723,6 +723,7 @@ program
   .option("--workflow-dir <path>", "workflow directory to scan when workflow audit artifact is missing", ".github/workflows")
   .option("--readiness <path>", "readiness artifact path", ".visual-hive/readiness.json")
   .option("--provider-setup-plan <path>", "provider setup-plan artifact path", ".visual-hive/provider-setup-plan.json")
+  .option("--provider-handoff <path>", "provider handoff artifact path", ".visual-hive/provider-handoff.json")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -737,6 +738,7 @@ program
         workflowDir: options.workflowDir,
         readiness: options.readiness,
         providerSetupPlan: options.providerSetupPlan,
+        providerHandoff: options.providerHandoff,
         format: options.format
       });
       console.log(formatSetupProgress(result.report, result.reportPath, options.format));

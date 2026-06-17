@@ -233,7 +233,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     setupRecommendation,
     workflowAudit,
     readinessReport,
-    providerSetupPlan
+    providerSetupPlan,
+    providerHandoff
   });
 
   return {
@@ -347,6 +348,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["doctor", "costs", "readiness", "triage-report"]
     },
     {
+      id: "provider-governance",
+      label: "Provider governance review",
+      description: "Refresh no-network provider readiness, setup-plan, handoff, cost, and readiness evidence before considering any trusted provider-backed lane.",
+      commandIds: ["providers", "provider-plan", "provider-handoff", "costs", "readiness"]
+    },
+    {
       id: "portfolio-refresh",
       label: "Portfolio refresh",
       description: "Refresh readiness, security, cost, and local connection portfolio evidence for multi-repo governance review.",
@@ -403,6 +410,7 @@ function buildRunbook(
 ): ControlPlaneRunbook {
   const configPath = toRepoRelativePath(resolved.repoRoot, resolved.configPath);
   const configFlag = `--config ${quoteForShell(configPath)}`;
+  const providerId = providerReviewId(config);
   const commands: ControlPlaneRunbookCommand[] = [
     {
       id: "doctor",
@@ -537,6 +545,39 @@ function buildRunbook(
       expectedArtifacts: [".visual-hive/costs.json"]
     },
     {
+      id: "providers",
+      label: "Inspect provider readiness",
+      lane: "local",
+      command: `visual-hive providers list ${configFlag} --mock-results`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Inspect optional provider availability, credential-name readiness, and mock adapter evidence without making external calls.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/provider-results.json"]
+    },
+    {
+      id: "provider-plan",
+      label: "Write provider setup plan",
+      lane: "local",
+      command: `visual-hive providers plan ${configFlag} --provider ${providerId}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write a no-network provider setup plan that lists required environment variable names, cost-policy blockers, trusted workflow steps, and validation commands.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/provider-setup-plan.json"]
+    },
+    {
+      id: "provider-handoff",
+      label: "Write provider handoff manifest",
+      lane: "local",
+      command: `visual-hive providers handoff ${configFlag} --provider ${providerId}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write a no-network manifest of exact deterministic screenshot artifacts eligible for future trusted provider upload review.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/provider-handoff.json"]
+    },
+    {
       id: "readiness",
       label: "Summarize readiness gate",
       lane: "local",
@@ -612,6 +653,14 @@ function protectedSecrets(config: VisualHiveConfig): string[] {
   return uniqueStrings(
     Object.values(config.targets).flatMap((target) => (target.kind === "protected" ? (target.requiresSecrets ?? []) : []))
   );
+}
+
+function providerReviewId(config?: VisualHiveConfig): string {
+  if (!config) return "argos";
+  const preferred = Object.entries(config.providers).find(([providerId, provider]) => providerId !== "playwright" && provider.enabled);
+  if (preferred) return preferred[0];
+  const configuredProject = Object.entries(config.providers).find(([providerId, provider]) => providerId !== "playwright" && Boolean(provider.projectId));
+  return configuredProject?.[0] ?? "argos";
 }
 
 function quoteForShell(value: string): string {

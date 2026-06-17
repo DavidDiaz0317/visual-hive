@@ -1175,6 +1175,12 @@ describe("control plane", () => {
       "provider-governance",
       "readiness"
     ]);
+    expect(snapshot.setupProgress.steps.find((step) => step.id === "provider-governance")).toMatchObject({
+      label: "Record provider posture and handoff",
+      status: "complete",
+      command: "visual-hive providers list --mock-results"
+    });
+    expect(snapshot.setupProgress.steps.find((step) => step.id === "provider-governance")?.evidence.join(" ")).toContain("handoff=argos:review");
     expect(snapshot.runHistory?.summary.runCount).toBe(1);
     expect(snapshot.runHistory?.trend.direction).toBe("unknown");
     expect(snapshot.runHistory?.entries[0]?.deterministicStatus).toBe("passed");
@@ -1254,6 +1260,21 @@ describe("control plane", () => {
     );
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
+    expect(snapshot.runbook.commands.find((command) => command.id === "providers")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers list"),
+      expectedArtifacts: [".visual-hive/provider-results.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "provider-plan")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers plan"),
+      expectedArtifacts: [".visual-hive/provider-setup-plan.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "provider-handoff")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("providers handoff"),
+      expectedArtifacts: [".visual-hive/provider-handoff.json"]
+    });
     expect(snapshot.runbook.commands.find((command) => command.id === "readiness")?.expectedArtifacts).toContain(".visual-hive/readiness.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "connections-portfolio")).toMatchObject({
       safety: "pr_safe",
@@ -1279,6 +1300,12 @@ describe("control plane", () => {
     expect(snapshot.runProfiles.find((profile) => profile.id === "cost-audit")).toMatchObject({
       enabled: true,
       commandIds: ["doctor", "costs", "readiness", "triage-report"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "provider-governance")).toMatchObject({
+      enabled: true,
+      commandIds: ["providers", "provider-plan", "provider-handoff", "costs", "readiness"],
+      expectedArtifacts: expect.arrayContaining([".visual-hive/provider-results.json", ".visual-hive/provider-setup-plan.json", ".visual-hive/provider-handoff.json"]),
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "portfolio-refresh")).toMatchObject({

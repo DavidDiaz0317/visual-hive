@@ -2565,6 +2565,14 @@ providers:
       category: "provider",
       status: "passed"
     });
+
+    const setupStatus = await runSetupStatusCommand({ cwd: tempRoot });
+    const providerStep = setupStatus.report.steps.find((step) => step.id === "provider-governance");
+    expect(providerStep).toMatchObject({
+      status: "complete",
+      command: "visual-hive providers list --mock-results"
+    });
+    expect(providerStep?.evidence.join(" ")).toContain("handoff=argos:review");
   });
 
   it("records LLM governance decisions from the CLI without model calls", async () => {

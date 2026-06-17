@@ -53,7 +53,7 @@ The local Control Plane exposes the same guarded setup path from the Setup tab. 
 
 Regenerating from the Control Plane writes only `.visual-hive/recommendations.json`. It does not overwrite `visual-hive.config.yaml`, docs, or workflows. After reviewing the profile-specific recommendation, use the guarded setup actions to generate config, docs, or the setup PR bundle.
 
-`visual-hive setup-status` writes `.visual-hive/setup-progress.json`, which turns recommendation/config/plan/run/mutation/triage/workflow/provider/readiness artifacts into a current phase and next best action. The Control Plane Setup tab uses the same core analyzer, so users who stay in the CLI and users who open the UI see the same onboarding state.
+`visual-hive setup-status` writes `.visual-hive/setup-progress.json`, which turns recommendation/config/plan/run/mutation/triage/workflow/provider/readiness artifacts into a current phase and next best action. Provider setup plans and provider handoff manifests are both tracked, so an enabled external provider will guide the user from no-network setup planning to no-network artifact handoff before any trusted upload lane is considered. The Control Plane Setup tab uses the same core analyzer, so users who stay in the CLI and users who open the UI see the same onboarding state.
 
 The recommendation artifact also includes `setupActions`, a deterministic list of next actions with commands, files written, confirmation requirements, safety notes, and expected outcomes. These actions are intended to power beginner-friendly UI buttons without hiding what will happen. Provider actions such as "Skip provider for now" write local governance evidence only; they do not create credentials, enable billing, upload screenshots, or call provider APIs.
 

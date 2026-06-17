@@ -2,6 +2,7 @@ import type { VisualHiveConfig } from "../config/schema.js";
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
 import type { ProviderSetupPlan } from "../providers/setupPlan.js";
+import type { ProviderHandoffManifest } from "../providers/handoff.js";
 import type { ReadinessReport } from "../readiness/analyze.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
 import type { SetupRecommendationReport } from "./recommend.js";
@@ -44,6 +45,7 @@ export interface BuildSetupProgressOptions {
   workflowAudit?: WorkflowAuditReport;
   readinessReport?: ReadinessReport;
   providerSetupPlan?: ProviderSetupPlan;
+  providerHandoff?: ProviderHandoffManifest;
   now?: Date;
 }
 
@@ -74,8 +76,25 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
     ["mutation-report.json", options.mutationReport?.generatedAt],
     ["triage.json", options.triageReport?.generatedAt],
     ["workflows.json", options.workflowAudit?.generatedAt],
-    ["provider-setup-plan.json", options.providerSetupPlan?.generatedAt]
+    ["provider-setup-plan.json", options.providerSetupPlan?.generatedAt],
+    ["provider-handoff.json", options.providerHandoff?.generatedAt]
   ]);
+  const providerId = externalProviders[0]?.[0] ?? options.providerSetupPlan?.providerId ?? options.providerHandoff?.providerId ?? "argos";
+  const providerGovernanceStatus: SetupProgressStep["status"] = !externalProviders.length
+    ? "complete"
+    : !options.providerSetupPlan
+      ? "blocked"
+      : !options.providerHandoff
+        ? "review"
+        : options.providerHandoff.externalCallsMade !== 0 || options.providerHandoff.status === "blocked"
+          ? "review"
+          : "complete";
+  const providerGovernanceCommand =
+    externalProviders.length && !options.providerSetupPlan
+      ? `visual-hive providers plan --provider ${providerId}`
+      : externalProviders.length && !options.providerHandoff
+        ? `visual-hive providers handoff --provider ${providerId}`
+        : "visual-hive providers list --mock-results";
   const steps: SetupProgressStep[] = [
     setupStep({
       id: "recommend",
@@ -194,17 +213,25 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
     }),
     setupStep({
       id: "provider-governance",
-      label: "Record provider posture",
-      status: !externalProviders.length ? "complete" : options.providerSetupPlan ? "review" : "blocked",
-      description: "Keep hosted providers optional, no-network by default, and explicitly planned before trusted uploads or credentials are introduced.",
+      label: "Record provider posture and handoff",
+      status: providerGovernanceStatus,
+      description: "Keep hosted providers optional, no-network by default, and explicitly planned before trusted uploads, credentials, or artifact handoff are introduced.",
       evidence: externalProviders.length
         ? [
             `externalProviders=${externalProviders.map(([providerId]) => providerId).join(", ")}`,
-            options.providerSetupPlan ? `setupPlan=${options.providerSetupPlan.providerId}` : "setupPlan=missing"
+            options.providerSetupPlan ? `setupPlan=${options.providerSetupPlan.providerId}` : "setupPlan=missing",
+            options.providerHandoff
+              ? `handoff=${options.providerHandoff.providerId}:${options.providerHandoff.status}:eligible=${options.providerHandoff.summary.eligibleArtifacts}:calls=${options.providerHandoff.externalCallsMade}`
+              : "handoff=missing"
           ]
-        : ["No external supplemental provider is enabled."],
-      command: externalProviders.length ? `visual-hive providers plan --provider ${externalProviders[0]?.[0] ?? "argos"}` : "visual-hive providers list --mock-results",
-      artifacts: [".visual-hive/provider-setup-plan.json", ".visual-hive/provider-decisions.json", ".visual-hive/provider-results.json"]
+        : [
+            "No external supplemental provider is enabled.",
+            options.providerHandoff
+              ? `handoff=${options.providerHandoff.providerId}:${options.providerHandoff.status}:eligible=${options.providerHandoff.summary.eligibleArtifacts}:calls=${options.providerHandoff.externalCallsMade}`
+              : "handoff=not required"
+          ],
+      command: providerGovernanceCommand,
+      artifacts: [".visual-hive/provider-setup-plan.json", ".visual-hive/provider-handoff.json", ".visual-hive/provider-decisions.json", ".visual-hive/provider-results.json"]
     }),
     setupStep({
       id: "readiness",

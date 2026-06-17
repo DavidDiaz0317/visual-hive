@@ -42,7 +42,7 @@ Path: `.visual-hive/setup-progress.json`
 
 Schema: `schemas/visual-hive.setup-progress.schema.json`
 
-The setup progress report is written by `visual-hive setup-status`. It combines the setup recommendation, config validation state, plan, deterministic report, mutation report, triage report, workflow audit, provider setup plan, and readiness gate into one beginner-facing status. It records `status`, `phase`, completion counts, blocked/review counts, the next best action, commands to run, evidence, and artifact paths. The Control Plane Setup page uses the same core analyzer, so CLI and UI onboarding state stay consistent.
+The setup progress report is written by `visual-hive setup-status`. It combines the setup recommendation, config validation state, plan, deterministic report, mutation report, triage report, workflow audit, provider setup plan, provider handoff manifest, and readiness gate into one beginner-facing status. It records `status`, `phase`, completion counts, blocked/review counts, the next best action, commands to run, evidence, and artifact paths. The Control Plane Setup page uses the same core analyzer, so CLI and UI onboarding state stay consistent.
 
 ## Runbook
 
@@ -50,7 +50,7 @@ Path: `.visual-hive/runbook.json`
 
 Schema: `schemas/visual-hive.runbook.schema.json`
 
-The runbook artifact is written by `visual-hive runbook`. It exports the same curated command list and run profiles shown in the local Control Plane, including safety class, lane, required secret names, expected artifacts, blocked reasons, and optional execution evidence. Execution remains allowlisted by command/profile ID; protected or secret-bearing lanes are guidance-only outside trusted scheduled/manual automation.
+The runbook artifact is written by `visual-hive runbook`. It exports the same curated command list and run profiles shown in the local Control Plane, including safety class, lane, required secret names, expected artifacts, blocked reasons, and optional execution evidence. Execution remains allowlisted by command/profile ID; protected or secret-bearing lanes are guidance-only outside trusted scheduled/manual automation. The provider-governance profile runs only no-network provider readiness, setup-plan, handoff, cost, and readiness commands so optional provider adoption remains reviewable before any trusted upload lane exists.
 
 ## Coverage Recommendations
 

@@ -9,6 +9,7 @@ import {
   writeJson,
   type MutationReport,
   type Plan,
+  type ProviderHandoffManifest,
   type ProviderSetupPlan,
   type ReadinessReport,
   type Report,
@@ -32,6 +33,7 @@ export interface SetupStatusCommandOptions {
   workflowDir?: string;
   readiness?: string;
   providerSetupPlan?: string;
+  providerHandoff?: string;
   format?: "markdown" | "json";
 }
 
@@ -66,6 +68,9 @@ export async function runSetupStatusCommand(options: SetupStatusCommandOptions =
   const providerSetupPlan = await readOptionalJson<ProviderSetupPlan>(
     path.resolve(rootDir, options.providerSetupPlan ?? path.join(".visual-hive", "provider-setup-plan.json"))
   );
+  const providerHandoff = await readOptionalJson<ProviderHandoffManifest>(
+    path.resolve(rootDir, options.providerHandoff ?? path.join(".visual-hive", "provider-handoff.json"))
+  );
   const setupProgress = buildSetupProgress({
     project: config?.project.name ?? setupRecommendation?.project.name,
     config,
@@ -77,7 +82,8 @@ export async function runSetupStatusCommand(options: SetupStatusCommandOptions =
     setupRecommendation,
     workflowAudit,
     readinessReport,
-    providerSetupPlan
+    providerSetupPlan,
+    providerHandoff
   });
   const reportPath = path.join(hiveRoot, "setup-progress.json");
   await writeJson(reportPath, setupProgress);

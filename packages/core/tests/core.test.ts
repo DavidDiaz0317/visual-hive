@@ -2530,6 +2530,56 @@ jobs:
     expect(JSON.stringify(progress)).not.toContain("secret-value");
   });
 
+  it("guides external provider setup progress toward no-network handoff evidence", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      providers: {
+        argos: {
+          enabled: true,
+          mode: "external",
+          requiredEnv: ["ARGOS_TOKEN"]
+        }
+      }
+    });
+    const providerSetupPlan = buildProviderSetupPlan(config, {
+      providerId: "argos",
+      env: {},
+      generatedAt: "2026-06-15T00:00:00.000Z"
+    });
+    const withoutHandoff = buildSetupProgress({
+      config,
+      providerSetupPlan,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const providerStep = withoutHandoff.steps.find((step) => step.id === "provider-governance");
+
+    expect(providerStep).toMatchObject({
+      status: "review",
+      command: "visual-hive providers handoff --provider argos"
+    });
+    expect(providerStep?.evidence).toEqual(expect.arrayContaining(["setupPlan=argos", "handoff=missing"]));
+
+    const providerHandoff = buildProviderHandoffManifest(
+      config,
+      reportFixture(repoRoot, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"),
+      { providerId: "argos", env: {}, generatedAt: "2026-06-15T01:00:00.000Z" }
+    );
+    const withHandoff = buildSetupProgress({
+      config,
+      providerSetupPlan,
+      providerHandoff,
+      now: new Date("2026-06-15T01:00:00.000Z")
+    });
+    const completedProviderStep = withHandoff.steps.find((step) => step.id === "provider-governance");
+
+    expect(completedProviderStep).toMatchObject({
+      status: "review",
+      command: "visual-hive providers list --mock-results"
+    });
+    expect(completedProviderStep?.evidence.join(" ")).toContain("handoff=argos:blocked");
+    expect(JSON.stringify(withHandoff)).not.toContain("secret-value");
+  });
+
   it("marks setup artifacts for review when they are older than newer deterministic evidence", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-setup-progress-stale-"));
     tempDirs.push(tempRoot);
