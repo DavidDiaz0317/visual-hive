@@ -202,6 +202,8 @@ contracts:
       "demo:connections",
       "demo:artifacts",
       "demo:kubestellar",
+      "demo:plan:canary",
+      "demo:plan:full",
       "demo:ui"
     ];
 
@@ -225,6 +227,11 @@ contracts:
     expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+    expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
+    expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
+    expect(packageJson.scripts["demo:plan:full"]).not.toContain("--allow-unsafe-targets");
+    expect(packageJson.scripts["demo:all"]).toContain("demo:plan:full && npm run demo:plan && npm run demo:run");
+    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:plan && npm run demo:run");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:auth-plan");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:docs-plan");
     expect(packageJson.scripts["demo:kubestellar:schedule-plan"]).toContain("--mode schedule");

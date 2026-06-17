@@ -41,8 +41,23 @@ try {
     "runbook command ids"
   );
   assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "plan-canary",
+    "runbook command ids"
+  );
+  assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "plan-full-safe",
+    "runbook command ids"
+  );
+  assertArrayIncludes(
     snapshot.runProfiles?.map((profile) => profile.id),
     "pr-acceptance",
+    "run profile ids"
+  );
+  assertArrayIncludes(
+    snapshot.runProfiles?.map((profile) => profile.id),
+    "canary-health",
     "run profile ids"
   );
   assertArrayIncludes(

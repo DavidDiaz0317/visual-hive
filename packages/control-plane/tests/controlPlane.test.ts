@@ -973,6 +973,17 @@ describe("control plane", () => {
       safety: "pr_safe",
       requiredSecrets: []
     });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-canary")).toMatchObject({
+      lane: "pull_request",
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode canary")
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")).toMatchObject({
+      lane: "local",
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode full")
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).not.toContain("--allow-unsafe-targets");
     expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
@@ -984,6 +995,16 @@ describe("control plane", () => {
       enabled: true,
       commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"],
       safety: "local_only"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "canary-health")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-canary", "readiness"],
+      safety: "pr_safe"
+    });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "full-safe-plan")).toMatchObject({
+      enabled: true,
+      commandIds: ["doctor", "plan-full-safe", "readiness"],
+      safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")).toMatchObject({
       enabled: true,

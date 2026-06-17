@@ -303,6 +303,18 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["doctor", "plan-pr", "mutate", "readiness", "triage-report"]
     },
     {
+      id: "canary-health",
+      label: "Canary health plan",
+      description: "Preview cheap scheduled PR-safe canary coverage without starting protected environments or requiring secrets.",
+      commandIds: ["doctor", "plan-canary", "readiness"]
+    },
+    {
+      id: "full-safe-plan",
+      label: "Full PR-safe plan",
+      description: "Preview broad PR-safe coverage while keeping protected and other unsafe targets excluded unless a trusted operator opts in.",
+      commandIds: ["doctor", "plan-full-safe", "readiness"]
+    },
+    {
       id: "coverage-improvement",
       label: "Coverage improvement",
       description: "Refresh deterministic coverage evidence and generate guarded config recommendations that can be previewed or applied from the Coverage page.",
@@ -397,6 +409,28 @@ function buildRunbook(
       cwd: resolved.repoRoot,
       safety: "pr_safe",
       description: "Select only PR-safe deterministic contracts from changed files, target safety, severity, cost, mutation applicability, and provider policy.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/plan.json"]
+    },
+    {
+      id: "plan-canary",
+      label: "Plan scheduled canaries",
+      lane: "pull_request",
+      command: `visual-hive plan ${configFlag} --mode canary`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Select cheap or medium scheduled PR-safe contracts for public demo canaries and other low-cost health checks.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/plan.json"]
+    },
+    {
+      id: "plan-full-safe",
+      label: "Plan full PR-safe coverage",
+      lane: "local",
+      command: `visual-hive plan ${configFlag} --mode full`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Select broad PR-safe coverage without including protected or other non-PR-safe targets. Use --allow-unsafe-targets only from a trusted context.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/plan.json"]
     },

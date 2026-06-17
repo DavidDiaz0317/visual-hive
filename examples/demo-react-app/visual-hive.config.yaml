@@ -12,6 +12,7 @@ targets:
     serve: "npm run preview -- --port 4173"
     url: "http://127.0.0.1:4173"
     prSafe: true
+    schedule: "*/15 * * * *"
     cost: cheap
 
   unsafeHosted:
