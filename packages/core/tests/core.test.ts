@@ -1055,6 +1055,19 @@ describe("risk register", () => {
           }
         ]
       },
+      llmDecisions: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        decisions: [
+          {
+            decision: "keep_disabled",
+            reason: "No model calls from PR lanes.",
+            decidedAt: "2026-06-15T00:00:00.000Z",
+            source: "cli",
+            externalCallsMade: 0
+          }
+        ]
+      },
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
@@ -1063,6 +1076,7 @@ describe("risk register", () => {
     expect(risk.summary.prBlocking).toBeGreaterThan(0);
     expect(risk.inputs.flowAudit).toBe(true);
     expect(risk.inputs.providerDecisions).toBe(true);
+    expect(risk.inputs.llmDecisions).toBe(true);
     expect(risk.risks.map((item) => item.category)).toEqual(
       expect.arrayContaining([
         "deterministic_failure",
@@ -1071,7 +1085,8 @@ describe("risk register", () => {
         "flow_coverage",
         "target_safety",
         "workflow_safety",
-        "provider_policy"
+        "provider_policy",
+        "llm_governance"
       ])
     );
     expect(risk.risks.find((item) => item.id === "provider-decision:argos")).toMatchObject({
@@ -1079,6 +1094,10 @@ describe("risk register", () => {
       trustedOnly: true
     });
     expect(risk.risks.find((item) => item.category === "deterministic_failure")?.message).toContain("[REDACTED]");
+    expect(risk.risks.find((item) => item.id === "llm-decision:latest")).toMatchObject({
+      category: "llm_governance",
+      trustedOnly: true
+    });
     expect(risk.recommendations).toContain("Fix deterministic contract failures before updating baselines.");
     expect(risk.recommendations).toContain("Add or repair deterministic flow steps for high-risk user journeys.");
   });
@@ -1951,6 +1970,19 @@ jobs:
           }
         ]
       },
+      llmDecisions: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        decisions: [
+          {
+            decision: "keep_disabled",
+            reason: "Offline prompts only.",
+            decidedAt: "2026-06-15T00:00:00.000Z",
+            source: "cli",
+            externalCallsMade: 0
+          }
+        ]
+      },
       now: new Date("2026-06-15T00:03:00.000Z")
     });
 
@@ -1959,6 +1991,7 @@ jobs:
     expect(readiness.gates.find((gate) => gate.id === "deterministic:status")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "baselines:clean")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "provider:decisions-recorded")?.status).toBe("passed");
+    expect(readiness.gates.find((gate) => gate.id === "llm:decisions-recorded")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "security:posture")?.status).toBe("warning");
     expect(JSON.stringify(readiness)).not.toContain("secret-value");
   });

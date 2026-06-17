@@ -9,6 +9,7 @@ import {
   auditTargets,
   auditWorkflows,
   loadConfig,
+  readLLMDecisionLog,
   readProviderDecisionLog,
   readJson,
   writeJson,
@@ -17,6 +18,7 @@ import {
   type FlowAuditReport,
   type MutationReport,
   type Plan,
+  type LLMDecisionLog,
   type ProviderDecisionLog,
   type Report,
   type RiskRegisterReport,
@@ -39,6 +41,7 @@ export interface RiskCommandOptions {
   schedules?: string;
   workflows?: string;
   providerDecisions?: string;
+  llmDecisions?: string;
   history?: string;
   workflowDir?: string;
   format?: "markdown" | "json";
@@ -74,6 +77,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
   const providerDecisions = await readOptionalProviderDecisions(
     path.resolve(loaded.rootDir, options.providerDecisions ?? path.join(".visual-hive", "provider-decisions.json"))
   );
+  const llmDecisions = await readOptionalLLMDecisions(path.resolve(loaded.rootDir, options.llmDecisions ?? path.join(".visual-hive", "llm-decisions.json")));
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
 
   const risk = analyzeRisk(loaded.config, {
@@ -87,6 +91,7 @@ export async function runRiskCommand(options: RiskCommandOptions = {}): Promise<
     scheduleAudit,
     workflowAudit,
     providerDecisions,
+    llmDecisions,
     runHistory
   });
   const reportPath = path.join(hiveRoot, "risk.json");
@@ -132,6 +137,14 @@ async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {
 async function readOptionalProviderDecisions(filePath: string): Promise<ProviderDecisionLog | undefined> {
   try {
     return await readProviderDecisionLog(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readOptionalLLMDecisions(filePath: string): Promise<LLMDecisionLog | undefined> {
+  try {
+    return await readLLMDecisionLog(filePath);
   } catch {
     return undefined;
   }

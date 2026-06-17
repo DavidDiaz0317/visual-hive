@@ -3,6 +3,7 @@ import type { ContractAuditReport } from "../contracts/audit.js";
 import type { CoverageReport } from "../coverage/analyze.js";
 import type { FlowAuditReport } from "../flows/audit.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
+import type { LLMDecisionLog } from "../llm/decisions.js";
 import type { RunHistoryReport } from "../history/record.js";
 import type { MutationReport, Report } from "../reports/types.js";
 import type { ScheduleAuditReport } from "../schedules/audit.js";
@@ -21,6 +22,7 @@ export type RiskCategory =
   | "target_safety"
   | "workflow_safety"
   | "provider_policy"
+  | "llm_governance"
   | "environment"
   | "history_regression"
   | "planning";
@@ -59,6 +61,7 @@ export interface RiskInputs {
   workflowAudit: boolean;
   runHistory: boolean;
   providerDecisions: boolean;
+  llmDecisions: boolean;
 }
 
 export interface RiskItem {
@@ -88,6 +91,7 @@ export interface AnalyzeRiskOptions {
   workflowAudit?: WorkflowAuditReport;
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
+  llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
 
@@ -103,6 +107,7 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
     ...targetRisks(options.targetAudit),
     ...workflowRisks(options.workflowAudit),
     ...providerRisks(options.plan, options.report, options.providerDecisions),
+    ...llmRisks(config, options.llmDecisions),
     ...historyRisks(options.runHistory)
   ]
     .map((risk) => sanitizeRisk(risk))
@@ -124,7 +129,8 @@ export function analyzeRisk(config: VisualHiveConfig, options: AnalyzeRiskOption
       scheduleAudit: Boolean(options.scheduleAudit),
       workflowAudit: Boolean(options.workflowAudit),
       runHistory: Boolean(options.runHistory),
-      providerDecisions: Boolean(options.providerDecisions)
+      providerDecisions: Boolean(options.providerDecisions),
+      llmDecisions: Boolean(options.llmDecisions)
     },
     risks,
     recommendations: recommendations(risks)
@@ -484,6 +490,40 @@ function providerRisks(plan?: Plan, report?: Report, providerDecisions?: Provide
   return [...planRisks, ...resultRisks, ...decisionRisks];
 }
 
+function llmRisks(config: VisualHiveConfig, llmDecisions?: LLMDecisionLog): RiskItem[] {
+  if (!llmDecisions?.decisions.length) return [];
+  const latest = llmDecisions.decisions[0];
+  const externalConfigured = config.ai.enabled && config.ai.provider !== "none";
+  const conflictsWithConfig = externalConfigured && (latest.decision === "keep_disabled" || latest.decision === "review_later");
+  return [
+    {
+      id: "llm-decision:latest",
+      category: "llm_governance",
+      severity: conflictsWithConfig ? "medium" : "low",
+      title: conflictsWithConfig ? "LLM config conflicts with governance decision" : "LLM governance decision recorded",
+      message: conflictsWithConfig
+        ? "A non-none LLM provider is configured while the latest local governance decision keeps LLM use disabled or deferred."
+        : `Latest LLM governance decision is ${latest.decision}.`,
+      evidence: [
+        `decision=${latest.decision}`,
+        `source=${latest.source}`,
+        `externalCallsMade=${latest.externalCallsMade}`,
+        `ai.enabled=${config.ai.enabled}`,
+        `ai.provider=${config.ai.provider}`,
+        latest.reason
+      ],
+      contractIds: [],
+      targetIds: [],
+      artifacts: [".visual-hive/llm-decisions.json"],
+      suggestedActions: conflictsWithConfig
+        ? ["Align ai.enabled/provider settings with the recorded LLM governance decision before enabling trusted model calls."]
+        : ["Keep LLM decisions under review before moving from prompt-only artifacts to trusted model-assisted workflows."],
+      prBlocking: false,
+      trustedOnly: true
+    }
+  ];
+}
+
 function summarizeRisks(risks: RiskItem[]): RiskSummary {
   const counts = {
     critical: risks.filter((risk) => risk.severity === "critical").length,
@@ -514,6 +554,7 @@ function recommendations(risks: RiskItem[]): string[] {
   if (risks.some((risk) => risk.category === "environment")) recs.add("Configure required secret names only in trusted scheduled/manual environments.");
   if (risks.some((risk) => risk.category === "coverage_gap")) recs.add("Add contracts or changed-file rules for uncovered high-risk areas.");
   if (risks.some((risk) => risk.category === "history_regression")) recs.add("Compare latest and previous run history before accepting the current visual QA state.");
+  if (risks.some((risk) => risk.category === "llm_governance")) recs.add("Review LLM governance decisions before enabling trusted model-assisted workflows.");
   return [...recs];
 }
 

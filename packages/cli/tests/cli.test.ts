@@ -1934,6 +1934,21 @@ ai:
     expect(summary).toContain("LLM Decision");
     expect(summary).toContain("does not enable API keys");
     expect(summary).not.toContain("secret-value");
+
+    const risk = await runRiskCommand({ cwd: tempRoot });
+    expect(risk.report.inputs.llmDecisions).toBe(true);
+    expect(risk.report.risks.find((item) => item.id === "llm-decision:latest")).toMatchObject({
+      category: "llm_governance",
+      trustedOnly: true
+    });
+
+    const readiness = await runReadinessCommand({ cwd: tempRoot });
+    expect(readiness.report.inputs.llmDecisions).toBe(true);
+    expect(readiness.report.gates.find((gate) => gate.id === "llm:decisions-recorded")).toMatchObject({
+      category: "llm",
+      status: "passed"
+    });
+
     await expect(
       runLLMDecisionCommand({ cwd: tempRoot, decision: "call_openai_now" as never })
     ).rejects.toThrow(/Invalid LLM decision/);

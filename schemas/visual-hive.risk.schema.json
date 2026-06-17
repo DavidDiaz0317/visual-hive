@@ -40,7 +40,8 @@
         "scheduleAudit": { "type": "boolean" },
         "workflowAudit": { "type": "boolean" },
         "runHistory": { "type": "boolean" },
-        "providerDecisions": { "type": "boolean" }
+        "providerDecisions": { "type": "boolean" },
+        "llmDecisions": { "type": "boolean" }
       }
     },
     "risks": {
@@ -82,6 +83,7 @@
             "target_safety",
             "workflow_safety",
             "provider_policy",
+            "llm_governance",
             "environment",
             "history_regression",
             "planning"

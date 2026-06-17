@@ -186,6 +186,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         flowAudit,
         scheduleAudit,
         workflowAudit,
+        providerDecisions: providerDecisionLog,
+        llmDecisions: llmDecisionLog,
         runHistory
       })
     : undefined;
@@ -199,6 +201,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
         workflowAudit,
         securityAudit,
         costAudit,
+        providerDecisions: providerDecisionLog,
+        llmDecisions: llmDecisionLog,
         runHistory
       })
     : undefined;

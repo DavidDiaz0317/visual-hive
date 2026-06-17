@@ -34,7 +34,8 @@
         "securityAudit": { "type": "boolean" },
         "costAudit": { "type": "boolean" },
         "runHistory": { "type": "boolean" },
-        "providerDecisions": { "type": "boolean" }
+        "providerDecisions": { "type": "boolean" },
+        "llmDecisions": { "type": "boolean" }
       },
       "additionalProperties": false
     },

@@ -6,11 +6,13 @@ import {
   analyzeSecurity,
   auditWorkflows,
   loadConfig,
+  readLLMDecisionLog,
   readProviderDecisionLog,
   readJson,
   writeJson,
   type BaselineList,
   type CostAuditReport,
+  type LLMDecisionLog,
   type MutationReport,
   type Plan,
   type ProviderDecisionLog,
@@ -34,6 +36,7 @@ export interface ReadinessCommandOptions {
   security?: string;
   costs?: string;
   providerDecisions?: string;
+  llmDecisions?: string;
   history?: string;
   format?: "markdown" | "json";
 }
@@ -60,6 +63,7 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
   const providerDecisions = await readOptionalProviderDecisions(
     path.resolve(loaded.rootDir, options.providerDecisions ?? path.join(".visual-hive", "provider-decisions.json"))
   );
+  const llmDecisions = await readOptionalLLMDecisions(path.resolve(loaded.rootDir, options.llmDecisions ?? path.join(".visual-hive", "llm-decisions.json")));
   const runHistory = await readOptionalJson<RunHistoryReport>(path.resolve(loaded.rootDir, options.history ?? path.join(".visual-hive", "history.json")));
   const readiness = analyzeReadiness(loaded.config, {
     plan,
@@ -70,6 +74,7 @@ export async function runReadinessCommand(options: ReadinessCommandOptions = {})
     securityAudit,
     costAudit,
     providerDecisions,
+    llmDecisions,
     runHistory
   });
   const reportPath = path.join(hiveRoot, "readiness.json");
@@ -114,6 +119,14 @@ async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {
 async function readOptionalProviderDecisions(filePath: string): Promise<ProviderDecisionLog | undefined> {
   try {
     return await readProviderDecisionLog(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readOptionalLLMDecisions(filePath: string): Promise<LLMDecisionLog | undefined> {
+  try {
+    return await readLLMDecisionLog(filePath);
   } catch {
     return undefined;
   }

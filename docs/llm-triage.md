@@ -77,3 +77,5 @@ visual-hive llm decision --decision approve_trusted_prompt_only
 ```
 
 Recording a decision does not create API keys, enable billing, call a model, upload artifacts, or change CI pass/fail behavior. Every entry records `externalCallsMade: 0`.
+
+`visual-hive risk` and `visual-hive readiness` load `.visual-hive/llm-decisions.json` when it exists. A recorded `keep_disabled` or `review_later` decision keeps the governance posture visible, and a conflict with a non-none LLM provider becomes a trusted-lane warning. This evidence is advisory governance only; deterministic Playwright contracts and mutation adequacy remain the pass/fail oracle.

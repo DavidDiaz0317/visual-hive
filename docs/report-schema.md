@@ -96,9 +96,9 @@ Path: `.visual-hive/risk.json`
 
 Schema: `schemas/visual-hive.risk.schema.json`
 
-The risk register is written by `visual-hive risk`. It prioritizes evidence from the current plan, deterministic report, mutation report, coverage, flow audit, target audit, contract audit, schedule audit, workflow audit, provider policy, provider decisions, and run history. It records a bounded risk score, severity counts, PR-blocking count, trusted-only count, loaded input artifacts, and one row per risk.
+The risk register is written by `visual-hive risk`. It prioritizes evidence from the current plan, deterministic report, mutation report, coverage, flow audit, target audit, contract audit, schedule audit, workflow audit, provider policy, provider decisions, LLM decisions, and run history. It records a bounded risk score, severity counts, PR-blocking count, trusted-only count, loaded input artifacts, and one row per risk.
 
-Risk categories include deterministic failures, baseline review needs, mutation adequacy gaps, coverage gaps, flow coverage gaps, target safety, workflow safety, provider policy, environment gaps, and planning gaps. Risk rows include sanitized evidence, related contract/target IDs, artifact paths, suggested actions, and whether the issue blocks the PR-safe lane or belongs in a trusted lane. The risk register is a prioritization layer only; deterministic Playwright contracts and mutation adequacy remain the evidence source.
+Risk categories include deterministic failures, baseline review needs, mutation adequacy gaps, coverage gaps, flow coverage gaps, target safety, workflow safety, provider policy, LLM governance, environment gaps, and planning gaps. Risk rows include sanitized evidence, related contract/target IDs, artifact paths, suggested actions, and whether the issue blocks the PR-safe lane or belongs in a trusted lane. The risk register is a prioritization layer only; deterministic Playwright contracts and mutation adequacy remain the evidence source.
 
 ## Readiness Gate
 
@@ -106,7 +106,7 @@ Path: `.visual-hive/readiness.json`
 
 Schema: `schemas/visual-hive.readiness.schema.json`
 
-The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, provider decisions, run history, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
+The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, provider decisions, LLM decisions, run history, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
 
 When `.visual-hive/readiness.json` exists, `visual-hive report` includes a readiness summary in both Markdown and JSON output. `visual-hive triage` also threads the readiness result into sanitized `.visual-hive/issue.md` and `.visual-hive/pr-comment.md` so PR reviewers can see whether adoption gates are ready, blocked, or missing evidence without opening every supporting artifact.
 
@@ -163,6 +163,8 @@ Path: `.visual-hive/llm-decisions.json`
 Schema: `schemas/visual-hive.llm-decisions.schema.json`
 
 LLM decisions are local governance records written through the shared core helper used by both the CLI and Control Plane. They record decision (`keep_disabled`, `review_later`, or `approve_trusted_prompt_only`), sanitized reason, timestamp, source (`cli` or `control-plane`), and `externalCallsMade: 0`. They do not create API keys, call a model, upload artifacts, or change deterministic pass/fail authority.
+
+When present, `.visual-hive/llm-decisions.json` is loaded by `visual-hive risk` and `visual-hive readiness`. Risk reports surface the latest decision as `llm_governance` evidence, and readiness reports show whether LLM usage remains disabled, approved for prompt-only trusted review, or conflicts with a non-none LLM provider in config. These signals are governance checks only; they never make a model response authoritative.
 
 ## Artifact Index
 

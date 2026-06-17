@@ -1,6 +1,7 @@
 import type { CostAuditReport } from "../costs/analyze.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import type { WorkflowAuditReport } from "../github/workflowAudit.js";
+import type { LLMDecisionLog } from "../llm/decisions.js";
 import type { RunHistoryReport } from "../history/record.js";
 import type { Plan } from "../planner/types.js";
 import type { BaselineList } from "../baselines/manage.js";
@@ -58,6 +59,7 @@ export interface ReadinessReport {
     costAudit: boolean;
     runHistory: boolean;
     providerDecisions: boolean;
+    llmDecisions: boolean;
   };
   gates: ReadinessGate[];
   nextActions: string[];
@@ -73,6 +75,7 @@ export interface AnalyzeReadinessOptions {
   costAudit?: CostAuditReport;
   runHistory?: RunHistoryReport;
   providerDecisions?: ProviderDecisionLog;
+  llmDecisions?: LLMDecisionLog;
   now?: Date;
 }
 
@@ -86,7 +89,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     ...workflowGates(options.workflowAudit),
     ...securityGates(options.securityAudit),
     ...providerGates(config, options.costAudit, options.providerDecisions),
-    ...llmGates(config),
+    ...llmGates(config, options.llmDecisions),
     ...costGates(options.costAudit),
     ...historyGates(options.runHistory)
   ].map(sanitizeGate);
@@ -107,7 +110,8 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
       securityAudit: Boolean(options.securityAudit),
       costAudit: Boolean(options.costAudit),
       runHistory: Boolean(options.runHistory),
-      providerDecisions: Boolean(options.providerDecisions)
+      providerDecisions: Boolean(options.providerDecisions),
+      llmDecisions: Boolean(options.llmDecisions)
     },
     gates,
     nextActions: nextActions(gates)
@@ -406,14 +410,48 @@ function providerGates(config: VisualHiveConfig, costAudit?: CostAuditReport, pr
   ];
 }
 
-function llmGates(config: VisualHiveConfig): ReadinessGate[] {
+function llmGates(config: VisualHiveConfig, llmDecisions?: LLMDecisionLog): ReadinessGate[] {
+  const latestDecision = llmDecisions?.decisions[0];
+  const externalConfigured = config.ai.enabled && config.ai.provider !== "none";
+  if (latestDecision && externalConfigured && (latestDecision.decision === "keep_disabled" || latestDecision.decision === "review_later")) {
+    return [
+      gate(
+        "llm:decision-conflict",
+        "llm",
+        "warning",
+        "LLM config conflicts with governance decision",
+        "A non-none LLM provider is configured while the latest local decision keeps LLM use disabled or deferred.",
+        [
+          `decision=${latestDecision.decision}`,
+          `provider=${config.ai.provider}`,
+          `externalCallsMade=${latestDecision.externalCallsMade}`
+        ],
+        [".visual-hive/llm-decisions.json", ".visual-hive/llm-usage.json"],
+        ["Align ai.enabled/provider settings with the recorded LLM decision before enabling trusted model-assisted workflows."]
+      )
+    ];
+  }
+  if (latestDecision && (!config.ai.enabled || config.ai.provider === "none")) {
+    return [
+      gate(
+        "llm:decisions-recorded",
+        "llm",
+        "passed",
+        "LLM governance decisions are recorded",
+        "LLM use remains governed by local decisions; no model call is required for the default lane.",
+        [`decision=${latestDecision.decision}`, `source=${latestDecision.source}`, `externalCallsMade=${latestDecision.externalCallsMade}`],
+        [".visual-hive/llm-decisions.json"]
+      )
+    ];
+  }
   if (!config.ai.enabled || config.ai.provider === "none") {
     return [gate("llm:disabled", "llm", "passed", "LLM calls are disabled by default", "Prompts and offline heuristics may be generated, but no model call is required.", [])];
   }
   return [
     gate("llm:enabled", "llm", "warning", "LLM usage requires governance", "A non-none LLM provider is configured; output must remain advisory.", [
       `provider=${config.ai.provider}`,
-      `neverSoleOracle=${config.ai.neverSoleOracle}`
+      `neverSoleOracle=${config.ai.neverSoleOracle}`,
+      latestDecision ? `decision=${latestDecision.decision}` : "decision=missing"
     ], [".visual-hive/llm-usage.json"], ["Run LLM calls only from trusted workflows and keep deterministic contracts as the pass/fail oracle."])
   ];
 }
