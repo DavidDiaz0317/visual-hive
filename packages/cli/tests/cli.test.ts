@@ -501,6 +501,98 @@ contracts:
     expect(updated).toContain("- dashboard");
   });
 
+  it("improve-coverage applies mutation survivor recommendations into mapped assertions", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-improve-mutation-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    const configPath = path.join(tempRoot, "visual-hive.config.yaml");
+    await writeFile(
+      configPath,
+      `project:
+  name: improve-mutation
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "body"
+mutation:
+  enabled: true
+  operators:
+    - remove-demo-badge
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "coverage.json"), {
+      schemaVersion: 1,
+      project: "improve-mutation",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      summary: {
+        targetCount: 1,
+        contractCount: 1,
+        selectedContracts: 1,
+        unselectedContracts: 0,
+        prSafeContracts: 1,
+        protectedContracts: 0,
+        scheduleOnlyContracts: 0,
+        routesCovered: 1,
+        viewportsCovered: 1,
+        uncoveredTargets: 0,
+        uncoveredContracts: 0,
+        changedFileRules: 0,
+        matchedChangedFileRules: 0,
+        unmatchedChangedFiles: 0
+      },
+      targets: [],
+      contracts: [],
+      routes: [],
+      viewports: [],
+      changedFileCoverage: [],
+      unmatchedChangedFiles: [],
+      uncoveredAreas: []
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "improve-mutation",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      minScore: 0.7,
+      score: 0,
+      killed: 0,
+      total: 1,
+      results: [
+        {
+          operator: "remove-demo-badge",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          durationMs: 10,
+          errors: []
+        }
+      ]
+    });
+
+    const applied = await runImproveCoverageCommand({
+      config: configPath,
+      apply: "mutation-survivor:remove-demo-badge:dashboard",
+      yes: true
+    });
+    const updated = await readFile(configPath, "utf8");
+
+    expect(applied.applyResult?.applied).toBe(true);
+    expect(updated).toContain("id: remove-demo-badge");
+    expect(updated).toContain("- dashboard");
+    expect(updated).toContain("[data-testid='demo-badge']");
+  });
+
   it("contracts writes a contract audit artifact", async () => {
     const demoRoot = path.join(repoRoot, "examples/demo-react-app");
     const result = await runContractsCommand({

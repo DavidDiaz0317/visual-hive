@@ -191,14 +191,23 @@ function applyMutationMapping(config: VisualHiveConfig, recommendation: Coverage
   const existing = config.mutation.operators.find((operator) =>
     typeof operator === "string" ? operator === recommendation.mutationOperator : operator.id === recommendation.mutationOperator
   );
+  let changed = false;
   if (!existing) {
     const operatorId = recommendation.mutationOperator as MutationOperator;
     config.mutation.operators.push(contractId ? { id: operatorId, contracts: [contractId] } : operatorId);
-    return true;
+    changed = true;
+  } else if (typeof existing === "string") {
+    if (contractId) {
+      const index = config.mutation.operators.findIndex((operator) => operator === recommendation.mutationOperator);
+      config.mutation.operators[index] = { id: recommendation.mutationOperator as MutationOperator, contracts: [contractId] };
+      changed = true;
+    }
+  } else if (contractId && !existing.contracts.includes(contractId)) {
+    existing.contracts.push(contractId);
+    changed = true;
   }
-  if (typeof existing === "string" || !contractId || existing.contracts.includes(contractId)) return false;
-  existing.contracts.push(contractId);
-  return true;
+  const assertionChanged = contractId ? applySelectorAssertion(config, { ...recommendation, kind: "add_selector_assertion" }) : false;
+  return changed || assertionChanged;
 }
 
 function recommendationForGap(config: VisualHiveConfig, gap: CoverageGap): CoverageImprovementRecommendation[] {

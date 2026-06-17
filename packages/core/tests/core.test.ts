@@ -926,6 +926,50 @@ describe("coverage analysis", () => {
     expect(parsed.selection.changedFiles.map((rule) => rule.pattern)).toContain("scripts/**");
     expect(parsed.selection.changedFiles.find((rule) => rule.pattern === "scripts/**")?.contracts.length).toBeGreaterThan(0);
   });
+
+  it("applies mutation survivor recommendations by mapping the operator and adding suggested assertions", () => {
+    const config = sampleConfig();
+    const plan = createPlan(config, { mode: "pr", changedFiles: ["src/App.tsx"] });
+    const coverage = analyzeCoverage(config, { plan, changedFiles: ["src/App.tsx"], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(
+      config,
+      coverage,
+      {
+        schemaVersion: 2,
+        project: "sample",
+        generatedAt: "2026-06-15T00:01:00.000Z",
+        minScore: 0.7,
+        score: 0,
+        killed: 0,
+        total: 1,
+        results: [
+          {
+            operator: "hide-critical-button",
+            status: "survived",
+            killed: false,
+            contractIds: ["safe-contract"],
+            applicable: true,
+            expectedFailureKinds: ["missing_element"],
+            durationMs: 25,
+            errors: ["critical button remained uncovered"]
+          }
+        ]
+      },
+      { now: new Date("2026-06-15T00:02:00.000Z") }
+    );
+    const result = applyCoverageImprovementRecommendation(config, report, "mutation-survivor:hide-critical-button:safe-contract");
+    const parsed = parseConfigText(result.configText);
+    const mappedOperator = parsed.mutation.operators.find((operator) =>
+      typeof operator === "string" ? false : operator.id === "hide-critical-button"
+    );
+
+    expect(result.applied).toBe(true);
+    expect(result.diff).toContain("id: hide-critical-button");
+    expect(mappedOperator).toMatchObject({ id: "hide-critical-button", contracts: ["safe-contract"] });
+    expect(parsed.contracts.find((contract) => contract.id === "safe-contract")?.selectors.mustExist).toContain(
+      "[data-testid='critical-action-button']"
+    );
+  });
 });
 
 describe("risk register", () => {
