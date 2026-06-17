@@ -547,12 +547,31 @@ function setup() {
     ]) + (cost.notes?.length ? '<h3>Notes</h3>' + list(cost.notes) : "")) +
     card("Setup actions", setupActions()) +
     card("Setup PR guidance", setupPr.recommended ? '<p><b>' + esc(setupPr.title) + '</b></p>' + table(["Files", "Security notes"], [[list(setupPr.files || []), list(setupPr.securityNotes || [])]]) + '<h3>Steps</h3>' + list(setupPr.steps || []) : '<p class="muted">No setup PR guidance found.</p>') +
+    setupDetectedStories(recommendation) +
     card("Recommended contracts", table(["Contract", "Target", "Selectors", "Steps", "Screenshots"], recommendation.recommendedContracts.map(c => [c.id, c.targetId, c.selectors.join(", ") || "none", (c.steps || []).map(s => s.action + ":" + (s.selector || s.route || s.value || "")).join(", ") || "none", c.screenshots.map(s => s.name + " " + s.route + "@" + s.viewport).join(", ")]))) +
     card("Next commands", list(recommendation.recommendedCommands)) +
     card("Findings", recommendation.findings.length ? table(["Severity", "Message", "Evidence"], recommendation.findings.map(f => [f.severity, f.message, f.evidence || ""])) : "No findings.") +
     card("Warnings", recommendation.warnings.length ? list(recommendation.warnings) : "No setup warnings.") +
     preview("Recommended YAML", recommendation.recommendedConfigYaml) +
     '</div>';
+}
+
+function setupDetectedStories(recommendation) {
+  const stories = recommendation.detectedStories || [];
+  if (!stories.length) {
+    return card("Detected Storybook stories", '<p class="muted">No Storybook stories were detected in this recommendation.</p>');
+  }
+  return card(
+    "Detected Storybook stories",
+    '<p class="muted">Storybook repositories can start with component contracts that open stable iframe routes through Playwright.</p>' +
+      table(["Story file", "Title", "Exports", "Iframe route"], stories.slice(0, 10).map(story => [
+        story.storyFile || "unknown",
+        story.title || "untitled",
+        (story.exports || []).join(", ") || "none",
+        story.route || "n/a"
+      ])) +
+      (stories.length > 10 ? '<p class="muted">Showing 10 of ' + esc(stories.length) + ' detected stories.</p>' : "")
+  );
 }
 
 function setupProfileSelector(recommendation) {

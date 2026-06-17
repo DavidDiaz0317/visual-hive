@@ -436,6 +436,14 @@ viewports:
         recommendedConfig: {},
         recommendedConfigYaml: configYaml,
         detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+        detectedStories: [
+          {
+            storyFile: "src/components/DashboardCard.stories.tsx",
+            title: "dashboard/DashboardCard",
+            exports: ["Primary", "Loading"],
+            route: "/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story"
+          }
+        ],
         recommendedTarget: {
           id: "localPreview",
           kind: "command",
@@ -1315,6 +1323,9 @@ contracts:
       expect(appJs).toContain("function setupChecklist");
       expect(appJs).toContain("function setupStatusBadge");
       expect(appJs).toContain("function setupProfileSelector");
+      expect(appJs).toContain("function setupDetectedStories");
+      expect(appJs).toContain("Detected Storybook stories");
+      expect(appJs).toContain("Iframe route");
       expect(appJs).toContain("setup-profile-select");
       expect(appJs).toContain("/api/setup/recommend");
       expect(appJs).toContain("Inspect repository");
@@ -1348,6 +1359,7 @@ contracts:
       expect(appJs).toContain("function connectionRisk");
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
+      expect(snapshot.setupRecommendation.detectedStories[0].route).toBe("/iframe.html?id=dashboard-dashboardcard--primary&viewMode=story");
     } finally {
       await server.close();
     }
@@ -1380,6 +1392,8 @@ contracts:
     expect(controlPlaneJs).toContain("function setupChecklist");
     expect(controlPlaneJs).toContain("onboardingChecklist");
     expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
+    expect(controlPlaneJs).toContain("function setupDetectedStories");
+    expect(controlPlaneJs).toContain("Storybook repositories can start with component contracts");
     expect(controlPlaneJs).toContain("function setupProfileSelector");
     expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");
     expect(controlPlaneJs).toContain("/api/setup/recommend");
