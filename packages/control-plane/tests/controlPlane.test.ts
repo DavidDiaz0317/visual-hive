@@ -976,13 +976,17 @@ describe("control plane", () => {
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-canary")).toMatchObject({
       lane: "pull_request",
       safety: "pr_safe",
-      command: expect.stringContaining("--mode canary")
+      command: expect.stringContaining("--mode canary"),
+      expectedArtifacts: [".visual-hive/plan.canary.json"]
     });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-canary")?.command).toContain("--output .visual-hive/plan.canary.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")).toMatchObject({
       lane: "local",
       safety: "pr_safe",
-      command: expect.stringContaining("--mode full")
+      command: expect.stringContaining("--mode full"),
+      expectedArtifacts: [".visual-hive/plan.full.json"]
     });
+    expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).toContain("--output .visual-hive/plan.full.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).not.toContain("--allow-unsafe-targets");
     expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
     expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");

@@ -30,6 +30,7 @@ Planner include/exclude controls:
 - `--exclude-contract <id>`: remove a specific contract from the plan.
 - `--include-target <id>`: select contracts for a target.
 - `--exclude-target <id>`: remove contracts for a target.
+- `--output <path>`: write the plan to a custom path relative to the config root, useful for sidecar canary/full plan artifacts.
 
 The flags are repeatable. Explicit excludes win over explicit includes. Explicit includes do not bypass PR safety; non-PR-safe targets still require `--allow-unsafe-targets`.
 

@@ -87,6 +87,7 @@ program
   .option("--mode <mode>", "plan mode: pr, schedule, manual, canary, mutation, or full", "pr")
   .option("--changed-files <path>", "newline-delimited changed files")
   .option("--base <ref>", "git base ref for diff")
+  .option("--output <path>", "write plan JSON to this path relative to the config root", ".visual-hive/plan.json")
   .option("--allow-unsafe-targets", "include non-prSafe targets in PR mode")
   .option("--include-contract <id>", "explicitly include a contract in the plan (repeatable)", collectRepeatable, [])
   .option("--exclude-contract <id>", "explicitly exclude a contract from the plan (repeatable)", collectRepeatable, [])
@@ -100,6 +101,7 @@ program
         mode: options.mode,
         changedFiles: options.changedFiles,
         base: options.base,
+        output: options.output,
         allowUnsafeTargets: options.allowUnsafeTargets,
         includeContracts: options.includeContract,
         excludeContracts: options.excludeContract,

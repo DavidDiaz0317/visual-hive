@@ -14,6 +14,7 @@ export interface PlanCommandOptions {
   excludeContracts?: string[];
   includeTargets?: string[];
   excludeTargets?: string[];
+  output?: string;
 }
 
 export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<Plan> {
@@ -37,8 +38,15 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
       `No contracts selected for mode "${plan.mode}". Check runOn settings, changed-file rules, target prSafe settings, or pass --allow-unsafe-targets for trusted runs.${excluded}`
     );
   }
-  await writeJson(path.join(loaded.rootDir, ".visual-hive", "plan.json"), plan);
+  await writeJson(resolvePlanOutputPath(loaded.rootDir, options.output), plan);
   return plan;
+}
+
+function resolvePlanOutputPath(rootDir: string, output: string | undefined): string {
+  if (!output) {
+    return path.join(rootDir, ".visual-hive", "plan.json");
+  }
+  return path.isAbsolute(output) ? output : path.resolve(rootDir, output);
 }
 
 export function parsePlanMode(mode: string | undefined): PlanMode {

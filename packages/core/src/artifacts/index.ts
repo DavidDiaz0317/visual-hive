@@ -205,6 +205,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("baselines.json")) labels.add("baseline-review");
   if (normalized.endsWith("issue.md")) labels.add("issue");
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
+  if (/\/plan(?:\.[a-z0-9_-]+)?\.json$/.test(normalized)) labels.add("plan");
   if (normalized.endsWith("triage.json")) labels.add("triage-report");
   if (normalized.endsWith("risk.json")) labels.add("risk-register");
   if (normalized.endsWith("readiness.json")) labels.add("readiness-gate");
@@ -261,7 +262,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "mutation-report.json": "visual-hive.mutation-report.schema.json",
     "report.json": "visual-hive.report.schema.json"
   };
-  const schemaFile = mapping[fileName];
+  const schemaFile = /^plan(?:\.[a-z0-9_-]+)?\.json$/.test(fileName) ? "visual-hive.plan.schema.json" : mapping[fileName];
   return schemaFile ? `schemas/${schemaFile}` : undefined;
 }
 

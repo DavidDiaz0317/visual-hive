@@ -10,7 +10,7 @@ Schema: `schemas/visual-hive.plan.schema.json`
 
 The plan records selected targets, contracts, changed files, effective changed files after ignored-file filtering, ignored changed files with reasons, exclusion reasons, mutation selection, and provider policy evidence. Provider policy rows explain provider availability, missing credential names, external upload cost-policy decisions, estimated external screenshot counts, and `externalCallsPlanned: 0` for the default planner. A plan with no selected contracts is treated as an error by the CLI unless every PR changed file matched `selection.ignoreChangedFiles`; that intentional no-op case is written as an empty plan.
 
-Supported plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. `canary` keeps scheduled low-cost PR-safe contracts separate from deeper scheduled checks. `mutation` plans only mutation-applicable contracts by default. `full` selects broad PR-safe coverage by default; protected or other non-PR-safe targets require `--allow-unsafe-targets` in a trusted context.
+Supported plan modes are `pr`, `schedule`, `manual`, `canary`, `mutation`, and `full`. `canary` keeps scheduled low-cost PR-safe contracts separate from deeper scheduled checks. `mutation` plans only mutation-applicable contracts by default. `full` selects broad PR-safe coverage by default; protected or other non-PR-safe targets require `--allow-unsafe-targets` in a trusted context. The default output path is `.visual-hive/plan.json`; pass `--output .visual-hive/plan.canary.json` or another path relative to the config root to keep sidecar plan artifacts without replacing the plan consumed by `visual-hive run`.
 
 ## Setup Recommendations
 

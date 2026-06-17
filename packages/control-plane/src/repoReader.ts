@@ -416,23 +416,23 @@ function buildRunbook(
       id: "plan-canary",
       label: "Plan scheduled canaries",
       lane: "pull_request",
-      command: `visual-hive plan ${configFlag} --mode canary`,
+      command: `visual-hive plan ${configFlag} --mode canary --output .visual-hive/plan.canary.json`,
       cwd: resolved.repoRoot,
       safety: "pr_safe",
       description: "Select cheap or medium scheduled PR-safe contracts for public demo canaries and other low-cost health checks.",
       requiredSecrets: [],
-      expectedArtifacts: [".visual-hive/plan.json"]
+      expectedArtifacts: [".visual-hive/plan.canary.json"]
     },
     {
       id: "plan-full-safe",
       label: "Plan full PR-safe coverage",
       lane: "local",
-      command: `visual-hive plan ${configFlag} --mode full`,
+      command: `visual-hive plan ${configFlag} --mode full --output .visual-hive/plan.full.json`,
       cwd: resolved.repoRoot,
       safety: "pr_safe",
       description: "Select broad PR-safe coverage without including protected or other non-PR-safe targets. Use --allow-unsafe-targets only from a trusted context.",
       requiredSecrets: [],
-      expectedArtifacts: [".visual-hive/plan.json"]
+      expectedArtifacts: [".visual-hive/plan.full.json"]
     },
     {
       id: "run-ci",

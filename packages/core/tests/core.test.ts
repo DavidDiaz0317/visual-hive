@@ -3149,6 +3149,7 @@ describe("artifact index", () => {
     const hiveRoot = path.join(tempRoot, ".visual-hive");
     await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
+    await writeFile(path.join(hiveRoot, "plan.canary.json"), '{"schemaVersion":1,"mode":"canary","changedFiles":["src/App.tsx"]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
@@ -3182,13 +3183,16 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(19);
+    expect(index.summary.artifactCount).toBe(20);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
     const prompt = index.artifacts.find((artifact) => artifact.path.endsWith("triage-prompt.md"));
     expect(prompt?.preview).toContain("[REDACTED]");
     expect(prompt?.labels).toContain("prompt");
+    const canaryPlan = index.artifacts.find((artifact) => artifact.path.endsWith("plan.canary.json"));
+    expect(canaryPlan?.labels).toContain("plan");
+    expect(canaryPlan?.schemaPath).toBe("schemas/visual-hive.plan.schema.json");
     const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
     expect(triageReport?.preview).toContain("[REDACTED]");
     expect(triageReport?.labels).toContain("triage-report");
