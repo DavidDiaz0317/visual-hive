@@ -92,6 +92,8 @@ export interface ControlPlaneFailure {
   classification: string;
   severity?: string;
   errorExcerpt: string;
+  changedFiles?: string[];
+  routes?: string[];
   evidence?: string[];
   suggestedFiles?: string[];
   suggestedNextTests?: string[];

@@ -650,6 +650,7 @@ function collectScreenshotsFromBaselineList(
 function collectFailures(repoRoot: string, report?: Report, mutationReport?: MutationReport, triageReport?: TriageReport): ControlPlaneFailure[] {
   const findings = triageReport?.findings ?? [];
   const usedFindings = new Set<TriageFinding>();
+  const changedFiles = uniqueStrings((report?.changedFiles ?? []).map((file) => sanitizeText(file)));
   const deterministic = (report?.results ?? [])
     .filter((result) => result.status === "failed")
     .map((result) => {
@@ -662,6 +663,8 @@ function collectFailures(repoRoot: string, report?: Report, mutationReport?: Mut
         classification: relatedFindings[0]?.classification ?? classifyResult(result),
         severity: relatedFindings[0]?.severity,
         errorExcerpt: sanitizeText(relatedFindings[0]?.title ?? result.errors[0] ?? "Contract failed without an error excerpt."),
+        changedFiles,
+        routes: failureRoutes(result),
         evidence: uniqueStrings(relatedFindings.flatMap((finding) => finding.evidence)),
         suggestedFiles: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedFiles ?? [])),
         suggestedNextTests: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedNextTests)),
@@ -683,6 +686,8 @@ function collectFailures(repoRoot: string, report?: Report, mutationReport?: Mut
         errorExcerpt: sanitizeText(
           relatedFindings[0]?.title ?? `Mutation survived: ${result.operator}. Add or strengthen contracts for ${result.expectedFailureKinds?.join(", ") || "this behavior"}.`
         ),
+        changedFiles,
+        routes: [],
         evidence: uniqueStrings(relatedFindings.flatMap((finding) => finding.evidence)),
         suggestedFiles: uniqueStrings(relatedFindings.flatMap((finding) => finding.suggestedFiles ?? [])),
         suggestedNextTests: uniqueStrings(
@@ -700,12 +705,21 @@ function collectFailures(repoRoot: string, report?: Report, mutationReport?: Mut
       classification: finding.classification,
       severity: finding.severity,
       errorExcerpt: sanitizeText(finding.title),
+      changedFiles,
+      routes: [],
       evidence: finding.evidence.map((item) => sanitizeText(item)),
       suggestedFiles: (finding.suggestedFiles ?? []).map((item) => sanitizeText(item)),
       suggestedNextTests: finding.suggestedNextTests.map((item) => sanitizeText(item)),
       artifacts: []
     }));
   return [...deterministic, ...mutation, ...findingOnly];
+}
+
+function failureRoutes(result: Report["results"][number]): string[] {
+  return uniqueStrings([
+    ...(result.screenshotAssertions ?? []).map((shot) => shot.route),
+    ...(result.flowSteps ?? []).flatMap((step) => (step.route ? [step.route] : []))
+  ].map((route) => sanitizeText(route)).filter(Boolean));
 }
 
 function collectTargets(config?: VisualHiveConfig, report?: Report): ControlPlaneSnapshot["targets"] {

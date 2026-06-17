@@ -782,6 +782,7 @@ describe("control plane", () => {
     expect(snapshot.report?.results[0]?.networkErrors?.[0]?.status).toBe(500);
     expect(snapshot.triageReport?.summary.findingCount).toBe(1);
     expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.suggestedFiles).toContain("src/unmapped.ts");
+    expect(snapshot.failures.find((failure) => failure.classification === "insufficient_coverage")?.changedFiles).toContain("src/App.tsx");
     expect(snapshot.providerRunReport?.providers[0]?.operations.map((operation) => operation.operation)).toContain("compare");
     expect(snapshot.providerDecisionLog).toBeUndefined();
     expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
@@ -1409,6 +1410,10 @@ contracts:
       expect(appJs).toContain("Console, page, and network evidence");
       expect(appJs).toContain("function reportArtifactsCard");
       expect(appJs).toContain("Report artifacts and reproduction");
+      expect(appJs).toContain("function failureCard");
+      expect(appJs).toContain("Failure context");
+      expect(appJs).toContain("Changed files");
+      expect(appJs).toContain("Suggested next tests");
       expect(appJs).toContain("runbook-execute");
       expect(appJs).toContain("/api/runbook/execute");
       expect(appJs).toContain("function llmDecisionCard");
@@ -1493,6 +1498,8 @@ contracts:
     expect(controlPlaneJs).toContain("function reportAssertionCards");
     expect(controlPlaneJs).toContain("function reportErrorCard");
     expect(controlPlaneJs).toContain("function reportArtifactsCard");
+    expect(controlPlaneJs).toContain("function failureCard");
+    expect(controlPlaneJs).toContain("Deterministic failures and mutation survivors are the highest priority queues");
     expect(controlPlaneJs).toContain("function baselineSummaryCard");
     expect(controlPlaneJs).toContain("visual-hive baselines list --write");
     expect(controlPlaneJs).toContain("function coverageImprovementCard");

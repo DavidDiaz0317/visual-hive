@@ -923,7 +923,44 @@ function reportArtifactsCard(report) {
 
 function failures() {
   if (!snapshot.failures.length) return empty("No deterministic failures or mutation survivors found.");
-  return '<div class="section">' + snapshot.failures.map(f => card(f.contractId, '<p><b>Classification:</b> ' + esc(f.classification) + (f.severity ? ' <b>Severity:</b> ' + esc(f.severity) : '') + '</p><p><b>Target:</b> ' + esc(f.targetId) + '</p><pre>' + esc(f.errorExcerpt) + '</pre>' + failureList("Evidence", f.evidence) + failureList("Suggested files", f.suggestedFiles) + failureList("Suggested tests", f.suggestedNextTests) + '<p>' + esc(f.reproductionCommand || '') + '</p><p>' + f.artifacts.map(a => link(a)).join("<br>") + '</p>')).join("") + preview("Issue body", snapshot.issueMarkdown) + preview("PR comment", snapshot.prCommentMarkdown) + preview("Missing tests", snapshot.missingTestsMarkdown) + preview("Baseline review", snapshot.baselineReviewMarkdown) + preview("Triage prompt", snapshot.triagePrompt) + preview("Repair prompt", snapshot.repairPrompt) + '</div>';
+  const classifications = [...new Set(snapshot.failures.map(f => f.classification))].sort();
+  const severe = snapshot.failures.filter(f => ["critical", "high"].includes(f.severity || "")).length;
+  return '<div class="section">' +
+    '<div class="grid">' +
+    metric("Failures", snapshot.failures.length, snapshot.failures.length ? "bad" : "ok") +
+    metric("Critical/high", severe, severe ? "bad" : "ok") +
+    metric("Classifications", classifications.length, "") +
+    metric("Changed files", (snapshot.report?.changedFiles || []).length, "") +
+    '</div>' +
+    card("Failure context", '<p class="muted">Deterministic failures and mutation survivors are the highest priority queues. LLM and triage text below is advisory; Playwright contracts and mutation adequacy remain the pass/fail evidence.</p>') +
+    snapshot.failures.map(failureCard).join("") +
+    preview("Issue body", snapshot.issueMarkdown) +
+    preview("PR comment", snapshot.prCommentMarkdown) +
+    preview("Missing tests", snapshot.missingTestsMarkdown) +
+    preview("Baseline review", snapshot.baselineReviewMarkdown) +
+    preview("Triage prompt", snapshot.triagePrompt) +
+    preview("Repair prompt", snapshot.repairPrompt) +
+    '</div>';
+}
+
+function failureCard(f) {
+  return card(
+    f.contractId || "failure",
+    '<div class="grid">' +
+      metric("Classification", f.classification || "unknown", f.classification === "possible_flake" ? "warn" : "") +
+      metric("Severity", f.severity || "unknown", ["critical", "high"].includes(f.severity || "") ? "bad" : "") +
+      metric("Status", f.status || "unknown", f.status === "failed" || f.status === "survived" ? "bad" : "warn") +
+      metric("Target", f.targetId || "unknown", "") +
+    '</div>' +
+      '<h3>Error excerpt</h3><pre>' + esc(f.errorExcerpt || "No error excerpt was recorded.") + '</pre>' +
+      failureList("Routes", f.routes) +
+      failureList("Changed files", f.changedFiles) +
+      failureList("Evidence", f.evidence) +
+      failureList("Suggested files", f.suggestedFiles) +
+      failureList("Suggested next tests", f.suggestedNextTests) +
+      (f.reproductionCommand ? '<h3>Reproduction command</h3><pre>' + esc(f.reproductionCommand) + '</pre>' : '<p class="muted">No reproduction command was recorded for this failure.</p>') +
+      (f.artifacts?.length ? '<h3>Artifacts</h3><ul>' + f.artifacts.map(a => '<li>' + link(rel(a), a) + '</li>').join("") + '</ul>' : '<p class="muted">No failure-specific artifacts were recorded.</p>')
+  );
 }
 
 function baselines() {
