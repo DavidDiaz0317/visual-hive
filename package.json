@@ -62,7 +62,7 @@
     "demo:runbook": "node packages/cli/dist/index.js runbook --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:history": "node packages/cli/dist/index.js history --config examples/demo-react-app/visual-hive.config.yaml --record",
     "demo:artifacts": "node packages/cli/dist/index.js artifacts --config examples/demo-react-app/visual-hive.config.yaml",
-    "demo:pipeline": "node packages/cli/dist/index.js pipeline --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt --bootstrap-baselines --ci --skip-install --skip-build --enforce-mutation --continue-on-error",
+    "demo:pipeline": "node packages/cli/dist/index.js pipeline --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt --ci --skip-install --skip-build --enforce-mutation --continue-on-error",
     "demo:recommend": "node packages/cli/dist/index.js recommend --repo examples/demo-react-app",
     "demo:connections": "node packages/cli/dist/index.js connections list --config examples/demo-react-app/visual-hive.config.yaml --write",
     "demo:kubestellar:auth-plan": "node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt --output .visual-hive/plan.auth.json",
