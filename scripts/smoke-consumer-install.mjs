@@ -20,6 +20,22 @@ try {
   await run("node", [cliPath, "doctor", "--config", configPath], appRoot);
   await run("node", [
     cliPath,
+    "plan",
+    "--config",
+    configPath,
+    "--mode",
+    "pr",
+    "--changed-files",
+    changedFilesPath
+  ], appRoot);
+  await run("node", [
+    cliPath,
+    "run",
+    "--config",
+    configPath
+  ], appRoot, { VISUAL_HIVE_CI: "false" });
+  await run("node", [
+    cliPath,
     "pipeline",
     "--config",
     configPath,
@@ -27,7 +43,6 @@ try {
     "pr",
     "--changed-files",
     changedFilesPath,
-    "--bootstrap-baselines",
     "--ci",
     "--enforce-mutation",
     "--continue-on-error"
@@ -104,11 +119,11 @@ try {
   }
 }
 
-function run(command, args, cwd) {
+function run(command, args, cwd, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(commandForPlatform(command), args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...env },
       stdio: "inherit",
       windowsHide: true
     });
