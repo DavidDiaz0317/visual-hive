@@ -319,10 +319,10 @@ function Overview({ snapshot }: { snapshot: Snapshot }) {
   const mutationScore = typeof overview.mutationScore === "number" ? overview.mutationScore : snapshot.mutationReport?.score;
   return (
     <div className="view-grid">
-      <MetricCard detail={snapshot.config?.project?.name} label="Health" tone="amber" value={overview.healthGrade ?? "unknown"} />
-      <MetricCard detail="deterministic contracts" label="Run status" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} />
-      <MetricCard detail="mutation adequacy" label="Mutation" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} />
-      <MetricCard detail="requires review" label="Failures" tone={overview.failedContracts > 0 ? "danger" : "success"} value={overview.failedContracts ?? 0} />
+      <MetricCard className="span-3" detail={snapshot.config?.project?.name} label="Health" tone="amber" value={overview.healthGrade ?? "unknown"} />
+      <MetricCard className="span-3" detail="deterministic contracts" label="Run status" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} />
+      <MetricCard className="span-3" detail="mutation adequacy" label="Mutation" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} />
+      <MetricCard className="span-3" detail="requires review" label="Failures" tone={overview.failedContracts > 0 ? "danger" : "success"} value={overview.failedContracts ?? 0} />
       <Card className="span-7" eyebrow="Next actions" title="Operator queue">
         {overview.nextActions?.length ? (
           <div className="stack">

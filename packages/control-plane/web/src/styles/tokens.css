@@ -2,31 +2,34 @@
   color-scheme: dark;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --vh-bg: #090d10;
-  --vh-bg-soft: #0e1317;
-  --vh-panel: #13191f;
-  --vh-panel-strong: #182129;
-  --vh-panel-hover: #202a33;
-  --vh-border: #2a333d;
-  --vh-border-strong: #3a4651;
-  --vh-text: #eef3f6;
-  --vh-muted: #a6b1bb;
-  --vh-faint: #75818c;
-  --vh-amber: #d99a28;
-  --vh-amber-soft: rgba(217, 154, 40, 0.15);
-  --vh-amber-strong: #f2b84b;
-  --vh-success: #58d68d;
-  --vh-success-soft: rgba(88, 214, 141, 0.14);
-  --vh-warning: #f2c94c;
-  --vh-warning-soft: rgba(242, 201, 76, 0.14);
-  --vh-danger: #ff6b6b;
-  --vh-danger-soft: rgba(255, 107, 107, 0.14);
-  --vh-info: #46c2ff;
-  --vh-info-soft: rgba(70, 194, 255, 0.14);
-  --vh-radius: 8px;
-  --vh-radius-sm: 5px;
-  --vh-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
-  --vh-focus: 0 0 0 3px rgba(217, 154, 40, 0.32);
+  --grafana-orange: #f05a28;
+  --grafana-orange-dark: #d44a1a;
+  --grafana-orange-soft: rgba(240, 90, 40, 0.14);
+  --vh-bg: #111217;
+  --vh-bg-soft: #181b1f;
+  --vh-panel: #1f242a;
+  --vh-panel-strong: #252b32;
+  --vh-panel-hover: #2b333c;
+  --vh-border: #2f3840;
+  --vh-border-strong: #46515c;
+  --vh-text: #f4f5f8;
+  --vh-muted: #b6bdc6;
+  --vh-faint: #838d99;
+  --vh-amber: var(--grafana-orange);
+  --vh-amber-soft: var(--grafana-orange-soft);
+  --vh-amber-strong: #ff9c66;
+  --vh-success: #73bf69;
+  --vh-success-soft: rgba(115, 191, 105, 0.14);
+  --vh-warning: #fade2a;
+  --vh-warning-soft: rgba(250, 222, 42, 0.13);
+  --vh-danger: #e24d42;
+  --vh-danger-soft: rgba(226, 77, 66, 0.14);
+  --vh-info: #5794f2;
+  --vh-info-soft: rgba(87, 148, 242, 0.14);
+  --vh-radius: 12px;
+  --vh-radius-sm: 6px;
+  --vh-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+  --vh-focus: 0 0 0 2px rgba(240, 90, 40, 0.36);
 }
 
 * {
@@ -36,9 +39,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background:
-    radial-gradient(circle at 70% 0%, rgba(217, 154, 40, 0.09), transparent 30rem),
-    var(--vh-bg);
+  background: var(--vh-bg);
   color: var(--vh-text);
 }
 
