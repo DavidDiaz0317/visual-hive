@@ -12,6 +12,7 @@ const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-consumer-"));
 const appRoot = path.join(tempRoot, "consumer-react-app");
 const configPath = path.join(appRoot, "visual-hive.config.yaml");
 const changedFilesPath = path.join(appRoot, "changed-files.txt");
+let completed = false;
 
 try {
   await cp(fixtureRoot, appRoot, { recursive: true });
@@ -113,9 +114,12 @@ try {
   await assertArtifact(appRoot, ".visual-hive/artifacts-index.json");
 
   console.log(`Consumer smoke passed in ${appRoot}`);
+  completed = true;
 } finally {
-  if (!process.env.VISUAL_HIVE_KEEP_CONSUMER_SMOKE) {
+  if (!process.env.VISUAL_HIVE_KEEP_CONSUMER_SMOKE && (completed || process.env.CI !== "true")) {
     await rm(tempRoot, { recursive: true, force: true });
+  } else if (!completed) {
+    console.error(`Consumer smoke failed; kept temporary repo at ${appRoot}`);
   }
 }
 
@@ -128,10 +132,11 @@ function run(command, args, cwd, env = {}) {
       windowsHide: true
     });
     child.on("error", reject);
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       if (code === 0) {
         resolve();
       } else {
+        await printFailureArtifacts(cwd);
         reject(new Error(`${command} ${args.join(" ")} failed with exit code ${code}`));
       }
     });
@@ -167,4 +172,56 @@ async function assertArtifact(root, relativePath) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function printFailureArtifacts(root) {
+  const reportPath = path.join(root, ".visual-hive", "report.json");
+  const pipelinePath = path.join(root, ".visual-hive", "pipeline.json");
+  for (const filePath of [reportPath, pipelinePath]) {
+    try {
+      const artifact = JSON.parse(await readFile(filePath, "utf8"));
+      console.error(`\n--- ${path.relative(root, filePath)} ---`);
+      console.error(JSON.stringify(summarizeArtifact(artifact), null, 2));
+    } catch {
+      // The failing command may have failed before writing this artifact.
+    }
+  }
+}
+
+function summarizeArtifact(artifact) {
+  if (artifact?.schemaVersion === 2 && Array.isArray(artifact.results)) {
+    return {
+      status: artifact.status,
+      summary: artifact.summary,
+      lifecycle: artifact.targetLifecycle,
+      results: artifact.results.map((result) => ({
+        contractId: result.contractId,
+        status: result.status,
+        errors: result.errors,
+        screenshots: (result.screenshotAssertions ?? []).map((screenshot) => ({
+          name: screenshot.screenshotName ?? screenshot.name,
+          status: screenshot.status,
+          message: screenshot.message,
+          actualDiffPixelRatio: screenshot.actualDiffPixelRatio,
+          actualDiffPixels: screenshot.actualDiffPixels
+        })),
+        consoleErrors: result.consoleErrors,
+        pageErrors: result.pageErrors,
+        networkErrors: result.networkErrors
+      }))
+    };
+  }
+  if (artifact?.schemaVersion === 1 && Array.isArray(artifact.steps)) {
+    return {
+      status: artifact.status,
+      rootCause: artifact.rootCause,
+      steps: artifact.steps.map((step) => ({
+        id: step.id,
+        status: step.status,
+        exitCode: step.exitCode,
+        message: step.message
+      }))
+    };
+  }
+  return artifact;
 }
