@@ -4,7 +4,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { addConnection } from "@visual-hive/core";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, startControlPlaneServer } from "../src/index.js";
-import { controlPlaneJs } from "../src/uiAssets.js";
 
 const sampleRepository = {
   provider: "local",
@@ -2046,136 +2045,38 @@ contracts:
     );
   });
 
-  it("serves the UI and snapshot API", async () => {
+  it("serves the built React UI, static assets, and snapshot API", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
     try {
-      const page = await fetch(server.url).then((response) => response.text());
+      const pageResponse = await fetch(server.url);
+      expect(pageResponse.status).toBe(200);
+      const page = await pageResponse.text();
       expect(page).toContain("Visual Hive Control Plane");
-      const appJs = await fetch(`${server.url}/assets/app.js`).then((response) => response.text());
-      expect(appJs).toContain("contract-filter-target");
-      expect(appJs).toContain("contract-filter-severity");
-      expect(appJs).toContain("contract-filter-prsafe");
-      expect(appJs).toContain("contract-filter-status");
-      expect(appJs).toContain("contract-filter-route");
-      expect(appJs).toContain("contract-filter-viewport");
-      expect(appJs).toContain("contract-filter-contract");
-      expect(appJs).toContain("copy-button");
-      expect(appJs).toContain("function copyText");
-      expect(appJs).toContain("Diff pixels");
-      expect(appJs).toContain("Coverage improvement plan");
-      expect(appJs).toContain("Flow gaps");
-      expect(appJs).toContain("function coverageImprovementCard");
-      expect(appJs).toContain("/api/coverage/apply-recommendation");
-      expect(appJs).toContain("function applyCoverageRecommendation");
-      expect(appJs).toContain("Apply after review");
-      expect(appJs).toContain("Workflow templates");
-      expect(appJs).toContain("trusted workflow_run lane");
-      expect(appJs).toContain("/api/workflows/write-templates");
-      expect(appJs).toContain("workflow-write-all");
-      expect(appJs).toContain("Provider recommendation");
-      expect(appJs).toContain("Provider plan policy");
-      expect(appJs).toContain("External upload guardrails");
-      expect(appJs).toContain("function providerCostPolicyCard");
-      expect(appJs).toContain("function providerCredentialSummary");
-      expect(appJs).toContain("function providerInspectionPolicy");
-      expect(appJs).toContain("function providerDecisionCard");
-      expect(appJs).toContain("function providerSetupPlanCard");
-      expect(appJs).toContain("provider-decision");
-      expect(appJs).toContain("provider-setup-plan");
-      expect(appJs).toContain("/api/providers/decision");
-      expect(appJs).toContain("/api/providers/setup-plan");
-      expect(appJs).toContain("Playwright remains local and deterministic");
-      expect(appJs).toContain("Runbook");
-      expect(appJs).toContain("function reportSelectionCards");
-      expect(appJs).toContain("Selected targets");
-      expect(appJs).toContain("Selected and excluded contracts");
-      expect(appJs).toContain("function reportAssertionCards");
-      expect(appJs).toContain("Selector assertions");
-      expect(appJs).toContain("Screenshot assertions");
-      expect(appJs).toContain("function reportErrorCard");
-      expect(appJs).toContain("Console, page, and network evidence");
-      expect(appJs).toContain("function reportArtifactsCard");
-      expect(appJs).toContain("Report artifacts and reproduction");
-      expect(appJs).toContain("function runHistoryTrendCard");
-      expect(appJs).toContain("Latest vs previous");
-      expect(appJs).toContain("function failureCard");
-      expect(appJs).toContain("Failure context");
-      expect(appJs).toContain("Changed files");
-      expect(appJs).toContain("Suggested next tests");
-      expect(appJs).toContain("runbook-execute");
+      expect(page).toContain('id="root"');
+      const assetPaths = Array.from(page.matchAll(/(?:src|href)="([^"]*\/assets\/[^"]+)"/g)).map((match) => match[1]);
+      const jsAsset = assetPaths.find((asset) => asset.endsWith(".js"));
+      const cssAsset = assetPaths.find((asset) => asset.endsWith(".css"));
+      expect(jsAsset).toBeTruthy();
+      expect(cssAsset).toBeTruthy();
+
+      const appJs = await fetch(`${server.url}${jsAsset}`).then((response) => response.text());
+      expect(appJs).toContain("Visual Hive");
+      expect(appJs).toContain("Control Plane");
+      expect(appJs).toContain("Failure Inbox");
+      expect(appJs).toContain("Baselines");
       expect(appJs).toContain("/api/runbook/execute");
-      expect(appJs).toContain("function llmDecisionCard");
-      expect(appJs).toContain("function recordLLMDecision");
+      expect(appJs).toContain("/api/providers/decision");
       expect(appJs).toContain("/api/llm/decision");
-      expect(appJs).toContain("Profiles");
-      expect(appJs).toContain("function profiles");
-      expect(appJs).toContain("/api/runbook/profile");
-      expect(appJs).toContain("connections-portfolio");
-      expect(appJs).toContain("Actions");
-      expect(appJs).toContain("function actions");
-      expect(appJs).toContain("Control Plane action history");
-      expect(appJs).toContain("Guided setup checklist");
-      expect(appJs).toContain("function setupChecklist");
-      expect(appJs).toContain("function setupStatusBadge");
-      expect(appJs).toContain("function setupProfileSelector");
-      expect(appJs).toContain("function setupPlaywrightPresence");
-      expect(appJs).toContain("Playwright presence");
-      expect(appJs).toContain("Recommended action plan");
-      expect(appJs).toContain("Use free local setup");
-      expect(appJs).toContain("function setupDetectedRoutes");
-      expect(appJs).toContain("Detected app routes");
-      expect(appJs).toContain("function setupDetectedStories");
-      expect(appJs).toContain("Detected Storybook stories");
-      expect(appJs).toContain("Iframe route");
-      expect(appJs).toContain("setup-profile-select");
-      expect(appJs).toContain("/api/setup/recommend");
-      expect(appJs).toContain("Inspect repository");
-      expect(appJs).toContain("Verify PR safety");
-      expect(appJs).toContain("Risk Register");
-      expect(appJs).toContain("function risk");
-      expect(appJs).toContain("Security findings");
-      expect(appJs).toContain("function security");
-      expect(appJs).toContain("Provider cost policy");
-      expect(appJs).toContain("function costs");
-      expect(appJs).toContain("function severityBadge");
-      expect(appJs).toContain("function riskNavigation");
-      expect(appJs).toContain("risk-nav");
-      expect(appJs).toContain("data-focus-key");
-      expect(appJs).toContain("trusted only");
-      expect(appJs).toContain("visual-hive run");
-      expect(appJs).toContain("Setup PR guidance");
-      expect(appJs).toContain("function setupDetectedWorkflows");
-      expect(appJs).toContain("Existing workflow hints");
-      expect(appJs).toContain("pull_request_target");
-      expect(appJs).toContain("function setupWorkflowPreviews");
-      expect(appJs).toContain("Workflow previews");
-      expect(appJs).toContain("Review the generated workflow snippets");
-      expect(appJs).toContain("setup-write-config");
-      expect(appJs).toContain("/api/setup/write-config");
-      expect(appJs).toContain("setup-write-docs");
-      expect(appJs).toContain("/api/setup/write-docs");
-      expect(appJs).toContain("setup-write-bundle");
-      expect(appJs).toContain("/api/setup/write-bundle");
-      expect(appJs).toContain("Portfolio");
-      expect(appJs).toContain("function portfolio");
-      expect(appJs).toContain("Portfolio attention queue");
-      expect(appJs).toContain("Connection health dashboard");
-      expect(appJs).toContain("function connectionHealthBadge");
-      expect(appJs).toContain("function connectionMutation");
-      expect(appJs).toContain("function connectionCoverage");
-      expect(appJs).toContain("function connectionRisk");
-      expect(appJs).toContain("function connectionReadiness");
-      expect(appJs).toContain("function connectionSecurity");
-      expect(appJs).toContain("function connectionCost");
-      expect(appJs).toContain("Readiness gates");
-      expect(appJs).toContain("Security risks");
-      expect(appJs).toContain("Cost policy");
-      expect(appJs).toContain("What this means");
-      expect(appJs).toContain("Killed means deterministic contracts caught the intentional breakage");
-      expect(appJs).toContain("function mutationStatusBadge");
-      expect(appJs).toContain("function mutationEvidence");
-      expect(appJs).toContain("Missing-test recommendations");
+      expect(appJs).toContain("Approve actual screenshot as the new baseline");
+
+      const css = await fetch(`${server.url}${cssAsset}`).then((response) => response.text());
+      expect(css).toContain("--vh-amber");
+      expect(css).toContain(".app-shell");
+
+      const blockedAsset = await fetch(`${server.url}/assets/..%2Fserver.js`);
+      expect(blockedAsset.status).toBe(404);
+
       const snapshot = await fetch(`${server.url}/api/snapshot`).then((response) => response.json());
       expect(snapshot.config.project.name).toBe("ui-fixture");
       expect(snapshot.setupRecommendation.playwright.status).toBe("present");
@@ -2189,94 +2090,47 @@ contracts:
     }
   });
 
-  it("ships parseable browser JavaScript for contract manager filters", () => {
-    expect(() => new Function(controlPlaneJs)).not.toThrow();
-    expect(controlPlaneJs).toContain("function filterContracts");
-    expect(controlPlaneJs).toContain("contractTargetPrSafe");
-    expect(controlPlaneJs).toContain("Filters are local to the browser");
-    expect(controlPlaneJs).toContain("function baselineCardBody");
-    expect(controlPlaneJs).toContain("function reportSelectionCards");
-    expect(controlPlaneJs).toContain("function reportAssertionCards");
-    expect(controlPlaneJs).toContain("function reportErrorCard");
-    expect(controlPlaneJs).toContain("function reportArtifactsCard");
-    expect(controlPlaneJs).toContain("function failureCard");
-    expect(controlPlaneJs).toContain("Deterministic failures and mutation survivors are the highest priority queues");
-    expect(controlPlaneJs).toContain("function baselineSummaryCard");
-    expect(controlPlaneJs).toContain("visual-hive baselines list --write");
-    expect(controlPlaneJs).toContain("function coverageImprovementCard");
-    expect(controlPlaneJs).toContain('["flows", "Flows"]');
-    expect(controlPlaneJs).toContain("function flows");
-    expect(controlPlaneJs).toContain("Critical without flow");
-    expect(controlPlaneJs).toContain("visual-hive improve-coverage");
-    expect(controlPlaneJs).toContain("navigator.clipboard");
-    expect(controlPlaneJs).toContain("Browser automation and some local contexts deny clipboard writes.");
-    expect(controlPlaneJs).toContain("function runbook");
-    expect(controlPlaneJs).toContain("function runbookExecuteButton");
-    expect(controlPlaneJs).toContain("/api/runbook/execute");
-    expect(controlPlaneJs).toContain("function connectionReadiness");
-    expect(controlPlaneJs).toContain("function connectionSecurity");
-    expect(controlPlaneJs).toContain("function connectionCost");
-    expect(controlPlaneJs).toContain("critical/high");
-    expect(controlPlaneJs).toContain("policy-blocked providers");
-    expect(controlPlaneJs).toContain("function providerHandoffCard");
-    expect(controlPlaneJs).toContain("visual-hive providers handoff --provider argos");
-    expect(controlPlaneJs).toContain("function profiles");
-    expect(controlPlaneJs).toContain("function profileActions");
-    expect(controlPlaneJs).toContain("/api/runbook/profile");
-    expect(controlPlaneJs).toContain("connections-portfolio");
-    expect(controlPlaneJs).toContain("function actions");
-    expect(controlPlaneJs).toContain("function actionOutput");
-    expect(controlPlaneJs).toContain("stdout and stderr are sanitized");
-    expect(controlPlaneJs).toContain("function setupChecklist");
-    expect(controlPlaneJs).toContain("function setupProgressCard");
-    expect(controlPlaneJs).toContain("function setupPrPlanCard");
-    expect(controlPlaneJs).toContain(".visual-hive/setup-pr-plan.json");
-    expect(controlPlaneJs).toContain("function planLaneSummaryCard");
-    expect(controlPlaneJs).toContain(".visual-hive/plans.json");
-    expect(controlPlaneJs).toContain("Next best action");
-    expect(controlPlaneJs).toContain("onboardingChecklist");
-    expect(controlPlaneJs).toContain("Driven by <code>.visual-hive/recommendations.json</code>");
-    expect(controlPlaneJs).toContain("function setupPlaywrightPresence");
-    expect(controlPlaneJs).toContain("function setupDetectedRoutes");
-    expect(controlPlaneJs).toContain("function setupDetectedStories");
-    expect(controlPlaneJs).toContain("function setupDetectedWorkflows");
-    expect(controlPlaneJs).toContain("function setupWorkflowPreviews");
-    expect(controlPlaneJs).toContain("Storybook repositories can start with component contracts");
-    expect(controlPlaneJs).toContain("function setupProfileSelector");
-    expect(controlPlaneJs).toContain("function regenerateSetupRecommendation");
-    expect(controlPlaneJs).toContain("/api/setup/recommend");
-    expect(controlPlaneJs).toContain("function risk");
-    expect(controlPlaneJs).toContain("function navButton");
-    expect(controlPlaneJs).toContain("function scrollToFocusedElement");
-    expect(controlPlaneJs).toContain("function safetyBadge");
-    expect(controlPlaneJs).toContain("function workflowTemplatesCard");
-    expect(controlPlaneJs).toContain("function writeRecommendedDocs");
-    expect(controlPlaneJs).toContain("function writeSetupBundle");
-    expect(controlPlaneJs).toContain("function providers");
-    expect(controlPlaneJs).toContain("function providerDetailBody");
-    expect(controlPlaneJs).toContain("function providerDecisionCard");
-    expect(controlPlaneJs).toContain("function recordProviderDecision");
-    expect(controlPlaneJs).toContain("function providerSetupPlanCard");
-    expect(controlPlaneJs).toContain("function writeProviderSetupPlan");
-    expect(controlPlaneJs).toContain("/api/providers/decision");
-    expect(controlPlaneJs).toContain("/api/providers/setup-plan");
-    expect(controlPlaneJs).toContain("function llmDecisionCard");
-    expect(controlPlaneJs).toContain("function recordLLMDecision");
-    expect(controlPlaneJs).toContain("/api/llm/decision");
-    expect(controlPlaneJs).toContain("Approve actual screenshot as the new baseline");
-    expect(controlPlaneJs).toContain("confirm: true");
-    expect(controlPlaneJs).toContain("External upload guardrails");
-    expect(controlPlaneJs).toContain("function portfolio");
-    expect(controlPlaneJs).toContain("function portfolioItemRow");
-    expect(controlPlaneJs).toContain("function connectionHealthBadge");
-    expect(controlPlaneJs).toContain("function connectionCoverage");
-    expect(controlPlaneJs).toContain("Connection health dashboard");
-    expect(controlPlaneJs).toContain("function mutationStatusBadge");
-    expect(controlPlaneJs).toContain("function mutationEvidence");
-    expect(controlPlaneJs).toContain("Missing-test recommendations");
-    expect(controlPlaneJs).toContain("Not applicable means the operator did not match selected contracts");
+  it("ships a Control Plane bundle with all primary views represented", async () => {
+    const fixture = await makeFixture();
+    const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
+    try {
+      const page = await fetch(server.url).then((response) => response.text());
+      const jsAsset = Array.from(page.matchAll(/src="([^"]*\/assets\/[^"]+\.js)"/g)).map((match) => match[1])[0];
+      expect(jsAsset).toBeTruthy();
+      const appJs = await fetch(`${server.url}${jsAsset}`).then((response) => response.text());
+      for (const expected of [
+        "Overview",
+        "Portfolio",
+        "Runbook",
+        "Profiles",
+        "Actions",
+        "Readiness",
+        "Risk",
+        "Security",
+        "Costs",
+        "Setup",
+        "Runs / Reports",
+        "Failure Inbox",
+        "Baselines",
+        "Mutation",
+        "Coverage",
+        "Flows",
+        "Config",
+        "Targets",
+        "Contracts",
+        "Schedule",
+        "LLM",
+        "Providers",
+        "GitHub / CI",
+        "Connections",
+        "Raw Artifacts"
+      ]) {
+        expect(appJs).toContain(expected);
+      }
+    } finally {
+      await server.close();
+    }
   });
-
   it("approves a baseline through the local API when write mode is enabled", async () => {
     const fixture = await makeFixture();
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0 });

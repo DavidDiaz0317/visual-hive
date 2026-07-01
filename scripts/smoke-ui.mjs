@@ -80,19 +80,25 @@ try {
     throw new Error(`ui page returned ${pageResponse.status}`);
   }
   const page = await pageResponse.text();
-  for (const expected of ["Visual Hive Control Plane", "/assets/styles.css", "/assets/app.js"]) {
+  for (const expected of ["Visual Hive Control Plane", 'id="root"']) {
     if (!page.includes(expected)) {
       throw new Error(`ui page did not include expected text: ${expected}`);
     }
   }
-  const appJs = await fetchText(`${server.url}/assets/app.js`, "app.js");
-  for (const expected of ["overview", "setup", "runs", "mutation", "portfolio", "runbook", "connections"]) {
+  const assetPaths = Array.from(page.matchAll(/(?:src|href)="([^"]*\/assets\/[^"]+)"/g)).map((match) => match[1]);
+  const jsAsset = assetPaths.find((asset) => asset.endsWith(".js"));
+  const cssAsset = assetPaths.find((asset) => asset.endsWith(".css"));
+  if (!jsAsset || !cssAsset) {
+    throw new Error(`ui page did not reference built Vite assets: ${assetPaths.join(", ") || "none"}`);
+  }
+  const appJs = await fetchText(`${server.url}${jsAsset}`, "app.js");
+  for (const expected of ["Visual Hive", "Control Plane", "Overview", "Failure Inbox", "Baselines", "Providers", "Connections"]) {
     if (!appJs.includes(expected)) {
       throw new Error(`client bundle did not include expected Control Plane view: ${expected}`);
     }
   }
-  const css = await fetchText(`${server.url}/assets/styles.css`, "styles.css");
-  if (!css.includes(".tabs") || !css.includes(".content")) {
+  const css = await fetchText(`${server.url}${cssAsset}`, "styles.css");
+  if (!css.includes("--vh-amber") || !css.includes(".app-shell")) {
     throw new Error("Control Plane stylesheet did not include expected layout classes");
   }
   console.log(`Visual Hive UI smoke passed at ${server.url}`);

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
-import { URL } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 import {
   SetupProfileSchema,
   addConnection,
@@ -22,9 +22,12 @@ import { recordLLMDecision, type LLMDecision } from "./llmDecisions.js";
 import { recordProviderDecision, type ProviderDecision } from "./providerDecisions.js";
 import { createControlPlaneSnapshot, readControlPlaneArtifact, resolveControlPlaneOptions } from "./repoReader.js";
 import { writeSetupBundleFromRecommendation } from "./setupBundle.js";
-import { controlPlaneCss, controlPlaneHtml, controlPlaneJs } from "./uiAssets.js";
+import { fallbackControlPlaneHtml } from "./uiAssets.js";
 import type { ControlPlaneOptions, ResolvedControlPlaneOptions, StartedControlPlane } from "./types.js";
 import { writeWorkflowTemplates } from "./workflowWriter.js";
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const webDistDir = path.basename(moduleDir) === "src" ? path.resolve(moduleDir, "..", "dist", "web") : path.join(moduleDir, "web");
 
 export async function startControlPlaneServer(options: ControlPlaneOptions = {}): Promise<StartedControlPlane> {
   const server = http.createServer((request, response) => {
@@ -492,25 +495,86 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
       sendJson(response, { ok: true, index });
       return;
     }
-    if (url.pathname === "/assets/app.js") {
+    if (url.pathname.startsWith("/assets/")) {
       if (request.method !== "GET") return methodNotAllowed(response);
-      send(response, 200, controlPlaneJs, "text/javascript; charset=utf-8");
-      return;
-    }
-    if (url.pathname === "/assets/styles.css") {
-      if (request.method !== "GET") return methodNotAllowed(response);
-      send(response, 200, controlPlaneCss, "text/css; charset=utf-8");
+      await serveWebAsset(response, url.pathname);
       return;
     }
     if (url.pathname === "/") {
       if (request.method !== "GET") return methodNotAllowed(response);
-      send(response, 200, controlPlaneHtml, "text/html; charset=utf-8");
+      await serveControlPlaneHtml(response);
       return;
     }
     send(response, 404, "Not found", "text/plain; charset=utf-8");
   } catch (error) {
     const message = sanitizeText(error instanceof Error ? error.message : String(error));
     send(response, 500, message, "text/plain; charset=utf-8");
+  }
+}
+
+async function serveControlPlaneHtml(response: ServerResponse): Promise<void> {
+  try {
+    const html = await readFile(path.join(webDistDir, "index.html"));
+    send(response, 200, html, "text/html; charset=utf-8");
+  } catch {
+    send(response, 200, fallbackControlPlaneHtml, "text/html; charset=utf-8");
+  }
+}
+
+async function serveWebAsset(response: ServerResponse, pathname: string): Promise<void> {
+  let relative: string;
+  try {
+    relative = decodeURIComponent(pathname.replace(/^\//, ""));
+  } catch {
+    send(response, 400, "Invalid asset path", "text/plain; charset=utf-8");
+    return;
+  }
+  const assetPath = path.resolve(webDistDir, relative);
+  if (!isInsideDirectory(webDistDir, assetPath)) {
+    send(response, 404, "Not found", "text/plain; charset=utf-8");
+    return;
+  }
+  try {
+    send(response, 200, await readFile(assetPath), contentTypeForPath(assetPath));
+  } catch {
+    send(response, 404, "Not found", "text/plain; charset=utf-8");
+  }
+}
+
+function isInsideDirectory(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function contentTypeForPath(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+    case ".mjs":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+    case ".map":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".ico":
+      return "image/x-icon";
+    case ".woff":
+      return "font/woff";
+    case ".woff2":
+      return "font/woff2";
+    default:
+      return "application/octet-stream";
   }
 }
 
