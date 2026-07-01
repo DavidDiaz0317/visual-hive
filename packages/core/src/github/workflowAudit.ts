@@ -151,10 +151,13 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
     reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
     runsVisualHive:
-      /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows|baselines)\b/i.test(content) || /packages\/cli\/dist\/index\.js/i.test(content),
-    runsMutation: /\bvisual-hive\s+mutate\b/i.test(content),
+      /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows|baselines|pipeline)\b/i.test(content) ||
+      /packages\/cli\/dist\/index\.js/i.test(content) ||
+      /DavidDiaz0317\/visual-hive\/actions\/run@/i.test(content),
+    runsMutation: /\bvisual-hive\s+mutate\b/i.test(content) || /--enforce-mutation|--mode\s+(schedule|mutation|full)\b/i.test(content),
     writesBaselineReview:
       /\bvisual-hive\s+baselines\s+list\b[\s\S]*--write/i.test(content) ||
+      /\bvisual-hive\s+pipeline\b|command:\s+pipeline|command:\s*["']?pipeline/i.test(content) ||
       /\.visual-hive\/baselines\.json/i.test(content) ||
       /npm\s+run\s+demo:baselines/i.test(content),
     hasDedupeSignature: /visual-hive-dedupe|dedupe/i.test(content),

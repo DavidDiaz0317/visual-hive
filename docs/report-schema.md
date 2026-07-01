@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
 
 ## Plan
 
@@ -90,7 +90,15 @@ Path: `.visual-hive/provider-results.json`
 
 Schema: `schemas/visual-hive.provider-results.schema.json`
 
-The provider-results artifact is written by `visual-hive providers list --mock-results` after a deterministic run. It exercises the provider adapter lifecycle without making paid-provider or external network calls. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Playwright remains the deterministic oracle; mock provider output is supplemental evidence only.
+The provider-results artifact is written by `visual-hive providers list --mock-results` after a deterministic run or by `visual-hive providers upload --provider argos`. Mock/list mode exercises the provider adapter lifecycle without making paid-provider or external network calls. Argos upload mode records upload status (`uploaded`, `skipped`, `blocked`, `missing_credentials`, `failed`, or `dry_run`), external call count, staged/uploaded artifact counts, sanitized command/stdout/stderr excerpts, and an optional provider URL. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Playwright remains the deterministic oracle; provider output is supplemental evidence only.
+
+## Provider Upload Manifest
+
+Path: `.visual-hive/provider-upload/argos/manifest.json`
+
+Schema: `schemas/visual-hive.provider-upload.schema.json`
+
+The Argos upload manifest is written by `visual-hive providers upload --provider argos`. Dry-run and skipped/blocked/missing-credential paths make zero external calls. A real upload is attempted only when `providers.argos.enabled=true`, `mode=external`, `ARGOS_TOKEN` is present by name in the environment, cost policy permits the run, and the command is invoked explicitly. The manifest records deterministic status, run mode, readiness, staged actual/diff/text artifacts, upload status, uploaded artifact count, external calls made, blocked reasons, warnings, and sanitized command output. It never becomes the pass/fail oracle.
 
 When this artifact exists before `visual-hive triage`, `.visual-hive/triage.json` records it under `sourceArtifacts.providerResults`, offline findings include provider credential failures and cost-policy upload blocks, `triage-prompt.md` includes the sanitized provider adapter JSON, and `issue.md` / `pr-comment.md` include provider adapter operation evidence.
 

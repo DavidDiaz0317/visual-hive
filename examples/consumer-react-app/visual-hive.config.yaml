@@ -1,0 +1,72 @@
+project:
+  name: consumer-react-app
+  type: react-vite
+  defaultBranch: main
+
+targets:
+  localPreview:
+    kind: command
+    install: "npm install"
+    build: "npm run build"
+    serve: "npm run preview -- --port 4299 --strictPort"
+    url: "http://127.0.0.1:4299"
+    prSafe: true
+    cost: cheap
+
+contracts:
+  - id: consumer-dashboard-visual
+    description: Consumer dashboard should keep its visible release-health shell stable.
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    waitFor:
+      - selector: "[data-testid='consumer-dashboard']"
+        state: visible
+        timeoutMs: 15000
+    selectors:
+      mustExist:
+        - "[data-testid='consumer-dashboard']"
+        - "[data-testid='consumer-header']"
+        - "[data-testid='critical-action-button']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+    screenshots:
+      - name: dashboard-desktop
+        route: "/"
+        viewport: desktop
+      - name: dashboard-mobile
+        route: "/"
+        viewport: mobile
+
+viewports:
+  desktop:
+    width: 1280
+    height: 800
+  mobile:
+    width: 390
+    height: 844
+
+selection:
+  changedFiles:
+    - pattern: "src/**"
+      contracts:
+        - consumer-dashboard-visual
+      risk: medium
+
+mutation:
+  enabled: true
+  minScore: 0.7
+  operators:
+    - id: hide-critical-button
+      contracts:
+        - consumer-dashboard-visual
+
+ai:
+  enabled: false
+  provider: none
+  neverSoleOracle: true
+
+github:
+  enabled: true

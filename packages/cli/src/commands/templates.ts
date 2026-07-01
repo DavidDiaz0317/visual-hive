@@ -12,7 +12,7 @@ targets:
     kind: command
     install: "npm ci"
     build: "npm run build"
-    serve: "npm run preview -- --port 4173"
+    serve: "npm run preview -- --port 4173 --strictPort"
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap

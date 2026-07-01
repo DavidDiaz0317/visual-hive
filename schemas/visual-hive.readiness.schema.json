@@ -62,7 +62,7 @@
         "properties": {
           "id": { "type": "string" },
           "category": {
-            "enum": ["config", "planning", "deterministic", "baselines", "mutation", "workflow", "security", "provider", "llm", "cost", "history"]
+            "enum": ["config", "setup", "planning", "deterministic", "baselines", "mutation", "workflow", "security", "provider", "llm", "cost", "history"]
           },
           "status": { "enum": ["passed", "warning", "blocked", "missing"] },
           "title": { "type": "string" },

@@ -29,7 +29,7 @@ The default should remain:
 }
 ```
 
-External providers are supplemental. A future adapter that uploads screenshots must make that behavior explicit through provider artifacts and cost reports.
+External providers are supplemental. Argos is the first optional upload adapter and must be invoked explicitly with `visual-hive providers upload --provider argos`; Playwright remains the deterministic pass/fail oracle. Disabled, missing-credential, policy-blocked, and dry-run Argos paths record zero external calls.
 
 ## PR Safety
 
@@ -57,3 +57,33 @@ costPolicy:
 ```
 
 These settings let Visual Hive explain whether a provider upload would be allowed, blocked, or risky before any external network call is made.
+
+For a trusted scheduled/manual Argos lane, raise the screenshot budget only for the trusted workflow and keep PR uploads disabled:
+
+```yaml
+providers:
+  argos:
+    enabled: true
+    mode: external
+    requiredEnv:
+      - ARGOS_TOKEN
+    upload:
+      includeActualScreenshots: true
+      includeDiffScreenshots: true
+      includeTextArtifacts: false
+
+costPolicy:
+  maxExternalScreenshotsPerRun: 25
+  externalUpload:
+    pullRequest: false
+    schedule: true
+    manual: true
+    onFailureOnly: true
+    criticalContractsOnly: true
+```
+
+Validate without network calls first:
+
+```bash
+visual-hive providers upload --provider argos --dry-run
+```

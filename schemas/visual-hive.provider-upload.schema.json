@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.local/schemas/visual-hive.provider-upload.schema.json",
+  "title": "Visual Hive Provider Upload Manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "providerId",
+    "label",
+    "status",
+    "dryRun",
+    "deterministicStatus",
+    "mode",
+    "externalCallsMade",
+    "readiness",
+    "summary",
+    "stagedArtifacts",
+    "blockedReasons",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "providerId": { "enum": ["argos"] },
+    "label": { "type": "string" },
+    "status": { "enum": ["uploaded", "skipped", "blocked", "missing_credentials", "failed", "dry_run"] },
+    "dryRun": { "type": "boolean" },
+    "deterministicStatus": { "enum": ["passed", "failed"] },
+    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "externalCallsMade": { "type": "integer", "minimum": 0 },
+    "readiness": { "type": "object" },
+    "summary": {
+      "type": "object",
+      "required": ["stagedArtifacts", "uploadedArtifacts", "actualScreenshots", "diffScreenshots", "textArtifacts"],
+      "properties": {
+        "stagedArtifacts": { "type": "integer", "minimum": 0 },
+        "uploadedArtifacts": { "type": "integer", "minimum": 0 },
+        "actualScreenshots": { "type": "integer", "minimum": 0 },
+        "diffScreenshots": { "type": "integer", "minimum": 0 },
+        "textArtifacts": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "stagedArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourcePath", "stagedPath", "kind"],
+        "properties": {
+          "sourcePath": { "type": "string" },
+          "stagedPath": { "type": "string" },
+          "kind": { "enum": ["actual_screenshot", "diff_screenshot", "text_artifact"] },
+          "contractId": { "type": "string" },
+          "screenshotName": { "type": "string" },
+          "viewport": { "type": "string" },
+          "route": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "command": { "type": "string" },
+    "stdout": { "type": "string" },
+    "stderr": { "type": "string" },
+    "providerUrl": { "type": "string" },
+    "blockedReasons": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://visual-hive.local/schemas/visual-hive.provider-results.schema.json",
-  "title": "Visual Hive Provider Adapter Mock Results",
+  "title": "Visual Hive Provider Adapter Results",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -144,7 +144,29 @@
         },
         "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
         "externalUrl": { "type": "string" },
+        "upload": { "$ref": "#/$defs/uploadEvidence" },
         "normalizedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "uploadEvidence": {
+      "type": "object",
+      "required": ["status", "externalCallsMade", "uploadedArtifacts", "stagedArtifacts"],
+      "properties": {
+        "status": { "enum": ["uploaded", "skipped", "blocked", "missing_credentials", "failed", "dry_run"] },
+        "externalCallsMade": { "type": "integer", "minimum": 0 },
+        "uploadedArtifacts": { "type": "integer", "minimum": 0 },
+        "stagedArtifacts": { "type": "integer", "minimum": 0 },
+        "manifestPath": { "type": "string" },
+        "uploadDirectory": { "type": "string" },
+        "command": { "type": "string" },
+        "stdout": { "type": "string" },
+        "stderr": { "type": "string" },
+        "providerUrl": { "type": "string" },
+        "blockedReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       },
       "additionalProperties": false
     },
@@ -166,8 +188,8 @@
         "category": { "enum": ["built-in", "hosted-visual", "component", "ci"] },
         "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
         "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "networkMode": { "enum": ["local", "mock", "deferred", "disabled", "missing_credentials", "policy_blocked"] },
-        "externalCallsMade": { "const": 0 },
+        "networkMode": { "enum": ["local", "mock", "deferred", "external", "disabled", "missing_credentials", "policy_blocked"] },
+        "externalCallsMade": { "type": "integer", "minimum": 0 },
         "artifactSummary": {
           "type": "object",
           "required": ["localArtifacts", "uploadedArtifacts", "comparedArtifacts", "uploadMode"],
@@ -175,7 +197,7 @@
             "localArtifacts": { "type": "integer", "minimum": 0 },
             "uploadedArtifacts": { "type": "integer", "minimum": 0 },
             "comparedArtifacts": { "type": "integer", "minimum": 0 },
-            "uploadMode": { "enum": ["local-only", "mock", "deferred", "not-supported", "disabled", "blocked"] }
+            "uploadMode": { "enum": ["local-only", "mock", "deferred", "uploaded", "dry-run", "not-supported", "disabled", "blocked"] }
           },
           "additionalProperties": false
         },

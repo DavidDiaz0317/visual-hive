@@ -1,4 +1,5 @@
 import path from "node:path";
+import { rm } from "node:fs/promises";
 import {
   buildMutationReport,
   loadConfig,
@@ -48,71 +49,93 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
   }
   const results: MutationResult[] = [];
   const runner = options.runner ?? runPlaywrightContracts;
+  const deterministicReportPath = path.join(loaded.rootDir, ".visual-hive", "report.json");
+  const previousDeterministicReport = await readOptionalReport(deterministicReportPath);
 
-  for (const operator of operators) {
-    const mapping = selectContractsForMutation(
-      operator,
-      loaded.config.contracts.filter((contract) => plan.items.some((item) => item.contractId === contract.id))
-    );
-    const selectedItems = plan.items.filter((item) => mapping.contractIds.includes(item.contractId));
-    const selectedTargetIds = [...new Set(selectedItems.map((item) => item.targetId))];
-    if (!mapping.applicable || selectedItems.length === 0) {
+  try {
+    for (const operator of operators) {
+      const mapping = selectContractsForMutation(
+        operator,
+        loaded.config.contracts.filter((contract) => plan.items.some((item) => item.contractId === contract.id))
+      );
+      const selectedItems = plan.items.filter((item) => mapping.contractIds.includes(item.contractId));
+      const selectedTargetIds = [...new Set(selectedItems.map((item) => item.targetId))];
+      if (!mapping.applicable || selectedItems.length === 0) {
+        const metadata = MUTATION_OPERATOR_METADATA[mapping.operatorId];
+        results.push({
+          operator: mapping.operatorId,
+          status: "not_applicable",
+          killed: false,
+          applicable: false,
+          contractIds: [],
+          expectedFailureKinds: metadata.expectedFailureKinds,
+          durationMs: 0,
+          artifacts: [],
+          errors: [`Mutation ${mapping.operatorId} was not applicable: ${mapping.reason}`]
+        });
+        continue;
+      }
       const metadata = MUTATION_OPERATOR_METADATA[mapping.operatorId];
+      const startedAt = Date.now();
+      const mutationPlan: Plan = {
+        ...plan,
+        items: selectedItems,
+        targets: plan.targets.filter((target) => selectedTargetIds.includes(target.id))
+      };
+      const { report, exitCode } = await runner({
+        config: loaded.config,
+        plan: mutationPlan,
+        rootDir: loaded.rootDir,
+        ci: true,
+        mutationOperator: mapping.operatorId,
+        skipInstall: options.skipInstall,
+        skipBuild: options.skipBuild
+      });
+      const killed = exitCode !== 0 || report.status === "failed";
+      const errors = report.results.flatMap((result) => result.errors);
       results.push({
         operator: mapping.operatorId,
-        status: "not_applicable",
-        killed: false,
-        applicable: false,
-        contractIds: [],
+        status: killed ? "killed" : "survived",
+        killed,
+        applicable: true,
+        contractIds: selectedItems.map((item) => item.contractId),
         expectedFailureKinds: metadata.expectedFailureKinds,
-        durationMs: 0,
-        artifacts: [],
-        errors: [`Mutation ${mapping.operatorId} was not applicable: ${mapping.reason}`]
+        failureKind: killed ? inferFailureKind(errors) : undefined,
+        failedAssertion: killed ? errors[0] : undefined,
+        durationMs: Date.now() - startedAt,
+        errors,
+        artifacts: [...new Set(report.results.flatMap((result) => result.artifacts))]
       });
-      continue;
     }
-    const metadata = MUTATION_OPERATOR_METADATA[mapping.operatorId];
-    const startedAt = Date.now();
-    const mutationPlan: Plan = {
-      ...plan,
-      items: selectedItems,
-      targets: plan.targets.filter((target) => selectedTargetIds.includes(target.id))
-    };
-    const { report, exitCode } = await runner({
-      config: loaded.config,
-      plan: mutationPlan,
-      rootDir: loaded.rootDir,
-      ci: true,
-      mutationOperator: mapping.operatorId,
-      skipInstall: options.skipInstall,
-      skipBuild: options.skipBuild
-    });
-    const killed = exitCode !== 0 || report.status === "failed";
-    const errors = report.results.flatMap((result) => result.errors);
-    results.push({
-      operator: mapping.operatorId,
-      status: killed ? "killed" : "survived",
-      killed,
-      applicable: true,
-      contractIds: selectedItems.map((item) => item.contractId),
-      expectedFailureKinds: metadata.expectedFailureKinds,
-      failureKind: killed ? inferFailureKind(errors) : undefined,
-      failedAssertion: killed ? errors[0] : undefined,
-      durationMs: Date.now() - startedAt,
-      errors,
-      artifacts: [...new Set(report.results.flatMap((result) => result.artifacts))]
-    });
-  }
 
-  const report = buildMutationReport({
-    project: loaded.config.project.name,
-    minScore: loaded.config.mutation.minScore,
-    results
-  });
-  const reportPath = path.join(loaded.rootDir, ".visual-hive", "mutation-report.json");
-  await writeJson(reportPath, report);
-  const exitCode = options.enforceMinScore && report.score < report.minScore ? 1 : 0;
-  return { exitCode, reportPath, report };
+    const report = buildMutationReport({
+      project: loaded.config.project.name,
+      minScore: loaded.config.mutation.minScore,
+      results
+    });
+    const reportPath = path.join(loaded.rootDir, ".visual-hive", "mutation-report.json");
+    await writeJson(reportPath, report);
+    const exitCode = options.enforceMinScore && report.score < report.minScore ? 1 : 0;
+    return { exitCode, reportPath, report };
+  } finally {
+    await restoreDeterministicReport(deterministicReportPath, previousDeterministicReport);
+  }
+}
+
+async function readOptionalReport(reportPath: string): Promise<Report | undefined> {
+  try {
+    return await readJson<Report>(reportPath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function restoreDeterministicReport(reportPath: string, report: Report | undefined): Promise<void> {
+  if (report) {
+    await writeJson(reportPath, report);
+    return;
+  }
+  await rm(reportPath, { force: true });
 }
 
 function inferFailureKind(errors: string[]): string | undefined {

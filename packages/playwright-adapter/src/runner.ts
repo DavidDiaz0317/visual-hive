@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import {
   collectRepositoryMetadata,
@@ -32,7 +33,7 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
   const targetLifecycle: TargetLifecycleEvent[] = [];
   const startedAt = Date.now();
   const spec = await generatePlaywrightSpec(options);
-  await rm(path.join(options.rootDir, options.config.visual.artifactDir, "results"), { recursive: true, force: true });
+  await removeGeneratedResults(path.join(options.rootDir, options.config.visual.artifactDir, "results"));
   let playwrightResult: { stdout: string; stderr: string; exitCode: number } | undefined;
   let executionError: unknown;
 
@@ -126,6 +127,23 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     executionError
   });
   return { report, exitCode: playwrightResult?.exitCode ?? (executionError ? 1 : 0) };
+}
+
+async function removeGeneratedResults(resultsDir: string): Promise<void> {
+  const retryable = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(resultsDir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      const code = typeof error === "object" && error && "code" in error ? String((error as NodeJS.ErrnoException).code) : "";
+      if (!retryable.has(code)) throw error;
+      await delay(100 * (attempt + 1));
+    }
+  }
+  throw lastError;
 }
 
 async function buildReportFromPlaywrightOutput(input: {

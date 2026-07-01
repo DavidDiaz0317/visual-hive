@@ -20,7 +20,7 @@ export interface ProviderAdapterOperationResult {
   artifactCount?: number;
 }
 
-export type ProviderNetworkMode = "local" | "mock" | "deferred" | "disabled" | "missing_credentials" | "policy_blocked";
+export type ProviderNetworkMode = "local" | "mock" | "deferred" | "external" | "disabled" | "missing_credentials" | "policy_blocked";
 
 export interface ProviderNormalizedMetadata {
   providerId: ProviderId;
@@ -28,12 +28,12 @@ export interface ProviderNormalizedMetadata {
   status: ProviderResult["status"];
   deterministicRole: ProviderAdapterMetadata["deterministicRole"];
   networkMode: ProviderNetworkMode;
-  externalCallsMade: 0;
+  externalCallsMade: number;
   artifactSummary: {
     localArtifacts: number;
     uploadedArtifacts: number;
     comparedArtifacts: number;
-    uploadMode: "local-only" | "mock" | "deferred" | "not-supported" | "disabled" | "blocked";
+    uploadMode: "local-only" | "mock" | "deferred" | "uploaded" | "dry-run" | "not-supported" | "disabled" | "blocked";
   };
   costPolicy: {
     externalUploadAllowed: boolean;

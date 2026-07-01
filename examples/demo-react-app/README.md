@@ -7,7 +7,7 @@ Run it locally:
 ```bash
 npm install
 npm run build
-npm run preview -- --port 4173
+npm run preview -- --port 4173 --strictPort
 ```
 
 From the repo root:

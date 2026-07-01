@@ -450,7 +450,7 @@ function serveCommand(
   projectType: VisualHiveConfig["project"]["type"]
 ): string | undefined {
   const runner = scriptRunner(packageManager);
-  if (scripts.preview) return `${runner} preview -- --port ${DEFAULT_PORT}`;
+  if (scripts.preview) return `${runner} preview -- --port ${DEFAULT_PORT} --strictPort`;
   if (scripts.dev) return `${runner} dev -- --host 127.0.0.1 --port ${DEFAULT_PORT}`;
   if (projectType === "nextjs" && scripts.start) return `${runner} start -- -p ${DEFAULT_PORT}`;
   if (scripts.start) return `${runner} start`;

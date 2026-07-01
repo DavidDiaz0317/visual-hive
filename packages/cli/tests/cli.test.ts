@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
 import { formatPlanSummary, parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
+import { runPipelineCommand } from "../src/commands/pipeline.js";
 import { formatPlansSummary, runPlansCommand } from "../src/commands/plans.js";
 import { runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
@@ -23,11 +24,13 @@ import {
   formatProviderDecision,
   formatProviderHandoff,
   formatProviderSetupPlan,
+  formatProviderUpload,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
   runProviderHandoffCommand,
   runProviderSetupPlanCommand,
+  runProviderUploadCommand,
   runProvidersCommand,
   runProvidersMockCommand
 } from "../src/commands/providers.js";
@@ -337,7 +340,12 @@ mutation:
     expect(packageJson.scripts["demo:plan:full"]).not.toContain("--allow-unsafe-targets");
     expect(packageJson.scripts["demo:plans"]).toContain("plans --config");
     expect(packageJson.scripts["demo:all"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run");
-    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run");
+    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run:seed");
+    expect(packageJson.scripts["demo:ci"]).toContain("demo:run:seed");
+    expect(packageJson.scripts["demo:run:seed"]).toContain("VISUAL_HIVE_CI=false");
+    expect(packageJson.scripts["demo:run:seed"]).toContain("scripts/run-with-env.mjs");
+    expect(packageJson.scripts["demo:pipeline"]).toContain("--skip-install");
+    expect(packageJson.scripts["demo:pipeline"]).toContain("--skip-build");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:auth-plan");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:docs-plan");
     expect(packageJson.scripts["demo:kubestellar"]).toContain("demo:kubestellar:plans");
@@ -946,7 +954,7 @@ contracts:
     });
 
     expect(forced.write.written[0]?.overwritten).toBe(true);
-    await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
+    await expect(readFile(workflowPath, "utf8")).resolves.toContain("DavidDiaz0317/visual-hive/actions/run@main");
   });
 
   it("writes a security audit from workflow and npm audit evidence", async () => {
@@ -1531,6 +1539,13 @@ contracts:
     target: local
     runOn:
       pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+    screenshots:
+      - name: dashboard
+        route: "/"
+        viewport: desktop
 selection:
   ignoreChangedFiles:
     - pattern: "docs/**"
@@ -1557,6 +1572,63 @@ selection:
     expect(report.status).toBe("passed");
     expect(report.results).toEqual([]);
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
+  });
+
+  it("pipeline writes an operational artifact for ignored docs-only changes", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-pipeline-docs-only-"));
+    tempDirs.push(tempRoot);
+    const configPath = path.join(tempRoot, "visual-hive.config.yaml");
+    const changedPath = path.join(tempRoot, "changed-files.txt");
+    await writeFile(
+      configPath,
+      `project:
+  name: pipeline-docs-only
+targets:
+  local:
+    kind: command
+    serve: "npm run preview"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+    screenshots:
+      - name: dashboard
+        route: "/"
+        viewport: desktop
+selection:
+  ignoreChangedFiles:
+    - pattern: "docs/**"
+      reason: "documentation-only"
+`,
+      "utf8"
+    );
+    await writeFile(changedPath, "docs/visual-hive.md\n", "utf8");
+
+    const result = await runPipelineCommand({
+      config: configPath,
+      cwd: tempRoot,
+      mode: "pr",
+      changedFiles: changedPath,
+      continueOnError: true
+    });
+    const pipeline = await readJson<typeof result.report>(path.join(tempRoot, ".visual-hive", "pipeline.json"));
+    const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
+
+    expect(result.exitCode).toBe(0);
+    expect(pipeline.status).toBe("passed");
+    expect(pipeline.steps.map((step) => step.id)).toEqual(
+      expect.arrayContaining(["doctor", "plan", "run", "baselines", "coverage", "readiness", "triage", "report", "history", "artifacts"])
+    );
+    expect(pipeline.artifacts).toContain(".visual-hive/pipeline.json");
+    expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
+    await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
   });
 
   it("fails clearly when no contracts are selected", async () => {
@@ -1630,29 +1702,15 @@ contracts:
     const scheduledWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8");
     const failureWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8");
     expect(prWorkflow).toContain("include-hidden-files: true");
-    expect(prWorkflow).toContain("npx visual-hive baselines list --write");
-    expect(prWorkflow).toContain("npx visual-hive workflows");
-    expect(prWorkflow).toContain("npx visual-hive providers list --mock-results");
-    expect(prWorkflow).toContain("npx visual-hive risk");
-    expect(prWorkflow).toContain("npx visual-hive security");
-    expect(prWorkflow).toContain("npx visual-hive costs");
-    expect(prWorkflow).toContain("npx visual-hive artifacts");
-    expect(prWorkflow).toContain("npx visual-hive readiness");
-    expect(prWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
-    expect(prWorkflow.indexOf("npx visual-hive readiness")).toBeLessThan(prWorkflow.indexOf("npx visual-hive triage"));
-    expect(prWorkflow.indexOf("npx visual-hive triage")).toBeLessThan(prWorkflow.indexOf("npx visual-hive report"));
+    expect(prWorkflow).toContain("DavidDiaz0317/visual-hive/actions/run@main");
+    expect(prWorkflow).toContain("command: pipeline");
+    expect(prWorkflow).toContain("arguments: --mode pr --base origin/main --ci --github-step-summary");
+    expect(prWorkflow).not.toContain("npx visual-hive");
     expect(scheduledWorkflow).toContain("include-hidden-files: true");
-    expect(scheduledWorkflow).toContain("npx visual-hive baselines list --write");
-    expect(scheduledWorkflow).toContain("npx visual-hive workflows");
-    expect(scheduledWorkflow).toContain("npx visual-hive providers list --mock-results");
-    expect(scheduledWorkflow).toContain("npx visual-hive risk");
-    expect(scheduledWorkflow).toContain("npx visual-hive security");
-    expect(scheduledWorkflow).toContain("npx visual-hive costs");
-    expect(scheduledWorkflow).toContain("npx visual-hive artifacts");
-    expect(scheduledWorkflow).toContain("npx visual-hive readiness");
-    expect(scheduledWorkflow.indexOf("npx visual-hive workflows")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
-    expect(scheduledWorkflow.indexOf("npx visual-hive readiness")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive triage"));
-    expect(scheduledWorkflow.indexOf("npx visual-hive triage")).toBeLessThan(scheduledWorkflow.indexOf("npx visual-hive report"));
+    expect(scheduledWorkflow).toContain("DavidDiaz0317/visual-hive/actions/run@main");
+    expect(scheduledWorkflow).toContain("command: pipeline");
+    expect(scheduledWorkflow).toContain("arguments: --mode schedule --ci --enforce-mutation --github-step-summary");
+    expect(scheduledWorkflow).not.toContain("npx visual-hive");
     expect(failureWorkflow).toContain("function walkArtifacts");
     expect(failureWorkflow).toContain("function findIssueBody");
     expect(failureWorkflow).toContain("redactSecretValues");
@@ -2575,6 +2633,128 @@ providers:
     expect(providerStep?.evidence.join(" ")).toContain("handoff=argos:review");
   });
 
+  it("writes Argos provider upload dry-run artifacts without external calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-provider-upload-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive", "artifacts", "screenshots"), { recursive: true });
+    await writeFile(path.join(tempRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png"), "fake screenshot", "utf8");
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: provider-upload
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    severity: critical
+    screenshots:
+      - name: desktop
+        route: /
+        viewport: desktop
+providers:
+  argos:
+    enabled: true
+    upload:
+      includeTextArtifacts: true
+costPolicy:
+  maxExternalScreenshotsPerRun: 10
+  externalUpload:
+    manual: true
+    onFailureOnly: false
+    criticalContractsOnly: false
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "provider-upload",
+      repository: sampleRepository,
+      mode: "manual",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: [],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "medium" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 1,
+          errors: [],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          screenshotAssertions: [
+            {
+              contractId: "dashboard",
+              screenshotName: "desktop",
+              name: "desktop",
+              route: "/",
+              viewport: "desktop",
+              status: "failed",
+              baselinePath: ".visual-hive/snapshots/dashboard.png",
+              actualPath: ".visual-hive/artifacts/screenshots/dashboard.png",
+              maxDiffPixelRatio: 0.01,
+              actualDiffPixelRatio: 0.2,
+              actualDiffPixels: 20,
+              totalPixels: 100
+            }
+          ],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 1,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 1,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    } satisfies Report);
+    let calls = 0;
+
+    const result = await runProviderUploadCommand(
+      { cwd: tempRoot, providerId: "argos", dryRun: true },
+      async () => {
+        calls += 1;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+    );
+    const summary = formatProviderUpload(result);
+    const manifest = await readJson<typeof result.manifest>(result.manifestPath);
+    const providerResults = await readJson<typeof result.providerResults>(result.providerResultsPath);
+
+    expect(result.exitCode).toBe(0);
+    expect(calls).toBe(0);
+    expect(manifest.status).toBe("dry_run");
+    expect(manifest.summary.stagedArtifacts).toBe(2);
+    expect(providerResults.providers.find((provider) => provider.providerId === "argos")?.result.upload).toMatchObject({
+      status: "dry_run",
+      externalCallsMade: 0
+    });
+    expect(summary).toContain("Provider Upload: Argos");
+    expect(summary).toContain("External calls made: 0");
+    await expect(access(path.join(tempRoot, ".visual-hive", "provider-upload", "argos", "manifest.json"))).resolves.toBeUndefined();
+  });
+
   it("records LLM governance decisions from the CLI without model calls", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-llm-decision-"));
     tempDirs.push(tempRoot);
@@ -2970,6 +3150,124 @@ contracts:
     expect(mutationReport.score).toBe(1);
     expect(mutationReport.killed).toBe(1);
     expect(mutationReport.total).toBe(1);
+  });
+
+  it("restores the deterministic report after mutation runs", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-mutate-restore-"));
+    tempDirs.push(tempRoot);
+    const configPath = path.join(tempRoot, "visual-hive.config.yaml");
+    await writeFile(
+      configPath,
+      `project:
+  name: mutate-restore
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: home
+    description: Home
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='critical-action-button']"
+mutation:
+  enabled: true
+  operators:
+    - hide-critical-button
+`,
+      "utf8"
+    );
+    const plan: Plan = {
+      schemaVersion: 1,
+      project: "mutate-restore",
+      mode: "pr",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      changedFiles: ["src/App.tsx"],
+      effectiveChangedFiles: ["src/App.tsx"],
+      ignoredChangedFiles: [],
+      targets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      items: [
+        {
+          contractId: "home",
+          targetId: "local",
+          targetUrl: "http://127.0.0.1:4173",
+          severity: "medium",
+          cost: "cheap",
+          reasons: ["test"],
+          screenshots: []
+        }
+      ],
+      excluded: [],
+      mutation: { enabled: true, operators: ["hide-critical-button"], minScore: 0.7, reasons: ["test"] },
+      providerPolicy: []
+    };
+    await writeJson(path.join(tempRoot, ".visual-hive", "plan.json"), plan);
+    const deterministicReport: Report = {
+      schemaVersion: 2,
+      project: "mutate-restore",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      status: "passed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["home"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      summary: {
+        passed: 1,
+        failed: 0,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [],
+      reproductionCommands: ["visual-hive run"],
+      results: [
+        {
+          contractId: "home",
+          targetId: "local",
+          status: "passed",
+          durationMs: 5,
+          errors: [],
+          artifacts: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ]
+    };
+    const mutatedReport: Report = {
+      ...deterministicReport,
+      status: "failed",
+      summary: { ...deterministicReport.summary, passed: 0, failed: 1 },
+      results: [{ ...deterministicReport.results[0]!, status: "failed", errors: ["mutation killed"] }]
+    };
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), deterministicReport);
+
+    await runMutateCommand({
+      config: configPath,
+      cwd: tempRoot,
+      runner: async () => {
+        await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), mutatedReport);
+        return { report: mutatedReport, exitCode: 1 };
+      }
+    });
+
+    const restored = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
+    expect(restored.status).toBe("passed");
+    expect(restored.results[0]?.errors).toEqual([]);
+    await expect(readJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"))).resolves.toMatchObject({ score: 1 });
   });
 
   it("enforces min score and records not-applicable mutations", async () => {

@@ -142,6 +142,9 @@ function validationCommandsFor(provider: ProviderInspection): string[] {
   ];
   if (provider.id !== "playwright") {
     commands.push(`visual-hive providers decision --provider ${provider.id} --decision review_later --reason "Review provider setup before enabling external uploads"`);
+    if (provider.id === "argos") {
+      commands.push("visual-hive providers upload --provider argos --dry-run");
+    }
   }
   return commands;
 }

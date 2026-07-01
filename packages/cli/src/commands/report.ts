@@ -1,6 +1,6 @@
 import { appendFile } from "node:fs/promises";
 import path from "node:path";
-import { loadConfig, readJson, type MutationReport, type ReadinessReport, type Report } from "@visual-hive/core";
+import { loadConfig, readJson, type MockProviderRunReport, type MutationReport, type ReadinessReport, type Report } from "@visual-hive/core";
 
 export interface ReportCommandOptions {
   config?: string;
@@ -15,10 +15,11 @@ export async function runReportCommand(options: ReportCommandOptions = {}): Prom
   const report = await readOptional<Report>(path.join(loaded.rootDir, ".visual-hive", "report.json"));
   const mutationReport = await readOptional<MutationReport>(path.join(loaded.rootDir, ".visual-hive", "mutation-report.json"));
   const readinessReport = await readOptional<ReadinessReport>(path.join(loaded.rootDir, ".visual-hive", "readiness.json"));
+  const providerRunReport = await readOptional<MockProviderRunReport>(path.join(loaded.rootDir, ".visual-hive", "provider-results.json"));
   const output =
     options.format === "json"
-      ? `${JSON.stringify({ report, mutationReport, readinessReport }, null, 2)}\n`
-      : renderMarkdownReport(report, mutationReport, readinessReport);
+      ? `${JSON.stringify({ report, mutationReport, readinessReport, providerRunReport }, null, 2)}\n`
+      : renderMarkdownReport(report, mutationReport, readinessReport, providerRunReport);
 
   if (options.githubStepSummary) {
     const summaryPath = process.env.GITHUB_STEP_SUMMARY;
@@ -30,7 +31,12 @@ export async function runReportCommand(options: ReportCommandOptions = {}): Prom
   return output;
 }
 
-export function renderMarkdownReport(report?: Report, mutationReport?: MutationReport, readinessReport?: ReadinessReport): string {
+export function renderMarkdownReport(
+  report?: Report,
+  mutationReport?: MutationReport,
+  readinessReport?: ReadinessReport,
+  providerRunReport?: MockProviderRunReport
+): string {
   const failed = report?.results.filter((result) => result.status === "failed") ?? [];
   const visualDiffs = report?.results.flatMap((result) => result.screenshotAssertions ?? []).filter((screenshot) => screenshot.status === "failed") ?? [];
   const lines = [
@@ -52,6 +58,7 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
     `- Mutation score: ${mutationReport ? `${Math.round(mutationReport.score * 100)}% (${mutationReport.killed}/${mutationReport.total})` : "not available"}`,
     `- Readiness: ${readinessReport ? `${readinessReport.status} (${readinessReport.score}/100)` : "not available"}`,
     `- Providers: ${report?.providerResults?.map((provider) => `${provider.label}=${provider.status}`).join(", ") ?? "not available"}`,
+    `- Provider adapter run: ${providerRunReport ? `${providerRunReport.summary.providerCount} providers, ${providerRunReport.summary.failedProviders} failed, external calls ${providerRunReport.providers.reduce((count, provider) => count + provider.normalized.externalCallsMade, 0)}` : "not available"}`,
     ""
   ];
 
@@ -78,6 +85,19 @@ export function renderMarkdownReport(report?: Report, mutationReport?: MutationR
       if (provider.externalUploadAllowed === false && provider.externalUploadBlockedReasons?.length) {
         lines.push(`  - External upload blocked: ${provider.externalUploadBlockedReasons.join(" ")}`);
       }
+    }
+    lines.push("");
+  }
+
+  if (providerRunReport) {
+    lines.push("### Provider Adapter Run", "");
+    for (const provider of providerRunReport.providers) {
+      const upload = provider.result.upload;
+      lines.push(
+        `- ${provider.label}: result=${provider.result.status}, availability=${provider.availability}, upload=${upload?.status ?? provider.normalized.artifactSummary.uploadMode}, externalCalls=${provider.normalized.externalCallsMade}, staged=${upload?.stagedArtifacts ?? provider.artifacts.length}, uploaded=${upload?.uploadedArtifacts ?? provider.normalized.artifactSummary.uploadedArtifacts}`
+      );
+      if (upload?.providerUrl) lines.push(`  - Provider URL: ${upload.providerUrl}`);
+      if (upload?.blockedReasons?.length) lines.push(`  - Blocked: ${upload.blockedReasons.join(" ")}`);
     }
     lines.push("");
   }

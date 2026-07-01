@@ -18,14 +18,16 @@
 
 ## v0.3
 
-- Provider adapter interfaces for Percy, Chromatic, Argos, and Applitools.
-- Baseline review/update command.
-- Rich Playwright trace extraction.
-- Route/contract discovery helpers.
+- Operational pipeline command with bootstrap/strict CI modes.
+- Pre-publish GitHub Action wrapper for target repositories.
+- External consumer smoke fixture proving setup, bootstrap, strict pass, and deliberate visual regression failure.
+- Setup/readiness hardening for incomplete contracts, workflow distribution gaps, and artifact evidence.
+- Broader hosted-provider polish beyond the current Argos upload adapter.
+- Rich Playwright trace extraction and route/contract discovery helpers.
 
 ## v1.0
 
 - Stable public config/report schemas.
 - Trusted GitHub issue creation workflow.
-- Production-grade provider adapters.
+- Production-grade provider adapters for Percy, Chromatic, Argos, and Applitools.
 - Monorepo-scale planning and cost budgets.

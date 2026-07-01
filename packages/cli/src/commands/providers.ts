@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import path from "node:path";
 import {
   buildProviderHandoffManifest,
@@ -7,12 +8,17 @@ import {
   recordProviderDecision,
   readJson,
   runMockProviderAdapters,
+  uploadProviderArtifacts,
   writeJson,
   type MockProviderRunReport,
   type ProviderHandoffManifest,
   type ProviderDecision,
   type ProviderDecisionEntry,
   type ProviderInspection,
+  type ProviderUploadCommandInput,
+  type ProviderUploadCommandOutput,
+  type ProviderUploadCommandRunner,
+  type ProviderUploadResult,
   type ProviderSetupPlan,
   type Report
 } from "@visual-hive/core";
@@ -48,6 +54,16 @@ export interface ProviderHandoffCommandOptions {
   format?: "markdown" | "json";
 }
 
+export interface ProviderUploadCommandOptions {
+  config?: string;
+  cwd?: string;
+  providerId: string;
+  report?: string;
+  dryRun?: boolean;
+  format?: "markdown" | "json";
+  failOnProviderFailure?: boolean;
+}
+
 export interface ProvidersMockCommandResult {
   report: MockProviderRunReport;
   reportPath: string;
@@ -68,6 +84,8 @@ export interface ProviderHandoffCommandResult {
   manifest: ProviderHandoffManifest;
   manifestPath: string;
 }
+
+export type ProviderUploadCommandResult = ProviderUploadResult;
 
 export async function runProvidersCommand(options: ProvidersCommandOptions = {}): Promise<ProviderInspection[]> {
   const cwd = options.cwd ?? process.cwd();
@@ -159,6 +177,37 @@ export async function runProviderHandoffCommand(options: ProviderHandoffCommandO
   const manifestPath = path.join(loaded.rootDir, ".visual-hive", "provider-handoff.json");
   await writeJson(manifestPath, manifest);
   return { manifest, manifestPath };
+}
+
+export async function runProviderUploadCommand(
+  options: ProviderUploadCommandOptions,
+  commandRunner: ProviderUploadCommandRunner = defaultProviderUploadCommandRunner
+): Promise<ProviderUploadCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
+  const deterministicReportPath = path.resolve(loaded.rootDir, options.report ?? path.join(".visual-hive", "report.json"));
+  let deterministicReport: Report;
+  try {
+    deterministicReport = await readJson<Report>(deterministicReportPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Missing deterministic report for provider upload at ${deterministicReportPath}. Run "visual-hive run" first. Details: ${message}`
+    );
+  }
+  const provider = inspectProviders(loaded.config).find((candidate) => candidate.id === options.providerId);
+  if (!provider) {
+    throw new Error(`Unknown provider "${options.providerId}". Run "visual-hive providers list" to list configured providers.`);
+  }
+  return uploadProviderArtifacts(loaded.config, {
+    providerId: provider.id,
+    rootDir: loaded.rootDir,
+    report: deterministicReport,
+    reportPath: deterministicReportPath,
+    dryRun: options.dryRun,
+    failOnProviderFailure: options.failOnProviderFailure,
+    commandRunner
+  });
 }
 
 export function formatProvidersSummary(providers: ProviderInspection[]): string {
@@ -335,6 +384,41 @@ export function formatProviderHandoff(result: ProviderHandoffCommandResult, form
   ].join("\n");
 }
 
+export function formatProviderUpload(result: ProviderUploadCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify(
+      {
+        manifest: result.manifest,
+        manifestPath: result.manifestPath,
+        providerResultsPath: result.providerResultsPath,
+        exitCode: result.exitCode
+      },
+      null,
+      2
+    );
+  }
+  const manifest = result.manifest;
+  return [
+    `Wrote ${result.manifestPath}`,
+    `Wrote ${result.providerResultsPath}`,
+    `# Provider Upload: ${manifest.label}`,
+    "",
+    `- Status: ${manifest.status}`,
+    `- Dry run: ${manifest.dryRun ? "yes" : "no"}`,
+    `- Deterministic status: ${manifest.deterministicStatus}`,
+    `- External calls made: ${manifest.externalCallsMade}`,
+    `- Staged artifacts: ${manifest.summary.stagedArtifacts}`,
+    `- Uploaded artifacts: ${manifest.summary.uploadedArtifacts}`,
+    `- Required env names: ${manifest.readiness.requiredEnv.join(", ") || "none"}`,
+    `- Missing env names: ${manifest.readiness.missingEnv.join(", ") || "none"}`,
+    `- Provider URL: ${manifest.providerUrl ?? "none"}`,
+    ...(manifest.blockedReasons.length ? ["", "## Blocked Reasons", ...manifest.blockedReasons.map((reason) => `- ${reason}`)] : []),
+    ...(manifest.warnings.length ? ["", "## Warnings", ...manifest.warnings.map((warning) => `- ${warning}`)] : []),
+    "",
+    "Playwright remains the deterministic pass/fail oracle; hosted provider evidence is supplemental."
+  ].join("\n");
+}
+
 function pad(value: string, width: number): string {
   return value.padEnd(width, " ");
 }
@@ -351,4 +435,32 @@ function mockExternalPolicyLabel(provider: MockProviderRunReport["providers"][nu
   if (!provider.enabled) return "disabled";
   if (provider.mode === "mock") return "mock";
   return provider.normalized.costPolicy.externalUploadAllowed ? "allowed" : "blocked";
+}
+
+function defaultProviderUploadCommandRunner(input: ProviderUploadCommandInput): Promise<ProviderUploadCommandOutput> {
+  return new Promise((resolve) => {
+    const command = process.platform === "win32" && input.command === "npm" ? "npm.cmd" : input.command;
+    const child = spawn(command, input.args, {
+      cwd: input.cwd,
+      env: input.env,
+      windowsHide: true,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      stderr += error.message;
+      resolve({ exitCode: 1, stdout, stderr });
+    });
+    child.on("close", (code) => {
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
+  });
 }

@@ -3,7 +3,15 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Deterministic-first visual QA and testing orchestration for web projects.",
+  "description": "Deterministic-first visual QA orchestration with Playwright contracts, visual diffs, mutation adequacy, and GitHub-ready reports.",
+  "keywords": [
+    "visual-testing",
+    "playwright",
+    "regression-testing",
+    "qa-automation",
+    "mutation-testing",
+    "github-actions"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -29,6 +37,7 @@
     "demo:plan:full": "node packages/cli/dist/index.js plan --config examples/demo-react-app/visual-hive.config.yaml --mode full --output .visual-hive/plan.full.json",
     "demo:plans": "node packages/cli/dist/index.js plans --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:run": "node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
+    "demo:run:seed": "node scripts/run-with-env.mjs VISUAL_HIVE_CI=false -- node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
     "demo:baselines": "node packages/cli/dist/index.js baselines list --config examples/demo-react-app/visual-hive.config.yaml --write",
     "demo:mutate": "node packages/cli/dist/index.js mutate --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
     "demo:coverage": "node packages/cli/dist/index.js coverage --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt",
@@ -40,6 +49,7 @@
     "demo:providers": "node packages/cli/dist/index.js providers list --config examples/demo-react-app/visual-hive.config.yaml --mock-results",
     "demo:provider-plan": "node packages/cli/dist/index.js providers plan --config examples/demo-react-app/visual-hive.config.yaml --provider argos",
     "demo:provider-handoff": "node packages/cli/dist/index.js providers handoff --config examples/demo-react-app/visual-hive.config.yaml --provider argos",
+    "demo:provider-upload": "node packages/cli/dist/index.js providers upload --config examples/demo-react-app/visual-hive.config.yaml --provider argos --dry-run",
     "demo:triage": "node packages/cli/dist/index.js triage --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:llm": "node packages/cli/dist/index.js llm --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:report": "node packages/cli/dist/index.js report --config examples/demo-react-app/visual-hive.config.yaml",
@@ -52,6 +62,7 @@
     "demo:runbook": "node packages/cli/dist/index.js runbook --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:history": "node packages/cli/dist/index.js history --config examples/demo-react-app/visual-hive.config.yaml --record",
     "demo:artifacts": "node packages/cli/dist/index.js artifacts --config examples/demo-react-app/visual-hive.config.yaml",
+    "demo:pipeline": "node packages/cli/dist/index.js pipeline --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt --bootstrap-baselines --ci --skip-install --skip-build --enforce-mutation --continue-on-error",
     "demo:recommend": "node packages/cli/dist/index.js recommend --repo examples/demo-react-app",
     "demo:connections": "node packages/cli/dist/index.js connections list --config examples/demo-react-app/visual-hive.config.yaml --write",
     "demo:kubestellar:auth-plan": "node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt --output .visual-hive/plan.auth.json",
@@ -61,11 +72,13 @@
     "demo:kubestellar:plans": "node packages/cli/dist/index.js plans --config examples/kubestellar-console/visual-hive.config.yaml",
     "demo:kubestellar": "npm run demo:kubestellar:auth-plan && npm run demo:kubestellar:cluster-plan && npm run demo:kubestellar:docs-plan && npm run demo:kubestellar:schedule-plan && npm run demo:kubestellar:plans",
     "demo:ui": "npm run smoke:ui",
-    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:plan:canary && npm run demo:plan:full && npm run demo:plans && npm run demo:run && npm run demo:baselines && npm run demo:mutate && npm run demo:coverage && npm run demo:flows && npm run demo:improve && npm run demo:targets && npm run demo:contracts && npm run demo:schedules && npm run demo:workflows && npm run demo:providers && npm run demo:provider-plan && npm run demo:provider-handoff && npm run demo:risk && npm run demo:security && npm run demo:costs && npm run demo:triage && npm run demo:llm && npm run demo:readiness && npm run demo:setup-status && npm run demo:runbook && npm run demo:report && npm run demo:history && npm run demo:connections && npm run demo:artifacts && npm run demo:kubestellar && npm run demo:ui",
-    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:plan:canary && npm run demo:plan:full && npm run demo:plans && npm run demo:run && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:baselines && npm run demo:mutate && npm run demo:coverage && npm run demo:flows && npm run demo:improve && npm run demo:targets && npm run demo:contracts && npm run demo:schedules && npm run demo:workflows && npm run demo:providers && npm run demo:provider-plan && npm run demo:provider-handoff && npm run demo:risk && npm run demo:security && npm run demo:costs && npm run demo:triage && npm run demo:llm && npm run demo:readiness && npm run demo:setup-status && npm run demo:runbook && npm run demo:report && npm run demo:history && npm run demo:connections && npm run demo:artifacts && npm run demo:kubestellar && npm run demo:ui",
+    "demo:all": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:plan:canary && npm run demo:plan:full && npm run demo:plans && npm run demo:run && npm run demo:baselines && npm run demo:mutate && npm run demo:coverage && npm run demo:flows && npm run demo:improve && npm run demo:targets && npm run demo:contracts && npm run demo:schedules && npm run demo:workflows && npm run demo:providers && npm run demo:provider-plan && npm run demo:provider-handoff && npm run demo:provider-upload && npm run demo:risk && npm run demo:security && npm run demo:costs && npm run demo:triage && npm run demo:llm && npm run demo:readiness && npm run demo:setup-status && npm run demo:runbook && npm run demo:report && npm run demo:history && npm run demo:connections && npm run demo:artifacts && npm run demo:kubestellar && npm run demo:pipeline && npm run demo:ui",
+    "demo:ci": "npm run demo:build && npm run demo:doctor && npm run demo:recommend && npm run demo:plan && npm run demo:plan:canary && npm run demo:plan:full && npm run demo:plans && npm run demo:run:seed && node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build --ci && npm run demo:baselines && npm run demo:mutate && npm run demo:coverage && npm run demo:flows && npm run demo:improve && npm run demo:targets && npm run demo:contracts && npm run demo:schedules && npm run demo:workflows && npm run demo:providers && npm run demo:provider-plan && npm run demo:provider-handoff && npm run demo:provider-upload && npm run demo:risk && npm run demo:security && npm run demo:costs && npm run demo:triage && npm run demo:llm && npm run demo:readiness && npm run demo:setup-status && npm run demo:runbook && npm run demo:report && npm run demo:history && npm run demo:connections && npm run demo:artifacts && npm run demo:kubestellar && npm run demo:pipeline && npm run demo:ui",
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "ui:build": "npm run build -w @visual-hive/control-plane",
-    "smoke:ui": "node scripts/smoke-ui.mjs"
+    "smoke:ui": "node scripts/smoke-ui.mjs",
+    "smoke:consumer": "node scripts/smoke-consumer-install.mjs",
+    "smoke:consumer:regression": "node scripts/smoke-consumer-install.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

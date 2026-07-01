@@ -17,6 +17,7 @@ import {
 
 export interface ImproveCoverageCommandOptions {
   config?: string;
+  cwd?: string;
   coverage?: string;
   flows?: string;
   mutationReport?: string;
@@ -28,7 +29,7 @@ export interface ImproveCoverageCommandOptions {
 export async function runImproveCoverageCommand(
   options: ImproveCoverageCommandOptions = {}
 ): Promise<{ report: CoverageImprovementReport; reportPath: string; applyResult?: CoverageImprovementApplyResult }> {
-  const loaded = await loadConfig(options.config, process.cwd());
+  const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
   const coveragePath = path.resolve(loaded.rootDir, options.coverage ?? ".visual-hive/coverage.json");
   const flowsPath = path.resolve(loaded.rootDir, options.flows ?? ".visual-hive/flows.json");
   const mutationPath = path.resolve(loaded.rootDir, options.mutationReport ?? ".visual-hive/mutation-report.json");

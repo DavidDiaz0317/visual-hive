@@ -16,6 +16,7 @@ export type ReadinessStatus = "ready" | "attention" | "blocked";
 export type ReadinessGateStatus = "passed" | "warning" | "blocked" | "missing";
 export type ReadinessGateCategory =
   | "config"
+  | "setup"
   | "planning"
   | "deterministic"
   | "baselines"
@@ -88,6 +89,7 @@ export interface AnalyzeReadinessOptions {
 export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadinessOptions = {}): ReadinessReport {
   const gates = [
     configGate(config),
+    ...setupQualityGates(config),
     ...planningGates(options.plan),
     ...deterministicGates(options.report),
     ...baselineGates(options.baselines, options.report),
@@ -124,6 +126,97 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     gates,
     nextActions: nextActions(gates)
   };
+}
+
+function setupQualityGates(config: VisualHiveConfig): ReadinessGate[] {
+  const gates: ReadinessGate[] = [];
+  const targets = Object.entries(config.targets);
+  const hasRunnableLocalTarget = targets.some(([, target]) => target.kind === "command" || target.kind === "commandGroup" || target.kind === "storybook");
+  const hasLocalhostUrlOnlyTarget = targets.some(([, target]) => {
+    const url = "url" in target ? target.url : undefined;
+    return target.kind === "url" && Boolean(url && /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])/i.test(url));
+  });
+
+  if (!hasRunnableLocalTarget && hasLocalhostUrlOnlyTarget) {
+    gates.push(
+      gate(
+        "setup:missing-serve-command",
+        "setup",
+        "blocked",
+        "Local target has no serve command",
+        "A localhost URL target was configured without a command, commandGroup, or Storybook target that can start it.",
+        targets.map(([targetId, target]) => `${targetId}:${target.kind}`),
+        ["visual-hive.config.yaml"],
+        ["Add a command target with build/serve commands or model the services as a commandGroup."]
+      )
+    );
+  } else {
+    gates.push(
+      gate(
+        "setup:target-runnable",
+        "setup",
+        "passed",
+        "Target model is runnable or externally hosted",
+        hasRunnableLocalTarget
+          ? "At least one local target has an explicit runtime command model."
+          : "Configured targets are externally hosted or protected rather than implicit localhost URLs.",
+        targets.map(([targetId, target]) => `${targetId}:${target.kind}`),
+        ["visual-hive.config.yaml"]
+      )
+    );
+  }
+
+  const selectors = config.contracts.flatMap((contract) => [
+    ...(contract.selectors.mustExist ?? []),
+    ...(contract.selectors.mustNotExist ?? []),
+    ...(contract.selectors.textMustExist ?? []),
+    ...(contract.selectors.textMustNotExist ?? [])
+  ]);
+  const meaningfulSelectors = selectors.filter((selector) => selector.trim() && selector.trim().toLowerCase() !== "body");
+  if (selectors.length > 0 && meaningfulSelectors.length === 0) {
+    gates.push(
+      gate(
+        "setup:body-only-selector",
+        "setup",
+        "blocked",
+        "Starter selectors are too generic",
+        "Every configured selector is body, so failures will not provide useful user-visible contract evidence.",
+        [`selectors=${selectors.join(", ")}`],
+        ["visual-hive.config.yaml"],
+        ["Add project-owned data-testid selectors for page shells, critical actions, and route-level content."]
+      )
+    );
+  }
+
+  const screenshotCount = config.contracts.reduce((count, contract) => count + contract.screenshots.length, 0);
+  if (screenshotCount === 0) {
+    gates.push(
+      gate(
+        "setup:no-screenshots",
+        "setup",
+        "blocked",
+        "No screenshot contracts configured",
+        "Visual Hive has deterministic selector coverage, but no visual baseline evidence can be produced.",
+        [`contracts=${config.contracts.length}`, "screenshots=0"],
+        ["visual-hive.config.yaml"],
+        ["Add at least one stable desktop screenshot to the first PR-safe contract before enabling visual CI."]
+      )
+    );
+  } else {
+    gates.push(
+      gate(
+        "setup:screenshots-configured",
+        "setup",
+        "passed",
+        "Screenshot contracts are configured",
+        `Configured ${screenshotCount} screenshot assertion(s) across ${config.contracts.length} contract(s).`,
+        [`screenshots=${screenshotCount}`],
+        ["visual-hive.config.yaml"]
+      )
+    );
+  }
+
+  return gates;
 }
 
 function historyGates(runHistory?: RunHistoryReport): ReadinessGate[] {

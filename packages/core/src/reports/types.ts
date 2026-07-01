@@ -98,6 +98,19 @@ export interface ProviderResult {
   externalUploadBlockedReasons?: string[];
   estimatedExternalScreenshots?: number;
   externalUrl?: string;
+  upload?: {
+    status: "uploaded" | "skipped" | "blocked" | "missing_credentials" | "failed" | "dry_run";
+    externalCallsMade: number;
+    uploadedArtifacts: number;
+    stagedArtifacts: number;
+    manifestPath?: string;
+    uploadDirectory?: string;
+    command?: string;
+    stdout?: string;
+    stderr?: string;
+    providerUrl?: string;
+    blockedReasons?: string[];
+  };
   normalizedAt: string;
 }
 
