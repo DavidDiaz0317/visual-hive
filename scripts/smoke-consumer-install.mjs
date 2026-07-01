@@ -18,6 +18,9 @@ try {
   await cp(fixtureRoot, appRoot, { recursive: true });
   await writeFile(changedFilesPath, "src/App.jsx\nsrc/styles.css\n", "utf8");
 
+  await run("npm", ["install"], appRoot);
+  await run("npx", ["playwright", "install", "chromium"], appRoot);
+  await run("npm", ["run", "build"], appRoot);
   await run("node", [cliPath, "doctor", "--config", configPath], appRoot);
   await run("node", [
     cliPath,
@@ -33,7 +36,9 @@ try {
     cliPath,
     "run",
     "--config",
-    configPath
+    configPath,
+    "--skip-install",
+    "--skip-build"
   ], appRoot, { VISUAL_HIVE_CI: "false", CI: "false" });
   await run("node", [
     cliPath,
@@ -45,6 +50,8 @@ try {
     "--changed-files",
     changedFilesPath,
     "--ci",
+    "--skip-install",
+    "--skip-build",
     "--enforce-mutation",
     "--continue-on-error"
   ], appRoot);
@@ -82,6 +89,7 @@ try {
 `,
     "utf8"
   );
+  await run("npm", ["run", "build"], appRoot);
 
   const regression = await runAllowFailure("node", [
     cliPath,
@@ -93,6 +101,8 @@ try {
     "--changed-files",
     changedFilesPath,
     "--ci",
+    "--skip-install",
+    "--skip-build",
     "--enforce-mutation",
     "--continue-on-error"
   ], appRoot);
@@ -129,6 +139,7 @@ function run(command, args, cwd, env = {}) {
       cwd,
       env: { ...process.env, ...env },
       stdio: "inherit",
+      shell: useShellForPlatformCommand(command),
       windowsHide: true
     });
     child.on("error", reject);
@@ -149,6 +160,7 @@ function runAllowFailure(command, args, cwd) {
       cwd,
       env: { ...process.env, VISUAL_HIVE_CI: "true" },
       stdio: "inherit",
+      shell: useShellForPlatformCommand(command),
       windowsHide: true
     });
     child.on("error", reject);
@@ -159,7 +171,11 @@ function runAllowFailure(command, args, cwd) {
 }
 
 function commandForPlatform(command) {
-  return process.platform === "win32" && command === "npm" ? "npm.cmd" : command;
+  return process.platform === "win32" && (command === "npm" || command === "npx") ? `${command}.cmd` : command;
+}
+
+function useShellForPlatformCommand(command) {
+  return process.platform === "win32" && (command === "npm" || command === "npx");
 }
 
 async function assertArtifact(root, relativePath) {
