@@ -2095,7 +2095,9 @@ contracts:
     const server = await startControlPlaneServer({ repo: fixture.repoRoot, config: fixture.configPath, port: 0, readOnly: true });
     try {
       const page = await fetch(server.url).then((response) => response.text());
-      const jsAsset = Array.from(page.matchAll(/src="([^"]*\/assets\/[^"]+\.js)"/g)).map((match) => match[1])[0];
+      const jsAsset = Array.from(page.matchAll(/(?:src|href)="([^"]*\/assets\/[^"]+)"/g))
+        .map((match) => match[1])
+        .find((asset) => asset.endsWith(".js"));
       expect(jsAsset).toBeTruthy();
       const appJs = await fetch(`${server.url}${jsAsset}`).then((response) => response.text());
       for (const expected of [
