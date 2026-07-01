@@ -409,7 +409,35 @@
         "mode": { "enum": ["mock", "external"], "default": "external" },
         "requiredEnv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "projectId": { "type": "string", "minLength": 1 },
-        "failOnProviderFailure": { "type": "boolean", "default": false }
+        "failOnProviderFailure": { "type": "boolean", "default": false },
+        "upload": { "$ref": "#/$defs/providerUploadConfig" }
+      }
+    },
+    "providerUploadConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "buildName": { "type": "string", "minLength": 1 },
+        "includeActualScreenshots": { "type": "boolean", "default": true },
+        "includeDiffScreenshots": { "type": "boolean", "default": true },
+        "includeTextArtifacts": { "type": "boolean", "default": false },
+        "extraFiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/repoRelativePath" },
+          "default": []
+        }
+      }
+    },
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:[\\\\/]" },
+          { "pattern": "^/" },
+          { "pattern": "^\\\\" },
+          { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }
+        ]
       }
     },
     "costPolicy": {

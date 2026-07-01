@@ -62,7 +62,12 @@ export function buildPrComment(input: PrCommentInput): string {
 
 function formatProviderAdapterEvidence(report?: MockProviderRunReport): string {
   if (!report) return "not available";
-  return `${report.summary.providerCount} providers, ${report.summary.failedProviders} failed operations, ${report.summary.missingCredentialProviders} missing credentials`;
+  const externalCalls = report.providers.reduce((count, provider) => count + provider.normalized.externalCallsMade, 0);
+  const uploadStatuses = report.providers
+    .map((provider) => provider.result.upload?.status)
+    .filter(Boolean);
+  const uploadSummary = uploadStatuses.length ? `, uploads=${uploadStatuses.join(",")}` : "";
+  return `${report.summary.providerCount} providers, ${report.summary.failedProviders} failed operations, ${report.summary.missingCredentialProviders} missing credentials, external calls=${externalCalls}${uploadSummary}`;
 }
 
 function formatReadiness(report?: ReadinessReport): string {

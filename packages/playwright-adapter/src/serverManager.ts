@@ -20,10 +20,23 @@ export async function startManagedServer(input: {
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
 }): Promise<ManagedServer> {
+  if (await isServerReachable(input.url)) {
+    await waitForServerUrlToClose(input.url);
+    if (await isServerReachable(input.url)) {
+      throw new Error(
+        targetStartupMessage({
+          url: input.url,
+          command: input.command,
+          reason: "the target URL was already reachable before Visual Hive started the configured command"
+        })
+      );
+    }
+  }
+
   const child = spawn(input.command, {
     cwd: input.cwd,
     shell: true,
-    detached: true,
+    detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...input.env },
     windowsHide: true
@@ -53,7 +66,7 @@ export async function startManagedServer(input: {
     cwd: input.cwd,
     url: input.url,
     pid: child.pid,
-    stop: () => stopProcessTree(child),
+    stop: () => stopProcessTree(child, input.url),
     logTail: () => sanitizeText(logs.join("\n"))
   };
 
@@ -118,7 +131,7 @@ export async function waitForServerUrl(input: {
   );
 }
 
-export async function stopProcessTree(child: ChildProcess): Promise<void> {
+export async function stopProcessTree(child: ChildProcess, url?: string): Promise<void> {
   const pid = child.pid;
   if (!pid) {
     return;
@@ -126,6 +139,10 @@ export async function stopProcessTree(child: ChildProcess): Promise<void> {
 
   if (process.platform === "win32") {
     spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+    if (url) {
+      await killWindowsListenersForUrl(url);
+      await waitForServerUrlToClose(url);
+    }
     return;
   }
 
@@ -137,6 +154,72 @@ export async function stopProcessTree(child: ChildProcess): Promise<void> {
     } catch {
       return;
     }
+  }
+  if (url) {
+    await waitForServerUrlToClose(url);
+  }
+}
+
+async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await isServerReachable(url))) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+async function isServerReachable(url: string): Promise<boolean> {
+  try {
+    await fetch(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function killWindowsListenersForUrl(url: string, timeoutMs = 5_000): Promise<void> {
+  const parsed = safeUrl(url);
+  if (!parsed?.port) {
+    return;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const pids = windowsListenerPidsForPort(parsed.port);
+    if (pids.size === 0) {
+      return;
+    }
+    for (const listenerPid of pids) {
+      spawnSync("taskkill", ["/pid", listenerPid, "/t", "/f"], { stdio: "ignore", windowsHide: true });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+function windowsListenerPidsForPort(port: string): Set<string> {
+  const netstat = spawnSync("netstat", ["-ano"], { encoding: "utf8", windowsHide: true });
+  const output = `${netstat.stdout ?? ""}\n${netstat.stderr ?? ""}`;
+  const pids = new Set<string>();
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.includes("LISTENING")) {
+      continue;
+    }
+    const columns = line.trim().split(/\s+/);
+    const localAddress = columns[1] ?? "";
+    const pid = columns[columns.length - 1];
+    if (localAddress.endsWith(`:${port}`) && pid && /^\d+$/.test(pid)) {
+      pids.add(pid);
+    }
+  }
+  return pids;
+}
+
+function safeUrl(value: string): URL | undefined {
+  try {
+    return new URL(value);
+  } catch {
+    return undefined;
   }
 }
 

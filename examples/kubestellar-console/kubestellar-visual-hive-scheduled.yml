@@ -22,43 +22,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx visual-hive plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule --ci
-      - run: npx visual-hive run --config examples/kubestellar-console/visual-hive.config.yaml --ci
-      - run: npx visual-hive baselines list --config examples/kubestellar-console/visual-hive.config.yaml --write
-        if: always()
-      - run: npx visual-hive mutate --config examples/kubestellar-console/visual-hive.config.yaml --enforce-min-score
-      - run: npx visual-hive coverage --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
-        if: always()
-      - run: npx visual-hive improve-coverage --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive targets --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
-        if: always()
-      - run: npx visual-hive contracts --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
-        if: always()
-      - run: npx visual-hive flows --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule
-        if: always()
-      - run: npx visual-hive schedules --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive workflows --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive providers list --config examples/kubestellar-console/visual-hive.config.yaml --mock-results
-        if: always()
-      - run: npx visual-hive risk --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive security --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive costs --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive readiness --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive triage --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive llm --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
-      - run: npx visual-hive report --config examples/kubestellar-console/visual-hive.config.yaml --github-step-summary
-        if: always()
-      - run: npx visual-hive artifacts --config examples/kubestellar-console/visual-hive.config.yaml
-        if: always()
+      - uses: DavidDiaz0317/visual-hive/actions/run@main
+        with:
+          command: pipeline
+          arguments: --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule --ci --enforce-mutation --github-step-summary
+      # Optional trusted Argos upload. Keep disabled until ARGOS_TOKEN is configured,
+      # costPolicy allows this run mode, and maintainers approve hosted review usage.
+      # Playwright remains the pass/fail oracle even when Argos is enabled.
+      # - uses: DavidDiaz0317/visual-hive/actions/run@main
+      #   with:
+      #     command: providers
+      #     arguments: upload --config examples/kubestellar-console/visual-hive.config.yaml --provider argos --fail-on-provider-failure
+      #   env:
+      #     ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
       # A trusted workflow_run workflow can create issues from uploaded artifacts.
       # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4

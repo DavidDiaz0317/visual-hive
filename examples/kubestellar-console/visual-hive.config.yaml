@@ -16,7 +16,7 @@ targets:
     kind: command
     install: "cd web && npm ci"
     build: "cd web && npm run build"
-    serve: "cd web && npm run preview -- --port 4173"
+    serve: "cd web && npm run preview -- --port 4173 --strictPort"
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap
@@ -37,7 +37,7 @@ targets:
         url: "http://127.0.0.1:8080/healthz"
         readinessTimeoutMs: 45000
       - name: frontend
-        command: "cd web && VITE_API_URL=http://127.0.0.1:8080 npm run preview -- --port 4173"
+        command: "cd web && VITE_API_URL=http://127.0.0.1:8080 npm run preview -- --port 4173 --strictPort"
         url: "http://127.0.0.1:4173"
         readinessTimeoutMs: 45000
     teardown:
@@ -327,6 +327,21 @@ ai:
   maxDailyRuns: 5
   maxPromptTokens: 50000
   maxEstimatedCostUsd: 0
+
+providers:
+  argos:
+    enabled: false
+    mode: external
+    requiredEnv:
+      - ARGOS_TOKEN
+    upload:
+      buildName: "kubestellar-console-scheduled"
+      includeActualScreenshots: true
+      includeDiffScreenshots: true
+      includeTextArtifacts: true
+      extraFiles:
+        - ".visual-hive/report.json"
+        - ".visual-hive/mutation-report.json"
 
 costPolicy:
   maxExternalScreenshotsPerRun: 40

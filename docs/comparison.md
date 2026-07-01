@@ -8,7 +8,7 @@ Playwright gives deterministic browser automation. Visual Hive keeps Playwright 
 
 ## Percy, Chromatic, Argos, and Applitools
 
-Hosted visual providers offer strong review UIs, baseline approval workflows, browser matrices, and visual diff services. Visual Hive can optionally orchestrate them later.
+Hosted visual providers offer strong review UIs, baseline approval workflows, browser matrices, and visual diff services. Visual Hive can optionally orchestrate them, starting with an explicit Argos upload command. Percy, Chromatic, and Applitools remain governed/deferred adapters.
 
 Visual Hive's core value is different:
 
@@ -19,3 +19,11 @@ Visual Hive's core value is different:
 - generate sanitized GitHub context and LLM-ready prompts
 
 The default v0.2 path requires no paid accounts.
+
+Argos upload is opt-in:
+
+```bash
+visual-hive providers upload --provider argos --dry-run
+```
+
+A real upload requires `providers.argos.enabled=true`, `ARGOS_TOKEN`, and a cost policy that allows the trusted scheduled/manual lane. Argos evidence is supplemental; Playwright remains the deterministic pass/fail oracle.

@@ -1,0 +1,44 @@
+name: Run Visual Hive
+description: Build this Visual Hive checkout and run the CLI against the calling repository.
+
+inputs:
+  command:
+    description: Visual Hive command to run, for example "pipeline" or "report".
+    required: false
+    default: pipeline
+  arguments:
+    description: Additional CLI arguments.
+    required: false
+    default: ""
+  working-directory:
+    description: Target repository working directory.
+    required: false
+    default: "."
+  install:
+    description: Run npm ci for Visual Hive before executing.
+    required: false
+    default: "true"
+  build:
+    description: Build Visual Hive before executing.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Visual Hive dependencies
+      if: inputs.install == 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci
+
+    - name: Build Visual Hive
+      if: inputs.build == 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm run build
+
+    - name: Run Visual Hive CLI
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "${{ github.action_path }}/packages/cli/dist/index.js" ${{ inputs.command }} ${{ inputs.arguments }}

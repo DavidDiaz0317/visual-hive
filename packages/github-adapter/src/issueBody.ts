@@ -213,13 +213,24 @@ function appendProviderAdapterEvidence(lines: string[], providerRunReport?: Mock
   lines.push(`- Missing credential providers: ${providerRunReport.summary.missingCredentialProviders}`);
   lines.push(`- External deferred providers: ${providerRunReport.summary.externalDeferredProviders}`);
   lines.push(`- Failed provider operations: ${providerRunReport.summary.failedProviders}`);
+  lines.push(`- External calls made: ${providerRunReport.providers.reduce((count, provider) => count + provider.normalized.externalCallsMade, 0)}`);
 
   for (const provider of providerRunReport.providers.slice(0, 8)) {
     const operations = provider.operations.map((operation) => `${operation.operation}:${operation.status}`).join(", ") || "none";
     const missing = provider.missingEnv.length ? `, missingEnv=${provider.missingEnv.join(",")}` : "";
+    const upload = provider.result.upload;
+    const uploadEvidence = upload
+      ? `, uploadStatus=${upload.status}, staged=${upload.stagedArtifacts}, uploaded=${upload.uploadedArtifacts}, externalCalls=${upload.externalCallsMade}`
+      : "";
     lines.push(
-      `- ${provider.label}: availability=${provider.availability}, result=${provider.result.status}, network=${provider.normalized.networkMode}, upload=${provider.normalized.artifactSummary.uploadMode}${missing}, operations=${operations}`
+      `- ${provider.label}: availability=${provider.availability}, result=${provider.result.status}, network=${provider.normalized.networkMode}, upload=${provider.normalized.artifactSummary.uploadMode}${uploadEvidence}${missing}, operations=${operations}`
     );
+    if (upload?.providerUrl) {
+      lines.push(`  - Provider URL: ${upload.providerUrl}`);
+    }
+    if (upload?.blockedReasons?.length) {
+      lines.push(`  - Blocked: ${upload.blockedReasons.join(" ")}`);
+    }
   }
   if (providerRunReport.providers.length > 8) {
     lines.push(`- ${providerRunReport.providers.length - 8} additional provider rows omitted from issue summary.`);

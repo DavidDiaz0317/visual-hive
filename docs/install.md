@@ -14,6 +14,7 @@ Run the demo acceptance path:
 npm run demo:all
 npm run demo:ci
 npm run smoke:cli
+npm run smoke:consumer
 ```
 
 The demo flow writes plan, report, mutation, coverage, target audit, contract audit, flow audit, schedule audit, workflow-safety, no-network provider adapter results, triage, LLM-governance, issue, PR-comment, run history, and artifact-index outputs under `examples/demo-react-app/.visual-hive`.
@@ -21,6 +22,19 @@ The demo flow writes plan, report, mutation, coverage, target audit, contract au
 ## Future npm Package Path
 
 The root workspace stays private. Publishable packages are prepared under `packages/`, with `@visual-hive/cli` exposing the `visual-hive` binary.
+
+Until the CLI is published, use one of these supported paths:
+
+- Local development: `node /path/to/visual-hive/packages/cli/dist/index.js <command>`.
+- GitHub Actions: `uses: DavidDiaz0317/visual-hive/actions/run@main` with `command: pipeline`.
+
+Example target-repo bootstrap from a local checkout:
+
+```bash
+node ../visual-hive/packages/cli/dist/index.js recommend --write-setup-bundle
+node ../visual-hive/packages/cli/dist/index.js pipeline --mode pr --bootstrap-baselines --changed-files changed-files.txt
+node ../visual-hive/packages/cli/dist/index.js pipeline --mode pr --ci --changed-files changed-files.txt
+```
 
 Future consumers should install the CLI package once it is published:
 
@@ -31,6 +45,8 @@ npx visual-hive recommend --profile hosted-review
 npx visual-hive recommend --write-config
 npx visual-hive recommend --write-setup-bundle
 npx visual-hive init
+npx visual-hive pipeline --mode pr --bootstrap-baselines --changed-files changed-files.txt
+npx visual-hive pipeline --mode pr --ci --changed-files changed-files.txt
 ```
 
 `visual-hive recommend` is the safest first command in a target repo: it writes `.visual-hive/recommendations.json` after inspecting package scripts, framework dependencies, and `data-testid` selectors. `--profile` can explicitly choose `free-local`, `hosted-review`, `component-storybook`, `enterprise-visual-ai`, or `complex-app`; this changes provider/cost recommendations while keeping PR uploads secret-free and disabled by default. `--write-config` creates `visual-hive.config.yaml` from that recommendation and refuses to overwrite an existing config unless `--force` is passed. `--write-setup-bundle` creates the starter config, `docs/visual-hive.md`, safe GitHub workflow templates, and setup audit files in one guarded operation.
@@ -38,6 +54,8 @@ npx visual-hive init
 ## GitHub Action Templates
 
 Workflow templates live in `templates/github-actions/`. Use the PR workflow for untrusted pull requests, the scheduled workflow for protected targets, and the trusted failure-issue workflow to create issues from uploaded sanitized artifacts.
+
+The current templates use `DavidDiaz0317/visual-hive/actions/run@main` instead of `npx visual-hive` because Visual Hive is not published to npm yet. The action builds Visual Hive in the action checkout, then runs the requested CLI command against the calling repository. Pin the action by commit SHA for production hardening.
 
 ## Monorepo Targets
 

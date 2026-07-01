@@ -220,7 +220,9 @@ function trustedWorkflowSteps(provider: ProviderInspection): string[] {
     "Run visual-hive plan/run first and treat Playwright as the pass/fail oracle.",
     `Run visual-hive providers handoff --provider ${provider.id} after report.json exists.`,
     "Review .visual-hive/provider-handoff.json and provider-decisions.json before enabling external mode.",
-    "If approved, run external upload only in scheduled/manual trusted workflows with required credential names configured.",
+    provider.id === "argos"
+      ? "If approved, run visual-hive providers upload --provider argos only in scheduled/manual trusted workflows with ARGOS_TOKEN configured."
+      : "If approved, run external upload only in scheduled/manual trusted workflows with required credential names configured.",
     "Upload .visual-hive artifacts with include-hidden-files: true for auditability."
   ];
 }
@@ -231,7 +233,8 @@ function validationCommands(provider: ProviderInspection): string[] {
     "visual-hive plan --mode pr --changed-files changed-files.txt",
     "visual-hive run",
     `visual-hive providers plan --provider ${provider.id}`,
-    `visual-hive providers handoff --provider ${provider.id}`
+    `visual-hive providers handoff --provider ${provider.id}`,
+    ...(provider.id === "argos" ? ["visual-hive providers upload --provider argos --dry-run"] : [])
   ];
 }
 

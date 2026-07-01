@@ -24,6 +24,7 @@ import { inspectProviders, normalizeProviderResults } from "../src/providers/ins
 import { runMockProviderAdapters } from "../src/providers/mock.js";
 import { buildProviderSetupPlan } from "../src/providers/setupPlan.js";
 import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
+import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
@@ -275,6 +276,43 @@ describe("config validation", () => {
       missingEnv: ["ARGOS_TOKEN"]
     });
     expect(normalized.find((provider) => provider.providerId === "percy")?.status).toBe("mock");
+  });
+
+  it("validates Argos upload config defaults and safe extra file paths", () => {
+    const config = VisualHiveConfigSchema.parse({
+      ...sampleConfig(),
+      providers: {
+        argos: {
+          enabled: true,
+          upload: {
+            buildName: "nightly visual review",
+            includeTextArtifacts: true,
+            extraFiles: [".visual-hive/report.json", "docs/visual-notes.md"]
+          }
+        }
+      }
+    });
+
+    expect(config.providers.argos.upload).toMatchObject({
+      buildName: "nightly visual review",
+      includeActualScreenshots: true,
+      includeDiffScreenshots: true,
+      includeTextArtifacts: true,
+      extraFiles: [".visual-hive/report.json", "docs/visual-notes.md"]
+    });
+    expect(() =>
+      VisualHiveConfigSchema.parse({
+        ...sampleConfig(),
+        providers: {
+          argos: {
+            enabled: true,
+            upload: {
+              extraFiles: ["../secrets.env"]
+            }
+          }
+        }
+      })
+    ).toThrow(/repo-relative/);
   });
 
   it("blocks external provider upload by default cost policy", () => {
@@ -538,6 +576,165 @@ describe("config validation", () => {
     expect(manifest.summary.eligibleArtifacts).toBe(0);
     expect(manifest.artifacts.find((artifact) => artifact.kind === "actual_screenshot")?.blockedReasons.join(" ")).toContain("Provider is disabled");
     expect(manifest.externalCallsMade).toBe(0);
+  });
+
+  it("skips disabled Argos upload without external commands", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+    let calls = 0;
+
+    const result = await uploadProviderArtifacts(sampleConfig(), {
+      providerId: "argos",
+      rootDir,
+      report,
+      dryRun: true,
+      commandRunner: async () => {
+        calls += 1;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      },
+      generatedAt: "2026-06-16T00:00:00.000Z"
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.manifest.status).toBe("skipped");
+    expect(result.manifest.externalCallsMade).toBe(0);
+    expect(result.manifest.summary.stagedArtifacts).toBe(0);
+    expect(calls).toBe(0);
+    expect(JSON.stringify(result.providerResults)).not.toContain("ARGOS_TOKEN=");
+  });
+
+  it("reports missing Argos credential name without leaking values", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+
+    const result = await uploadProviderArtifacts(argosEnabledConfig(), {
+      providerId: "argos",
+      rootDir,
+      report,
+      env: {},
+      commandRunner: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
+      generatedAt: "2026-06-16T00:00:00.000Z"
+    });
+
+    expect(result.manifest.status).toBe("missing_credentials");
+    expect(result.manifest.readiness.missingEnv).toEqual(["ARGOS_TOKEN"]);
+    expect(result.manifest.externalCallsMade).toBe(0);
+    expect(JSON.stringify(result)).not.toContain("secret-token-value");
+  });
+
+  it("blocks Argos upload by cost policy without external commands", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+    let calls = 0;
+
+    const result = await uploadProviderArtifacts(
+      VisualHiveConfigSchema.parse({
+        ...sampleConfig(),
+        providers: { argos: { enabled: true } }
+      }),
+      {
+        providerId: "argos",
+        rootDir,
+        report,
+        env: { ARGOS_TOKEN: "secret-token-value" },
+        commandRunner: async () => {
+          calls += 1;
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+        generatedAt: "2026-06-16T00:00:00.000Z"
+      }
+    );
+
+    expect(result.manifest.status).toBe("blocked");
+    expect(result.manifest.blockedReasons.join(" ")).toContain("maxExternalScreenshotsPerRun 0");
+    expect(result.manifest.externalCallsMade).toBe(0);
+    expect(calls).toBe(0);
+  });
+
+  it("stages Argos dry-run artifacts without external commands", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+    let calls = 0;
+
+    const result = await uploadProviderArtifacts(argosEnabledConfig({ includeTextArtifacts: true }), {
+      providerId: "argos",
+      rootDir,
+      report,
+      dryRun: true,
+      env: {},
+      commandRunner: async () => {
+        calls += 1;
+        return { exitCode: 0, stdout: "", stderr: "" };
+      },
+      generatedAt: "2026-06-16T00:00:00.000Z"
+    });
+
+    expect(result.manifest.status).toBe("dry_run");
+    expect(result.manifest.summary.actualScreenshots).toBe(1);
+    expect(result.manifest.summary.textArtifacts).toBe(1);
+    expect(result.manifest.stagedArtifacts.some((artifact) => artifact.stagedPath.includes("provider-upload/argos/screenshots"))).toBe(true);
+    expect(result.providerResults.providers.find((provider) => provider.providerId === "argos")?.result.upload).toMatchObject({
+      status: "dry_run",
+      externalCallsMade: 0,
+      stagedArtifacts: 2
+    });
+    expect(calls).toBe(0);
+  });
+
+  it("records mocked successful Argos upload evidence with sanitized output", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+
+    const result = await uploadProviderArtifacts(argosEnabledConfig(), {
+      providerId: "argos",
+      rootDir,
+      report,
+      env: { ARGOS_TOKEN: "secret-token-value" },
+      commandRunner: async (input) => {
+        expect(input.env.ARGOS_TOKEN).toBe("secret-token-value");
+        return {
+          exitCode: 0,
+          stdout: "Uploaded to https://app.argos-ci.com/project/demo/builds/123?token=secret-token-value",
+          stderr: "authorization: Bearer secret-token-value"
+        };
+      },
+      generatedAt: "2026-06-16T00:00:00.000Z"
+    });
+
+    const argos = result.providerResults.providers.find((provider) => provider.providerId === "argos");
+    expect(result.manifest.status).toBe("uploaded");
+    expect(result.manifest.externalCallsMade).toBe(1);
+    expect(result.manifest.summary.uploadedArtifacts).toBe(1);
+    expect(argos?.normalized).toMatchObject({
+      networkMode: "external",
+      externalCallsMade: 1,
+      artifactSummary: {
+        uploadMode: "uploaded",
+        uploadedArtifacts: 1
+      }
+    });
+    expect(JSON.stringify(result)).not.toContain("secret-token-value");
+    expect(JSON.stringify(result)).toContain("[REDACTED]");
+  });
+
+  it("records mocked failed Argos upload without changing deterministic status", async () => {
+    const { rootDir, report } = await providerUploadFixture();
+
+    const result = await uploadProviderArtifacts(argosEnabledConfig(), {
+      providerId: "argos",
+      rootDir,
+      report,
+      env: { ARGOS_TOKEN: "secret-token-value" },
+      failOnProviderFailure: true,
+      commandRunner: async () => ({
+        exitCode: 2,
+        stdout: "",
+        stderr: "ARGOS_TOKEN=secret-token-value upload failed"
+      }),
+      generatedAt: "2026-06-16T00:00:00.000Z"
+    });
+
+    const argos = result.providerResults.providers.find((provider) => provider.providerId === "argos");
+    expect(result.exitCode).toBe(1);
+    expect(result.manifest.status).toBe("failed");
+    expect(result.manifest.deterministicStatus).toBe(report.status);
+    expect(argos?.result.status).toBe("failed");
+    expect(JSON.stringify(result)).not.toContain("secret-token-value");
   });
 
   it("records provider governance decisions in core without leaking secrets or making external calls", async () => {
@@ -2210,16 +2407,14 @@ jobs:
     expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
-    for (const command of ["baselines list --write", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers list --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
-      expect(prTemplate).toContain(`npx visual-hive ${command}`);
-    }
-    for (const command of ["baselines list --write", "mutate --enforce-min-score", "coverage", "targets", "contracts", "flows", "schedules", "workflows", "providers list --mock-results", "triage", "llm", "report", "risk", "security", "costs", "readiness", "artifacts"]) {
-      expect(scheduledTemplate).toContain(`npx visual-hive ${command}`);
-    }
-    expect(prTemplate.indexOf("npx visual-hive readiness")).toBeLessThan(prTemplate.indexOf("npx visual-hive triage"));
-    expect(prTemplate.indexOf("npx visual-hive triage")).toBeLessThan(prTemplate.indexOf("npx visual-hive report"));
-    expect(scheduledTemplate.indexOf("npx visual-hive readiness")).toBeLessThan(scheduledTemplate.indexOf("npx visual-hive triage"));
-    expect(scheduledTemplate.indexOf("npx visual-hive triage")).toBeLessThan(scheduledTemplate.indexOf("npx visual-hive report"));
+    expect(prTemplate).toContain("DavidDiaz0317/visual-hive/actions/run@main");
+    expect(prTemplate).toContain("command: pipeline");
+    expect(prTemplate).toContain("arguments: --mode pr --base origin/main --ci --github-step-summary");
+    expect(prTemplate).not.toContain("npx visual-hive");
+    expect(scheduledTemplate).toContain("DavidDiaz0317/visual-hive/actions/run@main");
+    expect(scheduledTemplate).toContain("command: pipeline");
+    expect(scheduledTemplate).toContain("arguments: --mode schedule --ci --enforce-mutation --github-step-summary");
+    expect(scheduledTemplate).not.toContain("npx visual-hive");
     expect(audit.summary).toMatchObject({
       pullRequestWorkflows: 1,
       scheduledWorkflows: 1,
@@ -2706,6 +2901,36 @@ jobs:
     expect(readiness.status).toBe("attention");
     expect(readiness.summary.missing).toBeGreaterThanOrEqual(3);
     expect(readiness.gates.map((gate) => gate.id)).toEqual(expect.arrayContaining(["planning:missing", "deterministic:missing", "workflow:missing"]));
+  });
+
+  it("blocks setup readiness for localhost URL targets without serve commands, body-only selectors, and no screenshots", () => {
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "weak-setup", type: "static", defaultBranch: "main" },
+      targets: {
+        localPreview: {
+          kind: "url",
+          url: "http://127.0.0.1:4173",
+          prSafe: true
+        }
+      },
+      contracts: [
+        {
+          id: "body-only",
+          description: "Generated starter contract needs review",
+          target: "localPreview",
+          runOn: { pullRequest: true },
+          selectors: { mustExist: ["body"] }
+        }
+      ]
+    });
+
+    const readiness = analyzeReadiness(config, { now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(readiness.status).toBe("blocked");
+    expect(readiness.gates.find((gate) => gate.id === "setup:missing-serve-command")).toMatchObject({ status: "blocked" });
+    expect(readiness.gates.find((gate) => gate.id === "setup:body-only-selector")).toMatchObject({ status: "blocked" });
+    expect(readiness.gates.find((gate) => gate.id === "setup:no-screenshots")).toMatchObject({ status: "blocked" });
+    expect(JSON.stringify(readiness)).not.toContain("secret-value");
   });
 
   it("blocks readiness when run history shows a pass-to-fail regression", async () => {
@@ -3599,7 +3824,7 @@ jobs:
     expect(recommendation.project.type).toBe("react-vite");
     expect(recommendation.setupProfile).toBe("free-local");
     expect(recommendation.recommendedTarget.kind).toBe("command");
-    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173 --strictPort");
     expect(recommendation.recommendedContracts[0]?.selectors).toContain("[data-testid='dashboard-page']");
     expect(recommendation.recommendedContracts[0]?.steps[0]).toMatchObject({ action: "assertVisible", selector: "[data-testid='dashboard-page']" });
     expect(recommendation.recommendedContracts.map((contract) => contract.id)).toEqual([
@@ -3780,7 +4005,7 @@ jobs:
     expect(setupDocs).toContain("## Detected Route Hints");
     expect(setupDocs).toContain("/clusters");
     expect(setupDocs).toContain("PR checks should run with read-only permissions and no repository secrets.");
-    expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173");
+    expect(setupDocs).toContain("Serve command: npm run preview -- --port 4173 --strictPort");
     expect(setupDocs).toContain("app-shell-visual-stability");
     expect(setupDocs).toContain("route-clusters-visual-stability");
     expect(setupDocs).toContain("Playwright built-in");
@@ -4064,7 +4289,7 @@ export const Alert = {};
 
     expect(recommendation.project.name).toBe("bom-fixture");
     expect(recommendation.project.type).toBe("react-vite");
-    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run preview -- --port 4173 --strictPort");
   });
 });
 
@@ -4481,4 +4706,42 @@ function reportFixture(repoRoot: string, actualPath: string, baselinePath: strin
     artifacts: [actualPath],
     reproductionCommands: ["visual-hive run --ci"]
   };
+}
+
+async function providerUploadFixture(): Promise<{ rootDir: string; report: Report }> {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-provider-upload-"));
+  tempDirs.push(rootDir);
+  const actualPath = path.join(".visual-hive", "artifacts", "screenshots", "dashboard.png");
+  const baselinePath = path.join(".visual-hive", "snapshots", "dashboard.png");
+  await mkdir(path.dirname(path.join(rootDir, actualPath)), { recursive: true });
+  await writeFile(path.join(rootDir, actualPath), Buffer.from("fake-png-bytes"));
+  await writeJson(path.join(rootDir, ".visual-hive", "report.json"), { sample: true, token: "secret-token-value" });
+  return { rootDir, report: reportFixture(rootDir, actualPath, baselinePath) };
+}
+
+function argosEnabledConfig(upload: Partial<VisualHiveConfig["providers"]["argos"]["upload"]> = {}): VisualHiveConfig {
+  return VisualHiveConfigSchema.parse({
+    ...sampleConfig(),
+    providers: {
+      argos: {
+        enabled: true,
+        projectId: "visual-hive/demo",
+        upload
+      }
+    },
+    costPolicy: {
+      maxExternalScreenshotsPerRun: 10,
+      maxMonthlyExternalScreenshots: 1000,
+      externalUpload: {
+        pullRequest: false,
+        schedule: true,
+        manual: true,
+        canary: false,
+        mutation: false,
+        full: true,
+        onFailureOnly: false,
+        criticalContractsOnly: false
+      }
+    }
+  });
 }

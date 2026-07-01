@@ -2,7 +2,40 @@
 
 Visual Hive is a deterministic-first visual QA and testing orchestration tool for web projects. It turns screenshot and user-flow checks into a layered, project-aware quality system that can plan test depth, run Playwright contracts, compare screenshots with tolerances, measure mutation adequacy, produce machine-readable reports, and generate sanitized GitHub-ready failure context.
 
-The default v0.2 path works without paid services. Playwright is the deterministic oracle. External providers such as Percy, Chromatic, Argos, and Applitools are modeled as optional future adapters, not required runtime dependencies.
+The default v0.2 path works without paid services. Playwright is the deterministic oracle. Argos has an optional explicit upload adapter, while Percy, Chromatic, and Applitools remain governed/deferred integrations. No hosted provider is required for normal use.
+
+## Vision
+
+Modern frontend quality is not just "did one screenshot change?" A real release gate needs to know which target is safe to run, which routes and user-visible contracts matter, whether the current change touched risky files, whether tests catch intentional breakage, and how to hand reviewers enough evidence to fix the failure quickly.
+
+Visual Hive is built to be that orchestration layer. It does not replace Playwright, Argos, Percy, Chromatic, Applitools, or GitHub Actions. It coordinates them around a deterministic core:
+
+- **Plan** the right work from changed files, target safety, schedule, cost, and risk.
+- **Run** Playwright selector, flow, and tolerant screenshot checks as the pass/fail oracle.
+- **Measure** mutation adequacy so weak visual contracts are visible instead of assumed.
+- **Explain** failures with structured reports, sanitized issue bodies, triage prompts, baseline review queues, and artifact indexes.
+- **Govern** optional hosted providers, LLM prompts, protected targets, workflow safety, and cost policy without requiring paid services by default.
+
+The long-term goal is a standalone visual QA control plane: local-first for individual repos, GitHub-native for CI, and eventually installable as a package/action for teams that want visual regression protection without handing pass/fail authority to a hosted screenshot service.
+
+## Repository Goals
+
+This repository is both the Visual Hive implementation and the proving ground for the product. A healthy checkout should demonstrate:
+
+- a runnable TypeScript CLI with strict config validation;
+- a React/Vite demo app with deterministic visual, selector, and mutation checks;
+- a local Control Plane UI that reads `.visual-hive` artifacts;
+- GitHub Action templates that are safe for untrusted PRs;
+- KubeStellar Console examples for hosted-demo, local-preview, fake OAuth planning, and protected scheduled lanes;
+- consumer-repo smoke tests proving Visual Hive can be used outside this repo.
+
+## How To Use This Repo
+
+Use it in three ways:
+
+1. **Develop Visual Hive itself**: run the root validation scripts in the quickstart below.
+2. **Try the product locally**: run `npm run demo:ci`, then open the Control Plane with `node packages/cli/dist/index.js ui --config examples/demo-react-app/visual-hive.config.yaml --read-only --open`.
+3. **Dogfood against another repo**: build this checkout, run `node packages/cli/dist/index.js recommend --repo ../target --write-setup-bundle`, then use `pipeline` to bootstrap baselines and enforce strict CI.
 
 ## Why deterministic-first and AI-amplified
 
@@ -23,20 +56,26 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results and handoff manifests, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, handoff manifests, Argos upload dry-run evidence, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
 
 Initialize Visual Hive in another repo:
 
 ```bash
-npx visual-hive recommend
-npx visual-hive recommend --profile hosted-review
-npx visual-hive recommend --write-config --write-docs
-npx visual-hive recommend --write-setup-bundle
-npx visual-hive init
-npx visual-hive doctor
-npx visual-hive plan --mode pr --changed-files changed-files.txt
-npx visual-hive run --ci
+node packages/cli/dist/index.js recommend --repo ../target-repo --write-setup-bundle
+cd ../target-repo
+node ../visual-hive/packages/cli/dist/index.js pipeline --mode pr --bootstrap-baselines --changed-files changed-files.txt
+node ../visual-hive/packages/cli/dist/index.js pipeline --mode pr --ci --changed-files changed-files.txt
 ```
+
+Once `@visual-hive/cli` is published, the same target-repo flow becomes:
+
+```bash
+visual-hive recommend --write-setup-bundle
+visual-hive pipeline --mode pr --bootstrap-baselines --changed-files changed-files.txt
+visual-hive pipeline --mode pr --ci --changed-files changed-files.txt
+```
+
+Bootstrap creates or lists missing local baselines and writes `.visual-hive/baseline-bootstrap.md`; review those images before making strict CI required.
 
 ## Config example
 
@@ -51,7 +90,7 @@ targets:
   localPreview:
     kind: command
     build: "npm run build"
-    serve: "npm run preview -- --port 4173"
+    serve: "npm run preview -- --port 4173 --strictPort"
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap
@@ -111,6 +150,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive recommend`: inspects package scripts, framework hints, Playwright presence, stable selectors, static route hints, existing workflow hints, setup profile, provider posture, cost/permission guidance, setup action plan, setup PR steps, and safe workflow previews, then writes `.visual-hive/recommendations.json` plus `.visual-hive/setup-pr-plan.json`; normal app repos get an app-shell contract plus route-specific starter contracts for detected routes, Storybook repos get component story contracts, and complex apps with explicit frontend/backend/fake-OAuth scripts can get a reviewed `commandGroup` target. Add `--profile free-local|hosted-review|component-storybook|enterprise-visual-ai|complex-app` to choose an onboarding profile explicitly, `--write-config` to create a starter config, `--write-docs` to create `docs/visual-hive.md`, or `--write-setup-bundle` to create config, repo docs, safe workflow templates, and `.visual-hive/setup-bundle-edits.json` after overwrite preflight.
 - `visual-hive doctor`: validates config, Node 22, Playwright availability, and target settings.
 - `visual-hive plan`: writes `.visual-hive/plan.json` from mode, changed files, target safety, severity, cost, mutation applicability, and provider cost-policy evidence. Use `--output .visual-hive/plan.canary.json` or another repo-relative path to preserve sidecar plans for canary/full comparisons without replacing the active run plan.
+- `visual-hive pipeline`: runs the operational path end to end: doctor, plan, deterministic run, baseline review, optional mutation, coverage/improvement, target/contract/flow/schedule/workflow/provider/risk/security/cost/readiness audits, triage, report, history, and artifact indexing. It writes `.visual-hive/pipeline.json` and returns nonzero when deterministic checks fail, mutation enforcement fails, or readiness is blocked.
 - `visual-hive plans`: writes `.visual-hive/plans.json`, a lane summary across `.visual-hive/plan*.json` artifacts so PR, canary, full, schedule, and docs-only plans can be compared without reading every JSON file.
 - `visual-hive run`: generates and runs Playwright contracts, then writes `.visual-hive/report.json`.
 - `visual-hive mutate`: runs configured mutation operators and writes `.visual-hive/mutation-report.json`.
@@ -139,6 +179,7 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive providers list --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive providers plan --provider argos`: write `.visual-hive/provider-setup-plan.json`, a no-network provider setup plan with required env names, config changes, trusted workflow steps, safety checks, and validation commands.
 - `visual-hive providers handoff --provider argos`: after a deterministic run, write `.visual-hive/provider-handoff.json`, a no-network manifest of exact screenshot artifacts, eligibility, blocked reasons, required env names, and trusted workflow steps for optional provider upload review.
+- `visual-hive providers upload --provider argos --dry-run`: stage eligible screenshots into `.visual-hive/provider-upload/argos` and write provider upload evidence without network calls. A real Argos upload is opt-in, trusted-lane oriented, requires `ARGOS_TOKEN`, and never changes the deterministic Playwright pass/fail result.
 - `visual-hive providers decision`: records a local sanitized provider governance decision in `.visual-hive/provider-decisions.json` without enabling credentials, billing, uploads, or provider network calls.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, flows, mutation, failures, and raw artifacts.
 
@@ -223,7 +264,7 @@ See also:
 
 ## Roadmap
 
-- First-class Percy, Chromatic, Argos, and Applitools adapters.
+- Additional first-class Percy, Chromatic, and Applitools upload adapters.
 - Richer Playwright trace parsing.
 - Contract discovery from route manifests and component metadata.
 - Risk-aware cost budgets for large monorepos.

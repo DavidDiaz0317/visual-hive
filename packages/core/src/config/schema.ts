@@ -38,6 +38,21 @@ export const VisualConfigSchema = z
     artifactDir: ".visual-hive/artifacts"
   });
 
+const ProviderUploadConfigSchema = z
+  .object({
+    buildName: z.string().min(1).optional(),
+    includeActualScreenshots: z.boolean().default(true),
+    includeDiffScreenshots: z.boolean().default(true),
+    includeTextArtifacts: z.boolean().default(false),
+    extraFiles: z.array(relativeArtifactPathItemSchema()).default([])
+  })
+  .default({
+    includeActualScreenshots: true,
+    includeDiffScreenshots: true,
+    includeTextArtifacts: false,
+    extraFiles: []
+  });
+
 function providerConfig(defaults: { enabled: boolean; mode?: z.infer<typeof ProviderModeSchema>; requiredEnv?: string[] }) {
   return z
     .object({
@@ -45,13 +60,20 @@ function providerConfig(defaults: { enabled: boolean; mode?: z.infer<typeof Prov
       mode: ProviderModeSchema.default(defaults.mode ?? "external"),
       requiredEnv: z.array(z.string().min(1)).default(defaults.requiredEnv ?? []),
       projectId: z.string().min(1).optional(),
-      failOnProviderFailure: z.boolean().default(false)
+      failOnProviderFailure: z.boolean().default(false),
+      upload: ProviderUploadConfigSchema
     })
     .default({
       enabled: defaults.enabled,
       mode: defaults.mode ?? "external",
       requiredEnv: defaults.requiredEnv ?? [],
-      failOnProviderFailure: false
+      failOnProviderFailure: false,
+      upload: {
+        includeActualScreenshots: true,
+        includeDiffScreenshots: true,
+        includeTextArtifacts: false,
+        extraFiles: []
+      }
     });
 }
 
@@ -398,13 +420,16 @@ export type ProviderId = z.infer<typeof ProviderIdSchema>;
 export type ProviderConfig = VisualHiveConfig["providers"][ProviderId];
 
 function relativeArtifactPathSchema(defaultValue: string): z.ZodDefault<z.ZodEffects<z.ZodString, string, string>> {
+  return relativeArtifactPathItemSchema().default(defaultValue);
+}
+
+function relativeArtifactPathItemSchema(): z.ZodEffects<z.ZodString, string, string> {
   return z
     .string()
     .min(1)
     .refine((value) => isSafeRepoRelativePath(value), {
       message: "Path must be repo-relative and must not contain parent-directory traversal"
-    })
-    .default(defaultValue);
+    });
 }
 
 function isSafeRepoRelativePath(value: string): boolean {

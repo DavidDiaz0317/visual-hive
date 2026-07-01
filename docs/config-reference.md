@@ -228,9 +228,16 @@ providers:
     enabled: true
   argos:
     enabled: false
-    projectId: "org/project" # optional, used only for normalized metadata until external adapters are wired
+    mode: external
+    projectId: "org/project" # optional normalized metadata
     requiredEnv:
       - ARGOS_TOKEN
+    upload:
+      buildName: "nightly visual review"
+      includeActualScreenshots: true
+      includeDiffScreenshots: true
+      includeTextArtifacts: false
+      extraFiles: []
   percy:
     enabled: false
     requiredEnv:
@@ -252,9 +259,11 @@ providers:
       - GITHUB_TOKEN
 ```
 
-Provider `projectId` is optional and sanitized before it appears in `provider-results.json`. In v0.2 it is used for mock/deferred review metadata only; Visual Hive still makes no external provider calls by default.
+Provider `projectId` is optional and sanitized before it appears in `provider-results.json`. Argos is the first optional real upload adapter: `visual-hive providers upload --provider argos` can stage Visual Hive screenshots and call the Argos CLI only when the provider is enabled, `mode: external`, credentials are present, and cost policy allows the run. Visual Hive still makes no provider calls during `plan`, `run`, `mutate`, `triage`, or `report`.
 
 `mode: mock` keeps inspection and report normalization local. `mode: external` requires the configured environment variable names to be present before an adapter can be treated as available. Visual Hive reports missing credential names only; it never prints values.
+
+`providers.argos.upload.extraFiles` accepts repo-relative paths only. Absolute paths and parent-directory traversal are rejected. Text artifacts are sanitized while staged; screenshots are copied as image artifacts.
 
 Provider cost policy defaults:
 
@@ -273,4 +282,4 @@ costPolicy:
     criticalContractsOnly: true
 ```
 
-The default `maxExternalScreenshotsPerRun: 0` blocks hosted provider uploads while keeping Playwright local checks fully enabled. This is intentional for open-source and early project setups: PRs remain free, no-secret, and local-only unless a trusted workflow explicitly raises the external screenshot budget and enables the intended run mode. Provider reports include `externalUploadAllowed`, `externalUploadBlockedReasons`, and `estimatedExternalScreenshots` so the Control Plane and GitHub artifacts can explain why external upload was skipped.
+The default `maxExternalScreenshotsPerRun: 0` blocks hosted provider uploads while keeping Playwright local checks fully enabled. This is intentional for open-source and early project setups: PRs remain free, no-secret, and local-only unless a trusted workflow explicitly raises the external screenshot budget and enables the intended run mode. Provider reports include `externalUploadAllowed`, `externalUploadBlockedReasons`, `estimatedExternalScreenshots`, and Argos upload status so the Control Plane and GitHub artifacts can explain why external upload was skipped, blocked, dry-run staged, uploaded, or failed.

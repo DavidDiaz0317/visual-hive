@@ -4,6 +4,7 @@ import { sanitizeText } from "@visual-hive/core";
 import { runDoctor, formatDiagnostics } from "./commands/doctor.js";
 import { runInit } from "./commands/init.js";
 import { formatPlanSummary, runPlanCommand } from "./commands/plan.js";
+import { formatPipelineSummary, runPipelineCommand } from "./commands/pipeline.js";
 import { formatPlansSummary, runPlansCommand } from "./commands/plans.js";
 import { runDeterministicCommand } from "./commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "./commands/mutate.js";
@@ -22,11 +23,13 @@ import {
   formatProviderDecision,
   formatProviderHandoff,
   formatProviderSetupPlan,
+  formatProviderUpload,
   formatProvidersMockSummary,
   formatProvidersSummary,
   runProviderDecisionCommand,
   runProviderHandoffCommand,
   runProviderSetupPlanCommand,
+  runProviderUploadCommand,
   runProvidersCommand,
   runProvidersMockCommand
 } from "./commands/providers.js";
@@ -112,6 +115,43 @@ program
         excludeTargets: options.excludeTarget
       });
       console.log(formatPlanSummary(plan));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("pipeline")
+  .description("Run the end-to-end Visual Hive operational pipeline and write .visual-hive/pipeline.json")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--mode <mode>", "pipeline mode: pr, schedule, manual, canary, mutation, or full", "pr")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for diff")
+    .option("--ci", "run the deterministic verification pass with CI baseline enforcement")
+    .option("--bootstrap-baselines", "seed missing baselines in a non-strict local/trusted pass before strict CI")
+    .option("--skip-install", "skip target install commands during deterministic runs")
+    .option("--skip-build", "skip target build commands during deterministic runs")
+    .option("--enforce-mutation", "run mutation checks and fail when the configured minimum score is not met")
+  .option("--continue-on-error", "record downstream evidence after non-oracle pipeline step failures")
+  .option("--github-step-summary", "append the markdown report to GITHUB_STEP_SUMMARY when present")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runPipelineCommand({
+        config: options.config,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+          ci: options.ci,
+          bootstrapBaselines: options.bootstrapBaselines,
+          skipInstall: options.skipInstall,
+          skipBuild: options.skipBuild,
+          enforceMutation: options.enforceMutation,
+        continueOnError: options.continueOnError,
+        githubStepSummary: options.githubStepSummary
+      });
+      console.log(formatPipelineSummary(result, options.format));
+      process.exitCode = result.exitCode;
     } catch (error) {
       fail(error);
     }
@@ -303,6 +343,32 @@ providersCommand
         format: options.format
       });
       console.log(formatProviderHandoff(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+providersCommand
+  .command("upload")
+  .description("Upload staged Visual Hive artifacts to an optional hosted provider")
+  .requiredOption("--provider <id>", "provider id; Argos is currently implemented")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--report <path>", "deterministic report path", ".visual-hive/report.json")
+  .option("--dry-run", "stage artifacts and write manifests without making external calls")
+  .option("--format <format>", "markdown or json", "markdown")
+  .option("--fail-on-provider-failure", "exit nonzero when provider upload fails or policy enforcement requests failure")
+  .action(async (options) => {
+    try {
+      const result = await runProviderUploadCommand({
+        config: options.config,
+        providerId: options.provider,
+        report: options.report,
+        dryRun: options.dryRun,
+        format: options.format,
+        failOnProviderFailure: options.failOnProviderFailure
+      });
+      console.log(formatProviderUpload(result, options.format));
+      process.exitCode = result.exitCode;
     } catch (error) {
       fail(error);
     }

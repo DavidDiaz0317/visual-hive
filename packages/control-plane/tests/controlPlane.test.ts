@@ -26,7 +26,8 @@ async function makeFixture(): Promise<{ repoRoot: string; configPath: string }> 
   defaultBranch: main
 targets:
   localPreview:
-    kind: url
+    kind: command
+    serve: "npm run preview -- --port 4173"
     url: "http://127.0.0.1:4173"
     prSafe: true
     cost: cheap
@@ -1598,7 +1599,7 @@ contracts:
     const connection = snapshot.connections?.connections.find((candidate) => candidate.id === "attention-repo");
 
     expect(snapshot.connections?.summary.failedConnections).toBe(1);
-    expect(snapshot.connections?.summary.staleReportConnections).toBe(1);
+    expect(snapshot.connections?.summary.staleReportConnections).toBe(2);
     expect(snapshot.connections?.summary.weakMutationConnections).toBe(2);
     expect(snapshot.connections?.summary.coverageGapConnections).toBe(1);
     expect(snapshot.connections?.summary.highCoverageGapConnections).toBe(1);
@@ -2964,7 +2965,7 @@ contracts:
       const forcedPayload = await forced.json();
       expect(forced.status).toBe(200);
       expect(forcedPayload.written[0].overwritten).toBe(true);
-      await expect(readFile(workflowPath, "utf8")).resolves.toContain("npx visual-hive plan --mode pr");
+      await expect(readFile(workflowPath, "utf8")).resolves.toContain("DavidDiaz0317/visual-hive/actions/run@main");
     } finally {
       await server.close();
     }
