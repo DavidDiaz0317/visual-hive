@@ -33,7 +33,7 @@ try {
     "run",
     "--config",
     configPath
-  ], appRoot, { VISUAL_HIVE_CI: "false" });
+  ], appRoot, { VISUAL_HIVE_CI: "false", CI: "false" });
   await run("node", [
     cliPath,
     "pipeline",
