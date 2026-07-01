@@ -1095,6 +1095,16 @@ describe("control plane", () => {
 
     expect(snapshot.config?.project.name).toBe("ui-fixture");
     expect(snapshot.overview.deterministicStatus).toBe("passed");
+    expect(snapshot.guidanceState).toMatchObject({
+      state: "failures_need_triage",
+      title: "Failures need triage",
+      primaryAction: {
+        area: "review"
+      }
+    });
+    expect(snapshot.guidanceState.progress.map((step) => step.id)).toEqual(["setup", "plan", "run", "review", "strengthen"]);
+    expect(snapshot.navigationBadges.review).toBeGreaterThan(0);
+    expect(snapshot.navigationBadges.configure).toBeGreaterThan(0);
     expect(snapshot.targets).toHaveLength(1);
     expect(snapshot.contracts).toHaveLength(1);
     expect(snapshot.providers.find((provider) => provider.id === "playwright")?.availability).toBe("available");
@@ -1347,6 +1357,29 @@ describe("control plane", () => {
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
+  });
+
+  it("builds beginner guidance when no config exists yet", async () => {
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-empty-ui-"));
+    const snapshot = await createControlPlaneSnapshot({
+      repo: repoRoot,
+      config: path.join(repoRoot, "visual-hive.config.yaml"),
+      readOnly: true
+    });
+
+    expect(snapshot.config).toBeUndefined();
+    expect(snapshot.guidanceState).toMatchObject({
+      state: "no_config",
+      title: "Create a Visual Hive config",
+      primaryAction: {
+        label: "Start setup",
+        area: "configure"
+      }
+    });
+    expect(snapshot.guidanceState.progress[0]).toMatchObject({
+      id: "setup",
+      status: "current"
+    });
   });
 
   it("computes flow coverage risks when no stored risk artifact exists", async () => {
@@ -2063,6 +2096,9 @@ contracts:
       const appJs = await fetch(`${server.url}${jsAsset}`).then((response) => response.text());
       expect(appJs).toContain("Visual Hive");
       expect(appJs).toContain("Control Plane");
+      expect(appJs).toContain("Quality cockpit");
+      expect(appJs).toContain("What should I do next?");
+      expect(appJs).toContain("Expert console");
       expect(appJs).toContain("Failure Inbox");
       expect(appJs).toContain("Baselines");
       expect(appJs).toContain("/api/runbook/execute");
@@ -2101,23 +2137,29 @@ contracts:
       expect(jsAsset).toBeTruthy();
       const appJs = await fetch(`${server.url}${jsAsset}`).then((response) => response.text());
       for (const expected of [
-        "Overview",
-        "Portfolio",
-        "Runbook",
-        "Profiles",
-        "Actions",
+        "Quality cockpit",
+        "What should I do next?",
+        "Run PR-safe checks",
+        "Review visual changes",
+        "Expert console",
+        "Start",
+        "Run",
+        "Review",
+        "Configure",
+        "Run center",
+        "First-run guide",
+        "Raw snapshot evidence",
         "Readiness",
         "Risk",
         "Security",
         "Costs",
         "Setup",
-        "Runs / Reports",
+        "Current report",
         "Failure Inbox",
         "Baselines",
         "Mutation",
         "Coverage",
         "Flows",
-        "Config",
         "Targets",
         "Contracts",
         "Schedule",
@@ -2125,7 +2167,7 @@ contracts:
         "Providers",
         "GitHub / CI",
         "Connections",
-        "Raw Artifacts"
+        "Artifacts"
       ]) {
         expect(appJs).toContain(expected);
       }

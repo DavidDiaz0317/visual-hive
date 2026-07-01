@@ -92,7 +92,19 @@ try {
     throw new Error(`ui page did not reference built Vite assets: ${assetPaths.join(", ") || "none"}`);
   }
   const appJs = await fetchText(`${server.url}${jsAsset}`, "app.js");
-  for (const expected of ["Visual Hive", "Control Plane", "Overview", "Failure Inbox", "Baselines", "Providers", "Connections"]) {
+  for (const expected of [
+    "Visual Hive",
+    "Control Plane",
+    "Quality cockpit",
+    "What should I do next?",
+    "Run PR-safe checks",
+    "Review visual changes",
+    "Expert console",
+    "Failure Inbox",
+    "Baselines",
+    "Providers",
+    "Connections"
+  ]) {
     if (!appJs.includes(expected)) {
       throw new Error(`client bundle did not include expected Control Plane view: ${expected}`);
     }

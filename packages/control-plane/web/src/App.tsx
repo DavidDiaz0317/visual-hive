@@ -3,28 +3,19 @@ import type { ReactElement } from "react";
 import {
   Activity,
   AlertTriangle,
-  Archive,
-  Boxes,
-  CheckCircle2,
-  ClipboardList,
+  ChevronRight,
+  Clock,
+  Eye,
   FileJson,
   FlaskConical,
-  GitBranch,
-  Gauge,
+  Home,
   Image,
-  Layers3,
-  ListChecks,
-  Network,
   Play,
   RefreshCw,
-  Route,
-  Server,
   Settings,
   Shield,
-  Sparkles,
-  Target,
-  UploadCloud,
-  Workflow,
+  SlidersHorizontal,
+  Terminal,
   XCircle
 } from "lucide-react";
 import { artifactUrl, fetchSnapshot, getConnectionFromLocation, postJson } from "./api/client";
@@ -44,95 +35,29 @@ import {
   safeText,
   statusTone
 } from "./design-system/components";
-import type { Failure, RunProfile, Screenshot, Snapshot } from "./types/controlPlane";
+import type { Failure, RunProfile, Screenshot, Snapshot, Tone } from "./types/controlPlane";
 
-type ViewId =
-  | "overview"
-  | "portfolio"
-  | "runbook"
-  | "profiles"
-  | "actions"
-  | "readiness"
-  | "risk"
-  | "security"
-  | "costs"
-  | "setup"
-  | "runs"
-  | "failures"
-  | "baselines"
-  | "mutation"
-  | "coverage"
-  | "flows"
-  | "config"
-  | "targets"
-  | "contracts"
-  | "schedule"
-  | "llm"
-  | "providers"
-  | "github"
-  | "connections"
-  | "artifacts";
+type WorkAreaId = "start" | "run" | "review" | "configure";
+type UserMode = "beginner" | "expert";
 
-const viewGroups: Array<{
-  label: string;
-  views: Array<{ id: ViewId; label: string; icon: typeof Activity; description: string }>;
-}> = [
-  {
-    label: "Operate",
-    views: [
-      { id: "overview", label: "Overview", icon: Gauge, description: "Current deterministic health, mutation signal, and next actions." },
-      { id: "failures", label: "Failure Inbox", icon: AlertTriangle, description: "Actionable failures, likely causes, and reproduction commands." },
-      { id: "baselines", label: "Baselines", icon: Image, description: "Screenshot evidence and approve/reject review queue." },
-      { id: "runs", label: "Runs / Reports", icon: ClipboardList, description: "Report schema evidence, selected contracts, and artifacts." }
-    ]
-  },
-  {
-    label: "Plan",
-    views: [
-      { id: "portfolio", label: "Portfolio", icon: Boxes, description: "Connected repos and attention queue." },
-      { id: "targets", label: "Targets", icon: Server, description: "URL, command, commandGroup, and protected target coverage." },
-      { id: "contracts", label: "Contracts", icon: Target, description: "Selector, screenshot, severity, and mutation mapping." },
-      { id: "flows", label: "Flows", icon: Route, description: "User-flow coverage and gaps." },
-      { id: "schedule", label: "Schedule", icon: Workflow, description: "PR, canary, full, and protected lanes." }
-    ]
-  },
-  {
-    label: "Govern",
-    views: [
-      { id: "readiness", label: "Readiness", icon: CheckCircle2, description: "Merge and release gates." },
-      { id: "risk", label: "Risk", icon: AlertTriangle, description: "Risk register and unsafe target exclusions." },
-      { id: "security", label: "Security", icon: Shield, description: "Workflow permissions, secrets, and PR safety." },
-      { id: "costs", label: "Costs", icon: Gauge, description: "Cost lanes and provider upload controls." },
-      { id: "mutation", label: "Mutation", icon: FlaskConical, description: "Contract adequacy through intentional breakage." },
-      { id: "coverage", label: "Coverage", icon: Layers3, description: "Coverage findings and improvement recommendations." }
-    ]
-  },
-  {
-    label: "Configure",
-    views: [
-      { id: "setup", label: "Setup", icon: ListChecks, description: "Guided install and workflow recommendations." },
-      { id: "config", label: "Config", icon: Settings, description: "Validate and save Visual Hive config drafts." },
-      { id: "runbook", label: "Runbook", icon: Play, description: "Allowlisted local command runner." },
-      { id: "profiles", label: "Profiles", icon: GitBranch, description: "Grouped run profiles for PR, canary, and governance." },
-      { id: "actions", label: "Actions", icon: Archive, description: "Local Control Plane action history." }
-    ]
-  },
-  {
-    label: "Integrations",
-    views: [
-      { id: "providers", label: "Providers", icon: UploadCloud, description: "Optional hosted visual provider policy." },
-      { id: "llm", label: "LLM", icon: Sparkles, description: "Prompt-only advisory triage controls." },
-      { id: "github", label: "GitHub / CI", icon: GitBranch, description: "Workflow templates and trusted issue pattern." },
-      { id: "connections", label: "Connections", icon: Network, description: "Local portfolio connections." },
-      { id: "artifacts", label: "Raw Artifacts", icon: FileJson, description: "Report, plan, image, and markdown files." }
-    ]
-  }
+const workAreas: Array<{ id: WorkAreaId; label: string; icon: typeof Activity; description: string }> = [
+  { id: "start", label: "Start", icon: Home, description: "Quality cockpit" },
+  { id: "run", label: "Run", icon: Play, description: "Execute and monitor" },
+  { id: "review", label: "Review", icon: Eye, description: "Results and evidence" },
+  { id: "configure", label: "Configure", icon: Settings, description: "Project and system" }
 ];
 
-const allViews = viewGroups.flatMap((group) => group.views);
+const areaDescriptions: Record<WorkAreaId, string> = {
+  start: "Guided next steps, health signals, and the shortest path to useful Visual Hive evidence.",
+  run: "Run PR-safe checks, mutation adequacy, canaries, and curated local profiles.",
+  review: "Inspect failures, screenshots, baselines, mutation survivors, reports, and reproduction commands.",
+  configure: "Tune targets, contracts, schedules, providers, GitHub workflows, LLM policy, and connections."
+};
 
 export function App() {
-  const [activeView, setActiveView] = useState<ViewId>(readHashView);
+  const [activeArea, setActiveArea] = useState<WorkAreaId>(readHashWorkArea);
+  const [mode, setMode] = useState<UserMode>(readUserMode);
+  const [expertOpen, setExpertOpen] = useState(() => readUserMode() === "expert");
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -166,12 +91,28 @@ export function App() {
 
   useEffect(() => {
     void refresh();
-    const onHash = () => setActiveView(readHashView());
+    const onHash = () => setActiveArea(readHashWorkArea());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const current = allViews.find((view) => view.id === activeView) ?? allViews[0];
+  useEffect(() => {
+    window.localStorage.setItem("visual-hive-control-plane-mode", mode);
+    if (mode === "expert") {
+      setExpertOpen(true);
+    }
+  }, [mode]);
+
+  const current = workAreas.find((view) => view.id === activeArea) ?? workAreas[0];
+
+  function selectArea(area: WorkAreaId) {
+    window.location.hash = area;
+    setActiveArea(area);
+  }
+
+  function toggleMode() {
+    setMode((currentMode) => (currentMode === "beginner" ? "expert" : "beginner"));
+  }
 
   return (
     <div className="app-shell">
@@ -189,37 +130,45 @@ export function App() {
           <Badge tone={snapshot?.readOnly ? "warning" : "success"}>{snapshot?.readOnly ? "read-only" : "write enabled"}</Badge>
           <div className="status-line">{snapshot?.config?.project?.name ?? "No project loaded"}</div>
         </div>
-        {viewGroups.map((group) => (
-          <nav className="nav-group" key={group.label}>
-            <p className="nav-label">{group.label}</p>
-            {group.views.map((view) => {
-              const Icon = view.icon;
-              return (
-                <button
-                  className={`nav-button ${activeView === view.id ? "active" : ""}`}
-                  key={view.id}
-                  onClick={() => {
-                    window.location.hash = view.id;
-                    setActiveView(view.id);
-                  }}
-                  type="button"
-                >
-                  <Icon size={16} />
-                  {view.label}
-                </button>
-              );
-            })}
-          </nav>
-        ))}
+        <nav className="primary-nav" aria-label="Primary">
+          {workAreas.map((area) => {
+            const Icon = area.icon;
+            const badge = snapshot?.navigationBadges?.[area.id] ?? 0;
+            return (
+              <button className={`nav-button ${activeArea === area.id ? "active" : ""}`} key={area.id} onClick={() => selectArea(area.id)} type="button">
+                <Icon size={18} />
+                <span>
+                  <strong>{area.label}</strong>
+                  <small>{area.description}</small>
+                </span>
+                {badge > 0 && <span className="nav-count">{badge}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="sidebar-panel">
+          <div>
+            <strong>{mode === "expert" ? "Expert mode" : "Beginner mode"}</strong>
+            <p>{mode === "expert" ? "Commands and raw evidence stay visible." : "Guided workflow with advanced details tucked away."}</p>
+          </div>
+          <Button onClick={toggleMode} variant="ghost">
+            <SlidersHorizontal size={15} />
+            {mode === "expert" ? "Beginner" : "Expert"}
+          </Button>
+        </div>
       </aside>
       <main className="main">
         <header className="topbar">
           <div>
-            <h2>{current.label}</h2>
-            <p>{current.description}</p>
+            <h2>{current.id === "start" ? "Quality cockpit" : current.label}</h2>
+            <p>{areaDescriptions[current.id]}</p>
           </div>
           <div className="row">
             {connection && <Badge tone="info">connection: {connection}</Badge>}
+            <Button ariaLabel={expertOpen ? "Hide expert console" : "Show expert console"} onClick={() => setExpertOpen((value) => !value)} variant={expertOpen ? "primary" : "secondary"}>
+              <Terminal size={15} />
+              Expert console
+            </Button>
             <Button onClick={() => void refresh()}>
               <RefreshCw size={15} />
               Refresh
@@ -237,11 +186,16 @@ export function App() {
         {loading && !snapshot ? (
           <LoadingState />
         ) : snapshot ? (
-          renderView(activeView, snapshot, {
-            connection,
-            busyAction,
-            runAction
-          })
+          <div className="workspace-stack">
+            {renderWorkspace(activeArea, snapshot, {
+              connection,
+              busyAction,
+              mode,
+              selectArea,
+              runAction
+            })}
+            <ExpertDrawer snapshot={snapshot} connection={connection} mode={mode} open={expertOpen} setOpen={setExpertOpen} />
+          </div>
         ) : (
           <EmptyState title="No Control Plane snapshot loaded">Check the config path passed to visual-hive ui.</EmptyState>
         )}
@@ -250,111 +204,560 @@ export function App() {
   );
 }
 
-function renderView(
-  view: ViewId,
+function renderWorkspace(
+  area: WorkAreaId,
   snapshot: Snapshot,
   actions: {
     connection?: string;
     busyAction?: string;
+    mode: UserMode;
+    selectArea: (area: WorkAreaId) => void;
     runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
   }
 ) {
-  switch (view) {
-    case "overview":
-      return <Overview snapshot={snapshot} />;
-    case "failures":
-      return <FailureInbox snapshot={snapshot} connection={actions.connection} />;
-    case "baselines":
-      return <Baselines snapshot={snapshot} connection={actions.connection} runAction={actions.runAction} busyAction={actions.busyAction} />;
-    case "runs":
-      return <Runs snapshot={snapshot} connection={actions.connection} />;
-    case "runbook":
-      return <Runbook snapshot={snapshot} runAction={actions.runAction} busyAction={actions.busyAction} connection={actions.connection} />;
-    case "profiles":
-      return <Profiles snapshot={snapshot} runAction={actions.runAction} busyAction={actions.busyAction} connection={actions.connection} />;
-    case "config":
-      return <ConfigEditor snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "providers":
-      return <Providers snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "llm":
-      return <LLM snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "setup":
-      return <Setup snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "connections":
-      return <Connections snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "artifacts":
-      return <Artifacts snapshot={snapshot} connection={actions.connection} />;
-    case "portfolio":
-      return <Portfolio snapshot={snapshot} />;
-    case "targets":
-      return <Targets snapshot={snapshot} />;
-    case "contracts":
-      return <Contracts snapshot={snapshot} />;
-    case "mutation":
-      return <Mutation snapshot={snapshot} connection={actions.connection} />;
-    case "coverage":
-      return <Coverage snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
-    case "flows":
-      return <JsonEvidence title="Flow coverage" data={snapshot.flowAudit ?? (snapshot.coverage as any)?.flows ?? []} />;
-    case "schedule":
-      return <JsonEvidence title="Schedule lanes" data={snapshot.scheduleAudit ?? snapshot.planLaneSummary ?? snapshot.plan} />;
-    case "readiness":
-      return <JsonEvidence title="Readiness gates" data={snapshot.readinessReport} />;
-    case "risk":
-      return <JsonEvidence title="Risk register" data={snapshot.riskReport} />;
-    case "security":
-      return <JsonEvidence title="Security audit" data={snapshot.securityAudit} />;
-    case "costs":
-      return <JsonEvidence title="Cost policy" data={snapshot.costAudit} />;
-    case "actions":
-      return <JsonEvidence title="Control Plane action history" data={snapshot.actionHistory} />;
-    case "github":
-      return <GitHubView snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} />;
+  switch (area) {
+    case "start":
+      return <StartWorkspace snapshot={snapshot} connection={actions.connection} mode={actions.mode} selectArea={actions.selectArea} />;
+    case "run":
+      return <RunWorkspace snapshot={snapshot} runAction={actions.runAction} busyAction={actions.busyAction} connection={actions.connection} mode={actions.mode} />;
+    case "review":
+      return <ReviewWorkspace snapshot={snapshot} runAction={actions.runAction} busyAction={actions.busyAction} connection={actions.connection} mode={actions.mode} />;
+    case "configure":
+      return <ConfigureWorkspace snapshot={snapshot} runAction={actions.runAction} connection={actions.connection} mode={actions.mode} />;
   }
 }
 
-function Overview({ snapshot }: { snapshot: Snapshot }) {
+/*
+ * The components below intentionally keep the same endpoint and artifact model
+ * as the CLI. The UX shift is progressive disclosure: guided cards first, raw
+ * evidence and exact commands when the user opens expert mode.
+ */
+
+function StartWorkspace({
+  snapshot,
+  connection,
+  mode,
+  selectArea
+}: {
+  snapshot: Snapshot;
+  connection?: string;
+  mode: UserMode;
+  selectArea: (area: WorkAreaId) => void;
+}) {
   const overview = snapshot.overview;
   const report = snapshot.report;
   const mutationScore = typeof overview.mutationScore === "number" ? overview.mutationScore : snapshot.mutationReport?.score;
+  const createdOrPendingBaselines = snapshot.screenshots.filter((shot) => ["created", "failed", "missing_baseline"].includes(shot.status)).length;
   return (
     <div className="view-grid">
-      <MetricCard className="span-3" detail={snapshot.config?.project?.name} label="Health" tone="amber" value={overview.healthGrade ?? "unknown"} />
-      <MetricCard className="span-3" detail="deterministic contracts" label="Run status" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} />
-      <MetricCard className="span-3" detail="mutation adequacy" label="Mutation" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} />
-      <MetricCard className="span-3" detail="requires review" label="Failures" tone={overview.failedContracts > 0 ? "danger" : "success"} value={overview.failedContracts ?? 0} />
-      <Card className="span-7" eyebrow="Next actions" title="Operator queue">
-        {overview.nextActions?.length ? (
-          <div className="stack">
-            {overview.nextActions.map((action) => (
-              <div className="compact-item" key={action}>
-                {action}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="No urgent next actions">The deterministic path has enough evidence for this snapshot.</EmptyState>
-        )}
+      <GuidedActionPanel className="span-12" snapshot={snapshot} selectArea={selectArea} />
+      <SignalCard className="span-3" icon={<Activity size={17} />} label="Project health" tone="amber" value={overview.healthGrade ?? "unknown"} detail={snapshot.config?.project?.name ?? "No config loaded"} />
+      <SignalCard className="span-3" icon={<Shield size={17} />} label="PR-safe lane" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} detail={`${report?.selectedContracts?.length ?? 0} selected contracts`} />
+      <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} detail="Adequacy" />
+      <SignalCard className="span-3" icon={<AlertTriangle size={17} />} label="Review queue" tone={overview.failedContracts > 0 || createdOrPendingBaselines > 0 ? "danger" : "success"} value={(overview.failedContracts ?? 0) + createdOrPendingBaselines} detail="Failures and visual changes" />
+      <VisualEvidenceStrip className="span-7" connection={connection} screenshots={snapshot.screenshots} selectArea={selectArea} />
+      <FailurePreview className="span-5" failures={snapshot.failures} selectArea={selectArea} />
+      <Card className="span-7" title="First-run guide">
+        <ProgressRail steps={snapshot.guidanceState.progress} />
       </Card>
-      <Card className="span-5" eyebrow="Evidence" title="Current report">
+      <Card className="span-5" title="Current report" action={<Button onClick={() => selectArea("review")} variant="ghost">Open report</Button>}>
         <KeyValueTable
           rows={[
             ["Mode", report?.mode ?? "n/a"],
-            ["Generated", report?.generatedAt ?? "n/a"],
+            ["Generated", formatDate(report?.generatedAt)],
             ["Selected contracts", report?.selectedContracts?.length ?? 0],
-            ["Generated spec", report?.generatedSpecPath ?? "n/a"],
+            ["Baselines", createdOrPendingBaselines ? `${createdOrPendingBaselines} need review` : "clear"],
             ["Artifacts", snapshot.artifacts?.length ?? 0]
           ]}
         />
       </Card>
-      <Card className="span-12" eyebrow="Why it matters" title="Deterministic-first quality system">
-        <p className="card-subtext">
-          Visual Hive keeps Playwright contracts as the pass/fail oracle, then layers mutation adequacy, target planning, provider policy,
-          and repair-ready context around that evidence.
-        </p>
-      </Card>
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Raw overview evidence" data={{ overview: snapshot.overview, guidanceState: snapshot.guidanceState, navigationBadges: snapshot.navigationBadges }} />}
     </div>
   );
+}
+
+function GuidedActionPanel({ className = "", snapshot, selectArea }: { className?: string; snapshot: Snapshot; selectArea: (area: WorkAreaId) => void }) {
+  const guidance = snapshot.guidanceState;
+  const primary = guidance.primaryAction;
+  return (
+    <section className={`guided-panel ${className}`}>
+      <div className="guided-copy">
+        <p className="vh-eyebrow">What should I do next?</p>
+        <h3>{guidance.title}</h3>
+        <p>{guidance.summary}</p>
+        {guidance.blockedReasons.length ? (
+          <div className="blocked-note">
+            {guidance.blockedReasons.slice(0, 2).map((reason) => (
+              <span key={reason}>{reason}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="guided-actions">
+        <button className={`next-action tone-${primary.tone ?? "amber"}`} onClick={() => selectArea(primary.area)} type="button">
+          <span className="action-index">1</span>
+          <span>
+            <strong>{primary.label}</strong>
+            <small>{primary.description}</small>
+          </span>
+          <ChevronRight size={18} />
+        </button>
+        {guidance.secondaryActions.slice(0, 2).map((action, index) => (
+          <button className="next-action secondary" key={action.id} onClick={() => selectArea(action.area)} type="button">
+            <span className="action-index">{index + 2}</span>
+            <span>
+              <strong>{action.label}</strong>
+              <small>{action.description}</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProgressRail({ steps }: { steps: Snapshot["guidanceState"]["progress"] }) {
+  return (
+    <div className="progress-rail">
+      {steps.map((step, index) => (
+        <div className={`progress-step progress-${step.status}`} key={step.id}>
+          <div className="step-dot">{index + 1}</div>
+          <div>
+            <strong>{step.label}</strong>
+            <p>{step.description}</p>
+            <Badge tone={statusTone(step.status)}>{step.status}</Badge>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SignalCard({
+  className = "",
+  icon,
+  label,
+  value,
+  detail,
+  tone = "neutral"
+}: {
+  className?: string;
+  icon: ReactElement;
+  label: string;
+  value: unknown;
+  detail?: ReactElement | string;
+  tone?: Tone;
+}) {
+  return (
+    <Card className={`signal-card signal-${tone} ${className}`}>
+      <div className="signal-label">
+        {icon}
+        {label}
+      </div>
+      <div className="signal-value">{safeText(value)}</div>
+      {detail && <div className="metric-detail">{detail}</div>}
+    </Card>
+  );
+}
+
+function VisualEvidenceStrip({
+  className = "",
+  screenshots,
+  connection,
+  selectArea
+}: {
+  className?: string;
+  screenshots: Screenshot[];
+  connection?: string;
+  selectArea: (area: WorkAreaId) => void;
+}) {
+  const visible = screenshots.slice(0, 5);
+  return (
+    <Card className={className} title="Recent visual evidence" action={<Button onClick={() => selectArea("review")} variant="ghost">Review visual changes</Button>}>
+      {visible.length ? (
+        <div className="evidence-strip">
+          {visible.map((shot) => (
+            <button className={`evidence-thumb evidence-${statusTone(shot.status)}`} key={`${shot.contractId}-${shot.name}-${shot.viewport}`} onClick={() => selectArea("review")} type="button">
+              {shot.actualPath ? <img alt={`${shot.name} ${shot.viewport}`} src={artifactUrl(shot.actualPath, "image", connection)} /> : <div className="empty-thumb">No image</div>}
+              <strong>{shot.name}</strong>
+              <small>
+                {shot.viewport} · {shot.status}
+              </small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No screenshots yet">Run deterministic checks to capture local visual evidence.</EmptyState>
+      )}
+    </Card>
+  );
+}
+
+function FailurePreview({ className = "", failures, selectArea }: { className?: string; failures: Failure[]; selectArea: (area: WorkAreaId) => void }) {
+  return (
+    <Card className={className} title="Failure Inbox" action={<Button onClick={() => selectArea("review")} variant="ghost">View all</Button>}>
+      {failures.length ? (
+        <div className="failure-preview-list">
+          {failures.slice(0, 3).map((failure) => (
+            <button className="failure-preview" key={`${failure.contractId}-${failure.classification}`} onClick={() => selectArea("review")} type="button">
+              <AlertTriangle size={16} />
+              <span>
+                <strong>{failure.contractId}</strong>
+                <small>{failure.errorExcerpt}</small>
+              </span>
+              <Badge tone={statusTone(failure.classification)}>{failure.classification}</Badge>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No failures">Visual diffs, missing elements, console errors, and mutation survivors will appear here.</EmptyState>
+      )}
+    </Card>
+  );
+}
+
+function RunWorkspace({
+  snapshot,
+  runAction,
+  busyAction,
+  connection,
+  mode
+}: {
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+  mode: UserMode;
+}) {
+  const featuredProfiles = ["pr-acceptance", "mutation-audit", "canary-health", "full-safe-plan"];
+  const profiles = [...(snapshot.runProfiles ?? [])].sort((a, b) => {
+    const aIndex = featuredProfiles.indexOf(a.id);
+    const bIndex = featuredProfiles.indexOf(b.id);
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+  });
+  return (
+    <div className="view-grid">
+      <Card className="span-12" title="Run center">
+        <p className="card-subtext">Choose a safe lane by intent. Visual Hive keeps protected and secret-bearing lanes blocked unless a trusted operator explicitly enables them.</p>
+      </Card>
+      {profiles.slice(0, mode === "expert" ? profiles.length : 6).map((profile) => (
+        <RunProfileCard busyAction={busyAction} connection={connection} key={profile.id} profile={profile} runAction={runAction} snapshot={snapshot} />
+      ))}
+      <SectionHeader className="span-12" title="Quick commands" description="Copy or run the allowlisted local commands behind the guided profiles." />
+      <div className="span-12">
+        <Runbook snapshot={snapshot} runAction={runAction} busyAction={busyAction} connection={connection} />
+      </div>
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Runbook raw evidence" data={{ runbook: snapshot.runbook, runProfiles: snapshot.runProfiles, actionHistory: snapshot.actionHistory }} />}
+    </div>
+  );
+}
+
+function RunProfileCard({
+  profile,
+  snapshot,
+  runAction,
+  busyAction,
+  connection
+}: {
+  profile: RunProfile;
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+}) {
+  return (
+    <Card className="span-6 profile-card" title={profile.label} action={<Badge tone={profile.enabled ? "success" : "warning"}>{profile.enabled ? "ready" : "blocked"}</Badge>}>
+      <p className="card-subtext">{profile.description}</p>
+      <KeyValueTable rows={[["Safety", profile.safety], ["Commands", profile.commandIds.length], ["Artifacts", profile.expectedArtifacts.length], ["Secrets", profile.requiredSecrets.join(", ") || "none"]]} />
+      {profile.blockedReasons.length ? <FindingList findings={profile.blockedReasons} tone="warning" /> : null}
+      <ConfirmButton
+        disabled={snapshot.readOnly || !profile.enabled || busyAction === profile.id}
+        message={`Run profile "${profile.id}" locally?`}
+        onConfirm={() => runAction(profile.id, () => postJson("/api/runbook/profile", { profileId: profile.id }, connection))}
+        variant="primary"
+      >
+        Run profile
+      </ConfirmButton>
+    </Card>
+  );
+}
+
+function ReviewWorkspace({
+  snapshot,
+  runAction,
+  busyAction,
+  connection,
+  mode
+}: {
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+  mode: UserMode;
+}) {
+  return (
+    <div className="view-grid">
+      <SignalCard className="span-3" icon={<AlertTriangle size={17} />} label="Failures" tone={(snapshot.failures?.length ?? 0) > 0 ? "danger" : "success"} value={snapshot.failures?.length ?? 0} detail="Deterministic and triage findings" />
+      <SignalCard className="span-3" icon={<Image size={17} />} label="Baselines" tone={(snapshot.baselineSummary?.pendingReview ?? 0) > 0 ? "warning" : "success"} value={snapshot.baselineSummary?.pendingReview ?? 0} detail="Pending review" />
+      <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof snapshot.mutationReport?.score === "number" && snapshot.mutationReport.score >= (snapshot.mutationReport.minScore ?? 0.7) ? "success" : "warning"} value={formatPercent(snapshot.mutationReport?.score)} detail="Adequacy" />
+      <SignalCard className="span-3" icon={<Clock size={17} />} label="Last run" tone={statusTone(snapshot.report?.status)} value={snapshot.report?.status ?? "missing"} detail={formatDate(snapshot.report?.generatedAt)} />
+      <div className="span-12">
+        <FailureInbox snapshot={snapshot} connection={connection} />
+      </div>
+      <div className="span-12">
+        <Baselines snapshot={snapshot} connection={connection} runAction={runAction} busyAction={busyAction} />
+      </div>
+      <div className="span-12">
+        <Mutation snapshot={snapshot} connection={connection} />
+      </div>
+      <div className="span-12">
+        <Runs snapshot={snapshot} connection={connection} />
+      </div>
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport }} />}
+    </div>
+  );
+}
+
+function ConfigureWorkspace({
+  snapshot,
+  runAction,
+  connection,
+  mode
+}: {
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  connection?: string;
+  mode: UserMode;
+}) {
+  return (
+    <div className="view-grid">
+      <SectionHeader className="span-12" title="Project setup" description="Guided install, workflow, and config recommendations." />
+      <div className="span-12">
+        <Setup snapshot={snapshot} runAction={runAction} connection={connection} />
+      </div>
+      <div className="span-6">
+        <Targets snapshot={snapshot} />
+      </div>
+      <div className="span-6">
+        <Contracts snapshot={snapshot} />
+      </div>
+      <HumanEvidencePanel className="span-6" title="Readiness" emptyTitle="No readiness report" findings={readinessFindings(snapshot)} data={snapshot.readinessReport} />
+      <HumanEvidencePanel className="span-6" title="Risk" emptyTitle="No risk register" findings={riskFindings(snapshot)} data={snapshot.riskReport} />
+      <HumanEvidencePanel className="span-6" title="Security" emptyTitle="No security audit" findings={securityFindings(snapshot)} data={snapshot.securityAudit} />
+      <HumanEvidencePanel className="span-6" title="Costs" emptyTitle="No cost audit" findings={costFindings(snapshot)} data={snapshot.costAudit} />
+      <HumanEvidencePanel className="span-6" title="Schedule" emptyTitle="No schedule audit" findings={scheduleFindings(snapshot)} data={snapshot.scheduleAudit ?? snapshot.planLaneSummary} />
+      <HumanEvidencePanel className="span-6" title="Flows" emptyTitle="No flow audit" findings={flowFindings(snapshot)} data={snapshot.flowAudit} />
+      <div className="span-12">
+        <Coverage snapshot={snapshot} runAction={runAction} connection={connection} />
+      </div>
+      <SectionHeader className="span-12" title="Providers" description="Optional hosted visual provider policy, readiness, and no-network handoff evidence." />
+      <div className="span-12">
+        <Providers snapshot={snapshot} runAction={runAction} connection={connection} />
+      </div>
+      <SectionHeader className="span-12" title="GitHub / CI" description="Workflow templates, PR safety, and trusted issue creation guidance." />
+      <div className="span-12">
+        <GitHubView snapshot={snapshot} runAction={runAction} connection={connection} />
+      </div>
+      <SectionHeader className="span-12" title="LLM" description="Prompt-only advisory triage controls; never the pass/fail oracle." />
+      <div className="span-12">
+        <LLM snapshot={snapshot} runAction={runAction} connection={connection} />
+      </div>
+      {mode === "expert" && (
+        <>
+          <div className="span-12">
+            <ConfigEditor snapshot={snapshot} runAction={runAction} connection={connection} />
+          </div>
+          <SectionHeader className="span-12" title="Connections" description="Local multi-repository portfolio connections and health queues." />
+          <div className="span-12">
+            <Connections snapshot={snapshot} runAction={runAction} connection={connection} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ className = "", title, description }: { className?: string; title: string; description: string }) {
+  return (
+    <div className={`section-header ${className}`}>
+      <div>
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function HumanEvidencePanel({
+  className = "",
+  title,
+  emptyTitle,
+  findings,
+  data
+}: {
+  className?: string;
+  title: string;
+  emptyTitle: string;
+  findings: string[];
+  data: unknown;
+}) {
+  return (
+    <Card className={className} title={title}>
+      {findings.length ? <FindingList findings={findings} /> : <EmptyState title={emptyTitle}>Run the matching Visual Hive command to generate guidance.</EmptyState>}
+      <EvidenceDisclosure title={`View raw ${title.toLowerCase()} evidence`} data={data} compact />
+    </Card>
+  );
+}
+
+function FindingList({ findings, tone = "info" }: { findings: string[]; tone?: Tone }) {
+  if (!findings.length) return <EmptyState title="No findings" />;
+  return (
+    <div className="finding-list">
+      {findings.slice(0, 6).map((finding) => (
+        <div className="finding-item" key={finding}>
+          <Badge tone={tone}>{tone === "danger" ? "fix" : tone === "warning" ? "review" : "note"}</Badge>
+          <span>{finding}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExpertDrawer({
+  snapshot,
+  connection,
+  mode,
+  open,
+  setOpen
+}: {
+  snapshot: Snapshot;
+  connection?: string;
+  mode: UserMode;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  const commands = snapshot.runbook?.commands ?? [];
+  const artifacts = snapshot.artifacts ?? [];
+  return (
+    <section className={`expert-drawer ${open ? "open" : ""}`}>
+      <button className="expert-drawer-header" onClick={() => setOpen(!open)} type="button">
+        <span>
+          <Terminal size={18} />
+          <strong>Expert console</strong>
+          <small>Commands, artifacts, and advanced controls for power users and agents.</small>
+        </span>
+        <Badge tone={mode === "expert" ? "amber" : "neutral"}>{mode === "expert" ? "expert mode" : "collapsed"}</Badge>
+      </button>
+      {open && (
+        <div className="expert-drawer-body">
+          <Card title="Quick commands">
+            <div className="command-list">
+              {commands.slice(0, 6).map((command) => (
+                <div className="command-row" key={command.id}>
+                  <code>{command.command}</code>
+                  <CopyButton label="Copy command" value={command.command} />
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card title="Artifacts" action={<Badge>{artifacts.length}</Badge>}>
+            <ArtifactPreview artifacts={artifacts.slice(0, 8)} connection={connection} />
+          </Card>
+          <Card title="Run details">
+            <KeyValueTable
+              rows={[
+                ["Mode", snapshot.report?.mode ?? "n/a"],
+                ["Target", snapshot.report?.selectedTargets?.map((target: any) => target.id).join(", ") || "n/a"],
+                ["Contracts", snapshot.report?.selectedContracts?.length ?? 0],
+                ["Generated", formatDate(snapshot.report?.generatedAt)]
+              ]}
+            />
+            <div className="stack">
+              <ExternalArtifactLink href={artifactUrl(".visual-hive/report.json", "file", connection)} label="Open report" />
+              <ExternalArtifactLink href={artifactUrl(".visual-hive/mutation-report.json", "file", connection)} label="Open mutation report" />
+            </div>
+          </Card>
+          <EvidenceDisclosure className="span-12" title="Raw snapshot evidence" data={{ report: snapshot.report, plan: snapshot.plan, artifacts: snapshot.artifacts }} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ArtifactPreview({ artifacts, connection }: { artifacts: Snapshot["artifacts"]; connection?: string }) {
+  if (!artifacts.length) return <EmptyState title="No artifacts indexed" />;
+  return (
+    <div className="artifact-preview">
+      {artifacts.map((artifact) => (
+        <ExternalArtifactLink href={artifactUrl(artifact.path, artifact.kind === "image" ? "image" : "file", connection)} key={artifact.path} label={`${artifact.path} · ${artifact.bytes} B`} />
+      ))}
+    </div>
+  );
+}
+
+function EvidenceDisclosure({ className = "", title, data, compact = false }: { className?: string; title: string; data: unknown; compact?: boolean }) {
+  return (
+    <details className={`evidence-disclosure ${compact ? "compact" : ""} ${className}`}>
+      <summary>
+        <FileJson size={15} />
+        {title}
+      </summary>
+      {data ? <CodeBlock value={JSON.stringify(data, null, 2)} /> : <EmptyState title="No raw evidence yet" />}
+    </details>
+  );
+}
+
+function readinessFindings(snapshot: Snapshot) {
+  const report = snapshot.readinessReport as any;
+  const gates = Array.isArray(report?.gates) ? report.gates : [];
+  const blocked = gates.filter((gate: any) => ["blocked", "failed", "error"].includes(String(gate.status).toLowerCase()));
+  if (blocked.length) return blocked.map((gate: any) => `${gate.label ?? gate.id}: ${gate.message ?? gate.status}`);
+  if (report?.status) return [`Readiness status: ${report.status}`];
+  return [];
+}
+
+function riskFindings(snapshot: Snapshot) {
+  const risks = Array.isArray((snapshot.riskReport as any)?.risks) ? (snapshot.riskReport as any).risks : [];
+  if (risks.length) return risks.map((risk: any) => `${risk.category ?? "risk"}: ${risk.title ?? risk.description ?? risk.severity ?? "review"}`);
+  return (snapshot.riskReport as any)?.recommendations ?? [];
+}
+
+function securityFindings(snapshot: Snapshot) {
+  const findings = Array.isArray((snapshot.securityAudit as any)?.findings) ? (snapshot.securityAudit as any).findings : [];
+  if (findings.length) return findings.map((finding: any) => `${finding.severity ?? "review"}: ${finding.message ?? finding.title ?? finding.id}`);
+  const score = (snapshot.securityAudit as any)?.summary?.score;
+  return typeof score === "number" ? [`Security score: ${score}`] : [];
+}
+
+function costFindings(snapshot: Snapshot) {
+  const findings = Array.isArray((snapshot.costAudit as any)?.findings) ? (snapshot.costAudit as any).findings : [];
+  if (findings.length) return findings.map((finding: any) => `${finding.severity ?? "review"}: ${finding.message ?? finding.title ?? finding.id}`);
+  const summary = (snapshot.costAudit as any)?.summary;
+  return summary ? [`Local screenshots: ${summary.localScreenshots ?? 0}`, `External uploads allowed: ${summary.externalUploadAllowed ?? false}`] : [];
+}
+
+function scheduleFindings(snapshot: Snapshot) {
+  const lanes = Array.isArray((snapshot.scheduleAudit as any)?.lanes) ? (snapshot.scheduleAudit as any).lanes : [];
+  if (lanes.length) return lanes.map((lane: any) => `${lane.label ?? lane.id}: ${lane.status ?? lane.contractIds?.length ?? "planned"}`);
+  const summary = (snapshot.planLaneSummary as any)?.summary;
+  return summary ? [`Available plan modes: ${(summary.modes ?? []).join(", ") || "n/a"}`] : [];
+}
+
+function flowFindings(snapshot: Snapshot) {
+  const recommendations = Array.isArray((snapshot.flowAudit as any)?.recommendations) ? (snapshot.flowAudit as any).recommendations : [];
+  if (recommendations.length) return recommendations;
+  const summary = (snapshot.flowAudit as any)?.summary;
+  return summary ? [`Contracts without flow coverage: ${summary.contractsWithoutFlow ?? 0}`] : [];
+}
+
+function coverageFindings(snapshot: Snapshot) {
+  const recommendations = snapshot.coverageImprovementReport?.recommendations ?? [];
+  if (recommendations.length) {
+    return recommendations.slice(0, 5).map((recommendation: any) => `${recommendation.title ?? recommendation.id}: ${recommendation.rationale?.[0] ?? recommendation.description ?? "review"}`);
+  }
+  const summary = (snapshot.coverage as any)?.summary;
+  return summary ? [`Contracts: ${summary.contractCount ?? 0}`, `Routes: ${summary.routeCount ?? 0}`] : [];
 }
 
 function FailureInbox({ snapshot, connection }: { snapshot: Snapshot; connection?: string }) {
@@ -575,38 +978,6 @@ function Runbook({
   );
 }
 
-function Profiles({
-  snapshot,
-  runAction,
-  busyAction,
-  connection
-}: {
-  snapshot: Snapshot;
-  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
-  busyAction?: string;
-  connection?: string;
-}) {
-  return (
-    <div className="view-grid">
-      {(snapshot.runProfiles ?? []).map((profile: RunProfile) => (
-        <Card className="span-6" key={profile.id} title={profile.label} action={<Badge tone={profile.enabled ? "success" : "warning"}>{profile.enabled ? "enabled" : "blocked"}</Badge>}>
-          <p className="card-subtext">{profile.description}</p>
-          <KeyValueTable rows={[["Commands", profile.commandIds.join(", ")], ["Secrets", profile.requiredSecrets.join(", ") || "none"], ["Expected artifacts", profile.expectedArtifacts.join(", ") || "none"]]} />
-          {profile.blockedReasons.length ? <CodeBlock value={profile.blockedReasons.join("\n")} /> : null}
-          <ConfirmButton
-            disabled={snapshot.readOnly || !profile.enabled || busyAction === profile.id}
-            message={`Run profile "${profile.id}" locally?`}
-            onConfirm={() => runAction(profile.id, () => postJson("/api/runbook/profile", { profileId: profile.id }, connection))}
-            variant="primary"
-          >
-            Run profile
-          </ConfirmButton>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
 function ConfigEditor({ snapshot, runAction, connection }: { snapshot: Snapshot; runAction: (label: string, action: () => Promise<unknown>) => Promise<void>; connection?: string }) {
   const [content, setContent] = useState(snapshot.configRaw ?? "");
   useEffect(() => setContent(snapshot.configRaw ?? ""), [snapshot.configRaw]);
@@ -666,7 +1037,7 @@ function Providers({ snapshot, runAction, connection }: { snapshot: Snapshot; ru
           </div>
         </Card>
       ))}
-      <JsonEvidence title="Provider handoff" data={snapshot.providerHandoff ?? snapshot.providerRunReport ?? snapshot.providerSetupPlan} />
+      <EvidenceDisclosure className="span-12" title="Provider handoff raw evidence" data={snapshot.providerHandoff ?? snapshot.providerRunReport ?? snapshot.providerSetupPlan} />
     </div>
   );
 }
@@ -687,7 +1058,7 @@ function LLM({ snapshot, runAction, connection }: { snapshot: Snapshot; runActio
       <Card className="span-6" title="Prompt artifacts">
         <ArtifactList artifacts={[".visual-hive/triage-prompt.md", ".visual-hive/repair-prompt.md", ".visual-hive/missing-tests.md"]} connection={connection} />
       </Card>
-      <JsonEvidence title="LLM usage" data={snapshot.llmUsage ?? snapshot.llmDecisionLog} />
+      <EvidenceDisclosure className="span-12" title="LLM usage raw evidence" data={snapshot.llmUsage ?? snapshot.llmDecisionLog} />
     </div>
   );
 }
@@ -707,7 +1078,7 @@ function Setup({ snapshot, runAction, connection }: { snapshot: Snapshot; runAct
       <Card className="span-7" title="Setup progress">
         <CodeBlock value={JSON.stringify(snapshot.setupProgress ?? recommendation?.setupActions ?? [], null, 2)} />
       </Card>
-      <JsonEvidence title="Setup PR guidance" data={snapshot.setupPullRequestPlan} />
+      <EvidenceDisclosure className="span-12" title="Setup PR guidance raw evidence" data={snapshot.setupPullRequestPlan} />
     </div>
   );
 }
@@ -725,18 +1096,6 @@ function Connections({ snapshot, runAction, connection }: { snapshot: Snapshot; 
         <p className="card-subtext">Connection writes are local-only and blocked in read-only mode.</p>
         <ConfirmButton disabled={snapshot.readOnly || !connection} message={`Remove active connection ${connection}?`} onConfirm={() => runAction("remove-connection", () => postJson("/api/connections/remove", { id: connection }, undefined))}>Remove active connection</ConfirmButton>
       </Card>
-    </div>
-  );
-}
-
-function Portfolio({ snapshot }: { snapshot: Snapshot }) {
-  return (
-    <div className="view-grid">
-      <MetricCard className="span-3" label="Connections" value={snapshot.connections?.connections?.length ?? 1} />
-      <MetricCard className="span-3" label="Failures" tone={(snapshot.failures?.length ?? 0) > 0 ? "danger" : "success"} value={snapshot.failures?.length ?? 0} />
-      <MetricCard className="span-3" label="Risk items" tone="warning" value={(snapshot.riskReport as any)?.summary?.total ?? 0} />
-      <MetricCard className="span-3" label="Readiness" tone={statusTone((snapshot.readinessReport as any)?.status)} value={(snapshot.readinessReport as any)?.status ?? "unknown"} />
-      <JsonEvidence title="Portfolio attention queue" data={snapshot.connections ?? snapshot.overview.nextActions} />
     </div>
   );
 }
@@ -796,7 +1155,7 @@ function Coverage({ snapshot, runAction, connection }: { snapshot: Snapshot; run
   const recommendations = snapshot.coverageImprovementReport?.recommendations ?? [];
   return (
     <div className="view-grid">
-      <JsonEvidence title="Coverage report" data={snapshot.coverage} />
+      <HumanEvidencePanel className="span-12" title="Coverage report" emptyTitle="No coverage report" findings={coverageFindings(snapshot)} data={snapshot.coverage} />
       <Card className="span-12" title="Coverage improvement plan">
         {recommendations.length ? (
           <div className="stack">
@@ -844,29 +1203,6 @@ function GitHubView({ snapshot, runAction, connection }: { snapshot: Snapshot; r
   );
 }
 
-function Artifacts({ snapshot, connection }: { snapshot: Snapshot; connection?: string }) {
-  return (
-    <Card title="Raw artifacts">
-      <SimpleTable
-        headers={["Path", "Kind", "Bytes"]}
-        rows={(snapshot.artifacts ?? []).map((artifact) => [
-          <ExternalArtifactLink key="path" href={artifactUrl(artifact.path, artifact.kind === "image" ? "image" : "file", connection)} label={artifact.path} />,
-          artifact.kind,
-          artifact.bytes
-        ])}
-      />
-    </Card>
-  );
-}
-
-function JsonEvidence({ title, data }: { title: string; data: unknown }) {
-  return (
-    <Card className="span-12" title={title}>
-      {data ? <CodeBlock value={JSON.stringify(data, null, 2)} /> : <EmptyState title="No evidence yet">Run the matching Visual Hive command to generate this artifact.</EmptyState>}
-    </Card>
-  );
-}
-
 function ArtifactList({ artifacts, connection }: { artifacts: string[]; connection?: string }) {
   const unique = Array.from(new Set((artifacts ?? []).filter(Boolean)));
   if (!unique.length) return <EmptyState title="No artifacts listed" />;
@@ -909,7 +1245,19 @@ function isRenderable(value: unknown): value is ReactElement {
   return isValidElement(value);
 }
 
-function readHashView(): ViewId {
-  const candidate = window.location.hash.replace(/^#/, "") as ViewId;
-  return allViews.some((view) => view.id === candidate) ? candidate : "overview";
+function formatDate(value?: string) {
+  if (!value) return "n/a";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function readHashWorkArea(): WorkAreaId {
+  const candidate = window.location.hash.replace(/^#/, "") as WorkAreaId;
+  return workAreas.some((area) => area.id === candidate) ? candidate : "start";
+}
+
+function readUserMode(): UserMode {
+  if (typeof window === "undefined") return "beginner";
+  return window.localStorage.getItem("visual-hive-control-plane-mode") === "expert" ? "expert" : "beginner";
 }

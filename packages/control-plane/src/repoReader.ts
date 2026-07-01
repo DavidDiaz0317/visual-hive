@@ -44,6 +44,7 @@ import {
   type SecurityAuditReport,
   type RunHistoryReport,
   type SetupRecommendationReport,
+  type SetupProgressReport,
   type SetupPullRequestPlanReport,
   type TargetConfig,
   type TriageFinding,
@@ -63,6 +64,8 @@ import {
 import type {
   ArtifactFile,
   ControlPlaneFailure,
+  ControlPlaneGuidanceState,
+  ControlPlaneNavigationBadges,
   ControlPlaneOptions,
   ControlPlaneOverview,
   ControlPlaneRunProfile,
@@ -236,6 +239,26 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerSetupPlan,
     providerHandoff
   });
+  const guidanceState = buildGuidanceState({
+    config,
+    configError,
+    hasConfigFile: Boolean(configRaw),
+    plan: isPlan(plan) ? plan : undefined,
+    report,
+    mutationReport,
+    setupProgress,
+    readinessReport,
+    screenshots,
+    failures
+  });
+  const navigationBadges = buildNavigationBadges({
+    setupProgress,
+    failures,
+    screenshots,
+    riskReport,
+    providers,
+    artifacts
+  });
 
   return {
     schemaVersion: 1,
@@ -280,6 +303,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     llmDecisionLog,
     actionHistory,
     overview,
+    guidanceState,
+    navigationBadges,
     failures,
     runbook,
     runProfiles,
@@ -294,6 +319,233 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     workflowTemplates: githubWorkflowTemplates,
     artifacts,
     connections
+  };
+}
+
+function buildGuidanceState(input: {
+  config?: VisualHiveConfig;
+  configError?: string;
+  hasConfigFile: boolean;
+  plan?: Plan;
+  report?: Report;
+  mutationReport?: MutationReport;
+  setupProgress: SetupProgressReport;
+  readinessReport?: ReadinessReport;
+  screenshots: ControlPlaneScreenshot[];
+  failures: ControlPlaneFailure[];
+}): ControlPlaneGuidanceState {
+  const baselineReviewCount = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
+  const mutationScore = input.mutationReport?.score;
+  const minMutationScore = input.mutationReport?.minScore ?? input.config?.mutation?.minScore ?? 0.7;
+  const readinessStatus = String(input.readinessReport?.status ?? "").toLowerCase();
+  const secondaryActions: ControlPlaneGuidanceState["secondaryActions"] = [
+    {
+      id: "open-report",
+      label: "Open report",
+      description: "Review deterministic evidence and reproduction commands.",
+      area: "review",
+      tone: "info"
+    },
+    {
+      id: "tune-config",
+      label: "Tune config",
+      description: "Adjust targets, contracts, schedules, and providers.",
+      area: "configure"
+    }
+  ];
+
+  let state: ControlPlaneGuidanceState["state"] = "ready";
+  let title = "PR-safe checks passing";
+  let summary = "Visual Hive has deterministic evidence and no urgent review items in the current snapshot.";
+  let primaryAction: ControlPlaneGuidanceState["primaryAction"] = {
+    id: "run-pr-safe",
+    label: "Run PR-safe checks",
+    description: "Refresh the deterministic Playwright oracle for safe targets.",
+    area: "run",
+    commandId: "run-ci",
+    tone: "success"
+  };
+  const blockedReasons: string[] = [];
+
+  if (!input.config) {
+    const invalidConfig = Boolean(input.configError && input.hasConfigFile);
+    state = invalidConfig ? "config_error" : "no_config";
+    title = invalidConfig ? "Fix the Visual Hive config" : "Create a Visual Hive config";
+    summary = invalidConfig
+      ? "The config could not be parsed, so the Control Plane cannot plan or run checks yet."
+      : "Start by detecting the app and writing a project-specific visual-hive.config.yaml.";
+    primaryAction = {
+      id: "setup-config",
+      label: invalidConfig ? "Open config editor" : "Start setup",
+      description: "Use guided setup to create or repair configuration before running checks.",
+      area: "configure",
+      commandId: "recommend",
+      tone: invalidConfig ? "danger" : "amber"
+    };
+    if (invalidConfig && input.configError) blockedReasons.push(input.configError);
+  } else if (!input.plan && !input.report) {
+    state = "plan_needed";
+    title = "Plan the PR-safe lane";
+    summary = "Visual Hive has a config, but no current plan artifact. Plan first so only relevant safe contracts run.";
+    primaryAction = {
+      id: "plan-pr",
+      label: "Plan PR-safe checks",
+      description: "Select targets and contracts using changed files, safety, severity, and cost.",
+      area: "run",
+      commandId: "plan-pr",
+      tone: "amber"
+    };
+  } else if (!input.report) {
+    state = "run_needed";
+    title = "Run deterministic checks";
+    summary = "A plan exists. Run the Playwright contracts to collect selector, screenshot, console, and artifact evidence.";
+    primaryAction = {
+      id: "run-pr-safe",
+      label: "Run PR-safe checks",
+      description: "Execute deterministic contracts against selected safe targets.",
+      area: "run",
+      commandId: "run-ci",
+      tone: "amber"
+    };
+  } else if (input.failures.length > 0 || input.report.status === "failed") {
+    state = "failures_need_triage";
+    title = "Failures need triage";
+    summary = "Deterministic evidence found failing contracts, unexpected elements, visual diffs, or mutation survivors.";
+    primaryAction = {
+      id: "review-failures",
+      label: "Review failures",
+      description: "Open the failure inbox with likely cause, artifacts, and reproduction commands.",
+      area: "review",
+      tone: "danger"
+    };
+  } else if (baselineReviewCount > 0) {
+    state = "baselines_need_review";
+    title = "Review visual changes";
+    summary = "New or changed screenshots need human review before they become trusted baselines.";
+    primaryAction = {
+      id: "review-baselines",
+      label: "Review visual changes",
+      description: "Compare baseline, actual, and diff images before approving.",
+      area: "review",
+      commandId: "baselines",
+      tone: "warning"
+    };
+  } else if (typeof mutationScore === "number" && mutationScore < minMutationScore) {
+    state = "mutation_needs_work";
+    title = "Improve mutation score";
+    summary = "Some intentional UI/API breakages survived. Add or strengthen contracts before trusting this lane.";
+    primaryAction = {
+      id: "mutation-audit",
+      label: "View mutation report",
+      description: "Inspect survived mutations and suggested missing tests.",
+      area: "review",
+      commandId: "mutate",
+      tone: "warning"
+    };
+  } else if (["blocked", "failed", "error"].includes(readinessStatus)) {
+    state = "readiness_blocked";
+    title = "Clear readiness gates";
+    summary = "The deterministic lane is healthy, but readiness checks still have workflow, security, cost, or setup blockers.";
+    primaryAction = {
+      id: "readiness",
+      label: "Review readiness",
+      description: "Inspect merge and release gates before enabling broader automation.",
+      area: "configure",
+      commandId: "readiness",
+      tone: "warning"
+    };
+  }
+
+  return {
+    state,
+    title,
+    summary,
+    primaryAction,
+    secondaryActions,
+    blockedReasons,
+    progress: buildGuidanceProgress(input, state)
+  };
+}
+
+function buildGuidanceProgress(
+  input: {
+    config?: VisualHiveConfig;
+    configError?: string;
+    plan?: Plan;
+    report?: Report;
+    mutationReport?: MutationReport;
+    setupProgress: SetupProgressReport;
+    screenshots: ControlPlaneScreenshot[];
+    failures: ControlPlaneFailure[];
+  },
+  state: ControlPlaneGuidanceState["state"]
+): ControlPlaneGuidanceState["progress"] {
+  const baselineReviewCount = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
+  const mutationScore = input.mutationReport?.score;
+  const minMutationScore = input.mutationReport?.minScore ?? input.config?.mutation?.minScore ?? 0.7;
+  return [
+    {
+      id: "setup",
+      label: "Setup",
+      status: input.config && !input.configError ? "complete" : state === "config_error" ? "blocked" : "current",
+      description: "Load a valid project config.",
+      commandId: "recommend"
+    },
+    {
+      id: "plan",
+      label: "Plan",
+      status: input.plan || input.report ? "complete" : input.config ? "current" : "pending",
+      description: "Select PR-safe contracts based on risk and changed files.",
+      commandId: "plan-pr"
+    },
+    {
+      id: "run",
+      label: "Run",
+      status: input.report ? (input.report.status === "failed" ? "blocked" : "complete") : input.plan ? "current" : "pending",
+      description: "Execute deterministic Playwright contracts.",
+      commandId: "run-ci"
+    },
+    {
+      id: "review",
+      label: "Review",
+      status: input.failures.length > 0 ? "blocked" : baselineReviewCount > 0 ? "review" : input.report ? "complete" : "pending",
+      description: "Triage failures and approve visual baselines.",
+      commandId: "baselines"
+    },
+    {
+      id: "strengthen",
+      label: "Strengthen",
+      status: typeof mutationScore === "number" ? (mutationScore >= minMutationScore ? "complete" : "review") : "pending",
+      description: "Use mutation adequacy and coverage gaps to harden tests.",
+      commandId: "mutate"
+    }
+  ];
+}
+
+function buildNavigationBadges(input: {
+  setupProgress: SetupProgressReport;
+  failures: ControlPlaneFailure[];
+  screenshots: ControlPlaneScreenshot[];
+  riskReport?: RiskRegisterReport;
+  providers: Array<{ costPolicy?: { blockedReasons?: string[] }; missingEnv?: string[] }>;
+  artifacts: Array<{ path: string }>;
+}): ControlPlaneNavigationBadges {
+  const baselines = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
+  const risks = Number(input.riskReport?.summary?.total ?? 0);
+  const setup = Number(input.setupProgress.blockedSteps ?? 0) + Number(input.setupProgress.reviewSteps ?? 0);
+  const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
+  const failures = input.failures.length;
+  return {
+    start: Math.min(setup + failures + baselines, 99),
+    run: 0,
+    review: Math.min(failures + baselines, 99),
+    configure: Math.min(setup + risks + providerBlocks, 99),
+    expert: input.artifacts.length,
+    failures,
+    baselines,
+    risks,
+    setup,
+    providerBlocks
   };
 }
 

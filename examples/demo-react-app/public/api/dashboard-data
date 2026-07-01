@@ -1,8 +1,32 @@
 {
   "message": "Demo metrics loaded",
   "items": [
-    { "label": "Contracts", "value": "18", "trend": "+4" },
-    { "label": "Routes", "value": "7", "trend": "+2" },
-    { "label": "Mutation score", "value": "83%", "trend": "+9" }
+    { "label": "Contracts", "value": "18", "trend": "+4", "tone": "good" },
+    { "label": "Routes", "value": "7", "trend": "+2", "tone": "good" },
+    { "label": "Mutation score", "value": "83%", "trend": "+9", "tone": "watch" },
+    { "label": "Visual diffs", "value": "0", "trend": "stable", "tone": "good" }
+  ],
+  "lanes": [
+    { "name": "PR local preview", "target": "localPreview", "status": "passing", "cadence": "Every pull request", "screenshots": 4 },
+    { "name": "Canary sweep", "target": "localPreview", "status": "watching", "cadence": "15 minute schedule", "screenshots": 2 },
+    { "name": "Protected hosted lane", "target": "unsafeHosted", "status": "blocked", "cadence": "Requires secrets", "screenshots": 0 }
+  ],
+  "stages": [
+    { "name": "Plan", "duration": "0.4s", "status": "passed" },
+    { "name": "Contracts", "duration": "3.2s", "status": "passed" },
+    { "name": "Screenshots", "duration": "2.8s", "status": "created" },
+    { "name": "Triage", "duration": "0.7s", "status": "review" }
+  ],
+  "coverage": [
+    { "name": "Dashboard shell", "desktop": "covered", "mobile": "covered", "risk": "low" },
+    { "name": "API fallback", "desktop": "covered", "mobile": "partial", "risk": "medium" },
+    { "name": "Auth boundary", "desktop": "covered", "mobile": "covered", "risk": "high" },
+    { "name": "Visual assets", "desktop": "covered", "mobile": "covered", "risk": "medium" }
+  ],
+  "artifacts": [
+    { "name": "dashboard-desktop", "type": "screenshot", "detail": "1440 x 900 baseline" },
+    { "name": "dashboard-mobile", "type": "screenshot", "detail": "390 x 844 baseline" },
+    { "name": "report.json", "type": "json", "detail": "Deterministic run output" },
+    { "name": "llm-triage.md", "type": "prompt", "detail": "Offline advisory context" }
   ]
 }

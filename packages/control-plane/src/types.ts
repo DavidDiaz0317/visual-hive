@@ -69,6 +69,58 @@ export interface ControlPlaneOverview {
   explanations: string[];
 }
 
+export type ControlPlaneGuidanceStateId =
+  | "no_config"
+  | "config_error"
+  | "plan_needed"
+  | "run_needed"
+  | "failures_need_triage"
+  | "baselines_need_review"
+  | "mutation_needs_work"
+  | "readiness_blocked"
+  | "ready";
+
+export interface ControlPlaneGuidanceAction {
+  id: string;
+  label: string;
+  description: string;
+  area: "start" | "run" | "review" | "configure";
+  commandId?: string;
+  tone?: "neutral" | "success" | "warning" | "danger" | "info" | "amber";
+  disabledReason?: string;
+}
+
+export interface ControlPlaneGuidanceStep {
+  id: string;
+  label: string;
+  status: "complete" | "current" | "review" | "blocked" | "pending";
+  description: string;
+  commandId?: string;
+}
+
+export interface ControlPlaneGuidanceState {
+  state: ControlPlaneGuidanceStateId;
+  title: string;
+  summary: string;
+  primaryAction: ControlPlaneGuidanceAction;
+  secondaryActions: ControlPlaneGuidanceAction[];
+  blockedReasons: string[];
+  progress: ControlPlaneGuidanceStep[];
+}
+
+export interface ControlPlaneNavigationBadges {
+  start: number;
+  run: number;
+  review: number;
+  configure: number;
+  expert: number;
+  failures: number;
+  baselines: number;
+  risks: number;
+  setup: number;
+  providerBlocks: number;
+}
+
 export type ControlPlaneArtifact = ArtifactIndexEntry;
 
 export interface ControlPlaneScreenshot {
@@ -251,6 +303,8 @@ export interface ControlPlaneSnapshot {
   llmDecisionLog?: LLMDecisionLog;
   actionHistory?: ControlPlaneActionHistory;
   overview: ControlPlaneOverview;
+  guidanceState: ControlPlaneGuidanceState;
+  navigationBadges: ControlPlaneNavigationBadges;
   failures: ControlPlaneFailure[];
   runbook: ControlPlaneRunbook;
   runProfiles: ControlPlaneRunProfile[];

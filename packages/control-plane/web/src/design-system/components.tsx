@@ -55,6 +55,7 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
 
 export function Button({
   children,
+  ariaLabel,
   onClick,
   disabled,
   variant = "secondary",
@@ -62,6 +63,7 @@ export function Button({
   title
 }: {
   children: ReactNode;
+  ariaLabel?: string;
   onClick?: () => void | Promise<void>;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -69,7 +71,7 @@ export function Button({
   title?: string;
 }) {
   return (
-    <button className={`vh-button vh-button-${variant}`} disabled={disabled} onClick={onClick} type={type} title={title}>
+    <button aria-label={ariaLabel} className={`vh-button vh-button-${variant}`} disabled={disabled} onClick={onClick} type={type} title={title}>
       {children}
     </button>
   );
