@@ -2,8 +2,10 @@ import path from "node:path";
 import {
   loadConfig,
   readEvidencePacket,
+  validateHandoffArtifacts,
   writeHandoffArtifacts,
   type HandoffArtifacts,
+  type HandoffValidationReport,
   type HandoffMode,
   type HandoffPacket,
   type HiveBeadDryRunRequest,
@@ -17,6 +19,24 @@ export interface HandoffCommandOptions {
   mode?: HandoffMode;
   label?: string[];
   agent?: string;
+}
+
+export interface HandoffValidateCommandOptions {
+  config?: string;
+  cwd?: string;
+  evidence?: string;
+  handoff?: string;
+  issue?: string;
+  beadRequest?: string;
+  result?: string;
+  output?: string;
+  format?: "markdown" | "json";
+}
+
+export interface HandoffValidateCommandResult {
+  report: HandoffValidationReport;
+  reportPath: string;
+  exitCode: number;
 }
 
 export interface HandoffCommandResult extends HandoffArtifacts {
@@ -87,5 +107,43 @@ export function formatHandoffResult(result: HandoffCommandResult, format: "markd
     `- Labels: ${result.handoff.labels.join(", ")}`,
     `- Trusted workflow required: ${result.handoff.githubIssue.trustedWorkflowRequired}`,
     ...(result.handoff.blockedReasons.length ? [`- Blocked reasons: ${result.handoff.blockedReasons.join("; ")}`] : [])
+  ].join("\n");
+}
+
+export async function runHandoffValidateCommand(options: HandoffValidateCommandOptions = {}): Promise<HandoffValidateCommandResult> {
+  const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
+  const result = await validateHandoffArtifacts({
+    rootDir: loaded.rootDir,
+    evidencePacketPath: options.evidence,
+    handoffPath: options.handoff,
+    issuePath: options.issue,
+    beadRequestPath: options.beadRequest,
+    resultPath: options.result,
+    outputPath: options.output
+  });
+  return {
+    ...result,
+    exitCode: result.report.status === "blocked" ? 1 : 0
+  };
+}
+
+export function formatHandoffValidation(result: HandoffValidateCommandResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") return JSON.stringify(result.report, null, 2);
+  return [
+    `Wrote ${result.reportPath}`,
+    "",
+    `# Hive Handoff Validation: ${result.report.project}`,
+    "",
+    `- Status: ${result.report.status}`,
+    `- Checks passed: ${result.report.summary.checksPassed}`,
+    `- Warnings: ${result.report.summary.warnings}`,
+    `- Blocked checks: ${result.report.summary.blocked}`,
+    `- External calls made: ${result.report.summary.externalCallsMade}`,
+    `- Work items: ${result.report.summary.workItems}`,
+    "",
+    "## Checks",
+    ...result.report.checks.map((check) => `- [${check.status}] ${check.id}: ${check.message}`),
+    ...(result.report.blockedReasons.length ? ["", "## Blocked Reasons", ...result.report.blockedReasons.map((reason) => `- ${reason}`)] : []),
+    ...(result.report.warnings.length ? ["", "## Warnings", ...result.report.warnings.map((warning) => `- ${warning}`)] : [])
   ].join("\n");
 }

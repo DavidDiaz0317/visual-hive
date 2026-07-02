@@ -25,7 +25,7 @@ The ledger is intentionally derived from existing artifacts. It makes no provide
 - Agent budgets from `.visual-hive/agent-packet.json`.
 - LLM prompt token and cost estimates from `.visual-hive/llm-usage.json`.
 - Provider screenshot, credential, upload, and external-call posture from provider artifacts.
-- Hive handoff dry-run posture from `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`.
+- Hive handoff dry-run posture from `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, `.visual-hive/hive-handoff-result.json`, and `.visual-hive/hive-handoff-validation.json`.
 - Test-creation guidance source presence from `.visual-hive/test-creation-plan.json`.
 - Remaining budget for tool calls, tool-result tokens, external cost, and provider screenshots.
 - Escalations for trusted-only tools, external-network tools, LLM calls, provider uploads, blocked Hive handoff, missing credentials, and budget pressure.

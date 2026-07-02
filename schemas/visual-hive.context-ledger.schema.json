@@ -38,6 +38,7 @@
         "handoffPacket": { "type": "string" },
         "hiveBeadRequest": { "type": "string" },
         "hiveHandoffResult": { "type": "string" },
+        "hiveHandoffValidation": { "type": "string" },
         "testCreationPlan": { "type": "string" }
       }
     },

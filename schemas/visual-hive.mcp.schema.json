@@ -78,6 +78,7 @@
             "visual-hive://latest-evidence",
             "visual-hive://latest-verdict",
             "visual-hive://latest-handoff",
+            "visual-hive://handoff-validation",
             "visual-hive://coverage-map",
             "visual-hive://mutation-report",
             "visual-hive://repair-prompt",
@@ -120,7 +121,8 @@
             "visual_hive_explain_failure",
             "visual_hive_list_reproduction_commands",
             "visual_hive_generate_repair_prompt",
-            "visual_hive_generate_handoff_dry_run"
+            "visual_hive_generate_handoff_dry_run",
+            "visual_hive_validate_handoff"
           ]
         },
         "title": { "type": "string", "minLength": 1 },

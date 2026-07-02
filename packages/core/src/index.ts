@@ -21,6 +21,7 @@ export * from "./testCreation/types.js";
 export * from "./testCreation/build.js";
 export * from "./handoff/types.js";
 export * from "./handoff/build.js";
+export * from "./handoff/validate.js";
 export * from "./agent/types.js";
 export * from "./agent/build.js";
 export * from "./tools/types.js";

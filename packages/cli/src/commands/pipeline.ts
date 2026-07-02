@@ -9,7 +9,7 @@ import { runCostsCommand } from "./costs.js";
 import { runCoverageCommand } from "./coverage.js";
 import { runDoctor } from "./doctor.js";
 import { runFlowsCommand } from "./flows.js";
-import { runHandoffCommand } from "./handoff.js";
+import { runHandoffCommand, runHandoffValidateCommand } from "./handoff.js";
 import { runHistoryCommand } from "./history.js";
 import { runImproveCoverageCommand } from "./improve.js";
 import { runLayersCommand } from "./layers.js";
@@ -304,6 +304,10 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
   await runStep(context, "handoff", "Hive Handoff Dry Run", async () => {
     await runHandoffCommand({ config: options.config, cwd, mode: "dry_run" });
     return { artifacts: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md", ".visual-hive/hive-bead-request.json", ".visual-hive/hive-handoff-result.json"] };
+  });
+  await runStep(context, "handoff-validate", "Hive Handoff Validation", async () => {
+    const result = await runHandoffValidateCommand({ config: options.config, cwd });
+    return { exitCode: result.exitCode, artifacts: [".visual-hive/hive-handoff-validation.json"] };
   });
   await runStep(context, "test-creation-plan", "Test Creation Plan", async () => {
     await runTestCreationPlanCommand({ config: options.config, cwd });

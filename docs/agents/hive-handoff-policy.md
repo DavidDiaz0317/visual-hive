@@ -21,6 +21,14 @@ It requires `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive-bead-request.json`
 - `.visual-hive/hive-handoff-result.json`
 
+Validate the dry-run package before trusted workflow consumption:
+
+```bash
+visual-hive handoff-validate --config visual-hive.config.yaml
+```
+
+This writes `.visual-hive/hive-handoff-validation.json`. The validator checks that the Evidence Packet, Handoff Packet, Hive bead request, Hive issue body, and handoff result are present, schema-versioned, internally consistent, sanitized, and still no-network (`externalCallsMade: 0`).
+
 The Handoff Packet converts evidence into bounded work items:
 
 - deterministic failures become `repair` tasks;
@@ -45,6 +53,7 @@ Trusted workflow templates:
 
 - `.github/workflows/visual-hive-failure-issue.yml` consumes `.visual-hive/issue.md` from uploaded artifacts and may create or update GitHub issues.
 - `.github/workflows/visual-hive-hive-handoff.yml` consumes `.visual-hive/evidence-packet.json`, `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`.
+- `.visual-hive/hive-handoff-validation.json` is the local preflight evidence that the trusted workflow handoff package is structurally safe to consume.
 
 The Hive handoff workflow is intentionally artifact-only:
 

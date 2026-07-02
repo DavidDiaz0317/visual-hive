@@ -30,6 +30,7 @@ export interface BuildContextLedgerOptions {
   handoffPacketPath?: string;
   hiveBeadRequestPath?: string;
   hiveHandoffResultPath?: string;
+  hiveHandoffValidationPath?: string;
   testCreationPlanPath?: string;
 }
 
@@ -67,6 +68,7 @@ const DEFAULT_PATHS = {
   handoffPacket: ".visual-hive/handoff.json",
   hiveBeadRequest: ".visual-hive/hive-bead-request.json",
   hiveHandoffResult: ".visual-hive/hive-handoff-result.json",
+  hiveHandoffValidation: ".visual-hive/hive-handoff-validation.json",
   testCreationPlan: ".visual-hive/test-creation-plan.json"
 };
 
@@ -84,6 +86,7 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
     handoffPacket: artifactPath(rootDir, options.handoffPacketPath ?? DEFAULT_PATHS.handoffPacket),
     hiveBeadRequest: artifactPath(rootDir, options.hiveBeadRequestPath ?? DEFAULT_PATHS.hiveBeadRequest),
     hiveHandoffResult: artifactPath(rootDir, options.hiveHandoffResultPath ?? DEFAULT_PATHS.hiveHandoffResult),
+    hiveHandoffValidation: artifactPath(rootDir, options.hiveHandoffValidationPath ?? DEFAULT_PATHS.hiveHandoffValidation),
     testCreationPlan: artifactPath(rootDir, options.testCreationPlanPath ?? DEFAULT_PATHS.testCreationPlan)
   };
 

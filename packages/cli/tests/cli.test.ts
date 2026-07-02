@@ -50,7 +50,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artif
 import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
-import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
+import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "../src/commands/handoff.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
@@ -350,6 +350,7 @@ mutation:
       "demo:layers",
       "demo:verdict",
       "demo:handoff",
+      "demo:handoff-validate",
       "demo:test-creation",
       "demo:agent-packet",
       "demo:tools",
@@ -413,9 +414,14 @@ mutation:
     expect(demoCiOutput.indexOf("demo:verdict")).toBeLessThan(demoCiOutput.indexOf("demo:handoff"));
     expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
+    expect(packageJson.scripts["demo:handoff-validate"]).toContain("handoff-validate --config");
     expect(packageJson.scripts["demo:test-creation"]).toContain("test-creation-plan --config");
     expect(demoAllOutput.indexOf("demo:handoff")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
     expect(demoCiOutput.indexOf("demo:handoff")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
+    expect(demoAllOutput.indexOf("demo:handoff")).toBeLessThan(demoAllOutput.indexOf("demo:handoff-validate"));
+    expect(demoCiOutput.indexOf("demo:handoff")).toBeLessThan(demoCiOutput.indexOf("demo:handoff-validate"));
+    expect(demoAllOutput.indexOf("demo:handoff-validate")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
+    expect(demoCiOutput.indexOf("demo:handoff-validate")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
     expect(demoAllOutput.indexOf("demo:test-creation")).toBeLessThan(demoAllOutput.indexOf("demo:agent-packet"));
     expect(demoCiOutput.indexOf("demo:test-creation")).toBeLessThan(demoCiOutput.indexOf("demo:agent-packet"));
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
@@ -1525,6 +1531,15 @@ integrations:
     expect(JSON.stringify(result)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-bead-request.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"))).resolves.toBeUndefined();
+
+    const validation = await runHandoffValidateCommand({ cwd: tempRoot });
+    const validationSummary = formatHandoffValidation(validation);
+    expect(validation.exitCode).toBe(0);
+    expect(validation.report.status).toBe("passed");
+    expect(validation.report.summary.externalCallsMade).toBe(0);
+    expect(validation.report.checks.map((check) => check.id)).toContain("verdict-consistency");
+    expect(validationSummary).toContain("Hive Handoff Validation: cli-handoff");
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-validation.json"))).resolves.toBeUndefined();
   });
 
   it("writes a standalone verdict artifact from normalized evidence", async () => {
@@ -1973,6 +1988,14 @@ contracts:
       status: "ready",
       externalCallsMade: 0
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "hive-handoff-validation.json"), {
+      schemaVersion: "visual-hive.handoff-validation.v1",
+      project: "cli-mcp",
+      status: "passed",
+      summary: {
+        externalCallsMade: 0
+      }
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "verdict.json"), {
       schemaVersion: "visual-hive.verdict.v1",
       project: "cli-mcp",
@@ -2017,6 +2040,7 @@ contracts:
     const configResource = manifest.resources.find((resource) => resource.uri === "visual-hive://config");
     const verdictResource = manifest.resources.find((resource) => resource.uri === "visual-hive://latest-verdict");
     const agentPacketResource = manifest.resources.find((resource) => resource.uri === "visual-hive://agent-packet");
+    const handoffValidationResource = manifest.resources.find((resource) => resource.uri === "visual-hive://handoff-validation");
     const contextLedgerResource = manifest.resources.find((resource) => resource.uri === "visual-hive://context-ledger");
     const pipelineResource = manifest.resources.find((resource) => resource.uri === "visual-hive://pipeline-status");
 
@@ -2033,6 +2057,7 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_tool_registry");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_context_ledger");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_validate_handoff");
     expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(manifest.policy.externalUploadsFromPr).toBe(false);
@@ -2042,12 +2067,14 @@ contracts:
     expect(configResource).toBeDefined();
     expect(verdictResource).toBeDefined();
     expect(agentPacketResource).toBeDefined();
+    expect(handoffValidationResource).toBeDefined();
     expect(contextLedgerResource).toBeDefined();
     expect(pipelineResource).toBeDefined();
     await expect(readMcpResourceText(loaded, evidenceResource!)).resolves.toContain("visual-hive.evidence-packet.v2");
     await expect(readMcpResourceText(loaded, configResource!)).resolves.toContain("cli-mcp");
     await expect(readMcpResourceText(loaded, verdictResource!)).resolves.toContain("visual-hive.verdict.v1");
     await expect(readMcpResourceText(loaded, agentPacketResource!)).resolves.not.toContain("secret-value");
+    await expect(readMcpResourceText(loaded, handoffValidationResource!)).resolves.toContain("visual-hive.handoff-validation.v1");
     await expect(readMcpResourceText(loaded, contextLedgerResource!)).resolves.toContain("visual-hive.context-ledger.v1");
     await expect(readMcpResourceText(loaded, pipelineResource!)).resolves.not.toContain("secret-value");
     const explanation = await callReadOnlyTool(loaded, "visual_hive_explain_failure");
@@ -2057,6 +2084,7 @@ contracts:
     const plan = await callReadOnlyTool(loaded, "visual_hive_plan");
     const repairPrompt = await callReadOnlyTool(loaded, "visual_hive_generate_repair_prompt");
     const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
+    const handoffValidation = await callReadOnlyTool(loaded, "visual_hive_validate_handoff");
     const verdict = await callReadOnlyTool(loaded, "visual_hive_read_verdict");
     const agentPacket = await callReadOnlyTool(loaded, "visual_hive_read_agent_packet");
     const toolRegistry = await callReadOnlyTool(loaded, "visual_hive_read_tool_registry");
@@ -2073,6 +2101,7 @@ contracts:
     expect(plan).toContain("\"wroteArtifacts\": false");
     expect(repairPrompt).not.toContain("secret-value");
     expect(handoff).toContain("visual-hive.handoff.v1");
+    expect(handoffValidation).toContain("visual-hive.handoff-validation.v1");
     expect(verdict).toContain("visual-hive.verdict.v1");
     expect(agentPacket).not.toContain("secret-value");
     expect(toolRegistry).toContain("visual-hive.tool-registry.v1");
@@ -2618,6 +2647,9 @@ selection:
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
     const evidence = await readJson<Record<string, unknown>>(path.join(tempRoot, ".visual-hive", "evidence-packet.json"));
     const handoffResult = await readJson<{ externalCallsMade: number; status: string }>(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"));
+    const handoffValidation = await readJson<{ status: string; summary: { externalCallsMade: number } }>(
+      path.join(tempRoot, ".visual-hive", "hive-handoff-validation.json")
+    );
     const agentPacket = await readJson<{ profile: string; budgets: { allowExternalNetwork: boolean; maxExternalCostUsd: number } }>(
       path.join(tempRoot, ".visual-hive", "agent-packet.json")
     );
@@ -2644,6 +2676,7 @@ selection:
         "layers",
         "verdict",
         "handoff",
+        "handoff-validate",
         "test-creation-plan",
         "agent-packet",
         "tools",
@@ -2662,6 +2695,7 @@ selection:
         ".visual-hive/hive-issue.md",
         ".visual-hive/hive-bead-request.json",
         ".visual-hive/hive-handoff-result.json",
+        ".visual-hive/hive-handoff-validation.json",
         ".visual-hive/test-creation-plan.json",
         ".visual-hive/agent-packet.json",
         ".visual-hive/tools/tool-registry.json",
@@ -2672,6 +2706,8 @@ selection:
     expect(evidence.schemaVersion).toBe("visual-hive.evidence-packet.v2");
     expect(handoffResult.externalCallsMade).toBe(0);
     expect(["dry_run_written", "blocked"]).toContain(handoffResult.status);
+    expect(["passed", "warning"]).toContain(handoffValidation.status);
+    expect(handoffValidation.summary.externalCallsMade).toBe(0);
     expect(agentPacket.profile).toBe("repair_agent");
     expect(agentPacket.budgets.allowExternalNetwork).toBe(false);
     expect(agentPacket.budgets.maxExternalCostUsd).toBe(0);

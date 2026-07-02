@@ -45,7 +45,7 @@ import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js
 import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
-import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
+import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -558,6 +558,36 @@ program
         agent: options.agent
       });
       console.log(formatHandoffResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("handoff-validate")
+  .description("Validate no-network GitHub/Hive handoff artifacts before trusted workflow consumption")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--issue <path>", "Hive issue body path", ".visual-hive/hive-issue.md")
+  .option("--bead-request <path>", "Hive bead request path", ".visual-hive/hive-bead-request.json")
+  .option("--result <path>", "Hive handoff result path", ".visual-hive/hive-handoff-result.json")
+  .option("--output <path>", "validation artifact path", ".visual-hive/hive-handoff-validation.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHandoffValidateCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        issue: options.issue,
+        beadRequest: options.beadRequest,
+        result: options.result,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatHandoffValidation(result, options.format));
+      process.exitCode = result.exitCode;
     } catch (error) {
       fail(error);
     }

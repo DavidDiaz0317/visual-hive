@@ -21,6 +21,7 @@ export interface ContextLedgerSourceArtifacts {
   handoffPacket?: string;
   hiveBeadRequest?: string;
   hiveHandoffResult?: string;
+  hiveHandoffValidation?: string;
   testCreationPlan?: string;
 }
 

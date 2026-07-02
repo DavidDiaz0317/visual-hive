@@ -32,6 +32,7 @@ import { buildVerdictReport, writeVerdictReport } from "../src/verdict/build.js"
 import { buildTestingLayerReport, writeTestingLayerReport } from "../src/layers/build.js";
 import { buildTestCreationPlan, writeTestCreationPlan } from "../src/testCreation/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
+import { validateHandoffArtifacts } from "../src/handoff/validate.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
@@ -978,6 +979,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
+    expect(schemaNames).toContain("visual-hive.handoff-validation.schema.json");
     expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
     expect(schemaNames).toContain("visual-hive.testing-layers.schema.json");
     expect(schemaNames).toContain("visual-hive.test-creation-plan.schema.json");
@@ -3839,6 +3841,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "tools", "tool-registry.json"), '{"schemaVersion":"visual-hive.tool-registry.v1","tools":[{"id":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(path.join(hiveRoot, "context-ledger.json"), '{"schemaVersion":"visual-hive.context-ledger.v1","notes":["token=abc123"]}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive-handoff-validation.json"), '{"schemaVersion":"visual-hive.handoff-validation.v1","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -3858,7 +3861,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(35);
+    expect(index.summary.artifactCount).toBe(36);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3973,6 +3976,10 @@ describe("artifact index", () => {
     expect(contextLedger?.preview).toContain("[REDACTED]");
     expect(contextLedger?.labels).toContain("context-ledger");
     expect(contextLedger?.schemaPath).toBe("schemas/visual-hive.context-ledger.schema.json");
+    const handoffValidation = index.artifacts.find((artifact) => artifact.path.endsWith("hive-handoff-validation.json"));
+    expect(handoffValidation?.preview).toContain("[REDACTED]");
+    expect(handoffValidation?.labels).toContain("hive-handoff-validation");
+    expect(handoffValidation?.schemaPath).toBe("schemas/visual-hive.handoff-validation.schema.json");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");
@@ -5518,6 +5525,52 @@ describe("handoff packets", () => {
     expect(await readFile(handoff.issuePath, "utf8")).toContain("visual-hive-hive-handoff");
     expect(await readFile(handoff.beadRequestPath, "utf8")).toContain("visual-hive.hive-bead-request.v1");
     expect(await readFile(handoff.resultPath, "utf8")).toContain("visual-hive.hive-handoff-result.v1");
+
+    const validation = await validateHandoffArtifacts({
+      rootDir,
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+    expect(validation.report.schemaVersion).toBe("visual-hive.handoff-validation.v1");
+    expect(validation.report.status).toBe("passed");
+    expect(validation.report.summary.externalCallsMade).toBe(0);
+    expect(validation.report.checks.map((check) => check.id)).toEqual(
+      expect.arrayContaining(["no-external-calls", "dry-run-policy", "verdict-consistency", "issue-body-sanitized"])
+    );
+    expect(await readFile(validation.reportPath, "utf8")).toContain("visual-hive.handoff-validation.v1");
+  });
+
+  it("blocks Hive handoff validation when artifacts claim external calls", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-validation-blocked-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "validation-blocked",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), packet);
+    const handoff = await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive-bead-request.json"), {
+      ...handoff.beadRequest,
+      project: "validation-blocked?token=secret-value",
+      externalCallsMade: 1,
+      objective: "authorization: Bearer secret-value"
+    });
+
+    const validation = await validateHandoffArtifacts({
+      rootDir,
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+    expect(validation.report.status).toBe("blocked");
+    expect(validation.report.summary.externalCallsMade).toBe(1);
+    expect(validation.report.blockedReasons.join(" ")).toContain("no-external-calls");
+    const serialized = JSON.stringify(validation.report);
+    expect(serialized).toContain("[REDACTED]");
+    expect(serialized).not.toContain("secret-value");
   });
 
   it("blocks non-dry-run modes while still writing local review artifacts", async () => {
@@ -5734,7 +5787,9 @@ describe("tool registry", () => {
     const registry = buildToolRegistry({ project: "tool-fixture", now: new Date("2026-06-15T00:00:00.000Z") });
     const providerUpload = registry.tools.find((tool) => tool.id === "visual_hive_provider_upload");
     const githubIssue = registry.tools.find((tool) => tool.id === "visual_hive_handoff_github_issue");
+    const handoffValidation = registry.tools.find((tool) => tool.id === "visual_hive_validate_handoff");
     const repairProfile = registry.roleProfiles.find((profile) => profile.role === "repair_agent");
+    const handoffProfile = registry.roleProfiles.find((profile) => profile.role === "handoff_agent");
     const providerProfile = registry.roleProfiles.find((profile) => profile.role === "provider_specialist");
 
     expect(registry.schemaVersion).toBe("visual-hive.tool-registry.v1");
@@ -5754,8 +5809,14 @@ describe("tool registry", () => {
       externalNetwork: true,
       forbiddenInPullRequest: true
     });
+    expect(handoffValidation).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      costClass: "local"
+    });
     expect(repairProfile?.allowedToolIds).toContain("visual_hive_read_evidence_packet");
     expect(repairProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
+    expect(handoffProfile?.allowedToolIds).toContain("visual_hive_validate_handoff");
     expect(providerProfile?.trustedOnly).toBe(true);
     expect(providerProfile?.allowedToolIds).toContain("visual_hive_provider_upload");
   });
@@ -5772,6 +5833,7 @@ describe("tool registry", () => {
     expect(result.registryPath).toMatch(/tool-registry\.json$/);
     expect(result.cardsPath).toMatch(/tool-cards\.md$/);
     expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_evidence_packet");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_validate_handoff");
     expect(result.cardsMarkdown).toContain("Third-party MCP exposed by default: false");
     expect(await readFile(result.registryPath, "utf8")).toContain("visual-hive.tool-registry.v1");
     expect(await readFile(result.cardsPath, "utf8")).toContain("Visual Hive Tool Cards");
@@ -5891,6 +5953,11 @@ describe("context ledger", () => {
       externalCallsMade: 0,
       blockedReasons: ["authorization: Bearer hive-secret"]
     });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive-handoff-validation.json"), {
+      schemaVersion: "visual-hive.handoff-validation.v1",
+      status: "blocked",
+      summary: { externalCallsMade: 0 }
+    });
     await writeJson(path.join(rootDir, ".visual-hive", "test-creation-plan.json"), {
       schemaVersion: "visual-hive.test-creation-plan.v1",
       recommendations: []
@@ -5912,6 +5979,7 @@ describe("context ledger", () => {
     expect(ledger.sourceArtifacts.handoffPacket).toBe(".visual-hive/handoff.json");
     expect(ledger.sourceArtifacts.hiveBeadRequest).toBe(".visual-hive/hive-bead-request.json");
     expect(ledger.sourceArtifacts.hiveHandoffResult).toBe(".visual-hive/hive-handoff-result.json");
+    expect(ledger.sourceArtifacts.hiveHandoffValidation).toBe(".visual-hive/hive-handoff-validation.json");
     expect(ledger.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
     expect(ledger.providerUsage[0]).toMatchObject({
       providerId: "argos",
@@ -6000,6 +6068,10 @@ describe("agent-forward schema validation", () => {
       evidencePacketPath: ".visual-hive/evidence-packet.json",
       now: new Date("2026-06-15T00:04:00.000Z")
     });
+    const handoffValidation = await validateHandoffArtifacts({
+      rootDir,
+      now: new Date("2026-06-15T00:04:30.000Z")
+    });
     const agent = await writeAgentPacket({
       rootDir,
       evidencePacket: evidence.packet,
@@ -6025,6 +6097,7 @@ describe("agent-forward schema validation", () => {
     await expectMatchesSchema("visual-hive.handoff.schema.json", handoff.handoff);
     await expectMatchesSchema("visual-hive.hive-bead-request.schema.json", handoff.beadRequest);
     await expectMatchesSchema("visual-hive.hive-handoff-result.schema.json", handoff.result);
+    await expectMatchesSchema("visual-hive.handoff-validation.schema.json", handoffValidation.report);
     await expectMatchesSchema("visual-hive.agent-packet.schema.json", agent.packet);
     await expectMatchesSchema("visual-hive.tool-registry.schema.json", tools.registry);
     await expectMatchesSchema("visual-hive.context-ledger.schema.json", context.ledger);
