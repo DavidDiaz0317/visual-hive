@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-mode-comparison.schema.json",
+  "title": "Visual Hive Hive Export Mode Comparison",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "modes",
+    "recommendation",
+    "governance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-mode-comparison.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "externalCallsMade": { "const": 0 },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": ["evidencePacket"],
+      "additionalProperties": false,
+      "properties": {
+        "evidencePacket": { "type": "string" },
+        "handoffPacket": { "type": "string" }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": ["comparison", "markdown", "modesDir"],
+      "additionalProperties": false,
+      "properties": {
+        "comparison": { "type": "string" },
+        "markdown": { "type": "string" },
+        "modesDir": { "type": "string" }
+      }
+    },
+    "modes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modeEntry" }
+    },
+    "recommendation": {
+      "type": "object",
+      "required": ["mode", "reason", "nextCommand"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "$ref": "#/$defs/mode" },
+        "reason": { "type": "string" },
+        "nextCommand": { "type": "string" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["verdictAuthority", "defaultMode", "repairAuthority", "validationRequired", "secretPolicy"],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": { "const": "visual_hive" },
+        "defaultMode": { "const": "advisory_no_network" },
+        "repairAuthority": { "const": "hive_may_open_pr_only_when_trusted_policy_allows" },
+        "validationRequired": { "const": "visual_hive_must_rerun_after_repair" },
+        "secretPolicy": { "const": "redacted_values_names_only" }
+      }
+    }
+  },
+  "$defs": {
+    "mode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+    "summary": {
+      "type": "object",
+      "required": ["beads", "knowledgeFacts", "graphNodes", "graphEdges", "repairWorkOrders", "blockedReasons"],
+      "additionalProperties": false,
+      "properties": {
+        "beads": { "type": "integer", "minimum": 0 },
+        "knowledgeFacts": { "type": "integer", "minimum": 0 },
+        "graphNodes": { "type": "integer", "minimum": 0 },
+        "graphEdges": { "type": "integer", "minimum": 0 },
+        "repairWorkOrders": { "type": "integer", "minimum": 0 },
+        "blockedReasons": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "modeEntry": {
+      "type": "object",
+      "required": [
+        "mode",
+        "status",
+        "outputDir",
+        "exportPath",
+        "externalCallsMade",
+        "summary",
+        "blockedReasons",
+        "emits",
+        "policy",
+        "recommendedUse"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "$ref": "#/$defs/mode" },
+        "status": { "enum": ["ready", "blocked"] },
+        "outputDir": { "type": "string" },
+        "exportPath": { "type": "string" },
+        "externalCallsMade": { "const": 0 },
+        "summary": { "$ref": "#/$defs/summary" },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } },
+        "emits": {
+          "type": "object",
+          "required": ["issueContext", "beads", "knowledgeFacts", "knowledgeGraph", "wikiVault", "repairWorkOrders", "agentPolicy"],
+          "additionalProperties": false,
+          "properties": {
+            "issueContext": { "type": "boolean" },
+            "beads": { "type": "boolean" },
+            "knowledgeFacts": { "type": "boolean" },
+            "knowledgeGraph": { "type": "boolean" },
+            "wikiVault": { "type": "boolean" },
+            "repairWorkOrders": { "type": "boolean" },
+            "agentPolicy": { "type": "boolean" }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "required": ["localPreviewAllowed", "trustedWorkflowRequired", "verdictAuthority", "hiveAuthority"],
+          "additionalProperties": false,
+          "properties": {
+            "localPreviewAllowed": { "type": "boolean" },
+            "trustedWorkflowRequired": { "type": "boolean" },
+            "verdictAuthority": { "const": "visual_hive" },
+            "hiveAuthority": { "const": "advisory_or_guarded_repair" }
+          }
+        },
+        "recommendedUse": { "type": "string" }
+      }
+    }
+  }
+}

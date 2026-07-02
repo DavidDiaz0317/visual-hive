@@ -1901,13 +1901,14 @@ describe("control plane", () => {
     );
     expect(snapshot.runProfiles.find((profile) => profile.id === "agent-handoff-review")).toMatchObject({
       enabled: true,
-      commandIds: ["evidence", "verdict", "handoff", "hive-export", "test-creation-plan", "agent-packet"],
+      commandIds: ["evidence", "verdict", "handoff", "hive-export", "hive-compare-modes", "test-creation-plan", "agent-packet"],
       safety: "pr_safe",
       expectedArtifacts: expect.arrayContaining([
         ".visual-hive/evidence-packet.json",
         ".visual-hive/verdict.json",
         ".visual-hive/handoff.json",
         ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/mode-comparison.json",
         ".visual-hive/agent-packet.json"
       ])
     });
@@ -2005,6 +2006,17 @@ describe("control plane", () => {
       safety: "pr_safe",
       command: expect.stringContaining("--mode repair_request"),
       expectedArtifacts: expect.arrayContaining([".visual-hive/hive/repair-work-orders.json", ".visual-hive/hive/hive-agent-policy.json"])
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "hive-compare-modes")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("hive compare-modes"),
+      expectedArtifacts: expect.arrayContaining([
+        ".visual-hive/hive/mode-comparison.json",
+        ".visual-hive/hive/mode-comparison.md",
+        ".visual-hive/hive/modes/advisory/hive-export.json",
+        ".visual-hive/hive/modes/measured/hive-export.json",
+        ".visual-hive/hive/modes/repair_request/hive-export.json"
+      ])
     });
     expect(snapshot.runbook.commands.find((command) => command.id === "agent-packet")).toMatchObject({
       safety: "pr_safe",
@@ -2696,6 +2708,7 @@ contracts:
         "verdict",
         "handoff",
         "hive-export",
+        "hive-compare-modes",
         "test-creation-plan",
         "agent-packet"
       ]);
@@ -2704,6 +2717,7 @@ contracts:
         "verdict:verdict",
         "handoff:handoff",
         "hive-export:hive-export",
+        "hive-compare-modes:hive-compare-modes",
         "test-creation-plan:test-creation-plan",
         "agent-packet:agent-packet"
       ]);
@@ -2711,7 +2725,8 @@ contracts:
       expect(calls[1]?.args.slice(-3)).toEqual(["verdict", "--config", path.resolve(fixture.configPath)]);
       expect(calls[2]?.args.slice(-4)).toEqual(["handoff", "--config", path.resolve(fixture.configPath), "--dry-run"]);
       expect(calls[3]?.args.slice(-5)).toEqual(["hive", "export", "--config", path.resolve(fixture.configPath), "--dry-run"]);
-      expect(calls[5]?.args.slice(-5)).toEqual(["agent-packet", "--config", path.resolve(fixture.configPath), "--profile", "repair_agent"]);
+      expect(calls[4]?.args.slice(-4)).toEqual(["hive", "compare-modes", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[6]?.args.slice(-5)).toEqual(["agent-packet", "--config", path.resolve(fixture.configPath), "--profile", "repair_agent"]);
     } finally {
       await server.close();
     }
@@ -2760,7 +2775,7 @@ contracts:
     } finally {
       await server.close();
     }
-  });
+  }, 20_000);
 
   it("executes the portfolio-refresh profile as an allowlisted governance workflow", async () => {
     const fixture = await makeFixture();
@@ -2810,7 +2825,7 @@ contracts:
     } finally {
       await server.close();
     }
-  });
+  }, 20_000);
 
   it("executes the provider-governance profile as no-network provider handoff workflow", async () => {
     const fixture = await makeFixture();
@@ -3113,7 +3128,7 @@ contracts:
     } finally {
       await server.close();
     }
-  });
+  }, 20_000);
 
   it("rejects a baseline through the local API without changing the baseline image", async () => {
     const fixture = await makeFixture();

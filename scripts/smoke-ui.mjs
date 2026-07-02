@@ -67,6 +67,20 @@ try {
   if (snapshot.hiveExport.agentPolicy?.finalValidation?.passFailOwnedBy !== "visual_hive_verdict_engine") {
     throw new Error("snapshot did not include governed Hive final-validation policy evidence");
   }
+  if (!snapshot.hiveModeComparison || snapshot.hiveModeComparison.externalCallsMade !== 0) {
+    throw new Error("snapshot did not include no-network Hive export mode comparison evidence");
+  }
+  if (!snapshot.hiveModeComparison.outputArtifacts?.comparison || !snapshot.hiveModeComparison.outputArtifacts?.markdown) {
+    throw new Error("snapshot did not include Hive mode comparison artifact paths");
+  }
+  for (const mode of ["advisory", "measured", "repair_request"]) {
+    if (!snapshot.hiveModeComparison.modes?.some((entry) => entry.mode === mode)) {
+      throw new Error(`snapshot did not include Hive mode comparison entry: ${mode}`);
+    }
+  }
+  if (!snapshot.hiveModeComparison.recommendation?.mode) {
+    throw new Error("snapshot did not include a Hive mode recommendation");
+  }
   if (!snapshot.agentPacket?.budgets || snapshot.agentPacket.budgets.allowExternalNetwork !== false) {
     throw new Error("snapshot did not include bounded Agent Packet evidence");
   }
@@ -88,6 +102,11 @@ try {
   for (const commandId of ["hive-export-advisory", "hive-export-measured", "hive-export-repair-request"]) {
     assertArrayIncludes(snapshot.runbook?.commands?.map((command) => command.id), commandId, "Hive export mode runbook command ids");
   }
+  assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "hive-compare-modes",
+    "runbook command ids"
+  );
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "control-plane",
@@ -148,6 +167,8 @@ try {
     "Review visual changes",
     "Evidence to agent handoff",
     "Hive export mode policy",
+    "Comparison artifact",
+    "Recommended mode",
     "Measured",
     "Repair request",
     "Guarded repair",

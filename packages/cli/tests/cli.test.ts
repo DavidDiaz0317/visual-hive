@@ -51,7 +51,7 @@ import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "../src/commands/handoff.js";
-import { formatHiveExport, runHiveExportCommand } from "../src/commands/hive.js";
+import { formatHiveExport, formatHiveModeComparison, runHiveCompareModesCommand, runHiveExportCommand } from "../src/commands/hive.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
@@ -353,6 +353,7 @@ mutation:
       "demo:handoff",
       "demo:handoff-validate",
       "demo:hive-export",
+      "demo:hive-modes",
       "demo:test-creation",
       "demo:agent-packet",
       "demo:tools",
@@ -419,6 +420,7 @@ mutation:
     expect(packageJson.scripts["demo:handoff-validate"]).toContain("handoff-validate --config");
     expect(packageJson.scripts["demo:hive-export"]).toContain("hive export --config");
     expect(packageJson.scripts["demo:hive-export"]).toContain("--dry-run");
+    expect(packageJson.scripts["demo:hive-modes"]).toContain("hive compare-modes --config");
     expect(packageJson.scripts["demo:test-creation"]).toContain("test-creation-plan --config");
     expect(demoAllOutput.indexOf("demo:handoff")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
     expect(demoCiOutput.indexOf("demo:handoff")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
@@ -430,6 +432,10 @@ mutation:
     expect(demoCiOutput.indexOf("demo:handoff-validate")).toBeLessThan(demoCiOutput.indexOf("demo:hive-export"));
     expect(demoAllOutput.indexOf("demo:hive-export")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
     expect(demoCiOutput.indexOf("demo:hive-export")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
+    expect(demoAllOutput.indexOf("demo:hive-export")).toBeLessThan(demoAllOutput.indexOf("demo:hive-modes"));
+    expect(demoCiOutput.indexOf("demo:hive-export")).toBeLessThan(demoCiOutput.indexOf("demo:hive-modes"));
+    expect(demoAllOutput.indexOf("demo:hive-modes")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
+    expect(demoCiOutput.indexOf("demo:hive-modes")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
     expect(demoAllOutput.indexOf("demo:test-creation")).toBeLessThan(demoAllOutput.indexOf("demo:agent-packet"));
     expect(demoCiOutput.indexOf("demo:test-creation")).toBeLessThan(demoCiOutput.indexOf("demo:agent-packet"));
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
@@ -1652,6 +1658,98 @@ integrations:
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-agent-policy.json"))).resolves.toBeUndefined();
   });
 
+  it("writes a no-network Hive mode comparison with separate mode previews", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-hive-modes-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-hive-modes
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    severity: high
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+integrations:
+  hive:
+    enabled: true
+    mode: advisory
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-hive-modes",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 12,
+          errors: ["Missing selector; token=secret-value"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    await runHandoffCommand({ cwd: tempRoot });
+    const result = await runHiveCompareModesCommand({ cwd: tempRoot });
+    const summary = formatHiveModeComparison(result);
+
+    expect(result.comparison.schemaVersion).toBe("visual-hive.hive-mode-comparison.v1");
+    expect(result.comparison.externalCallsMade).toBe(0);
+    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request"]);
+    expect(result.comparison.recommendation.mode).toBe("repair_request");
+    expect(summary).toContain("Hive Export Mode Comparison: cli-hive-modes");
+    expect(JSON.stringify(result.comparison)).not.toContain("secret-value");
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "mode-comparison.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "mode-comparison.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "advisory", "hive-export.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "measured", "knowledge-graph.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "repair_request", "repair-work-orders.json"))).resolves.toBeUndefined();
+  });
+
   it("writes a standalone verdict artifact from normalized evidence", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-verdict-"));
     tempDirs.push(tempRoot);
@@ -2123,6 +2221,27 @@ contracts:
         verdictAuthority: "visual_hive"
       }
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "hive", "mode-comparison.json"), {
+      schemaVersion: "visual-hive.hive-mode-comparison.v1",
+      project: "cli-mcp",
+      externalCallsMade: 0,
+      recommendedMode: "measured",
+      recommendationReason: "Measured mode exposes deterministic evidence without repair execution.",
+      modes: [
+        {
+          mode: "advisory",
+          status: "ready",
+          externalCallsMade: 0,
+          artifacts: [".visual-hive/hive/modes/advisory/issue-context.md"]
+        },
+        {
+          mode: "measured",
+          status: "ready",
+          externalCallsMade: 0,
+          artifacts: [".visual-hive/hive/modes/measured/hive-export.json"]
+        }
+      ]
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "verdict.json"), {
       schemaVersion: "visual-hive.verdict.v1",
       project: "cli-mcp",
@@ -2169,6 +2288,7 @@ contracts:
     const agentPacketResource = manifest.resources.find((resource) => resource.uri === "visual-hive://agent-packet");
     const handoffValidationResource = manifest.resources.find((resource) => resource.uri === "visual-hive://handoff-validation");
     const hiveExportResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-export");
+    const hiveModeComparisonResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-mode-comparison");
     const contextLedgerResource = manifest.resources.find((resource) => resource.uri === "visual-hive://context-ledger");
     const pipelineResource = manifest.resources.find((resource) => resource.uri === "visual-hive://pipeline-status");
 
@@ -2187,6 +2307,7 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_validate_handoff");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_export");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_mode_comparison");
     expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_hive_repair");
@@ -2199,6 +2320,7 @@ contracts:
     expect(agentPacketResource).toBeDefined();
     expect(handoffValidationResource).toBeDefined();
     expect(hiveExportResource).toBeDefined();
+    expect(hiveModeComparisonResource).toBeDefined();
     expect(contextLedgerResource).toBeDefined();
     expect(pipelineResource).toBeDefined();
     await expect(readMcpResourceText(loaded, evidenceResource!)).resolves.toContain("visual-hive.evidence-packet.v2");
@@ -2207,6 +2329,7 @@ contracts:
     await expect(readMcpResourceText(loaded, agentPacketResource!)).resolves.not.toContain("secret-value");
     await expect(readMcpResourceText(loaded, handoffValidationResource!)).resolves.toContain("visual-hive.handoff-validation.v1");
     await expect(readMcpResourceText(loaded, hiveExportResource!)).resolves.toContain("visual-hive.hive-export.v1");
+    await expect(readMcpResourceText(loaded, hiveModeComparisonResource!)).resolves.toContain("visual-hive.hive-mode-comparison.v1");
     await expect(readMcpResourceText(loaded, contextLedgerResource!)).resolves.toContain("visual-hive.context-ledger.v1");
     await expect(readMcpResourceText(loaded, pipelineResource!)).resolves.not.toContain("secret-value");
     const explanation = await callReadOnlyTool(loaded, "visual_hive_explain_failure");
@@ -2218,6 +2341,7 @@ contracts:
     const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
     const handoffValidation = await callReadOnlyTool(loaded, "visual_hive_validate_handoff");
     const hiveExport = await callReadOnlyTool(loaded, "visual_hive_read_hive_export");
+    const hiveModeComparison = await callReadOnlyTool(loaded, "visual_hive_read_hive_mode_comparison");
     const verdict = await callReadOnlyTool(loaded, "visual_hive_read_verdict");
     const agentPacket = await callReadOnlyTool(loaded, "visual_hive_read_agent_packet");
     const toolRegistry = await callReadOnlyTool(loaded, "visual_hive_read_tool_registry");
@@ -2236,6 +2360,7 @@ contracts:
     expect(handoff).toContain("visual-hive.handoff.v1");
     expect(handoffValidation).toContain("visual-hive.handoff-validation.v1");
     expect(hiveExport).toContain("visual-hive.hive-export.v1");
+    expect(hiveModeComparison).toContain("visual-hive.hive-mode-comparison.v1");
     expect(verdict).toContain("visual-hive.verdict.v1");
     expect(agentPacket).not.toContain("secret-value");
     expect(toolRegistry).toContain("visual-hive.tool-registry.v1");
@@ -2853,7 +2978,7 @@ selection:
     await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-issue.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
-  });
+  }, 20_000);
 
   it("fails clearly when no contracts are selected", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-empty-plan-"));

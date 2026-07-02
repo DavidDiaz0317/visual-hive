@@ -39,6 +39,7 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "hive-export-advisory",
   "hive-export-measured",
   "hive-export-repair-request",
+  "hive-compare-modes",
   "agent-packet",
   "pipeline",
   "connections-portfolio"
@@ -237,6 +238,8 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "hive-export-measured", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "measured"] }];
     case "hive-export-repair-request":
       return [{ stepId: "hive-export-repair-request", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "repair_request"] }];
+    case "hive-compare-modes":
+      return [{ stepId: "hive-compare-modes", args: ["hive", "compare-modes", "--config", configPath] }];
     case "agent-packet":
       return [{ stepId: "agent-packet", args: ["agent-packet", "--config", configPath, "--profile", "repair_agent"] }];
     case "pipeline":

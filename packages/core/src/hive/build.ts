@@ -5,6 +5,7 @@ import type { HandoffMode, HandoffPacket, HandoffPriority, HandoffWorkItem } fro
 import type { EvidenceContribution, EvidencePacket } from "../evidence/types.js";
 import type {
   BuildHiveExportOptions,
+  BuildHiveModeComparisonOptions,
   HiveAgentPolicy,
   HiveAutomationMode,
   HiveBead,
@@ -14,6 +15,8 @@ import type {
   HiveExportArtifacts,
   HiveExportBundle,
   HiveExportConfig,
+  HiveModeComparison,
+  HiveModeComparisonEntry,
   HiveGraphEdge,
   HiveGraphNode,
   HiveKnowledgeFact,
@@ -22,10 +25,13 @@ import type {
   HiveSourceContext,
   HiveWorkSource,
   WriteHiveExportOptions,
-  WriteHiveExportResult
+  WriteHiveExportResult,
+  WriteHiveModeComparisonOptions,
+  WriteHiveModeComparisonResult
 } from "./types.js";
 
 const DEFAULT_OUTPUT_DIR = ".visual-hive/hive";
+const DEFAULT_MODE_COMPARISON_MODES: HiveAutomationMode[] = ["advisory", "measured", "repair_request"];
 const DEFAULT_LABELS = ["visual-hive", "hive/quality", "ai-ready"];
 const DEFAULT_CONFIG: HiveExportConfig = {
   enabled: false,
@@ -194,6 +200,185 @@ export function renderHiveExportSummary(result: WriteHiveExportResult, format: "
     `- Repair work orders: ${result.bundle.summary.repairWorkOrders}`,
     ...(result.bundle.blockedReasons.length ? [`- Blocked reasons: ${result.bundle.blockedReasons.join("; ")}`] : [])
   ].join("\n");
+}
+
+export function buildHiveModeComparison(options: BuildHiveModeComparisonOptions): { comparison: HiveModeComparison; exports: HiveExportArtifacts[]; markdown: string } {
+  const generatedAt = (options.now ?? new Date()).toISOString();
+  const outputDir = normalizePath(options.outputDir ?? DEFAULT_OUTPUT_DIR);
+  const modesDir = `${outputDir}/modes`;
+  const modes = dedupeModes(options.modes?.length ? options.modes : DEFAULT_MODE_COMPARISON_MODES);
+  const exports = modes.map((mode) =>
+    buildHiveExportArtifacts({
+      ...options,
+      now: new Date(generatedAt),
+      outputDir: `${modesDir}/${mode}`,
+      hiveConfig: {
+        ...(options.hiveConfig ?? {}),
+        mode
+      }
+    })
+  );
+  const entries = exports.map((artifact): HiveModeComparisonEntry => modeComparisonEntry(artifact.bundle));
+  const recommendation = recommendHiveMode(entries, outputDir);
+  const comparison: HiveModeComparison = sanitizeValue({
+    schemaVersion: "visual-hive.hive-mode-comparison.v1",
+    generatedAt,
+    project: options.evidencePacket.project,
+    externalCallsMade: 0,
+    sourceArtifacts: {
+      evidencePacket: normalizePath(options.evidencePacketPath),
+      handoffPacket: options.handoffPacketPath ? normalizePath(options.handoffPacketPath) : undefined
+    },
+    outputArtifacts: {
+      comparison: `${outputDir}/mode-comparison.json`,
+      markdown: `${outputDir}/mode-comparison.md`,
+      modesDir
+    },
+    modes: entries,
+    recommendation,
+    governance: {
+      verdictAuthority: "visual_hive",
+      defaultMode: "advisory_no_network",
+      repairAuthority: "hive_may_open_pr_only_when_trusted_policy_allows",
+      validationRequired: "visual_hive_must_rerun_after_repair",
+      secretPolicy: "redacted_values_names_only"
+    }
+  }) as HiveModeComparison;
+  return { comparison, exports, markdown: renderHiveModeComparisonMarkdown(comparison) };
+}
+
+export async function writeHiveModeComparison(options: WriteHiveModeComparisonOptions): Promise<WriteHiveModeComparisonResult> {
+  const rootDir = path.resolve(options.rootDir);
+  const comparisonArtifacts = buildHiveModeComparison(options);
+  const writtenExports: WriteHiveExportResult[] = [];
+  for (const artifact of comparisonArtifacts.exports) {
+    writtenExports.push(
+      await writeHiveExportArtifacts({
+        ...options,
+        now: new Date(comparisonArtifacts.comparison.generatedAt),
+        outputDir: path.dirname(artifact.bundle.outputArtifacts.export),
+        hiveConfig: {
+          ...(options.hiveConfig ?? {}),
+          mode: artifact.bundle.mode
+        },
+        rootDir
+      })
+    );
+  }
+  await writeJson(resolveArtifact(rootDir, comparisonArtifacts.comparison.outputArtifacts.comparison), comparisonArtifacts.comparison);
+  await writeText(resolveArtifact(rootDir, comparisonArtifacts.comparison.outputArtifacts.markdown), comparisonArtifacts.markdown);
+  return {
+    comparison: comparisonArtifacts.comparison,
+    exports: writtenExports,
+    markdown: comparisonArtifacts.markdown,
+    paths: comparisonArtifacts.comparison.outputArtifacts
+  };
+}
+
+export function renderHiveModeComparisonSummary(result: WriteHiveModeComparisonResult, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") return JSON.stringify(result.comparison, null, 2);
+  return [
+    `Wrote ${result.paths.comparison}`,
+    `Wrote ${result.paths.markdown}`,
+    "",
+    renderHiveModeComparisonMarkdown(result.comparison)
+  ].join("\n");
+}
+
+function modeComparisonEntry(bundle: HiveExportBundle): HiveModeComparisonEntry {
+  return {
+    mode: bundle.mode,
+    status: bundle.status,
+    outputDir: path.dirname(bundle.outputArtifacts.export).replaceAll("\\", "/"),
+    exportPath: bundle.outputArtifacts.export,
+    externalCallsMade: 0,
+    summary: bundle.summary,
+    blockedReasons: bundle.blockedReasons,
+    emits: {
+      issueContext: true,
+      beads: bundle.summary.beads > 0,
+      knowledgeFacts: bundle.summary.knowledgeFacts > 0,
+      knowledgeGraph: bundle.summary.graphNodes > 0 || bundle.summary.graphEdges > 0,
+      wikiVault: bundle.summary.knowledgeFacts > 0,
+      repairWorkOrders: bundle.summary.repairWorkOrders > 0,
+      agentPolicy: true
+    },
+    policy: {
+      localPreviewAllowed: ["advisory", "measured", "repair_request"].includes(bundle.mode),
+      trustedWorkflowRequired: bundle.mode === "guarded_repair" || bundle.mode === "full",
+      verdictAuthority: "visual_hive",
+      hiveAuthority: "advisory_or_guarded_repair"
+    },
+    recommendedUse: recommendedUseForMode(bundle.mode)
+  };
+}
+
+function recommendHiveMode(entries: HiveModeComparisonEntry[], outputDir: string): HiveModeComparison["recommendation"] {
+  const repair = entries.find((entry) => entry.mode === "repair_request" && entry.summary.repairWorkOrders > 0 && entry.status === "ready");
+  if (repair) {
+    return {
+      mode: "repair_request",
+      reason: "Deterministic evidence produced repair-ready work orders; use repair_request for a trusted Hive issue or repair lane.",
+      nextCommand: `visual-hive hive export --dry-run --mode repair_request --output-dir ${outputDir}`
+    };
+  }
+  const measured = entries.find((entry) => entry.mode === "measured" && (entry.summary.beads > 0 || entry.summary.knowledgeFacts > 0) && entry.status === "ready");
+  if (measured) {
+    return {
+      mode: "measured",
+      reason: "Evidence produced Hive Beads or knowledge facts but no guarded repair work orders; use measured mode for queueing and context.",
+      nextCommand: `visual-hive hive export --dry-run --mode measured --output-dir ${outputDir}`
+    };
+  }
+  return {
+    mode: "advisory",
+    reason: "No repair-ready or measured work was available; use advisory mode for issue context and policy documentation only.",
+    nextCommand: `visual-hive hive export --dry-run --mode advisory --output-dir ${outputDir}`
+  };
+}
+
+function recommendedUseForMode(mode: HiveAutomationMode): string {
+  if (mode === "advisory") return "Use for the safest issue-context export when Hive should only summarize or route evidence.";
+  if (mode === "measured") return "Use when Hive should receive Beads, facts, graph context, and wiki pages without repair authority.";
+  if (mode === "repair_request") return "Use when deterministic evidence should become bounded repair work orders for a trusted PR-only lane.";
+  if (mode === "guarded_repair") return "Use only in future trusted automation with branch isolation, human review policy, and rerun enforcement.";
+  return "Reserved for future mature automation and blocked locally until governance is proven.";
+}
+
+function renderHiveModeComparisonMarkdown(comparison: HiveModeComparison): string {
+  return sanitizeText(
+    [
+      `# Hive Export Mode Comparison: ${comparison.project}`,
+      "",
+      "- External calls made: 0",
+      "- Verdict authority: Visual Hive",
+      `- Recommended mode: ${comparison.recommendation.mode}`,
+      `- Recommendation: ${comparison.recommendation.reason}`,
+      `- Next command: \`${comparison.recommendation.nextCommand}\``,
+      "",
+      "| Mode | Status | Beads | Facts | Graph | Repair orders | Policy |",
+      "| --- | --- | ---: | ---: | --- | ---: | --- |",
+      ...comparison.modes.map((entry) =>
+        [
+          entry.mode,
+          entry.status,
+          String(entry.summary.beads),
+          String(entry.summary.knowledgeFacts),
+          `${entry.summary.graphNodes}/${entry.summary.graphEdges}`,
+          String(entry.summary.repairWorkOrders),
+          entry.policy.trustedWorkflowRequired ? "trusted workflow required" : "local dry-run preview"
+        ].join(" | ")
+      ).map((row) => `| ${row} |`),
+      "",
+      "## Guardrails",
+      "",
+      "- Visual Hive owns the deterministic verdict.",
+      "- Hive exports are no-network by default.",
+      "- Advisory, measured, and repair-request previews are local dry-run artifacts.",
+      "- Guarded repair and full automation require explicit trusted policy before execution.",
+      "- Secret values must never be copied into Hive artifacts."
+    ].join("\n")
+  ) + "\n";
 }
 
 function buildWorkSources(evidence: EvidencePacket, handoff?: HandoffPacket): HiveWorkSource[] {
@@ -719,6 +904,10 @@ function compactRecord(values: Record<string, string | undefined>): Record<strin
 
 function dedupe(values: string[]): string[] {
   return [...new Set(values.map((value) => sanitizeText(value)).filter(Boolean))];
+}
+
+function dedupeModes(values: HiveAutomationMode[]): HiveAutomationMode[] {
+  return [...new Set(values)];
 }
 
 function stableHash(value: string): string {

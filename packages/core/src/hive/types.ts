@@ -198,6 +198,72 @@ export interface WriteHiveExportResult extends HiveExportArtifacts {
   paths: HiveExportBundle["outputArtifacts"];
 }
 
+export interface HiveModeComparisonEntry {
+  mode: HiveAutomationMode;
+  status: HiveExportStatus;
+  outputDir: string;
+  exportPath: string;
+  externalCallsMade: 0;
+  summary: HiveExportBundle["summary"];
+  blockedReasons: string[];
+  emits: {
+    issueContext: boolean;
+    beads: boolean;
+    knowledgeFacts: boolean;
+    knowledgeGraph: boolean;
+    wikiVault: boolean;
+    repairWorkOrders: boolean;
+    agentPolicy: boolean;
+  };
+  policy: {
+    localPreviewAllowed: boolean;
+    trustedWorkflowRequired: boolean;
+    verdictAuthority: "visual_hive";
+    hiveAuthority: "advisory_or_guarded_repair";
+  };
+  recommendedUse: string;
+}
+
+export interface HiveModeComparison {
+  schemaVersion: "visual-hive.hive-mode-comparison.v1";
+  generatedAt: string;
+  project: string;
+  externalCallsMade: 0;
+  sourceArtifacts: {
+    evidencePacket: string;
+    handoffPacket?: string;
+  };
+  outputArtifacts: {
+    comparison: string;
+    markdown: string;
+    modesDir: string;
+  };
+  modes: HiveModeComparisonEntry[];
+  recommendation: {
+    mode: HiveAutomationMode;
+    reason: string;
+    nextCommand: string;
+  };
+  governance: HiveExportBundle["governance"];
+}
+
+export interface BuildHiveModeComparisonOptions extends Omit<BuildHiveExportOptions, "outputDir" | "hiveConfig"> {
+  outputDir?: string;
+  modes?: HiveAutomationMode[];
+  hiveConfig?: Partial<VisualHiveConfig["integrations"]["hive"]>;
+}
+
+export interface WriteHiveModeComparisonOptions extends BuildHiveModeComparisonOptions {
+  rootDir: string;
+}
+
+export interface WriteHiveModeComparisonResult {
+  comparison: HiveModeComparison;
+  exports: WriteHiveExportResult[];
+  markdown: string;
+  paths: HiveModeComparison["outputArtifacts"];
+}
+
 export interface HiveSourceContext {
   evidence: EvidencePacket;
   handoff?: HandoffPacket;

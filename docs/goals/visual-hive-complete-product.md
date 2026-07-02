@@ -24,13 +24,13 @@ The final product should make visual QA feel like a guided, understandable workf
 Recent work has moved Visual Hive beyond a pure MVP scaffold. Future Codex runs should build on this baseline rather than recreating it:
 
 - TypeScript npm workspace with CLI, core, Playwright adapter, GitHub adapter, LLM adapter, Control Plane UI, demo app, and KubeStellar examples.
-- CLI commands for init, doctor, plan, run, mutate, triage, report, pipeline, recommend, providers, evidence packets, handoff, Hive export, MCP, Control Plane UI, runbook, readiness, security, costs, baselines, coverage, flows, schedules, contracts, and connections.
+- CLI commands for init, doctor, plan, run, mutate, triage, report, pipeline, recommend, providers, evidence packets, handoff, Hive export, Hive export mode comparison, MCP, Control Plane UI, runbook, readiness, security, costs, baselines, coverage, flows, schedules, contracts, and connections.
 - Target model support for `url`, `command`, `commandGroup`, and `protected`.
 - Tolerant visual diffing with baseline, actual, and diff artifacts under `.visual-hive`.
 - Schema v2 deterministic reports and a Visual Hive Evidence Packet model.
 - Local-first Guided Cockpit Control Plane with beginner/expert access, runbook actions, artifact inspection, provider governance visibility, and Hive-native export visibility.
 - Optional Argos/provider upload path governed by policy, credentials, cost controls, and dry-run behavior.
-- No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, and agent policy.
+- No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, agent policy, and side-by-side advisory/measured/repair-request mode comparison.
 - Demo acceptance scripts including `demo:all`, `demo:ci`, `smoke:cli`, and `smoke:ui`.
 - Console dogfooding direction through KubeStellar-style hosted demo, local preview, fake OAuth planning, and protected live-cluster modeling.
 
@@ -229,6 +229,11 @@ The safest first-class integration surface is a no-network Hive-native export bu
 .visual-hive/hive/issue-context.md
 .visual-hive/hive/repair-work-orders.json
 .visual-hive/hive/hive-agent-policy.json
+.visual-hive/hive/mode-comparison.json
+.visual-hive/hive/mode-comparison.md
+.visual-hive/hive/modes/advisory/**
+.visual-hive/hive/modes/measured/**
+.visual-hive/hive/modes/repair_request/**
 .visual-hive/hive/wiki/*.md
 ```
 
@@ -238,7 +243,10 @@ The command surface should include:
 visual-hive hive export --dry-run
 visual-hive hive export --mode measured
 visual-hive hive export --mode repair_request
+visual-hive hive compare-modes
 ```
+
+`visual-hive hive compare-modes` should remain no-network and write a side-by-side preview of the safe Hive export levels. It lets a maintainer compare advisory issue context, measured Beads/knowledge graph/wiki output, and guarded repair-request work orders before enabling any trusted Hive workflow. The Control Plane should surface this comparison as a beginner-friendly policy explanation and as expert-accessible artifacts.
 
 Hive-native export modes should be governed:
 

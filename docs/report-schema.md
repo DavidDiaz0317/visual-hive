@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-export.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, `hive-issue.md`, and `.visual-hive/hive/issue-context.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-export.json`, `hive-mode-comparison.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, `hive-issue.md`, and `.visual-hive/hive/issue-context.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -218,6 +218,23 @@ The Hive export is written by `visual-hive hive export --dry-run` after an Evide
 - `hive-agent-policy.json`: allowed/forbidden agent actions, ACMM level, and Visual Hive rerun requirements.
 
 `advisory` mode emits issue context only. `measured` emits beads, knowledge facts, and graph data. Repair modes emit work orders, but Hive still cannot mark a finding resolved; a fresh Visual Hive verdict must pass after the repair PR.
+
+## Hive Export Mode Comparison
+
+Path: `.visual-hive/hive/mode-comparison.json`
+
+Schema: `schemas/visual-hive.hive-mode-comparison.schema.json`
+
+The mode comparison is written by `visual-hive hive compare-modes` after an Evidence Packet exists. It is a no-network side-by-side preview of the safe Hive export levels. The command writes `.visual-hive/hive/mode-comparison.json`, `.visual-hive/hive/mode-comparison.md`, and per-mode export previews under `.visual-hive/hive/modes/`.
+
+Key fields:
+
+- `modes`: advisory, measured, and repair-request entries with status, artifact paths, blocked reasons, and `externalCallsMade: 0`.
+- `recommendedMode`: the safest useful next export mode for the current evidence.
+- `recommendationReason`: plain-language rationale for the recommendation.
+- `externalCallsMade`: always `0` for the local comparison command.
+
+This artifact helps humans and agents choose between issue-only context, measured Hive Beads/knowledge graph output, and guarded repair work orders without creating Hive Beads or running a repair agent.
 
 ## Test Creation Plan
 

@@ -1004,6 +1004,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.verdict.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-mode-comparison.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -3866,6 +3867,8 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(path.join(hiveRoot, "context-ledger.json"), '{"schemaVersion":"visual-hive.context-ledger.v1","notes":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "hive-handoff-validation.json"), '{"schemaVersion":"visual-hive.handoff-validation.v1","warnings":["token=abc123"]}', "utf8");
+    await mkdir(path.join(hiveRoot, "hive"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "hive", "mode-comparison.json"), '{"schemaVersion":"visual-hive.hive-mode-comparison.v1","modes":[{"recommendedUse":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -3885,7 +3888,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(36);
+    expect(index.summary.artifactCount).toBe(37);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -4004,6 +4007,10 @@ describe("artifact index", () => {
     expect(handoffValidation?.preview).toContain("[REDACTED]");
     expect(handoffValidation?.labels).toContain("hive-handoff-validation");
     expect(handoffValidation?.schemaPath).toBe("schemas/visual-hive.handoff-validation.schema.json");
+    const hiveModeComparison = index.artifacts.find((artifact) => artifact.path.endsWith("mode-comparison.json"));
+    expect(hiveModeComparison?.preview).toContain("[REDACTED]");
+    expect(hiveModeComparison?.labels).toContain("hive-mode-comparison");
+    expect(hiveModeComparison?.schemaPath).toBe("schemas/visual-hive.hive-mode-comparison.schema.json");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");

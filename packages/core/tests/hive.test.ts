@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
-import { buildHiveExportArtifacts } from "../src/hive/build.js";
+import { buildHiveExportArtifacts, buildHiveModeComparison } from "../src/hive/build.js";
 import type { EvidencePacket } from "../src/evidence/types.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -92,6 +92,41 @@ describe("Hive native export", () => {
     const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.hive-export.schema.json"), "utf8")) as Record<string, unknown>;
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
     expect(validate(result.bundle), JSON.stringify(validate.errors, null, 2)).toBe(true);
+  });
+
+  it("compares no-network Hive export modes and recommends repair request when work orders exist", async () => {
+    const result = buildHiveModeComparison({
+      evidencePacket: sampleEvidencePacket(),
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacketPath: ".visual-hive/handoff.json",
+      hiveConfig: {
+        enabled: true,
+        mode: "advisory"
+      },
+      now: new Date("2026-07-02T00:00:00.000Z")
+    });
+
+    expect(result.comparison.schemaVersion).toBe("visual-hive.hive-mode-comparison.v1");
+    expect(result.comparison.externalCallsMade).toBe(0);
+    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request"]);
+    expect(result.comparison.modes.find((mode) => mode.mode === "advisory")?.summary.beads).toBe(0);
+    expect(result.comparison.modes.find((mode) => mode.mode === "measured")?.summary.beads).toBeGreaterThan(0);
+    expect(result.comparison.modes.find((mode) => mode.mode === "repair_request")?.summary.repairWorkOrders).toBeGreaterThan(0);
+    expect(result.comparison.recommendation.mode).toBe("repair_request");
+    expect(result.markdown).toContain("Hive Export Mode Comparison");
+    expect(JSON.stringify(result.comparison)).not.toContain("secret-value");
+  });
+
+  it("matches the tracked Hive mode comparison JSON schema", async () => {
+    const result = buildHiveModeComparison({
+      evidencePacket: sampleEvidencePacket(),
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      hiveConfig: { enabled: true },
+      now: new Date("2026-07-02T00:00:00.000Z")
+    });
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.hive-mode-comparison.schema.json"), "utf8")) as Record<string, unknown>;
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    expect(validate(result.comparison), JSON.stringify(validate.errors, null, 2)).toBe(true);
   });
 });
 

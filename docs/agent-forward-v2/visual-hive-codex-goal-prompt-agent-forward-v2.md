@@ -52,7 +52,7 @@ Do not assume this repo is still an MVP scaffold. Before starting new work, veri
 As of the latest agent-forward pass, Visual Hive already has substantial v0.2/v0.3 foundation:
 
 - strict TypeScript npm workspaces for core, CLI, Playwright adapter, GitHub adapter, LLM adapter, provider adapters, and Control Plane;
-- deterministic config validation, planning, running, mutation, triage, reporting, evidence, verdict, handoff, agent packet, testing-layer, tool-registry, context-ledger, and Hive export commands;
+- deterministic config validation, planning, running, mutation, triage, reporting, evidence, verdict, handoff, agent packet, testing-layer, tool-registry, context-ledger, Hive export, and Hive export mode comparison commands;
 - `url`, `command`, `commandGroup`, and `protected` target modeling;
 - tolerant screenshot comparison with baseline/artifact metadata;
 - contract-aware mutation mapping and mutation adequacy evidence;
@@ -60,15 +60,18 @@ As of the latest agent-forward pass, Visual Hive already has substantial v0.2/v0
 - no-network Hive handoff and Hive-native export artifacts;
 - a guided Control Plane UI over real local artifacts.
 
-Recent Control Plane work specifically wired Hive-native export into the visible product surface:
+Recent Control Plane work specifically wired Hive-native export and export mode comparison into the visible product surface:
 
 - `createControlPlaneSnapshot` reads `.visual-hive/hive/hive-export.json`;
-- the snapshot includes `hiveExport` evidence;
-- navigation badges count missing Hive export alongside Evidence/Handoff/Agent packets;
-- the `agent-handoff-review` run profile includes `hive-export`;
+- `createControlPlaneSnapshot` reads `.visual-hive/hive/mode-comparison.json`;
+- the snapshot includes `hiveExport` and `hiveModeComparison` evidence;
+- navigation badges count missing Hive export and Hive mode comparison alongside Evidence/Handoff/Agent packets;
+- the `agent-handoff-review` run profile includes `hive-export` and `hive-compare-modes`;
 - the runbook exposes `visual-hive hive export --dry-run`;
+- the runbook exposes `visual-hive hive compare-modes`;
 - the Control Plane shows a "Hive-native bundle" with beads, knowledge facts, graph nodes, repair work orders, blocked reasons, and artifact links;
-- `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence.
+- the Control Plane shows a Hive export mode policy comparison for advisory, measured, and repair-request paths;
+- `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence and mode comparison evidence.
 
 If those changes are still uncommitted in the worktree, finish validating and commit them before starting a broader goal run. Do not reimplement this surface from scratch.
 
@@ -142,6 +145,7 @@ Make these layers visible in docs and, where feasible, artifacts such as:
 .visual-hive/coverage.json
 .visual-hive/evidence-packet.json
 .visual-hive/hive/hive-export.json
+.visual-hive/hive/mode-comparison.json
 ```
 
 ## Primary mission
@@ -183,6 +187,8 @@ Move the repo toward v0.3/v0.4 “Agent-Forward Operational Beta.” Do this in 
    - outputs `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, `.visual-hive/hive-handoff-result.json`;
    - outputs `.visual-hive/hive/hive-export.json`, `.visual-hive/hive/beads.json`, `.visual-hive/hive/knowledge-facts.json`, `.visual-hive/hive/knowledge-graph.json`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/repair-work-orders.json`, and `.visual-hive/hive/wiki/*.md`;
    - command: `visual-hive hive export --dry-run`;
+   - mode comparison command: `visual-hive hive compare-modes`;
+   - mode comparison outputs `.visual-hive/hive/mode-comparison.json`, `.visual-hive/hive/mode-comparison.md`, and `.visual-hive/hive/modes/{advisory,measured,repair_request}/**`;
    - modes: `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full`;
    - include labels such as `visual-hive`, `hive/quality`, `ai-ready`;
    - require sanitized Evidence Packet.
@@ -225,6 +231,7 @@ visual-hive://latest-report
 visual-hive://latest-evidence
 visual-hive://latest-handoff
 visual-hive://hive-export
+visual-hive://hive-mode-comparison
 visual-hive://coverage-map
 visual-hive://mutation-report
 visual-hive://repair-prompt
@@ -245,6 +252,7 @@ visual_hive_list_reproduction_commands
 visual_hive_generate_repair_prompt
 visual_hive_generate_handoff_dry_run
 visual_hive_read_hive_export
+visual_hive_read_hive_mode_comparison
 ```
 
 Execution tools must be disabled unless explicitly enabled:

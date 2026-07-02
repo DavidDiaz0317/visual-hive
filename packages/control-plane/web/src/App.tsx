@@ -817,6 +817,7 @@ function AgentForwardWorkflow({
     ".visual-hive/hive/hive-agent-policy.json"
   ];
   const hiveExport = snapshot.hiveExport;
+  const hiveModeComparison = snapshot.hiveModeComparison;
   const hivePreviewLimit = mode === "expert" ? 8 : 3;
   const hiveBeads = hiveExport?.beads ?? [];
   const hiveFacts = hiveExport?.knowledgeFacts ?? [];
@@ -906,14 +907,33 @@ function AgentForwardWorkflow({
           <p className="card-subtext">
             Pick how much structured work Visual Hive gives Hive. Every preview is local, dry-run, and keeps Visual Hive as the verdict authority.
           </p>
+          {hiveModeComparison ? (
+            <KeyValueTable
+              rows={[
+                ["Comparison artifact", hiveModeComparison.outputArtifacts.comparison],
+                ["Recommended mode", hiveModeComparison.recommendation.mode],
+                ["Why", hiveModeComparison.recommendation.reason],
+                ["External calls", hiveModeComparison.externalCallsMade]
+              ]}
+            />
+          ) : null}
           <SimpleTable
             headers={["Mode", "Emits", "Control"]}
-            rows={hiveModeCommands.slice(0, mode === "expert" ? hiveModeCommands.length : 3).map((entry) => [
-              entry.mode,
-              entry.emits,
-              entry.control
-            ])}
+            rows={
+              hiveModeComparison
+                ? hiveModeComparison.modes.slice(0, mode === "expert" ? hiveModeComparison.modes.length : 3).map((entry) => [
+                    entry.mode,
+                    `${entry.summary.beads} Beads, ${entry.summary.knowledgeFacts} facts, ${entry.summary.repairWorkOrders} repair orders`,
+                    entry.policy.trustedWorkflowRequired ? "trusted workflow required" : "local dry-run preview"
+                  ])
+                : hiveModeCommands.slice(0, mode === "expert" ? hiveModeCommands.length : 3).map((entry) => [
+                    entry.mode,
+                    entry.emits,
+                    entry.control
+                  ])
+            }
           />
+          <ArtifactList artifacts={hiveModeComparison ? [hiveModeComparison.outputArtifacts.comparison, hiveModeComparison.outputArtifacts.markdown] : []} connection={connection} />
           {hiveModeCommands.map((entry) => {
             const command = entry.command;
             if (!command) return null;

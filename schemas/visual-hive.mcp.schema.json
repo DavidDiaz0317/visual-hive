@@ -80,6 +80,7 @@
             "visual-hive://latest-handoff",
             "visual-hive://handoff-validation",
             "visual-hive://hive-export",
+            "visual-hive://hive-mode-comparison",
             "visual-hive://coverage-map",
             "visual-hive://mutation-report",
             "visual-hive://repair-prompt",
@@ -124,7 +125,8 @@
             "visual_hive_generate_repair_prompt",
             "visual_hive_generate_handoff_dry_run",
             "visual_hive_validate_handoff",
-            "visual_hive_read_hive_export"
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_mode_comparison"
           ]
         },
         "title": { "type": "string", "minLength": 1 },

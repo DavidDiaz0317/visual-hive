@@ -245,6 +245,8 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("hive-handoff-result.json")) labels.add("hive-handoff-result");
   if (normalized.endsWith("hive-handoff-validation.json")) labels.add("hive-handoff-validation");
   if (normalized.endsWith("/hive/hive-export.json")) labels.add("hive-export");
+  if (normalized.endsWith("/hive/mode-comparison.json")) labels.add("hive-mode-comparison");
+  if (normalized.endsWith("/hive/mode-comparison.md")) labels.add("hive-mode-comparison");
   if (normalized.endsWith("/hive/beads.json")) labels.add("hive-beads");
   if (normalized.endsWith("/hive/knowledge-facts.json")) labels.add("hive-knowledge");
   if (normalized.endsWith("/hive/knowledge-graph.json")) labels.add("hive-graph");
@@ -293,10 +295,11 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",
     "handoff.json": "visual-hive.handoff.schema.json",
-      "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
-      "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",
-      "hive-handoff-validation.json": "visual-hive.handoff-validation.schema.json",
-      "hive-export.json": "visual-hive.hive-export.schema.json",
+    "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
+    "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",
+    "hive-handoff-validation.json": "visual-hive.handoff-validation.schema.json",
+    "hive-export.json": "visual-hive.hive-export.schema.json",
+    "mode-comparison.json": "visual-hive.hive-mode-comparison.schema.json",
     "provider-results.json": "visual-hive.provider-results.schema.json",
     "provider-decisions.json": "visual-hive.provider-decisions.schema.json",
     "provider-setup-plan.json": "visual-hive.provider-setup-plan.schema.json",

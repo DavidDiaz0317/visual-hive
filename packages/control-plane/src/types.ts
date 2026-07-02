@@ -26,6 +26,7 @@ import type {
   TargetConfig,
   HandoffPacket,
   HiveExportBundle,
+  HiveModeComparison,
   VisualHiveVerdict,
   VerdictReport,
   VisualHiveConfig,
@@ -319,6 +320,7 @@ export interface ControlPlaneSnapshot {
   verdictReport?: VerdictReport;
   handoffPacket?: HandoffPacket;
   hiveExport?: HiveExportBundle;
+  hiveModeComparison?: HiveModeComparison;
   agentPacket?: AgentPacket;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;

@@ -46,7 +46,7 @@ import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
-import { formatHiveExport, runHiveExportCommand } from "./commands/hive.js";
+import { formatHiveExport, formatHiveModeComparison, runHiveCompareModesCommand, runHiveExportCommand } from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -619,6 +619,32 @@ hiveCommand
       });
       console.log(formatHiveExport(result, options.format));
       if (result.bundle.status === "blocked") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("compare-modes")
+  .description("Write no-network Hive export previews for advisory, measured, and repair-request modes plus a comparison artifact")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--output-dir <path>", "Hive export artifact directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveCompareModesCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveModeComparison(result, options.format));
+      if (result.comparison.modes.some((mode) => mode.status === "blocked")) {
         process.exitCode = 1;
       }
     } catch (error) {

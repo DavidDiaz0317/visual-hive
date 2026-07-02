@@ -116,6 +116,14 @@ export const MCP_RESOURCES: McpResourceDefinition[] = [
     mimeType: "application/json"
   },
   {
+    uri: "visual-hive://hive-mode-comparison",
+    name: "hive-mode-comparison",
+    title: "Hive Export Mode Comparison",
+    description: "No-network comparison of advisory, measured, and repair-request Hive export modes.",
+    relativePath: ".visual-hive/hive/mode-comparison.json",
+    mimeType: "application/json"
+  },
+  {
     uri: "visual-hive://coverage-map",
     name: "coverage-map",
     title: "Coverage Map",
@@ -282,6 +290,12 @@ export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
     name: "visual_hive_read_hive_export",
     title: "Read Hive Native Export",
     description: "Return the existing no-network Hive-native export bundle if it has been generated.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_hive_mode_comparison",
+    title: "Read Hive Export Mode Comparison",
+    description: "Return the existing no-network Hive export mode comparison if it has been generated.",
     mode: "read_only"
   }
 ];
@@ -472,6 +486,8 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "hive-handoff-validation.json"), ".visual-hive/hive-handoff-validation.json");
     case "visual_hive_read_hive_export":
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "hive", "hive-export.json"), ".visual-hive/hive/hive-export.json");
+    case "visual_hive_read_hive_mode_comparison":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "hive", "mode-comparison.json"), ".visual-hive/hive/mode-comparison.json");
     default:
       return `Tool ${sanitizeText(toolName)} is not registered as a default read-only Visual Hive MCP tool.`;
   }

@@ -34,6 +34,7 @@ import {
   type FlowAuditReport,
   type HandoffPacket,
   type HiveExportBundle,
+  type HiveModeComparison,
   type BaselineList,
   type LLMUsageReport,
   type MockProviderRunReport,
@@ -134,6 +135,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     verdictReport,
     handoffPacket,
     hiveExport,
+    hiveModeComparison,
     agentPacket,
     testCreationPlan,
     issueMarkdown,
@@ -172,6 +174,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<VerdictReport>(path.join(hiveRoot, "verdict.json")),
     readJsonIfExists<HandoffPacket>(path.join(hiveRoot, "handoff.json")),
     readJsonIfExists<HiveExportBundle>(path.join(hiveRoot, "hive", "hive-export.json")),
+    readJsonIfExists<HiveModeComparison>(path.join(hiveRoot, "hive", "mode-comparison.json")),
     readJsonIfExists<AgentPacket>(path.join(hiveRoot, "agent-packet.json")),
     readJsonIfExists<TestCreationPlan>(path.join(hiveRoot, "test-creation-plan.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
@@ -284,6 +287,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     evidencePacket,
     handoffPacket,
     hiveExport,
+    hiveModeComparison,
     agentPacket,
     artifacts
   });
@@ -313,6 +317,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     verdictReport,
     handoffPacket,
     hiveExport,
+    hiveModeComparison,
     agentPacket,
     mutationReport,
     providerRunReport,
@@ -588,6 +593,7 @@ function buildNavigationBadges(input: {
   evidencePacket?: EvidencePacket;
   handoffPacket?: HandoffPacket;
   hiveExport?: HiveExportBundle;
+  hiveModeComparison?: HiveModeComparison;
   agentPacket?: AgentPacket;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
@@ -597,7 +603,7 @@ function buildNavigationBadges(input: {
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
-  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.hiveExport, input.agentPacket].filter((artifact) => !artifact).length;
+  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.hiveExport, input.hiveModeComparison, input.agentPacket].filter((artifact) => !artifact).length;
   return {
     start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets, 99),
     run: 0,
@@ -653,8 +659,8 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
     {
       id: "agent-handoff-review",
       label: "Evidence to agent handoff",
-      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, Hive-native export, advisory test plan, and bounded Agent Packet.",
-      commandIds: ["evidence", "verdict", "handoff", "hive-export", "test-creation-plan", "agent-packet"]
+      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, Hive-native export, mode comparison, advisory test plan, and bounded Agent Packet.",
+      commandIds: ["evidence", "verdict", "handoff", "hive-export", "hive-compare-modes", "test-creation-plan", "agent-packet"]
     },
     {
       id: "operational-pipeline",
@@ -1035,6 +1041,24 @@ function buildRunbook(
         ".visual-hive/hive/beads.json",
         ".visual-hive/hive/repair-work-orders.json",
         ".visual-hive/hive/hive-agent-policy.json"
+      ]
+    },
+    {
+      id: "hive-compare-modes",
+      label: "Compare Hive export modes",
+      lane: "local",
+      command: `visual-hive hive compare-modes ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Generate advisory, measured, and repair-request Hive dry-run previews into separate directories, then write a compact mode comparison for humans, agents, and the Control Plane.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/mode-comparison.json",
+        ".visual-hive/hive/mode-comparison.md",
+        ".visual-hive/hive/modes/advisory/hive-export.json",
+        ".visual-hive/hive/modes/measured/hive-export.json",
+        ".visual-hive/hive/modes/repair_request/hive-export.json"
       ]
     },
     {
