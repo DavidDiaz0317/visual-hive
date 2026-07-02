@@ -44,6 +44,14 @@ try {
   if (!snapshot.coverageImprovementReport?.recommendations?.length) {
     throw new Error("snapshot did not include coverage improvement recommendations");
   }
+  if (!snapshot.testCreationPlan?.recommendations?.length) {
+    throw new Error("snapshot did not include test creation plan recommendations");
+  }
+  assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "test-creation-plan",
+    "runbook command ids"
+  );
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "control-plane",
@@ -99,6 +107,8 @@ try {
     "What should I do next?",
     "Run PR-safe checks",
     "Review visual changes",
+    "Test creation plan",
+    "Advisory no-write",
     "Expert console",
     "Failure Inbox",
     "Baselines",

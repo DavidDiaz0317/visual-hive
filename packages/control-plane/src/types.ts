@@ -19,6 +19,7 @@ import type {
   RunHistoryReport,
   ScheduleAuditReport,
   TargetAuditReport,
+  TestCreationPlan,
   TriageReport,
   TargetConfig,
   VisualHiveConfig,
@@ -313,6 +314,7 @@ export interface ControlPlaneSnapshot {
   baselineSummary?: BaselineSummary;
   coverage: ControlPlaneCoverage;
   coverageImprovementReport?: CoverageImprovementReport;
+  testCreationPlan?: TestCreationPlan;
   targets: Array<{ id: string; config: TargetConfig; contractIds: string[]; latestStatus?: string }>;
   contracts: Array<{ config: ContractConfig; latestStatus?: string; mutationOperators: string[] }>;
   providers: ProviderInspection[];

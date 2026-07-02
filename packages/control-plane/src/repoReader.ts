@@ -47,6 +47,7 @@ import {
   type SetupProgressReport,
   type SetupPullRequestPlanReport,
   type TargetConfig,
+  type TestCreationPlan,
   type TriageFinding,
   type TriageReport,
   type VisualHiveConfig,
@@ -122,6 +123,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readinessArtifact,
     securityAudit,
     costAuditArtifact,
+    testCreationPlan,
     issueMarkdown,
     prCommentMarkdown,
     triagePrompt,
@@ -153,6 +155,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<ReadinessReport>(path.join(hiveRoot, "readiness.json")),
     readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
     readJsonIfExists<CostAuditReport>(path.join(hiveRoot, "costs.json")),
+    readJsonIfExists<TestCreationPlan>(path.join(hiveRoot, "test-creation-plan.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
     readTextIfExists(path.join(hiveRoot, "triage-prompt.md")),
@@ -257,6 +260,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     screenshots,
     riskReport,
     providers,
+    testCreationPlan,
     artifacts
   });
 
@@ -313,6 +317,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     baselineSummary: baselineList?.summary,
     coverage,
     coverageImprovementReport,
+    testCreationPlan,
     targets,
     contracts,
     providers,
@@ -528,6 +533,7 @@ function buildNavigationBadges(input: {
   screenshots: ControlPlaneScreenshot[];
   riskReport?: RiskRegisterReport;
   providers: Array<{ costPolicy?: { blockedReasons?: string[] }; missingEnv?: string[] }>;
+  testCreationPlan?: TestCreationPlan;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
   const baselines = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
@@ -535,10 +541,11 @@ function buildNavigationBadges(input: {
   const setup = Number(input.setupProgress.blockedSteps ?? 0) + Number(input.setupProgress.reviewSteps ?? 0);
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
+  const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
   return {
-    start: Math.min(setup + failures + baselines, 99),
+    start: Math.min(setup + failures + baselines + testCreation, 99),
     run: 0,
-    review: Math.min(failures + baselines, 99),
+    review: Math.min(failures + baselines + testCreation, 99),
     configure: Math.min(setup + risks + providerBlocks, 99),
     expert: input.artifacts.length,
     failures,
@@ -585,7 +592,7 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       id: "coverage-improvement",
       label: "Coverage improvement",
       description: "Refresh deterministic coverage evidence and generate guarded config recommendations that can be previewed or applied from the Coverage page.",
-      commandIds: ["coverage", "improve-coverage"]
+      commandIds: ["coverage", "improve-coverage", "test-creation-plan"]
     },
     {
       id: "security-audit",
@@ -773,6 +780,17 @@ function buildRunbook(
       description: "Write .visual-hive/coverage-recommendations.json with deterministic missing-test and config recommendations for review before any guarded apply action.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/coverage-recommendations.json"]
+    },
+    {
+      id: "test-creation-plan",
+      label: "Write test creation plan",
+      lane: "local",
+      command: `visual-hive test-creation-plan ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write advisory no-write test recommendations from Evidence Packet, coverage recommendations, mutation survivors, and handoff work items.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/test-creation-plan.json", ".visual-hive/test-creation-plan.md"]
     },
     {
       id: "security",

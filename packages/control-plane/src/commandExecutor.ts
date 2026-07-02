@@ -23,6 +23,7 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "baselines",
   "coverage",
   "improve-coverage",
+  "test-creation-plan",
   "triage-report",
   "mutate",
   "security",
@@ -192,6 +193,8 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "coverage", args: ["coverage", "--config", configPath] }];
     case "improve-coverage":
       return [{ stepId: "improve-coverage", args: ["improve-coverage", "--config", configPath] }];
+    case "test-creation-plan":
+      return [{ stepId: "test-creation-plan", args: ["test-creation-plan", "--config", configPath] }];
     case "triage-report":
       return [
         { stepId: "triage", args: ["triage", "--config", configPath] },

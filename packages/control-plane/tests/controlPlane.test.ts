@@ -907,6 +907,71 @@ jobs:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "test-creation-plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.test-creation-plan.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        sourceArtifacts: {
+          evidencePacket: ".visual-hive/evidence-packet.json",
+          coverageRecommendations: ".visual-hive/coverage-recommendations.json",
+          handoffPacket: ".visual-hive/handoff.json"
+        },
+        governance: {
+          verdictAuthority: "visual_hive",
+          agentAuthority: "advisory_test_generation_only",
+          writePolicy: "no_config_or_test_files_written",
+          secretPolicy: "redacted_values_names_only"
+        },
+        summary: {
+          total: 2,
+          high: 1,
+          medium: 1,
+          low: 0,
+          fromTestingLayers: 1,
+          fromCoverageRecommendations: 0,
+          fromMutationSurvivors: 1,
+          fromHandoffWorkItems: 0
+        },
+        recommendations: [
+          {
+            id: "mutation-remove-demo-badge-dashboard",
+            source: "mutation_survivor",
+            kind: "mutation_mapping",
+            priority: "high",
+            title: "Strengthen demo badge contract",
+            rationale: ["The remove-demo-badge mutation survived and needs deterministic coverage."],
+            contractId: "dashboard",
+            mutationOperator: "remove-demo-badge",
+            suggestedTests: ["Assert [data-testid='demo-badge'] remains visible on dashboard cards."],
+            suggestedConfigYaml: "selectors:\n  mustExist:\n    - \"[data-testid='demo-badge']\"",
+            artifacts: [".visual-hive/mutation-report.json"],
+            trustedOnly: false,
+            applyMode: "advisory_no_write"
+          },
+          {
+            id: "layer-3-unknown",
+            source: "testing_layer",
+            kind: "accessibility_check",
+            priority: "medium",
+            title: "Add accessibility evidence",
+            rationale: ["Accessibility evidence is not yet normalized."],
+            layer: { id: 3, name: "Component/accessibility", status: "unknown" },
+            suggestedTests: ["Add deterministic accessibility checks for the dashboard shell."],
+            artifacts: [".visual-hive/testing-layers.json"],
+            trustedOnly: false,
+            applyMode: "advisory_no_write"
+          }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "test-creation-plan.md"), "# Visual Hive Test Creation Plan\n", "utf8");
+  await writeFile(
     path.join(repoRoot, ".visual-hive", "security.json"),
     JSON.stringify(
       {
@@ -1134,6 +1199,12 @@ describe("control plane", () => {
     expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
     expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
     expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.mutationOperator)).toContain("remove-demo-badge");
+    expect(snapshot.testCreationPlan).toMatchObject({
+      schemaVersion: "visual-hive.test-creation-plan.v1",
+      governance: { writePolicy: "no_config_or_test_files_written" },
+      summary: { total: 2, high: 1, fromMutationSurvivors: 1 }
+    });
+    expect(snapshot.testCreationPlan?.recommendations.map((recommendation) => recommendation.kind)).toContain("mutation_mapping");
     expect(snapshot.providerDecisionLog).toBeUndefined();
     expect((snapshot.plan as { providerPolicy?: Array<{ providerId: string; externalCallsPlanned: number }> })?.providerPolicy?.[0]).toMatchObject({
       providerId: "playwright",
@@ -1262,11 +1333,11 @@ describe("control plane", () => {
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")).toMatchObject({
       enabled: true,
-      commandIds: ["coverage", "improve-coverage"],
+      commandIds: ["coverage", "improve-coverage", "test-creation-plan"],
       safety: "pr_safe"
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")?.expectedArtifacts).toEqual(
-      expect.arrayContaining([".visual-hive/coverage.json", ".visual-hive/coverage-recommendations.json"])
+      expect.arrayContaining([".visual-hive/coverage.json", ".visual-hive/coverage-recommendations.json", ".visual-hive/test-creation-plan.json"])
     );
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
@@ -1301,6 +1372,11 @@ describe("control plane", () => {
     expect(snapshot.runbook.commands.find((command) => command.id === "improve-coverage")).toMatchObject({
       safety: "pr_safe",
       expectedArtifacts: [".visual-hive/coverage-recommendations.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "test-creation-plan")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("test-creation-plan"),
+      expectedArtifacts: [".visual-hive/test-creation-plan.json", ".visual-hive/test-creation-plan.md"]
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
@@ -1834,18 +1910,21 @@ contracts:
       expect(payload.execution.status).toBe("passed");
       expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
         "coverage",
-        "improve-coverage"
+        "improve-coverage",
+        "test-creation-plan"
       ]);
       expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
         "coverage:coverage",
-        "improve-coverage:improve-coverage"
+        "improve-coverage:improve-coverage",
+        "test-creation-plan:test-creation-plan"
       ]);
       expect(calls[0]?.args.slice(-3)).toEqual(["coverage", "--config", path.resolve(fixture.configPath)]);
       expect(calls[1]?.args.slice(-3)).toEqual(["improve-coverage", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[2]?.args.slice(-3)).toEqual(["test-creation-plan", "--config", path.resolve(fixture.configPath)]);
 
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
-      expect(snapshot.actionHistory?.summary.total).toBe(2);
-      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("improve-coverage");
+      expect(snapshot.actionHistory?.summary.total).toBe(3);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("test-creation-plan");
     } finally {
       await server.close();
     }

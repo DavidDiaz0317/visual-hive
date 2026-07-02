@@ -512,9 +512,12 @@ function ReviewWorkspace({
         <Mutation snapshot={snapshot} connection={connection} />
       </div>
       <div className="span-12">
+        <TestCreationPlanView snapshot={snapshot} runAction={runAction} busyAction={busyAction} connection={connection} mode={mode} />
+      </div>
+      <div className="span-12">
         <Runs snapshot={snapshot} connection={connection} />
       </div>
-      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport }} />}
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, testCreationPlan: snapshot.testCreationPlan }} />}
     </div>
   );
 }
@@ -1146,6 +1149,88 @@ function Mutation({ snapshot, connection }: { snapshot: Snapshot; connection?: s
       </Card>
       <Card className="span-12" title="Mutation artifacts">
         <ArtifactList artifacts={(report?.results ?? []).flatMap((result: any) => result.artifacts ?? [])} connection={connection} />
+      </Card>
+    </div>
+  );
+}
+
+function TestCreationPlanView({
+  snapshot,
+  runAction,
+  busyAction,
+  connection,
+  mode
+}: {
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+  mode: UserMode;
+}) {
+  const plan = snapshot.testCreationPlan;
+  const command = snapshot.runbook?.commands?.find((candidate) => candidate.id === "test-creation-plan");
+  const recommendations = plan?.recommendations ?? [];
+  return (
+    <div className="view-grid">
+      <Card
+        className="span-12"
+        title="Test creation plan"
+        action={
+          <div className="row">
+            {command && <CopyButton label="Copy command" value={command.command} />}
+            {command && (
+              <ConfirmButton
+                disabled={snapshot.readOnly || busyAction === command.id}
+                message="Regenerate the advisory test creation plan from current evidence?"
+                onConfirm={() => runAction(command.id, () => postJson("/api/runbook/execute", { commandId: command.id }, connection))}
+              >
+                Regenerate
+              </ConfirmButton>
+            )}
+          </div>
+        }
+      >
+        <p className="card-subtext">
+          Advisory no-write recommendations for humans and agents. Visual Hive does not write tests or config from this plan, and agents do not decide the verdict.
+        </p>
+        {plan ? (
+          <div className="view-grid">
+            <MetricCard className="span-3" label="Recommendations" tone={plan.summary.total > 0 ? "warning" : "success"} value={plan.summary.total} />
+            <MetricCard className="span-3" label="High priority" tone={plan.summary.high > 0 ? "danger" : "success"} value={plan.summary.high} />
+            <MetricCard className="span-3" label="Mutation survivors" tone={plan.summary.fromMutationSurvivors > 0 ? "warning" : "success"} value={plan.summary.fromMutationSurvivors} />
+            <MetricCard className="span-3" label="Write policy" tone="info" value="no-write" />
+            {recommendations.slice(0, mode === "expert" ? 12 : 6).map((recommendation: any) => (
+              <Card
+                className="span-6"
+                key={recommendation.id}
+                title={recommendation.title}
+                action={
+                  <div className="row">
+                    <Badge tone={recommendation.priority === "high" ? "danger" : recommendation.priority === "medium" ? "warning" : "info"}>{recommendation.priority}</Badge>
+                    <Badge tone="info">{recommendation.kind}</Badge>
+                  </div>
+                }
+              >
+                <KeyValueTable
+                  rows={[
+                    ["Source", recommendation.source],
+                    ["Contract", recommendation.contractId ?? "n/a"],
+                    ["Mutation", recommendation.mutationOperator ?? "n/a"],
+                    ["Trusted only", recommendation.trustedOnly ? "yes" : "no"]
+                  ]}
+                />
+                <FindingList findings={[...(recommendation.rationale ?? []), ...(recommendation.suggestedTests ?? [])].slice(0, 5)} />
+                {mode === "expert" && recommendation.suggestedConfigYaml && <CodeBlock value={recommendation.suggestedConfigYaml} />}
+                {mode === "expert" && <ArtifactList artifacts={recommendation.artifacts ?? []} connection={connection} />}
+              </Card>
+            ))}
+            <EvidenceDisclosure className="span-12" title="View raw test creation plan" data={plan} compact={mode !== "expert"} />
+          </div>
+        ) : (
+          <EmptyState title="No test creation plan yet">
+            Run `visual-hive test-creation-plan` after evidence, coverage recommendations, and optional handoff artifacts exist.
+          </EmptyState>
+        )}
       </Card>
     </div>
   );
