@@ -34,7 +34,11 @@
         "providerResults": { "type": "string" },
         "providerUploadManifest": { "type": "string" },
         "pipeline": { "type": "string" },
-        "artifactsIndex": { "type": "string" }
+        "artifactsIndex": { "type": "string" },
+        "handoffPacket": { "type": "string" },
+        "hiveBeadRequest": { "type": "string" },
+        "hiveHandoffResult": { "type": "string" },
+        "testCreationPlan": { "type": "string" }
       }
     },
     "budgets": { "$ref": "#/$defs/budgets" },

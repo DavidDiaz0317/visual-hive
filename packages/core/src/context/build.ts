@@ -27,6 +27,10 @@ export interface BuildContextLedgerOptions {
   providerUploadManifestPath?: string;
   pipelinePath?: string;
   artifactsIndexPath?: string;
+  handoffPacketPath?: string;
+  hiveBeadRequestPath?: string;
+  hiveHandoffResultPath?: string;
+  testCreationPlanPath?: string;
 }
 
 export interface WriteContextLedgerOptions extends BuildContextLedgerOptions {
@@ -59,7 +63,11 @@ const DEFAULT_PATHS = {
   providerResults: ".visual-hive/provider-results.json",
   providerUploadManifest: ".visual-hive/provider-upload/argos/manifest.json",
   pipeline: ".visual-hive/pipeline.json",
-  artifactsIndex: ".visual-hive/artifacts-index.json"
+  artifactsIndex: ".visual-hive/artifacts-index.json",
+  handoffPacket: ".visual-hive/handoff.json",
+  hiveBeadRequest: ".visual-hive/hive-bead-request.json",
+  hiveHandoffResult: ".visual-hive/hive-handoff-result.json",
+  testCreationPlan: ".visual-hive/test-creation-plan.json"
 };
 
 export async function buildContextLedger(options: BuildContextLedgerOptions): Promise<ContextLedger> {
@@ -72,16 +80,33 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
     providerResults: artifactPath(rootDir, options.providerResultsPath ?? DEFAULT_PATHS.providerResults),
     providerUploadManifest: artifactPath(rootDir, options.providerUploadManifestPath ?? DEFAULT_PATHS.providerUploadManifest),
     pipeline: artifactPath(rootDir, options.pipelinePath ?? DEFAULT_PATHS.pipeline),
-    artifactsIndex: artifactPath(rootDir, options.artifactsIndexPath ?? DEFAULT_PATHS.artifactsIndex)
+    artifactsIndex: artifactPath(rootDir, options.artifactsIndexPath ?? DEFAULT_PATHS.artifactsIndex),
+    handoffPacket: artifactPath(rootDir, options.handoffPacketPath ?? DEFAULT_PATHS.handoffPacket),
+    hiveBeadRequest: artifactPath(rootDir, options.hiveBeadRequestPath ?? DEFAULT_PATHS.hiveBeadRequest),
+    hiveHandoffResult: artifactPath(rootDir, options.hiveHandoffResultPath ?? DEFAULT_PATHS.hiveHandoffResult),
+    testCreationPlan: artifactPath(rootDir, options.testCreationPlanPath ?? DEFAULT_PATHS.testCreationPlan)
   };
 
-  const [toolRegistry, agentPacket, llmUsageReport, providerResultsReport, providerUploadManifest, pipelineReport] = await Promise.all([
+  const [
+    toolRegistry,
+    agentPacket,
+    llmUsageReport,
+    providerResultsReport,
+    providerUploadManifest,
+    pipelineReport,
+    handoffPacket,
+    hiveBeadRequest,
+    hiveHandoffResult
+  ] = await Promise.all([
     readOptionalJson<ToolRegistry>(paths.toolRegistry),
     readOptionalJson<AgentPacket>(paths.agentPacket),
     readOptionalJson<unknown>(paths.llmUsage),
     readOptionalJson<unknown>(paths.providerResults),
     readOptionalJson<unknown>(paths.providerUploadManifest),
-    readOptionalJson<PipelineReportLike>(paths.pipeline)
+    readOptionalJson<PipelineReportLike>(paths.pipeline),
+    readOptionalJson<unknown>(paths.handoffPacket),
+    readOptionalJson<unknown>(paths.hiveBeadRequest),
+    readOptionalJson<unknown>(paths.hiveHandoffResult)
   ]);
 
   const sourceArtifacts = await existingSources(rootDir, paths);
@@ -89,6 +114,7 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
   const providerUsage = providerUsageFor(providerResultsReport, providerUploadManifest);
   const llmUsage = llmUsageFor(llmUsageReport);
   const toolCalls = toolCallsFor(pipelineReport, toolRegistry);
+  const hiveHandoffUsage = hiveHandoffUsageFor({ handoffPacket, hiveBeadRequest, hiveHandoffResult, sourceArtifacts });
 
   const usage = {
     toolCallsUsed: toolCalls.filter((call) => call.status !== "available").length,
@@ -101,7 +127,8 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
     providerScreenshots: providerUsage.reduce((sum, provider) => sum + provider.estimatedExternalScreenshots, 0),
     externalCallsMade:
       llmUsage.reduce((sum, record) => sum + record.callsMade, 0) +
-      providerUsage.reduce((sum, provider) => sum + provider.externalCallsMade, 0)
+      providerUsage.reduce((sum, provider) => sum + provider.externalCallsMade, 0) +
+      hiveHandoffUsage.externalCallsMade
   };
 
   const remaining = {
@@ -111,7 +138,7 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
     providerScreenshots: Math.max(0, budgets.maxProviderScreenshots - usage.providerScreenshots)
   };
 
-  const escalations = escalationsFor({ toolCalls, providerUsage, llmUsage, usage, sourceArtifacts });
+  const escalations = escalationsFor({ toolCalls, providerUsage, llmUsage, hiveHandoffUsage, usage, sourceArtifacts });
   const policyViolations = policyViolationsFor({ budgets, usage, sourceArtifacts });
 
   return sanitizeLedger({
@@ -288,10 +315,33 @@ function llmUsageFor(input: unknown): ContextLlmUsage[] {
   });
 }
 
+function hiveHandoffUsageFor(input: {
+  handoffPacket: unknown;
+  hiveBeadRequest: unknown;
+  hiveHandoffResult: unknown;
+  sourceArtifacts: ContextLedgerSourceArtifacts;
+}): { status?: string; externalCallsMade: number; blockedReasons: string[]; artifacts: string[] } {
+  const handoff = objectAt(input.handoffPacket);
+  const beadRequest = objectAt(input.hiveBeadRequest);
+  const result = objectAt(input.hiveHandoffResult);
+  const artifacts = [
+    input.sourceArtifacts.handoffPacket,
+    input.sourceArtifacts.hiveBeadRequest,
+    input.sourceArtifacts.hiveHandoffResult
+  ].filter(Boolean) as string[];
+  return {
+    status: sanitizeOptionalString(result?.status ?? handoff?.status),
+    externalCallsMade: numberOr(result?.externalCallsMade, beadRequest?.externalCallsMade, handoff?.externalCallsMade, 0),
+    blockedReasons: unique([...stringArray(result?.blockedReasons), ...stringArray(handoff?.blockedReasons)]),
+    artifacts
+  };
+}
+
 function escalationsFor(input: {
   toolCalls: ContextToolCall[];
   providerUsage: ContextProviderUsage[];
   llmUsage: ContextLlmUsage[];
+  hiveHandoffUsage: ReturnType<typeof hiveHandoffUsageFor>;
   usage: ContextLedger["usage"];
   sourceArtifacts: ContextLedgerSourceArtifacts;
 }): ContextEscalation[] {
@@ -332,6 +382,28 @@ function escalationsFor(input: {
         input.sourceArtifacts.providerResults,
         input.sourceArtifacts.llmUsage
       ].filter(Boolean) as string[])
+    );
+  }
+  if (input.hiveHandoffUsage.status === "blocked" || input.hiveHandoffUsage.blockedReasons.length > 0) {
+    escalations.push(
+      escalation(
+        "trusted_tool",
+        "blocked",
+        `Hive handoff is blocked: ${input.hiveHandoffUsage.blockedReasons.join("; ") || "status=blocked"}.`,
+        ["visual_hive_handoff"],
+        input.hiveHandoffUsage.artifacts
+      )
+    );
+  }
+  if (input.hiveHandoffUsage.externalCallsMade > 0) {
+    escalations.push(
+      escalation(
+        "external_network",
+        "warning",
+        `Hive handoff recorded ${input.hiveHandoffUsage.externalCallsMade} external call(s).`,
+        ["visual_hive_handoff"],
+        input.hiveHandoffUsage.artifacts
+      )
     );
   }
   return uniqueEscalations(escalations);

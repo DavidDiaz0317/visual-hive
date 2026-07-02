@@ -280,7 +280,7 @@ The Context Ledger is written by `visual-hive context`. It is a governance artif
 
 Key fields:
 
-- `sourceArtifacts`: existing artifacts consumed to derive the ledger, such as the Agent Packet, Tool Registry, LLM usage report, provider results, provider upload manifest, pipeline report, and artifact index.
+- `sourceArtifacts`: existing artifacts consumed to derive the ledger, such as the Agent Packet, Tool Registry, LLM usage report, provider results, provider upload manifest, pipeline report, artifact index, Hive handoff packet, Hive bead request, Hive handoff result, and test-creation plan.
 - `budgets`: maximum tool calls, tool-result tokens, external cost, and provider screenshots for the task.
 - `usage`: inferred tool calls used, estimated tool-result tokens, estimated prompt tokens, estimated external cost, provider screenshot count, and external calls made.
 - `remaining`: remaining budget after the current evidence set.

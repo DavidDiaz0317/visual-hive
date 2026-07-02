@@ -18,6 +18,10 @@ export interface ContextLedgerSourceArtifacts {
   providerUploadManifest?: string;
   pipeline?: string;
   artifactsIndex?: string;
+  handoffPacket?: string;
+  hiveBeadRequest?: string;
+  hiveHandoffResult?: string;
+  testCreationPlan?: string;
 }
 
 export interface ContextLedgerBudgets {

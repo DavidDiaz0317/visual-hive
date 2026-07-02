@@ -5869,6 +5869,32 @@ describe("context ledger", () => {
       },
       blockedReasons: ["Cookie: session=secret"]
     });
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), {
+      schemaVersion: "visual-hive.handoff.v1",
+      status: "blocked",
+      externalCallsMade: 0,
+      blockedReasons: ["Hive token=abc123 missing review"]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive-bead-request.json"), {
+      schemaVersion: "visual-hive.hive-bead-request.v1",
+      dryRun: true,
+      externalCallsMade: 0,
+      target: {
+        tokenEnv: "HIVE_DASHBOARD_TOKEN",
+        tokenPresent: false,
+        missingTokenEnv: "HIVE_DASHBOARD_TOKEN"
+      }
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive-handoff-result.json"), {
+      schemaVersion: "visual-hive.hive-handoff-result.v1",
+      status: "blocked",
+      externalCallsMade: 0,
+      blockedReasons: ["authorization: Bearer hive-secret"]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "test-creation-plan.json"), {
+      schemaVersion: "visual-hive.test-creation-plan.v1",
+      recommendations: []
+    });
 
     const ledger = await buildContextLedger({
       rootDir,
@@ -5883,6 +5909,10 @@ describe("context ledger", () => {
     expect(ledger.usage.estimatedPromptTokens).toBe(1200);
     expect(ledger.usage.providerScreenshots).toBe(4);
     expect(ledger.sourceArtifacts.pipeline).toBe(".visual-hive/pipeline.json");
+    expect(ledger.sourceArtifacts.handoffPacket).toBe(".visual-hive/handoff.json");
+    expect(ledger.sourceArtifacts.hiveBeadRequest).toBe(".visual-hive/hive-bead-request.json");
+    expect(ledger.sourceArtifacts.hiveHandoffResult).toBe(".visual-hive/hive-handoff-result.json");
+    expect(ledger.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
     expect(ledger.providerUsage[0]).toMatchObject({
       providerId: "argos",
       artifactCount: 4,
@@ -5892,9 +5922,19 @@ describe("context ledger", () => {
     expect(ledger.providerUsage[0]?.missingEnv).toEqual(["ARGOS_TOKEN"]);
     expect(ledger.policyViolations.map((violation) => violation.policy)).toEqual(expect.arrayContaining(["maxToolCalls", "maxProviderScreenshots"]));
     expect(ledger.escalations.map((escalation) => escalation.kind)).toContain("provider");
+    expect(ledger.escalations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "trusted_tool",
+          severity: "blocked",
+          relatedToolIds: ["visual_hive_handoff"]
+        })
+      ])
+    );
     const serialized = JSON.stringify(ledger);
     expect(serialized).toContain("[REDACTED]");
     expect(serialized).not.toContain("provider-secret");
+    expect(serialized).not.toContain("hive-secret");
     expect(serialized).not.toContain("abc123");
     expect(serialized).not.toContain("session=secret");
   });
