@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
+import { loadConfig, readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
 import { formatPlanSummary, parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
 import { runPipelineCommand } from "../src/commands/pipeline.js";
@@ -52,6 +52,7 @@ import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/comma
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
 import { formatContextLedger, runContextCommand } from "../src/commands/context.js";
+import { callReadOnlyTool, formatMcpManifest, readMcpResourceText, runMcpCommand } from "../src/commands/mcp.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -339,6 +340,7 @@ mutation:
       "demo:test-creation",
       "demo:agent-packet",
       "demo:tools",
+      "demo:mcp",
       "demo:context",
       "demo:analyze",
       "demo:kubestellar",
@@ -392,6 +394,8 @@ mutation:
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
+    expect(packageJson.scripts["demo:mcp"]).toContain("mcp --config");
+    expect(packageJson.scripts["demo:mcp"]).toContain("--describe");
     expect(packageJson.scripts["demo:context"]).toContain("context --config");
     expect(packageJson.scripts["demo:analyze"]).toContain("analyze --repo");
     expect(demoAllOutput.indexOf("demo:doctor")).toBeLessThan(demoAllOutput.indexOf("demo:analyze"));
@@ -400,6 +404,10 @@ mutation:
     expect(demoCiOutput.indexOf("demo:analyze")).toBeLessThan(demoCiOutput.indexOf("demo:recommend"));
     expect(demoAllOutput.indexOf("demo:tools")).toBeLessThan(demoAllOutput.indexOf("demo:context"));
     expect(demoCiOutput.indexOf("demo:tools")).toBeLessThan(demoCiOutput.indexOf("demo:context"));
+    expect(demoAllOutput.indexOf("demo:tools")).toBeLessThan(demoAllOutput.indexOf("demo:mcp"));
+    expect(demoCiOutput.indexOf("demo:tools")).toBeLessThan(demoCiOutput.indexOf("demo:mcp"));
+    expect(demoAllOutput.indexOf("demo:mcp")).toBeLessThan(demoAllOutput.indexOf("demo:context"));
+    expect(demoCiOutput.indexOf("demo:mcp")).toBeLessThan(demoCiOutput.indexOf("demo:context"));
     expect(demoAllOutput.indexOf("demo:pipeline")).toBeLessThan(demoAllOutput.indexOf("demo:context"));
     expect(demoCiOutput.indexOf("demo:pipeline")).toBeLessThan(demoCiOutput.indexOf("demo:context"));
     expect(demoAllOutput.indexOf("demo:context")).toBeLessThan(demoAllOutput.indexOf("demo:artifacts"));
@@ -1861,6 +1869,93 @@ contracts:
     expect(summary).toContain("Third-party MCP exposed by default: false");
     await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-cards.md"))).resolves.toBeUndefined();
+  });
+
+  it("describes a read-only MCP surface over existing Visual Hive artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-mcp-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-mcp
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-mcp",
+      status: "failed",
+      reproductionCommands: ["visual-hive run --token=secret-value"],
+      contractResults: [
+        {
+          contractId: "dashboard",
+          status: "failed",
+          reproductionCommand: "visual-hive run --password=secret-value"
+        }
+      ]
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "cli-mcp",
+      results: [{ operator: "force-login-on-demo", status: "survived" }]
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "evidence-packet.json"), {
+      schemaVersion: "visual-hive.evidence-packet.v2",
+      project: "cli-mcp",
+      verdictSummary: {
+        visualHiveVerdict: "failed",
+        failedBecause: ["playwright.selector_contract.dashboard"],
+        blockedBecause: [],
+        advisoryOnly: []
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "handoff.json"), {
+      schemaVersion: "visual-hive.handoff.v1",
+      project: "cli-mcp",
+      mode: "dry_run",
+      status: "ready",
+      externalCallsMade: 0
+    });
+    await writeFile(path.join(tempRoot, ".visual-hive", "repair-prompt.md"), "Repair dashboard without using token=secret-value.", "utf8");
+
+    const manifest = await runMcpCommand({ cwd: tempRoot });
+    const summary = formatMcpManifest(manifest);
+    const loaded = await loadConfig(undefined, tempRoot);
+    const evidenceResource = manifest.resources.find((resource) => resource.uri === "visual-hive://latest-evidence");
+    const configResource = manifest.resources.find((resource) => resource.uri === "visual-hive://config");
+
+    expect(manifest.schemaVersion).toBe("visual-hive.mcp.v1");
+    expect(manifest.server.defaultAccess).toBe("read_only");
+    expect(manifest.server.externalCallsMade).toBe(0);
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
+    expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
+    expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
+    expect(manifest.policy.externalUploadsFromPr).toBe(false);
+    expect(summary).toContain("Visual Hive MCP: cli-mcp");
+    expect(summary).toContain("visual-hive://latest-evidence");
+    expect(evidenceResource).toBeDefined();
+    expect(configResource).toBeDefined();
+    await expect(readMcpResourceText(loaded, evidenceResource!)).resolves.toContain("visual-hive.evidence-packet.v2");
+    await expect(readMcpResourceText(loaded, configResource!)).resolves.toContain("cli-mcp");
+    const explanation = await callReadOnlyTool(loaded, "visual_hive_explain_failure");
+    const reproduction = await callReadOnlyTool(loaded, "visual_hive_list_reproduction_commands");
+    const repairPrompt = await callReadOnlyTool(loaded, "visual_hive_generate_repair_prompt");
+    const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
+
+    expect(explanation).toContain("Visual Hive verdict: failed");
+    expect(explanation).toContain("Survived mutations: force-login-on-demo");
+    expect(reproduction).toContain("visual-hive run");
+    expect(reproduction).not.toContain("secret-value");
+    expect(repairPrompt).not.toContain("secret-value");
+    expect(handoff).toContain("visual-hive.handoff.v1");
   });
 
   it("writes Context Ledger artifact from generated agent/tool governance files", async () => {

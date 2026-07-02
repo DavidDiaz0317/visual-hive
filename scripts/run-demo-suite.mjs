@@ -63,7 +63,8 @@ const agentSteps = [
   script("demo:handoff"),
   script("demo:test-creation"),
   script("demo:agent-packet"),
-  script("demo:tools")
+  script("demo:tools"),
+  script("demo:mcp")
 ];
 
 const portfolioSteps = [

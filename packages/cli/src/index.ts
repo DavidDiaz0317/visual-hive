@@ -49,6 +49,7 @@ import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
+import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -1258,6 +1259,30 @@ baselines
         reason: options.reason
       });
       console.log(formatBaselineRejection(rejection));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("mcp")
+  .description("Expose Visual Hive read-only artifacts and advisory tools over MCP stdio")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--stdio", "start the MCP stdio server")
+  .option("--describe", "print the MCP manifest and exit")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      if (options.stdio && options.describe) {
+        throw new Error("Use either visual-hive mcp --stdio for an MCP client or visual-hive mcp --describe for a human-readable manifest, not both.");
+      }
+      const manifest = await runMcpCommand({
+        config: options.config,
+        stdio: options.stdio
+      });
+      if (!options.stdio || options.describe) {
+        console.log(formatMcpManifest(manifest, options.format));
+      }
     } catch (error) {
       fail(error);
     }

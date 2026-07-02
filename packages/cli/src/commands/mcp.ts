@@ -1,0 +1,431 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { loadConfig, sanitizeText, type LoadedConfig } from "@visual-hive/core";
+
+export interface McpCommandOptions {
+  config?: string;
+  cwd?: string;
+  stdio?: boolean;
+  describe?: boolean;
+}
+
+export interface McpResourceDefinition {
+  uri: string;
+  name: string;
+  title: string;
+  description: string;
+  relativePath: string;
+  mimeType: string;
+}
+
+export interface McpToolDefinition {
+  name: string;
+  title: string;
+  description: string;
+  mode: "read_only" | "execution_disabled";
+}
+
+export interface McpManifest {
+  schemaVersion: "visual-hive.mcp.v1";
+  project: string;
+  server: {
+    name: "visual-hive";
+    transport: "stdio";
+    defaultAccess: "read_only";
+    externalCallsMade: 0;
+  };
+  resources: McpResourceDefinition[];
+  tools: McpToolDefinition[];
+  disabledExecutionTools: McpToolDefinition[];
+  policy: {
+    thirdPartyMcpDefault: "disabled";
+    executionToolsDefault: "disabled";
+    githubWritesFromPr: false;
+    externalUploadsFromPr: false;
+    baselineApprovalByAgent: false;
+    llmSoleOracle: false;
+  };
+}
+
+export const MCP_RESOURCES: McpResourceDefinition[] = [
+  {
+    uri: "visual-hive://config",
+    name: "config",
+    title: "Visual Hive Config",
+    description: "Validated Visual Hive YAML configuration for this repository.",
+    relativePath: "visual-hive.config.yaml",
+    mimeType: "text/yaml"
+  },
+  {
+    uri: "visual-hive://latest-plan",
+    name: "latest-plan",
+    title: "Latest Plan",
+    description: "Latest deterministic plan artifact.",
+    relativePath: ".visual-hive/plan.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://latest-report",
+    name: "latest-report",
+    title: "Latest Report",
+    description: "Latest deterministic Visual Hive report.",
+    relativePath: ".visual-hive/report.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://latest-evidence",
+    name: "latest-evidence",
+    title: "Latest Evidence Packet",
+    description: "Sanitized Evidence Packet consumed by humans, agents, GitHub, and Hive handoff flows.",
+    relativePath: ".visual-hive/evidence-packet.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://latest-handoff",
+    name: "latest-handoff",
+    title: "Latest Handoff Packet",
+    description: "Dry-run GitHub/Hive handoff packet.",
+    relativePath: ".visual-hive/handoff.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://coverage-map",
+    name: "coverage-map",
+    title: "Coverage Map",
+    description: "Visual coverage and missing-test guidance.",
+    relativePath: ".visual-hive/coverage.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://mutation-report",
+    name: "mutation-report",
+    title: "Mutation Report",
+    description: "Mutation adequacy report and survivor evidence.",
+    relativePath: ".visual-hive/mutation-report.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://repair-prompt",
+    name: "repair-prompt",
+    title: "Repair Prompt",
+    description: "Offline advisory repair prompt generated from deterministic evidence.",
+    relativePath: ".visual-hive/repair-prompt.md",
+    mimeType: "text/markdown"
+  },
+  {
+    uri: "visual-hive://artifacts/index",
+    name: "artifacts-index",
+    title: "Artifact Index",
+    description: "Sanitized index of Visual Hive JSON, markdown, screenshots, and generated spec artifacts.",
+    relativePath: ".visual-hive/artifacts-index.json",
+    mimeType: "application/json"
+  }
+];
+
+export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
+  {
+    name: "visual_hive_validate_config",
+    title: "Validate Config",
+    description: "Validate the configured Visual Hive repository without running tests or making external calls.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_latest_report",
+    title: "Read Latest Report",
+    description: "Read the latest deterministic report artifact.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_evidence_packet",
+    title: "Read Evidence Packet",
+    description: "Read the latest sanitized Evidence Packet.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_explain_failure",
+    title: "Explain Failure",
+    description: "Summarize failed deterministic contracts, verdict reasons, and mutation survivors from existing artifacts.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_list_reproduction_commands",
+    title: "List Reproduction Commands",
+    description: "List deterministic reproduction commands recorded in the latest report.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_generate_repair_prompt",
+    title: "Read Repair Prompt",
+    description: "Return the existing offline repair prompt if it has been generated by triage.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_generate_handoff_dry_run",
+    title: "Read Handoff Dry Run",
+    description: "Return the existing dry-run handoff packet if it has been generated; no issue or Hive Bead is created.",
+    mode: "read_only"
+  }
+];
+
+export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
+  "visual_hive_run",
+  "visual_hive_mutate",
+  "visual_hive_update_baseline",
+  "visual_hive_handoff_github_issue",
+  "visual_hive_handoff_hive_bead",
+  "visual_hive_provider_upload"
+].map((name) => ({
+  name,
+  title: name.replaceAll("_", " "),
+  description: "Execution or write-capable tool intentionally disabled by default. Use the CLI in a trusted workflow instead.",
+  mode: "execution_disabled" as const
+}));
+
+export async function runMcpCommand(options: McpCommandOptions = {}): Promise<McpManifest> {
+  const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
+  const manifest = buildMcpManifest(loaded);
+  if (options.stdio) {
+    const server = createVisualHiveMcpServer(loaded, manifest);
+    await server.connect(new StdioServerTransport());
+  }
+  return manifest;
+}
+
+export function buildMcpManifest(loaded: LoadedConfig): McpManifest {
+  return sanitizeObject({
+    schemaVersion: "visual-hive.mcp.v1",
+    project: loaded.config.project.name,
+    server: {
+      name: "visual-hive",
+      transport: "stdio",
+      defaultAccess: "read_only",
+      externalCallsMade: 0
+    },
+    resources: MCP_RESOURCES.map((resource) => ({
+      ...resource,
+      relativePath: resource.uri === "visual-hive://config" ? path.relative(loaded.rootDir, loaded.configPath) || path.basename(loaded.configPath) : resource.relativePath
+    })),
+    tools: MCP_READ_ONLY_TOOLS,
+    disabledExecutionTools: MCP_DISABLED_EXECUTION_TOOLS,
+    policy: {
+      thirdPartyMcpDefault: "disabled",
+      executionToolsDefault: "disabled",
+      githubWritesFromPr: false,
+      externalUploadsFromPr: false,
+      baselineApprovalByAgent: false,
+      llmSoleOracle: false
+    }
+  }) as McpManifest;
+}
+
+export function formatMcpManifest(manifest: McpManifest, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") return JSON.stringify(manifest, null, 2);
+  return [
+    `# Visual Hive MCP: ${manifest.project}`,
+    "",
+    `- Transport: ${manifest.server.transport}`,
+    `- Default access: ${manifest.server.defaultAccess}`,
+    `- Resources: ${manifest.resources.length}`,
+    `- Read-only tools: ${manifest.tools.length}`,
+    `- Disabled execution tools: ${manifest.disabledExecutionTools.length}`,
+    `- External calls made: ${manifest.server.externalCallsMade}`,
+    `- Third-party MCP default: ${manifest.policy.thirdPartyMcpDefault}`,
+    "",
+    "## Resources",
+    ...manifest.resources.map((resource) => `- ${resource.uri} -> ${resource.relativePath}`),
+    "",
+    "## Read-only Tools",
+    ...manifest.tools.map((tool) => `- ${tool.name}: ${tool.description}`),
+    "",
+    "## Disabled Execution Tools",
+    ...manifest.disabledExecutionTools.map((tool) => `- ${tool.name}`)
+  ].join("\n");
+}
+
+export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = buildMcpManifest(loaded)): McpServer {
+  const server = new McpServer({
+    name: "visual-hive",
+    version: "0.2.0"
+  });
+
+  for (const resource of manifest.resources) {
+    server.registerResource(
+      resource.name,
+      resource.uri,
+      {
+        title: resource.title,
+        description: resource.description,
+        mimeType: resource.mimeType
+      },
+      async (uri) => ({
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: resource.mimeType,
+            text: await readMcpResourceText(loaded, resource)
+          }
+        ]
+      })
+    );
+  }
+
+  for (const tool of manifest.tools) {
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
+      },
+      async () => ({
+        content: [
+          {
+            type: "text",
+            text: await callReadOnlyTool(loaded, tool.name)
+          }
+        ]
+      })
+    );
+  }
+
+  return server;
+}
+
+export async function readMcpResourceText(loaded: LoadedConfig, resource: McpResourceDefinition): Promise<string> {
+  const filePath = resource.uri === "visual-hive://config" ? loaded.configPath : path.join(loaded.rootDir, resource.relativePath);
+  return readArtifactText(filePath, resource.relativePath);
+}
+
+export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): Promise<string> {
+  switch (toolName) {
+    case "visual_hive_validate_config":
+      return JSON.stringify(
+        sanitizeObject({
+          ok: true,
+          project: loaded.config.project.name,
+          rootDir: loaded.rootDir,
+          configPath: loaded.configPath,
+          targets: Object.keys(loaded.config.targets),
+          contracts: loaded.config.contracts.map((contract) => contract.id),
+          externalCallsMade: 0
+        }),
+        null,
+        2
+      );
+    case "visual_hive_read_latest_report":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "report.json"), ".visual-hive/report.json");
+    case "visual_hive_read_evidence_packet":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "evidence-packet.json"), ".visual-hive/evidence-packet.json");
+    case "visual_hive_explain_failure":
+      return explainLatestFailure(loaded.rootDir);
+    case "visual_hive_list_reproduction_commands":
+      return listReproductionCommands(loaded.rootDir);
+    case "visual_hive_generate_repair_prompt":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "repair-prompt.md"), ".visual-hive/repair-prompt.md");
+    case "visual_hive_generate_handoff_dry_run":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "handoff.json"), ".visual-hive/handoff.json");
+    default:
+      return `Tool ${sanitizeText(toolName)} is not registered as a default read-only Visual Hive MCP tool.`;
+  }
+}
+
+async function explainLatestFailure(rootDir: string): Promise<string> {
+  const report = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "report.json"));
+  const mutation = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "mutation-report.json"));
+  const evidence = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "evidence-packet.json"));
+  const lines = ["# Visual Hive Failure Explanation", ""];
+  if (!report && !mutation && !evidence) {
+    return "No report, mutation report, or Evidence Packet has been generated yet. Run visual-hive pipeline or visual-hive run/triage/evidence first.";
+  }
+  const reportStatus = readString(report, "status");
+  const verdict = readNestedString(evidence, ["verdictSummary", "visualHiveVerdict"]);
+  lines.push(`- Deterministic report: ${reportStatus ?? "missing"}`);
+  lines.push(`- Visual Hive verdict: ${verdict ?? "missing"}`);
+  const failedContracts = Array.isArray(report?.contractResults)
+    ? report.contractResults.filter((result) => readString(result, "status") === "failed").map((result) => readString(result, "contractId")).filter(Boolean)
+    : [];
+  lines.push(`- Failed contracts: ${failedContracts.length ? failedContracts.join(", ") : "none"}`);
+  const survivedMutations = Array.isArray(mutation?.results)
+    ? mutation.results.filter((result) => readString(result, "status") === "survived").map((result) => readString(result, "operator")).filter(Boolean)
+    : [];
+  lines.push(`- Survived mutations: ${survivedMutations.length ? survivedMutations.join(", ") : "none"}`);
+  const failedBecause = readNestedStringArray(evidence, ["verdictSummary", "failedBecause"]);
+  const blockedBecause = readNestedStringArray(evidence, ["verdictSummary", "blockedBecause"]);
+  lines.push(`- Failed because: ${failedBecause.length ? failedBecause.join(", ") : "none"}`);
+  lines.push(`- Blocked because: ${blockedBecause.length ? blockedBecause.join(", ") : "none"}`);
+  return sanitizeText(lines.join("\n"));
+}
+
+async function listReproductionCommands(rootDir: string): Promise<string> {
+  const report = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "report.json"));
+  if (!report) {
+    return "No deterministic report has been generated yet. Run visual-hive run or visual-hive pipeline first.";
+  }
+  const commands = new Set<string>();
+  if (Array.isArray(report.reproductionCommands)) {
+    for (const command of report.reproductionCommands) {
+      if (typeof command === "string" && command.trim()) commands.add(command.trim());
+    }
+  }
+  if (Array.isArray(report.contractResults)) {
+    for (const result of report.contractResults) {
+      const command = readString(result, "reproductionCommand");
+      if (command) commands.add(command);
+    }
+  }
+  return commands.size
+    ? [...commands].map((command) => `- \`${sanitizeText(command)}\``).join("\n")
+    : "No reproduction commands were recorded in the latest report.";
+}
+
+async function readArtifactText(filePath: string, displayPath: string): Promise<string> {
+  try {
+    return sanitizeText(await readFile(filePath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `Artifact ${sanitizeText(displayPath)} is not available yet. Generate it with the matching Visual Hive CLI command. Details: ${sanitizeText(message)}`;
+  }
+}
+
+async function readJsonArtifact<T>(filePath: string): Promise<T | undefined> {
+  try {
+    return sanitizeObject(JSON.parse(await readFile(filePath, "utf8"))) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function readString(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object" || !(key in value)) return undefined;
+  const entry = (value as Record<string, unknown>)[key];
+  return typeof entry === "string" && entry.trim() ? sanitizeText(entry) : undefined;
+}
+
+function readNestedString(value: unknown, keys: string[]): string | undefined {
+  let current = value;
+  for (const key of keys) {
+    if (!current || typeof current !== "object" || !(key in current)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? sanitizeText(current) : undefined;
+}
+
+function readNestedStringArray(value: unknown, keys: string[]): string[] {
+  let current = value;
+  for (const key of keys) {
+    if (!current || typeof current !== "object" || !(key in current)) return [];
+    current = (current as Record<string, unknown>)[key];
+  }
+  return Array.isArray(current) ? current.filter((entry): entry is string => typeof entry === "string").map((entry) => sanitizeText(entry)) : [];
+}
+
+function sanitizeObject<T>(value: T): T {
+  return JSON.parse(sanitizeText(JSON.stringify(value))) as T;
+}
