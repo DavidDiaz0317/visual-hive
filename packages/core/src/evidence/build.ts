@@ -60,7 +60,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     ...contributionsFromPlan(plan),
     ...contributionsFromReport(report),
     ...contributionsFromMutation(mutationReport),
-    ...contributionsFromProviders(providerResults, report?.mode),
+    ...contributionsFromProviders(providerResults.filter((provider) => provider.providerId !== "playwright"), report?.mode),
     ...contributionsFromReadiness(readiness),
     ...contributionsFromCoverage(coverage),
     ...contributionsFromTriage(triageReport)
@@ -239,7 +239,7 @@ export async function writeEvidencePacket(options: WriteEvidencePacketOptions): 
 export function buildReportVerdict(report: Report): { verdictSummary: VerdictSummary; verdictContributions: EvidenceContribution[] } {
   const verdictContributions = normalizeEvidenceContributions([
     ...contributionsFromReport(report),
-    ...contributionsFromProviders(report.providerResults ?? [], report.mode)
+    ...contributionsFromProviders((report.providerResults ?? []).filter((provider) => provider.providerId !== "playwright"), report.mode)
   ]);
   return {
     verdictContributions,
@@ -314,22 +314,48 @@ function contributionsFromReport(report?: Report): EvidenceContributionInput[] {
   if (!report) {
     return [{ source: "playwright", kind: "deterministic_run", status: "inconclusive", gating: true, reason: "No deterministic report was available.", artifacts: [] }];
   }
+  const reportBlockedOnly = report.status === "failed" && reportHasBlockingCondition(report) && !report.results.some((result) => resultHasRegressionFailure(result));
   const contributions: EvidenceContributionInput[] = [
     {
       source: "playwright",
       kind: "deterministic_run",
-      status: report.status === "passed" ? "passed" : "failed",
+      status: report.status === "passed" ? "passed" : reportBlockedOnly ? "blocked" : "failed",
       gating: true,
       mode: report.mode,
-      reason: `Deterministic contract run ${report.status}.`,
+      reason: reportBlockedOnly ? "Deterministic contract run was blocked by environment or policy evidence." : `Deterministic contract run ${report.status}.`,
       artifacts: [".visual-hive/report.json", report.generatedSpecPath]
     }
   ];
+  for (const event of report.targetLifecycle.filter((event) => event.status === "failed")) {
+    contributions.push({
+      source: "visual_hive",
+      kind: "target_lifecycle_failure",
+      status: "blocked",
+      gating: true,
+      mode: report.mode,
+      targetId: event.targetId,
+      reason: event.message ?? `${event.phase} failed for target ${event.targetId}.`,
+      artifacts: [".visual-hive/report.json"]
+    });
+  }
+  for (const target of report.selectedTargets.filter((target) => (target.missingSecrets?.length ?? 0) > 0)) {
+    contributions.push({
+      source: "visual_hive",
+      kind: "protected_target_missing_secret",
+      status: "blocked",
+      gating: true,
+      mode: report.mode,
+      targetId: target.id,
+      reason: `Protected target ${target.id} is missing required secret name(s): ${target.missingSecrets?.join(", ")}.`,
+      artifacts: [".visual-hive/report.json"]
+    });
+  }
   for (const result of report.results.filter((item) => item.status === "failed")) {
+    const resultBlockedOnly = resultHasBlockingCondition(report, result) && !resultHasRegressionFailure(result);
     contributions.push({
       source: "playwright",
       kind: "contract_result",
-      status: "failed",
+      status: resultBlockedOnly ? "blocked" : "failed",
       gating: true,
       mode: report.mode,
       contractId: result.contractId,
@@ -384,6 +410,34 @@ function contributionsFromReport(report?: Report): EvidenceContributionInput[] {
   return contributions;
 }
 
+function reportHasBlockingCondition(report: Report): boolean {
+  return (
+    report.targetLifecycle.some((event) => event.status === "failed") ||
+    report.selectedTargets.some((target) => (target.missingSecrets?.length ?? 0) > 0) ||
+    report.results.some((result) => resultHasBlockingCondition(report, result))
+  );
+}
+
+function resultHasBlockingCondition(report: Report, result: Report["results"][number]): boolean {
+  return (
+    report.targetLifecycle.some((event) => event.targetId === result.targetId && event.status === "failed") ||
+    report.selectedTargets.some((target) => target.id === result.targetId && (target.missingSecrets?.length ?? 0) > 0) ||
+    (result.screenshotAssertions ?? []).some((screenshot) => screenshot.status === "missing_baseline")
+  );
+}
+
+function resultHasRegressionFailure(result: Report["results"][number]): boolean {
+  if (result.status !== "failed") return false;
+  return (
+    (result.selectorAssertions ?? []).some((assertion) => assertion.status === "failed") ||
+    (result.flowSteps ?? []).some((step) => step.status === "failed") ||
+    (result.screenshotAssertions ?? []).some((screenshot) => screenshot.status === "failed") ||
+    (result.consoleErrors?.length ?? 0) > 0 ||
+    (result.pageErrors?.length ?? 0) > 0 ||
+    (result.networkErrors?.length ?? 0) > 0
+  );
+}
+
 function contributionsFromMutation(mutationReport?: MutationReport): EvidenceContributionInput[] {
   if (!mutationReport) return [];
   const contributions: EvidenceContributionInput[] = [];
@@ -435,10 +489,11 @@ function contributionsFromMutation(mutationReport?: MutationReport): EvidenceCon
 function contributionsFromProviders(providers: ProviderResult[], mode?: string): EvidenceContributionInput[] {
   return providers.map((provider) => {
     const gating = provider.deterministicRole === "oracle";
+    const status = provider.status === "failed" ? "failed" : provider.status === "passed" ? "passed" : gating ? "blocked" : "skipped";
     return {
       source: "provider",
       kind: "normalized_provider_result",
-      status: provider.status === "failed" ? "failed" : provider.status === "passed" ? "passed" : "skipped",
+      status,
       gating,
       mode,
       providerId: provider.providerId,

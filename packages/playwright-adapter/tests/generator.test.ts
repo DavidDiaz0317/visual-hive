@@ -449,9 +449,10 @@ describe("buildSpecContent", () => {
 
     expect(exitCode).toBe(1);
     expect(report.status).toBe("failed");
-    expect(report.verdictSummary?.visualHiveVerdict).toBe("failed");
-    expect(report.verdictSummary?.failedBecause).toContain("playwright.deterministic_run");
-    expect(report.verdictContributions?.some((contribution) => contribution.key === "playwright.contract_result.home" && contribution.gating)).toBe(true);
+    expect(report.verdictSummary?.visualHiveVerdict).toBe("blocked");
+    expect(report.verdictSummary?.blockedBecause).toContain("playwright.deterministic_run");
+    expect(report.verdictSummary?.blockedBecause).toContain("visual_hive.target_lifecycle_failure");
+    expect(report.verdictContributions?.some((contribution) => contribution.key === "playwright.contract_result.home" && contribution.status === "blocked" && contribution.gating)).toBe(true);
     expect(report.generatedSpecPath).toContain("visual-hive.generated.spec.ts");
     expect(report.targetLifecycle.some((event) => event.phase === "serve" && event.status === "failed")).toBe(true);
     expect(report.providerResults?.find((provider) => provider.providerId === "playwright")?.status).toBe("failed");
@@ -513,7 +514,7 @@ describe("buildSpecContent", () => {
 
     expect(exitCode).toBe(1);
     expect(report.status).toBe("failed");
-    expect(report.verdictSummary?.visualHiveVerdict).toBe("failed");
+    expect(report.verdictSummary?.visualHiveVerdict).toBe("blocked");
     expect(report.verdictContributions?.map((contribution) => contribution.key)).toContain("playwright.contract_result.storybook-home");
     expect(report.selectedTargets[0]?.kind).toBe("storybook");
     expect(report.targetLifecycle.some((event) => event.targetId === "componentLibrary" && event.serviceName === "storybook" && event.status === "failed")).toBe(true);

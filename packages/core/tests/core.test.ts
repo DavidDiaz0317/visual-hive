@@ -27,7 +27,7 @@ import { buildProviderSetupPlan } from "../src/providers/setupPlan.js";
 import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
 import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
-import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
+import { buildEvidencePacket, buildReportVerdict, writeEvidencePacket } from "../src/evidence/build.js";
 import { buildVerdictReport, writeVerdictReport } from "../src/verdict/build.js";
 import { buildTestingLayerReport, writeTestingLayerReport } from "../src/layers/build.js";
 import { buildTestCreationPlan, writeTestCreationPlan } from "../src/testCreation/build.js";
@@ -4816,6 +4816,39 @@ describe("evidence packets", () => {
     expect(packet.verdictSummary.visualHiveVerdict).toBe("inconclusive");
     expect(packet.verdictSummary.blockedBecause).toContain("playwright.deterministic_run");
     expect(packet.hiveReadiness.readyForHiveDryRun).toBe(false);
+  });
+
+  it("treats CI missing baselines as blocked evidence instead of product failures", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-missing-baseline-verdict-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.status = "failed";
+    report.summary.screenshotsPassed = 0;
+    report.summary.screenshotsFailed = 1;
+    report.summary.missingBaselines = 1;
+    report.results[0]!.status = "failed";
+    report.results[0]!.errors = ["Missing screenshot baseline in CI mode."];
+    report.results[0]!.screenshotAssertions![0]!.status = "missing_baseline";
+    report.results[0]!.screenshotAssertions![0]!.message = "Missing screenshot baseline in CI mode.";
+
+    const reportVerdict = buildReportVerdict(report);
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), {
+      ...report,
+      ...reportVerdict
+    });
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(reportVerdict.verdictSummary.visualHiveVerdict).toBe("blocked");
+    expect(reportVerdict.verdictSummary.blockedBecause).toEqual(
+      expect.arrayContaining(["playwright.deterministic_run", "playwright.contract_result.dashboard", "screenshot_diff.missing_baseline.dashboard"])
+    );
+    expect(reportVerdict.verdictSummary.failedBecause).toEqual([]);
+    expect(packet.verdictSummary.visualHiveVerdict).toBe("blocked");
+    expect(packet.verdictSummary.failedBecause).toEqual([]);
   });
 });
 

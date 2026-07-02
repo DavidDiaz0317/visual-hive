@@ -48,6 +48,8 @@ Each contribution records:
 
 LLM, MCP, Hive, and agent output remains advisory unless converted into normalized deterministic evidence by Visual Hive policy.
 
+`blocked` is reserved for insufficient or unsafe evidence conditions such as target lifecycle/startup failure, protected-target missing secret names, CI missing baselines, unavailable gating providers, or policy refusal. `failed` is reserved for actual deterministic regression evidence such as missing/unexpected selectors, failed flows, visual diffs, console/page/network policy failures, mutation adequacy failures, or configured provider gates.
+
 ## Handoff Use
 
 The packet is designed to be safe to attach to GitHub issues, pass to prompt builders, or hand to Hive dry-run workflows. Secret-like values are redacted. Missing environment variable names may be visible, but values must not be printed.

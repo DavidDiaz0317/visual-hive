@@ -36,7 +36,7 @@ The final verdict can be:
 - `blocked`
 - `inconclusive`
 
-`blocked` is distinct from `failed`. Missing required evidence, policy refusal, unsafe target selection, missing secrets, or target startup failure can block a verdict without pretending the product regressed.
+`blocked` is distinct from `failed`. Missing required evidence, policy refusal, unsafe target selection, missing protected-target secret names, CI missing baselines, or target startup/lifecycle failures block a verdict without pretending the product regressed. True selector, flow, visual diff, console/page, network, mutation, or configured provider-regression evidence remains `failed`.
 
 ## Agent Use
 
