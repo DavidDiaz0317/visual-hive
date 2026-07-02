@@ -199,6 +199,7 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
   const failed = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "failed");
   const blocked = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "blocked");
   const mutationSurvivors = evidence.evidenceContributions.filter((contribution) => contribution.source === "mutation" && contribution.kind === "mutation_survivor");
+  const repoCoverageGaps = evidence.repoIntelligence?.coverageGaps ?? [];
   const layerGaps = evidence.testingLayers
     .filter((layer) => layer.status === "missing" || layer.status === "unknown" || layer.status === "partial")
     .sort((left, right) => layerPriorityScore(right) - layerPriorityScore(left) || left.id - right.id);
@@ -209,6 +210,9 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
   }
   for (const contribution of mutationSurvivors.filter((item) => !failed.includes(item)).slice(0, 4)) {
     workItems.push(workItemForContribution(contribution, evidence));
+  }
+  for (const gap of repoCoverageGaps.filter((gap) => gap.severity === "high" || gap.severity === "medium").slice(0, 6)) {
+    workItems.push(workItemForRepoCoverageGap(gap));
   }
   for (const layer of layerGaps.slice(0, 6)) {
     workItems.push(workItemForTestingLayer(layer));
@@ -226,6 +230,25 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
     });
   }
   return dedupeWorkItems(workItems);
+}
+
+function workItemForRepoCoverageGap(gap: NonNullable<EvidencePacket["repoIntelligence"]>["coverageGaps"][number]): HandoffWorkItem {
+  const kind = [2, 3, 4, 5, 6, 9].includes(gap.layer) ? "test_creation" : [0, 1, 7, 8].includes(gap.layer) ? "setup" : "review";
+  const priority: HandoffPriority = gap.severity === "high" ? "high" : gap.severity === "medium" ? "medium" : "low";
+  return {
+    id: safeId(`repo-coverage-gap-${gap.id}`),
+    kind,
+    priority,
+    title: `Close repo intelligence gap: ${gap.id}`,
+    summary: gap.message,
+    evidenceKeys: [`repo_coverage_gap.${gap.id}`],
+    artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md", gap.suggestedArtifact],
+    suggestedNextSteps: [
+      `Review ${gap.suggestedArtifact}.`,
+      "Add or normalize deterministic evidence for the affected testing layer.",
+      "Rerun `visual-hive analyze` and regenerate the Evidence Packet after changes."
+    ]
+  };
 }
 
 function workItemForTestingLayer(layer: EvidencePacket["testingLayers"][number]): HandoffWorkItem {

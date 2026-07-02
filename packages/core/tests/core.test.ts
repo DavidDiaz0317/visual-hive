@@ -4982,6 +4982,84 @@ describe("evidence packets", () => {
     expect(packet.verdictSummary.advisoryOnly).toContain("readiness.readiness_gate");
     expect(packet.evidenceContributions.find((contribution) => contribution.key === "playwright.deterministic_run")?.status).toBe("passed");
   });
+
+  it("feeds analyzed repo intelligence into Evidence Packet, testing layers, and Hive handoff work items", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-evidence-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "repo-evidence-fixture",
+          scripts: {
+            build: "vite build",
+            preview: "vite preview --host 127.0.0.1 --port 4173"
+          },
+          dependencies: { react: "^19.0.0", vite: "^6.0.0" },
+          devDependencies: { "@playwright/test": "^1.0.0" }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(rootDir, "src", "App.tsx"),
+      `<a href="/clusters" data-testid="dashboard-page">Clusters</a><button data-testid="critical-action-button">Run</button>`,
+      "utf8"
+    );
+    const repoMap = await writeRepoMap({
+      repoRoot: rootDir,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+
+    const evidence = await writeEvidencePacket({
+      rootDir,
+      project: "repo-evidence-fixture",
+      now: new Date("2026-06-15T00:01:00.000Z")
+    });
+    const layers = await buildTestingLayerReport({
+      rootDir,
+      project: "repo-evidence-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const handoff = buildHandoffArtifacts({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(repoMap.reportPath).toBe(path.join(rootDir, ".visual-hive", "repo-map.json"));
+    expect(evidence.packet.sourceArtifacts.repoMap).toBe(".visual-hive/repo-map.json");
+    expect(evidence.packet.repoIntelligence).toMatchObject({
+      project: expect.objectContaining({ name: "repo-evidence-fixture", frameworks: expect.arrayContaining(["react", "vite"]) }),
+      selectorCount: 2,
+      routeCount: 1
+    });
+    expect(evidence.packet.repoIntelligence?.coverageGaps.map((gap) => gap.id)).toEqual(
+      expect.arrayContaining(["repo-intelligence-config", "workflow-safety", "unit-layer"])
+    );
+    expect(evidence.packet.testingLayers.find((layer) => layer.id === 0)).toMatchObject({
+      name: "Repo intelligence",
+      status: "covered",
+      evidence: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"]
+    });
+    expect(layers.sourceArtifacts.repoMap).toBe(".visual-hive/repo-map.json");
+    expect(layers.layers.find((layer) => layer.id === 0)?.status).toBe("covered");
+    expect(handoff.handoff.workItems.map((item) => item.evidenceKeys).flat()).toEqual(
+      expect.arrayContaining(["repo_coverage_gap.repo-intelligence-config", "repo_coverage_gap.workflow-safety"])
+    );
+    expect(handoff.handoff.workItems.find((item) => item.evidenceKeys.includes("repo_coverage_gap.workflow-safety"))).toMatchObject({
+      kind: "setup",
+      priority: "medium",
+      artifacts: expect.arrayContaining([".visual-hive/repo-map.json", ".visual-hive/repo-context.md"])
+    });
+    expect(handoff.issueBody).toContain("repo_coverage_gap.workflow-safety");
+    expect(JSON.stringify(evidence.packet)).not.toContain("SECRET");
+  });
 });
 
 describe("verdict reports", () => {
