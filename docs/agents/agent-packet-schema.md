@@ -3,7 +3,7 @@
 The Agent Packet is a role-specific, sanitized work envelope for humans and coding agents. It is derived from the Evidence Packet and optional Handoff Packet, then scoped to one profile:
 
 - `repair_agent`: fix deterministic failures without changing the verdict policy.
-- `test_creator`: strengthen contracts from mutation survivors and coverage gaps.
+- `test_creator`: strengthen contracts from mutation survivors, coverage gaps, and missing testing-layer evidence.
 - `review_agent`: audit evidence, artifacts, governance, and residual risk.
 - `handoff_agent`: prepare trusted GitHub/Hive routing artifacts without executing PR code.
 
@@ -25,7 +25,7 @@ The packet includes:
 
 - `objective`: the bounded job the agent should perform.
 - `verdict`: Visual Hive's deterministic verdict summary.
-- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts and targets, and mutation score.
+- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts and targets, mutation score, and the testing-layer status snapshot.
 - `allowedTools`: read-only or local-only tools the profile may use.
 - `forbiddenActions`: actions that require human/trusted-workflow authority or are never allowed.
 - `budgets`: local tool-call and token budgets, with `allowExternalNetwork: false` and `maxExternalCostUsd: 0` by default.
@@ -45,3 +45,5 @@ Agents may repair, explain, suggest tests, or prepare handoff artifacts. They mu
 - execute untrusted PR code through privileged workflows.
 
 The packet is intentionally smaller than the Evidence Packet. It gives agents enough context to act without forcing them to scrape CI logs, ingest every raw artifact, or guess which tools are safe.
+
+Testing-layer gaps are converted into bounded work items before they reach the agent. For example, a missing mutation layer becomes a `test_creation` task, an unknown workflow-safety layer becomes a `setup` task, and flake/history gaps become `review` tasks. These tasks remain advisory repair or test-generation guidance; they do not affect the Visual Hive verdict unless normalized deterministic evidence and policy allow it.

@@ -57,7 +57,8 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
       workItems,
       selectedContracts: options.evidencePacket.deterministicReport?.selectedContracts ?? options.evidencePacket.plan?.selectedContracts ?? [],
       selectedTargets: options.evidencePacket.deterministicReport?.selectedTargets.map((target) => target.id) ?? options.evidencePacket.plan?.selectedTargets ?? [],
-      mutationScore: options.evidencePacket.mutation?.score
+      mutationScore: options.evidencePacket.mutation?.score,
+      testingLayers: options.evidencePacket.testingLayers
     },
     allowedTools: allowedToolsFor(profile),
     forbiddenActions: forbiddenActionsFor(profile),
@@ -124,6 +125,7 @@ function workItemsFor(profile: AgentPacketProfile, evidence: EvidencePacket, han
 function objectiveFor(profile: AgentPacketProfile, evidence: EvidencePacket, workItems: HandoffWorkItem[]): string {
   const first = workItems[0]?.title;
   if (profile === "repair_agent") {
+    if (first && workItems[0]?.kind === "setup") return `Resolve Visual Hive setup or evidence gap: ${first}`;
     if (first) return `Repair Visual Hive failure: ${first}`;
     return evidence.verdictSummary.visualHiveVerdict === "passed"
       ? `Review passing Visual Hive evidence for ${evidence.project} and identify the next safe hardening step.`

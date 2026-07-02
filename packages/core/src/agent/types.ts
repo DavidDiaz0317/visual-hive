@@ -34,6 +34,7 @@ export interface AgentPacket {
     selectedContracts: string[];
     selectedTargets: string[];
     mutationScore?: number;
+    testingLayers: EvidencePacket["testingLayers"];
   };
   allowedTools: AgentToolPermission[];
   forbiddenActions: string[];

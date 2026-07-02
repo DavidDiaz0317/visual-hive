@@ -177,7 +177,7 @@ visual-hive tools --config visual-hive.config.yaml
 visual-hive context --config visual-hive.config.yaml
 ```
 
-This writes `.visual-hive/agent-packet.json`, a sanitized work envelope with allowed tools, forbidden actions, budgets, reproduction commands, and artifact pointers for repair, test-generation, review, or handoff agents. `visual-hive tools` writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, the conservative tool policy surface for future MCP/agent use. `visual-hive context` writes `.visual-hive/context-ledger.json`, a governance ledger for tool-call, token, provider-screenshot, external-cost, and escalation budgets.
+This writes `.visual-hive/agent-packet.json`, a sanitized work envelope with allowed tools, forbidden actions, budgets, reproduction commands, artifact pointers, and testing-layer gap context for repair, test-generation, review, or handoff agents. `visual-hive handoff --dry-run` turns deterministic failures, mutation survivors, blocked evidence, and missing/partial testing layers into bounded work items without making agents verdict authorities. `visual-hive tools` writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, the conservative tool policy surface for future MCP/agent use. `visual-hive context` writes `.visual-hive/context-ledger.json`, a governance ledger for tool-call, token, provider-screenshot, external-cost, and escalation budgets.
 
 ## CLI commands
 

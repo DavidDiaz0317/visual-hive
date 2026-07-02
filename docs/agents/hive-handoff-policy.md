@@ -21,6 +21,15 @@ It requires `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive-bead-request.json`
 - `.visual-hive/hive-handoff-result.json`
 
+The Handoff Packet converts evidence into bounded work items:
+
+- deterministic failures become `repair` tasks;
+- blocked evidence collection becomes `setup` tasks;
+- mutation survivors become `test_creation` tasks;
+- missing, unknown, or partial testing layers become setup, test-creation, or review tasks depending on the layer.
+
+This keeps Hive and coding agents focused on concrete evidence gaps instead of raw logs or broad repository context.
+
 Policy:
 
 - Visual Hive's deterministic Verdict Engine owns pass/fail.

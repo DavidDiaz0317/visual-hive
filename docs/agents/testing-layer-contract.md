@@ -37,6 +37,14 @@ Outputs:
 
 The report records `skippedReasons` and `recommendedNextStep` for non-covered layers so humans and agents can see why evidence is missing without treating advisory guidance as a verdict.
 
+When `visual-hive handoff --dry-run` runs from an Evidence Packet, non-covered layers are also translated into Handoff Packet work items:
+
+- setup-oriented layers such as repo intelligence, workflow safety, provider, and protected/canary evidence become `setup` tasks;
+- test-oriented layers such as unit, accessibility, API/contract, component visual, E2E, and mutation evidence become `test_creation` tasks;
+- governance/history/agent-feedback layers become `review` tasks.
+
+This is intentionally separate from pass/fail. The layer audit can tell an agent what to improve next, but only Visual Hive's normalized deterministic verdict can fail or pass the run.
+
 ## Agent Policy
 
 Agents may use this report to suggest tests, setup changes, or handoff tasks. They must not decide pass/fail, approve baselines, enable external providers, or run protected targets. Visual Hive's deterministic Verdict Engine remains the authority.

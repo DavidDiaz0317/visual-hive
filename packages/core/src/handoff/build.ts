@@ -199,6 +199,9 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
   const failed = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "failed");
   const blocked = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "blocked");
   const mutationSurvivors = evidence.evidenceContributions.filter((contribution) => contribution.source === "mutation" && contribution.kind === "mutation_survivor");
+  const layerGaps = evidence.testingLayers
+    .filter((layer) => layer.status === "missing" || layer.status === "unknown" || layer.status === "partial")
+    .sort((left, right) => layerPriorityScore(right) - layerPriorityScore(left) || left.id - right.id);
   const workItems: HandoffWorkItem[] = [];
 
   for (const contribution of [...failed, ...blocked].slice(0, 8)) {
@@ -206,6 +209,9 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
   }
   for (const contribution of mutationSurvivors.filter((item) => !failed.includes(item)).slice(0, 4)) {
     workItems.push(workItemForContribution(contribution, evidence));
+  }
+  for (const layer of layerGaps.slice(0, 6)) {
+    workItems.push(workItemForTestingLayer(layer));
   }
   if (!workItems.length && evidence.verdictSummary.visualHiveVerdict === "passed") {
     workItems.push({
@@ -220,6 +226,53 @@ function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
     });
   }
   return dedupeWorkItems(workItems);
+}
+
+function workItemForTestingLayer(layer: EvidencePacket["testingLayers"][number]): HandoffWorkItem {
+  const kind = workItemKindForLayer(layer.id);
+  const priority = layer.status === "missing" ? "high" : layer.status === "unknown" ? "medium" : "low";
+  const gapSummary = layer.gaps.length ? layer.gaps.join("; ") : `Layer ${layer.id} (${layer.name}) is ${layer.status}.`;
+  return {
+    id: safeId(`testing-layer-${layer.id}-${layer.status}`),
+    kind,
+    priority,
+    title: `${actionVerbFor(kind)} ${layer.name} evidence`,
+    summary: gapSummary,
+    evidenceKeys: [`testing_layer.${layer.id}.${layer.status}`],
+    artifacts: layer.evidence.length ? layer.evidence : [".visual-hive/evidence-packet.json", ".visual-hive/testing-layers.json"],
+    suggestedNextSteps: suggestedStepsForLayer(layer)
+  };
+}
+
+function layerPriorityScore(layer: EvidencePacket["testingLayers"][number]): number {
+  const statusScore = layer.status === "missing" ? 30 : layer.status === "unknown" ? 20 : layer.status === "partial" ? 10 : 0;
+  const layerScore = layer.id === 9 ? 5 : [1, 2, 3, 4, 6].includes(layer.id) ? 3 : 0;
+  return statusScore + layerScore;
+}
+
+function workItemKindForLayer(layerId: number): HandoffWorkItem["kind"] {
+  if ([2, 3, 4, 5, 6, 9].includes(layerId)) return "test_creation";
+  if ([0, 1, 7, 8].includes(layerId)) return "setup";
+  return "review";
+}
+
+function actionVerbFor(kind: HandoffWorkItem["kind"]): string {
+  if (kind === "test_creation") return "Add";
+  if (kind === "setup") return "Complete";
+  return "Review";
+}
+
+function suggestedStepsForLayer(layer: EvidencePacket["testingLayers"][number]): string[] {
+  const common = ["Review `.visual-hive/testing-layers.json`.", "Keep agent output advisory and rerun Visual Hive after changes."];
+  if (layer.id === 1) return ["Run workflow/security/readiness audits.", "Add safe PR workflow evidence if missing.", ...common];
+  if (layer.id === 2) return ["Expose unit test scripts or evidence in repo intelligence.", "Add unit tests for logic not covered by visual contracts.", ...common];
+  if (layer.id === 3) return ["Add accessibility or component evidence for critical UI states.", "Prefer deterministic checks before LLM review.", ...common];
+  if (layer.id === 4) return ["Add API or route contract evidence for data-driven UI states.", "Connect API failures to visible contracts.", ...common];
+  if (layer.id === 8) return ["Model protected or canary targets only in trusted lanes.", "Report missing secret names only, never values.", ...common];
+  if (layer.id === 9) return ["Run `visual-hive mutate`.", "Use survived mutations as concrete missing-test tasks.", ...common];
+  if (layer.id === 10) return ["Record history, flake, cost, and baseline evidence.", "Use trends to decide which lanes need stabilization.", ...common];
+  if (layer.id === 11) return ["Generate handoff and agent packets from sanitized evidence.", "Do not let agents decide the verdict.", ...common];
+  return common;
 }
 
 function workItemForContribution(contribution: EvidenceContribution, evidence: EvidencePacket): HandoffWorkItem {

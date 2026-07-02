@@ -47,7 +47,8 @@
         "workItems": { "type": "array", "items": { "$ref": "#/$defs/workItem" } },
         "selectedContracts": { "type": "array", "items": { "type": "string" } },
         "selectedTargets": { "type": "array", "items": { "type": "string" } },
-        "mutationScore": { "type": "number" }
+        "mutationScore": { "type": "number" },
+        "testingLayers": { "type": "array", "items": { "$ref": "#/$defs/testingLayer" } }
       }
     },
     "allowedTools": {
@@ -135,6 +136,18 @@
         "evidenceKeys": { "type": "array", "items": { "type": "string" } },
         "artifacts": { "type": "array", "items": { "type": "string" } },
         "suggestedNextSteps": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "testingLayer": {
+      "type": "object",
+      "required": ["id", "name", "status", "evidence", "gaps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "status": { "enum": ["covered", "partial", "missing", "not_applicable", "unknown"] },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "gaps": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

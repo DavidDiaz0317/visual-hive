@@ -5007,6 +5007,56 @@ describe("handoff packets", () => {
     expect(artifacts.handoff.blockedReasons.join(" ")).toContain("Only dry-run handoff is implemented locally");
     expect(artifacts.result.externalCallsMade).toBe(0);
   });
+
+  it("turns testing-layer gaps into bounded handoff work items", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-layers-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "layer-gap-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const artifacts = buildHandoffArtifacts({
+      evidencePacket: {
+        ...packet,
+        testingLayers: packet.testingLayers.map((layer) =>
+          layer.id === 2
+            ? {
+                ...layer,
+                status: "unknown",
+                gaps: ["Unit test evidence is missing; token=layer-secret"]
+              }
+            : layer.id === 9
+              ? {
+                  ...layer,
+                  status: "missing",
+                  gaps: ["No mutation report found."]
+                }
+              : layer
+        )
+      },
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(artifacts.handoff.workItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "testing-layer-2-unknown",
+          kind: "test_creation",
+          title: "Add Unit evidence"
+        }),
+        expect.objectContaining({
+          id: "testing-layer-9-missing",
+          kind: "test_creation",
+          title: "Add Mutation/fault injection evidence"
+        })
+      ])
+    );
+    expect(artifacts.issueBody).toContain("testing_layer.9.missing");
+    expect(JSON.stringify(artifacts)).toContain("[REDACTED]");
+    expect(JSON.stringify(artifacts)).not.toContain("layer-secret");
+  });
 });
 
 describe("agent packets", () => {
@@ -5066,6 +5116,7 @@ describe("agent packets", () => {
     expect(result.packet.governance.agentAuthority).toBe("advisory_repair_only");
     expect(result.packet.budgets.allowExternalNetwork).toBe(false);
     expect(result.packet.budgets.maxExternalCostUsd).toBe(0);
+    expect(result.packet.evidenceSummary.testingLayers.map((layer) => layer.id)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     expect(result.packet.artifactPointers).toEqual(expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/handoff.json", ".visual-hive/report.json"]));
     expect(JSON.stringify(result.packet)).not.toContain("agent-secret-value");
     expect(JSON.stringify(result.packet)).not.toContain("agent-mutation-secret");
