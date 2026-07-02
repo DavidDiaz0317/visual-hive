@@ -50,7 +50,7 @@ export interface EvidencePacketTestingLayer {
 }
 
 export interface EvidencePacket {
-  schemaVersion: "visual-hive.evidence-packet.v1";
+  schemaVersion: "visual-hive.evidence-packet.v2";
   generatedAt: string;
   project: string;
   sourceArtifacts: {

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile, rm } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { VisualHiveConfigSchema, type VisualHiveConfig } from "../src/config/schema.js";
@@ -61,6 +62,16 @@ const sampleRepository = {
   branch: "main",
   commitSha: "abcdef1234567890"
 };
+
+async function expectMatchesSchema(schemaName: string, value: unknown): Promise<void> {
+  const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", schemaName), "utf8")) as Record<string, unknown>;
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  const valid = validate(value);
+  if (!valid) {
+    throw new Error(`${schemaName} validation failed: ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
+  }
+}
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
@@ -4790,7 +4801,7 @@ describe("evidence packets", () => {
     expect(result.packet.evidenceContributions.find((contribution) => contribution.key === "mutation.not_applicable.mobile-overflow")?.authority).toBe("advisory");
     expect(result.packet.mutation?.survivedOperators[0]?.operator).toBe("force-login-on-demo");
     expect(result.packet.testingLayers.find((layer) => layer.id === 9)?.status).toBe("covered");
-    expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.evidence-packet.v1");
+    expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.evidence-packet.v2");
     expect(await readFile(result.summaryPath, "utf8")).toContain("Visual Hive verdict: failed");
   });
 
@@ -5528,6 +5539,84 @@ describe("context ledger", () => {
     expect(result.ledgerPath).toBe(path.join(rootDir, ".visual-hive", "context-ledger.json"));
     expect(result.ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
     expect(await readFile(result.ledgerPath, "utf8")).toContain("visual-hive.context-ledger.v1");
+  });
+});
+
+describe("agent-forward schema validation", () => {
+  it("validates generated evidence, verdict, handoff, agent, tool, and context artifacts against checked-in schemas", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-schema-validation-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "schema-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 1,
+      killed: 1,
+      total: 1,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "killed",
+          killed: true,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["unexpected_element"],
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    });
+
+    const evidence = await writeEvidencePacket({
+      rootDir,
+      project: "schema-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const verdict = await writeVerdictReport({
+      rootDir,
+      project: "schema-fixture",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    const handoff = await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+    const agent = await writeAgentPacket({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      profile: "repair_agent",
+      now: new Date("2026-06-15T00:05:00.000Z")
+    });
+    const tools = await writeToolRegistry({
+      rootDir,
+      project: "schema-fixture",
+      now: new Date("2026-06-15T00:06:00.000Z")
+    });
+    const context = await writeContextLedger({
+      rootDir,
+      project: "schema-fixture",
+      now: new Date("2026-06-15T00:07:00.000Z")
+    });
+
+    await expectMatchesSchema("visual-hive.evidence-packet.schema.json", evidence.packet);
+    await expectMatchesSchema("visual-hive.verdict.schema.json", verdict.report);
+    await expectMatchesSchema("visual-hive.handoff.schema.json", handoff.handoff);
+    await expectMatchesSchema("visual-hive.hive-bead-request.schema.json", handoff.beadRequest);
+    await expectMatchesSchema("visual-hive.hive-handoff-result.schema.json", handoff.result);
+    await expectMatchesSchema("visual-hive.agent-packet.schema.json", agent.packet);
+    await expectMatchesSchema("visual-hive.tool-registry.schema.json", tools.registry);
+    await expectMatchesSchema("visual-hive.context-ledger.schema.json", context.ledger);
+    expect(evidence.packet.schemaVersion).toBe("visual-hive.evidence-packet.v2");
+    expect(evidence.packet.evidenceContributions.every((contribution) => contribution.key && contribution.authority)).toBe(true);
   });
 });
 

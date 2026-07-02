@@ -70,7 +70,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
   const generatedAt = (options.now ?? new Date()).toISOString();
 
   const packet: EvidencePacket = {
-    schemaVersion: "visual-hive.evidence-packet.v1",
+    schemaVersion: "visual-hive.evidence-packet.v2",
     generatedAt,
     project: report?.project ?? mutationReport?.project ?? plan?.project ?? options.project,
     sourceArtifacts: sanitizeValue({

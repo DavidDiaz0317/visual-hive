@@ -969,7 +969,7 @@ jobs:
     path.join(repoRoot, ".visual-hive", "evidence-packet.json"),
     JSON.stringify(
       {
-        schemaVersion: "visual-hive.evidence-packet.v1",
+        schemaVersion: "visual-hive.evidence-packet.v2",
         generatedAt: "2026-06-15T00:00:00.000Z",
         project: "ui-fixture",
         sourceArtifacts: {
@@ -1470,7 +1470,7 @@ describe("control plane", () => {
     expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
     expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.mutationOperator)).toContain("remove-demo-badge");
     expect(snapshot.evidencePacket).toMatchObject({
-      schemaVersion: "visual-hive.evidence-packet.v1",
+      schemaVersion: "visual-hive.evidence-packet.v2",
       verdictSummary: { visualHiveVerdict: "failed" },
       hiveReadiness: { readyForHiveDryRun: true }
     });

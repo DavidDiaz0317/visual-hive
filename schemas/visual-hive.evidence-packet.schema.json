@@ -18,7 +18,7 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.evidence-packet.v1" },
+    "schemaVersion": { "const": "visual-hive.evidence-packet.v2" },
     "generatedAt": { "type": "string" },
     "project": { "type": "string" },
     "sourceArtifacts": {

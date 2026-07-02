@@ -21,6 +21,8 @@ The JSON schema is:
 
 - `schemas/visual-hive.evidence-packet.schema.json`
 
+Current schema version: `visual-hive.evidence-packet.v2`. Version 2 requires stable contribution `key` and explicit `authority` fields so downstream agents can safely distinguish gating verdict evidence from advisory context. Readers should continue to tolerate v1 packets where practical, but new writers emit v2.
+
 ## Verdict Model
 
 Visual Hive owns the final deterministic verdict. Playwright remains the default first-party browser execution backend and primary local evidence source, but the Evidence Packet is shaped around normalized evidence contributions rather than Playwright-only semantics.

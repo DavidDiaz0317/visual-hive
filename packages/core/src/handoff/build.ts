@@ -17,7 +17,7 @@ const HUMAN_APPROVAL = [
 
 export async function readEvidencePacket(filePath: string): Promise<EvidencePacket> {
   const packet = await readJson<EvidencePacket>(filePath);
-  if (packet.schemaVersion !== "visual-hive.evidence-packet.v1") {
+  if (!["visual-hive.evidence-packet.v1", "visual-hive.evidence-packet.v2"].includes(String(packet.schemaVersion))) {
     throw new Error(`Unsupported Evidence Packet schema at ${filePath}: ${String(packet.schemaVersion)}`);
   }
   return sanitizeValue(packet) as EvidencePacket;
