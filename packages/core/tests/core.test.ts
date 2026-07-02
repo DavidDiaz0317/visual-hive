@@ -4850,6 +4850,138 @@ describe("evidence packets", () => {
     expect(packet.verdictSummary.visualHiveVerdict).toBe("blocked");
     expect(packet.verdictSummary.failedBecause).toEqual([]);
   });
+
+  it("keeps supplemental provider failures advisory while oracle provider failures gate the verdict", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-provider-verdict-"));
+    tempDirs.push(rootDir);
+    const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.providerResults = [
+      {
+        providerId: "argos",
+        label: "Argos",
+        status: "failed",
+        deterministicRole: "supplemental",
+        message: "Argos found a visual change, but PR provider gating is disabled.",
+        requiredEnv: [],
+        missingEnv: [],
+        artifactCount: 1,
+        normalizedAt: "2026-06-15T00:01:00.000Z"
+      }
+    ];
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+
+    const advisoryPacket = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(advisoryPacket.verdictSummary.visualHiveVerdict).toBe("passed");
+    expect(advisoryPacket.verdictSummary.failedBecause).toEqual([]);
+    expect(advisoryPacket.verdictSummary.advisoryOnly).toContain("provider.normalized_provider_result.argos");
+    expect(advisoryPacket.evidenceContributions.find((contribution) => contribution.key === "provider.normalized_provider_result.argos")).toMatchObject({
+      source: "provider",
+      status: "failed",
+      gating: false,
+      authority: "advisory"
+    });
+
+    report.providerResults[0]!.deterministicRole = "oracle";
+    report.providerResults[0]!.message = "Argos failed after provider gating was explicitly enabled.";
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+
+    const oraclePacket = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(oraclePacket.verdictSummary.visualHiveVerdict).toBe("failed");
+    expect(oraclePacket.verdictSummary.failedBecause).toContain("provider.normalized_provider_result.argos");
+    expect(oraclePacket.evidenceContributions.find((contribution) => contribution.key === "provider.normalized_provider_result.argos")).toMatchObject({
+      status: "failed",
+      gating: true,
+      authority: "gating"
+    });
+  });
+
+  it("lets mutation adequacy fail the Visual Hive verdict even when deterministic contracts pass", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-mutation-verdict-"));
+    tempDirs.push(rootDir);
+    const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["unexpected_element"],
+          failedAssertion: "Mutation survived selected contracts.",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        },
+        {
+          operator: "remove-demo-badge",
+          status: "killed",
+          killed: true,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["missing_element"],
+          durationMs: 8,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    });
+
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(packet.deterministicReport?.status).toBe("passed");
+    expect(packet.verdictSummary.visualHiveVerdict).toBe("failed");
+    expect(packet.verdictSummary.failedBecause).toEqual(
+      expect.arrayContaining(["mutation.mutation_adequacy", "mutation.mutation_survivor.force-login-on-demo"])
+    );
+    expect(packet.evidenceContributions.find((contribution) => contribution.key === "playwright.deterministic_run")?.status).toBe("passed");
+  });
+
+  it("reports non-gating readiness warnings without turning them into deterministic failures", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-warning-verdict-"));
+    tempDirs.push(rootDir);
+    const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "readiness.json"), {
+      status: "warning",
+      score: 82,
+      gates: [{ status: "warning", title: "Provider policy review", message: "Provider upload remains disabled." }]
+    });
+
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(packet.verdictSummary.visualHiveVerdict).toBe("warning");
+    expect(packet.verdictSummary.failedBecause).toEqual([]);
+    expect(packet.verdictSummary.warningBecause).toContain("readiness.readiness_gate");
+    expect(packet.verdictSummary.advisoryOnly).toContain("readiness.readiness_gate");
+    expect(packet.evidenceContributions.find((contribution) => contribution.key === "playwright.deterministic_run")?.status).toBe("passed");
+  });
 });
 
 describe("verdict reports", () => {
@@ -5802,6 +5934,30 @@ function reportFixture(repoRoot: string, actualPath: string, baselinePath: strin
     artifacts: [actualPath],
     reproductionCommands: ["visual-hive run --ci"]
   };
+}
+
+function passedReportFixture(repoRoot: string, actualPath: string, baselinePath: string): Report {
+  const report = reportFixture(repoRoot, actualPath, baselinePath);
+  report.status = "passed";
+  report.results[0]!.status = "passed";
+  report.results[0]!.errors = [];
+  report.results[0]!.screenshotAssertions![0]!.status = "passed";
+  report.results[0]!.screenshotAssertions![0]!.actualDiffPixelRatio = 0;
+  report.results[0]!.screenshotAssertions![0]!.actualDiffPixels = 0;
+  report.results[0]!.screenshotAssertions![0]!.diffPixels = 0;
+  report.summary = {
+    passed: 1,
+    failed: 0,
+    screenshotsPassed: 1,
+    screenshotsFailed: 0,
+    baselinesCreated: 0,
+    createdBaselines: 0,
+    missingBaselines: 0,
+    visualDiffs: 0,
+    consoleErrors: 0,
+    pageErrors: 0
+  };
+  return report;
 }
 
 async function providerUploadFixture(): Promise<{ rootDir: string; report: Report }> {
