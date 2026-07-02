@@ -24,6 +24,7 @@
 - Setup/readiness hardening for incomplete contracts, workflow distribution gaps, and artifact evidence.
 - Broader hosted-provider polish beyond the current Argos upload adapter.
 - Rich Playwright trace extraction and route/contract discovery helpers.
+- Evidence packet schema and trusted Hive/GitHub issue handoff design from `docs/research/visual-hive-vision-and-rationale.md`.
 
 ## v1.0
 

@@ -251,6 +251,7 @@ See also:
 - `docs/cost-policy.md`
 - `docs/install.md`
 - `docs/roadmap.md`
+- `docs/research/visual-hive-vision-and-rationale.md`
 
 ## Security model
 
