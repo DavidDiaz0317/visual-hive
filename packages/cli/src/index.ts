@@ -46,6 +46,7 @@ import { formatRunbookReport, runRunbookCommand } from "./commands/runbook.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
+import { formatAnalysis, runAnalyzeCommand } from "./commands/analyze.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
   formatConnectionsIndex,
@@ -847,6 +848,31 @@ program
         format: options.format
       });
       console.log(formatSetupRecommendation(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("analyze")
+  .description("Scan a repo statically and use Claude to suggest enhanced visual-hive contracts")
+  .option("--repo <path>", "repository path to inspect")
+  .option("--api-key <key>", "Anthropic API key (default: ANTHROPIC_API_KEY env var)")
+  .option("--model <model>", "Claude model to use", "claude-sonnet-4-6")
+  .option("--write-config", "write the LLM-enhanced config to visual-hive.config.yaml")
+  .option("--force", "overwrite existing visual-hive.config.yaml when used with --write-config")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runAnalyzeCommand({
+        repo: options.repo,
+        apiKey: options.apiKey,
+        model: options.model,
+        writeConfig: options.writeConfig,
+        force: options.force,
+        format: options.format
+      });
+      console.log(formatAnalysis(result, options.format));
     } catch (error) {
       fail(error);
     }
