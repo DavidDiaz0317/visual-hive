@@ -47,6 +47,7 @@ import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
+import { formatContextLedger, runContextCommand } from "../src/commands/context.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -312,10 +313,12 @@ mutation:
       "demo:handoff",
       "demo:agent-packet",
       "demo:tools",
+      "demo:context",
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
       "demo:plans",
+      "demo:pipeline",
       "demo:ui"
     ];
 
@@ -347,6 +350,13 @@ mutation:
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
+    expect(packageJson.scripts["demo:context"]).toContain("context --config");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:context"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:pipeline")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:pipeline")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:context"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:context")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:artifacts"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:context")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:artifacts"));
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--output .visual-hive/plan.canary.json");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
@@ -1458,6 +1468,53 @@ contracts:
     expect(summary).toContain("Third-party MCP exposed by default: false");
     await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-cards.md"))).resolves.toBeUndefined();
+  });
+
+  it("writes Context Ledger artifact from generated agent/tool governance files", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-context-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-context
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await runToolsCommand({ cwd: tempRoot });
+    await writeJson(path.join(tempRoot, ".visual-hive", "pipeline.json"), {
+      schemaVersion: 1,
+      project: "cli-context",
+      steps: [
+        {
+          id: "doctor",
+          label: "Doctor",
+          status: "passed",
+          exitCode: 0,
+          artifacts: [],
+          message: "token=secret-value"
+        }
+      ]
+    });
+
+    const result = await runContextCommand({ cwd: tempRoot });
+    const summary = formatContextLedger(result);
+    const ledger = await readJson<typeof result.ledger>(result.ledgerPath);
+
+    expect(ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
+    expect(ledger.usage.toolCallsUsed).toBe(1);
+    expect(ledger.sourceArtifacts.toolRegistry).toBe(".visual-hive/tools/tool-registry.json");
+    expect(summary).toContain("Context Ledger: cli-context");
+    expect(summary).toContain("Tool calls used: 1/");
+    expect(JSON.stringify(ledger)).not.toContain("secret-value");
+    await expect(access(path.join(tempRoot, ".visual-hive", "context-ledger.json"))).resolves.toBeUndefined();
   });
 
   it("fails handoff clearly when the Evidence Packet is missing", async () => {

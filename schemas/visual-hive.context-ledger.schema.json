@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.context-ledger.schema.json",
+  "title": "Visual Hive Context Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "sourceArtifacts",
+    "budgets",
+    "usage",
+    "remaining",
+    "toolCalls",
+    "providerUsage",
+    "llmUsage",
+    "escalations",
+    "policyViolations",
+    "notes"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.context-ledger.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "toolRegistry": { "type": "string" },
+        "agentPacket": { "type": "string" },
+        "evidencePacket": { "type": "string" },
+        "llmUsage": { "type": "string" },
+        "providerResults": { "type": "string" },
+        "providerUploadManifest": { "type": "string" },
+        "pipeline": { "type": "string" },
+        "artifactsIndex": { "type": "string" }
+      }
+    },
+    "budgets": { "$ref": "#/$defs/budgets" },
+    "usage": { "$ref": "#/$defs/usage" },
+    "remaining": { "$ref": "#/$defs/remaining" },
+    "toolCalls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/toolCall" }
+    },
+    "providerUsage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerUsage" }
+    },
+    "llmUsage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/llmUsage" }
+    },
+    "escalations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/escalation" }
+    },
+    "policyViolations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policyViolation" }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxToolCalls", "maxToolResultTokens", "maxExternalCostUsd", "maxProviderScreenshots"],
+      "properties": {
+        "maxToolCalls": { "type": "integer", "minimum": 0 },
+        "maxToolResultTokens": { "type": "integer", "minimum": 0 },
+        "maxExternalCostUsd": { "type": "number", "minimum": 0 },
+        "maxProviderScreenshots": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toolCallsUsed",
+        "estimatedToolResultTokens",
+        "estimatedPromptTokens",
+        "estimatedExternalCostUsd",
+        "providerScreenshots",
+        "externalCallsMade"
+      ],
+      "properties": {
+        "toolCallsUsed": { "type": "integer", "minimum": 0 },
+        "estimatedToolResultTokens": { "type": "integer", "minimum": 0 },
+        "estimatedPromptTokens": { "type": "integer", "minimum": 0 },
+        "estimatedExternalCostUsd": { "type": "number", "minimum": 0 },
+        "providerScreenshots": { "type": "integer", "minimum": 0 },
+        "externalCallsMade": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "remaining": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolCalls", "toolResultTokens", "externalCostUsd", "providerScreenshots"],
+      "properties": {
+        "toolCalls": { "type": "integer", "minimum": 0 },
+        "toolResultTokens": { "type": "integer", "minimum": 0 },
+        "externalCostUsd": { "type": "number", "minimum": 0 },
+        "providerScreenshots": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "toolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "toolId",
+        "label",
+        "access",
+        "status",
+        "trustedOnly",
+        "externalNetwork",
+        "estimatedResultTokens",
+        "artifacts",
+        "reason"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "enum": ["pipeline", "tool-registry", "agent-packet", "handoff", "manual"] },
+        "toolId": { "type": "string" },
+        "label": { "type": "string" },
+        "access": { "type": "string" },
+        "status": { "type": "string" },
+        "trustedOnly": { "type": "boolean" },
+        "externalNetwork": { "type": "boolean" },
+        "estimatedResultTokens": { "type": "integer", "minimum": 0 },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }
+      }
+    },
+    "providerUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "status",
+        "artifactCount",
+        "estimatedExternalScreenshots",
+        "externalCallsMade",
+        "estimatedCostUsd",
+        "missingEnv",
+        "blockedReasons",
+        "artifacts"
+      ],
+      "properties": {
+        "providerId": { "type": "string" },
+        "status": { "type": "string" },
+        "uploadStatus": { "type": "string" },
+        "artifactCount": { "type": "integer", "minimum": 0 },
+        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
+        "externalCallsMade": { "type": "integer", "minimum": 0 },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "missingEnv": { "type": "array", "items": { "type": "string" } },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "llmUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task", "promptOnly", "callsMade", "estimatedPromptTokens", "estimatedCostUsd"],
+      "properties": {
+        "task": { "type": "string" },
+        "promptOnly": { "type": "boolean" },
+        "callsMade": { "type": "integer", "minimum": 0 },
+        "estimatedPromptTokens": { "type": "integer", "minimum": 0 },
+        "estimatedCompletionTokens": { "type": "integer", "minimum": 0 },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "budgetStatus": { "type": "string" },
+        "artifact": { "type": "string" }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "severity", "reason", "relatedToolIds", "artifacts"],
+      "properties": {
+        "kind": {
+          "enum": ["trusted_tool", "external_network", "provider", "llm", "baseline", "protected_target", "budget"]
+        },
+        "severity": { "enum": ["info", "warning", "blocked"] },
+        "reason": { "type": "string" },
+        "relatedToolIds": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policyViolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "severity", "reason", "artifacts"],
+      "properties": {
+        "policy": { "type": "string" },
+        "severity": { "enum": ["warning", "blocked"] },
+        "reason": { "type": "string" },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

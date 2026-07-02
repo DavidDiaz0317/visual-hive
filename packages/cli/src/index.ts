@@ -45,6 +45,7 @@ import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
+import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -525,6 +526,25 @@ program
         format: options.format
       });
       console.log(formatToolsRegistry(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("context")
+  .description("Write the agent-facing Context Ledger for tool, token, provider, and escalation budgets")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--output <path>", "context ledger output path", ".visual-hive/context-ledger.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runContextCommand({
+        config: options.config,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatContextLedger(result, options.format));
     } catch (error) {
       fail(error);
     }

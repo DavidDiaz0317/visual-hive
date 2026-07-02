@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `agent-packet.json`, `tool-registry.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -201,6 +201,27 @@ Key fields:
 - `roleProfiles`: compact allowed tool lists and forbidden actions for setup, repair, test creation, review, handoff, and provider-specialist agents.
 
 The companion `.visual-hive/tools/tool-cards.md` is a compact Markdown view intended for agents and reviewers. The registry does not execute tools or grant permissions by itself.
+
+## Context Ledger
+
+Path: `.visual-hive/context-ledger.json`
+
+Schema: `schemas/visual-hive.context-ledger.schema.json`
+
+The Context Ledger is written by `visual-hive context`. It is a governance artifact for agent-forward runs, future MCP tooling, and trusted workflow review.
+
+Key fields:
+
+- `sourceArtifacts`: existing artifacts consumed to derive the ledger, such as the Agent Packet, Tool Registry, LLM usage report, provider results, provider upload manifest, pipeline report, and artifact index.
+- `budgets`: maximum tool calls, tool-result tokens, external cost, and provider screenshots for the task.
+- `usage`: inferred tool calls used, estimated tool-result tokens, estimated prompt tokens, estimated external cost, provider screenshot count, and external calls made.
+- `remaining`: remaining budget after the current evidence set.
+- `toolCalls`: pipeline steps or available registry tools with access class, trusted-only status, external-network status, artifacts, and estimated result tokens.
+- `providerUsage`: provider upload/readiness posture, staged screenshot counts, external calls made, missing credential names, and blocked reasons.
+- `llmUsage`: prompt-only LLM governance records, token estimates, cost estimates, and call counts.
+- `escalations` and `policyViolations`: reasons an agent should avoid broad context loading, external tools, provider upload, or trusted actions without human/trusted-workflow approval.
+
+The ledger does not execute tools, call providers, call LLMs, or decide pass/fail. Visual Hive's deterministic Verdict Engine remains the authority; the ledger helps agents decide which context and tools are safe to use next.
 
 ## Schedule Audit
 

@@ -230,6 +230,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
+  if (normalized.endsWith("context-ledger.json")) labels.add("context-ledger");
   if (normalized.endsWith("/handoff.json")) labels.add("handoff-packet");
   if (normalized.endsWith("hive-issue.md")) labels.add("hive-issue");
   if (normalized.endsWith("hive-bead-request.json")) labels.add("hive-bead-request");
@@ -269,6 +270,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "evidence-packet.json": "visual-hive.evidence-packet.schema.json",
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
+    "context-ledger.json": "visual-hive.context-ledger.schema.json",
     "handoff.json": "visual-hive.handoff.schema.json",
     "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
     "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",

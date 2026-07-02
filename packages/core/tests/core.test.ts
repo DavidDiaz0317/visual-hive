@@ -30,6 +30,7 @@ import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
+import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -961,6 +962,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.handoff.schema.json");
     expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
+    expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
@@ -3644,6 +3646,7 @@ describe("artifact index", () => {
     await mkdir(path.join(hiveRoot, "tools"), { recursive: true });
     await writeFile(path.join(hiveRoot, "tools", "tool-registry.json"), '{"schemaVersion":"visual-hive.tool-registry.v1","tools":[{"id":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
+    await writeFile(path.join(hiveRoot, "context-ledger.json"), '{"schemaVersion":"visual-hive.context-ledger.v1","notes":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -3663,7 +3666,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(26);
+    expect(index.summary.artifactCount).toBe(27);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3746,6 +3749,10 @@ describe("artifact index", () => {
     const toolCards = index.artifacts.find((artifact) => artifact.path.endsWith("tool-cards.md"));
     expect(toolCards?.preview).toContain("[REDACTED]");
     expect(toolCards?.labels).toContain("tool-cards");
+    const contextLedger = index.artifacts.find((artifact) => artifact.path.endsWith("context-ledger.json"));
+    expect(contextLedger?.preview).toContain("[REDACTED]");
+    expect(contextLedger?.labels).toContain("context-ledger");
+    expect(contextLedger?.schemaPath).toBe("schemas/visual-hive.context-ledger.schema.json");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");
@@ -4901,6 +4908,143 @@ describe("tool registry", () => {
     expect(result.cardsMarkdown).toContain("Third-party MCP exposed by default: false");
     expect(await readFile(result.registryPath, "utf8")).toContain("visual-hive.tool-registry.v1");
     expect(await readFile(result.cardsPath, "utf8")).toContain("Visual Hive Tool Cards");
+  });
+});
+
+describe("context ledger", () => {
+  it("derives budget usage, escalations, and redacted evidence from existing artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-context-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive", "tools"), { recursive: true });
+    await mkdir(path.join(rootDir, ".visual-hive", "provider-upload", "argos"), { recursive: true });
+
+    await writeToolRegistry({
+      rootDir,
+      project: "context-fixture",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "agent-packet.json"), {
+      schemaVersion: "visual-hive.agent-packet.v1",
+      project: "context-fixture",
+      budgets: {
+        maxToolCalls: 2,
+        maxToolResultTokens: 500,
+        maxExternalCostUsd: 0,
+        allowExternalNetwork: false
+      }
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "pipeline.json"), {
+      schemaVersion: 1,
+      project: "context-fixture",
+      steps: [
+        {
+          id: "doctor",
+          label: "Doctor",
+          status: "passed",
+          exitCode: 0,
+          artifacts: [],
+          message: "ok"
+        },
+        {
+          id: "provider-upload",
+          label: "Provider Upload",
+          status: "failed",
+          exitCode: 1,
+          artifacts: [".visual-hive/provider-results.json"],
+          message: "Authorization: Bearer provider-secret"
+        },
+        {
+          id: "triage",
+          label: "Triage",
+          status: "passed",
+          exitCode: 0,
+          artifacts: [".visual-hive/triage.json"],
+          message: "token=abc123"
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "llm-usage.json"), {
+      schemaVersion: 1,
+      records: [
+        {
+          task: "repair_prompt",
+          path: ".visual-hive/repair-prompt.md",
+          promptOnly: true,
+          callsMade: 0,
+          estimatedTokens: 1200,
+          estimatedCostUsd: 0,
+          status: "disabled"
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "provider-results.json"), {
+      providers: [
+        {
+          result: {
+            providerId: "argos",
+            status: "missing_credentials",
+            artifactCount: 4,
+            missingEnv: ["ARGOS_TOKEN"],
+            externalUploadBlockedReasons: ["client_secret=hidden"],
+            normalized: { externalCallsMade: 0 },
+            costPolicy: { estimatedExternalScreenshots: 4, blockedReasons: ["token=abc123"] }
+          }
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "provider-upload", "argos", "manifest.json"), {
+      providerId: "argos",
+      status: "dry_run",
+      externalCallsMade: 0,
+      summary: {
+        stagedArtifacts: 4,
+        uploadedArtifacts: 0
+      },
+      blockedReasons: ["Cookie: session=secret"]
+    });
+
+    const ledger = await buildContextLedger({
+      rootDir,
+      project: "context-fixture",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
+    expect(ledger.budgets.maxToolCalls).toBe(2);
+    expect(ledger.usage.toolCallsUsed).toBe(3);
+    expect(ledger.remaining.toolCalls).toBe(0);
+    expect(ledger.usage.estimatedPromptTokens).toBe(1200);
+    expect(ledger.usage.providerScreenshots).toBe(4);
+    expect(ledger.sourceArtifacts.pipeline).toBe(".visual-hive/pipeline.json");
+    expect(ledger.providerUsage[0]).toMatchObject({
+      providerId: "argos",
+      artifactCount: 4,
+      estimatedExternalScreenshots: 4,
+      externalCallsMade: 0
+    });
+    expect(ledger.providerUsage[0]?.missingEnv).toEqual(["ARGOS_TOKEN"]);
+    expect(ledger.policyViolations.map((violation) => violation.policy)).toEqual(expect.arrayContaining(["maxToolCalls", "maxProviderScreenshots"]));
+    expect(ledger.escalations.map((escalation) => escalation.kind)).toContain("provider");
+    const serialized = JSON.stringify(ledger);
+    expect(serialized).toContain("[REDACTED]");
+    expect(serialized).not.toContain("provider-secret");
+    expect(serialized).not.toContain("abc123");
+    expect(serialized).not.toContain("session=secret");
+  });
+
+  it("writes context-ledger.json as a schema-versioned artifact", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-context-write-"));
+    tempDirs.push(rootDir);
+
+    const result = await writeContextLedger({
+      rootDir,
+      project: "context-write",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(result.ledgerPath).toBe(path.join(rootDir, ".visual-hive", "context-ledger.json"));
+    expect(result.ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
+    expect(await readFile(result.ledgerPath, "utf8")).toContain("visual-hive.context-ledger.v1");
   });
 });
 
