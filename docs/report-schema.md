@@ -155,7 +155,7 @@ The Evidence Packet is written by `visual-hive evidence`. It is the canonical ag
 Key fields:
 
 - `governance`: declares Visual Hive as verdict authority, Playwright as default browser backend, LLMs as advisory-only, providers as policy-gated when normalized, and secrets as redacted.
-- `evidenceContributions`: normalized gating and advisory evidence from Playwright contracts, screenshot diffs, mutation adequacy, provider results, readiness, coverage, and triage.
+- `evidenceContributions`: normalized gating and advisory evidence from Playwright contracts, screenshot diffs, mutation adequacy, provider results, readiness, coverage, and triage. Each contribution includes a stable `key` plus explicit `authority: gating | advisory` so humans and agents can distinguish verdict inputs from advisory context without treating Playwright or provider-shaped fields as the final oracle.
 - `verdictSummary`: `passed`, `failed`, `warning`, `blocked`, or `inconclusive`, plus `failedBecause`, `warningBecause`, `blockedBecause`, and `advisoryOnly`.
 - `testingLayers`: layer coverage from repo intelligence through agent/Hive feedback.
 - `hiveReadiness`: whether the packet is ready for trusted GitHub issue handoff or Hive dry-run handoff.

@@ -7,6 +7,7 @@ export type VisualHiveVerdict = "passed" | "failed" | "warning" | "blocked" | "i
 export type EvidenceContributionStatus = "passed" | "failed" | "warning" | "blocked" | "inconclusive" | "skipped";
 
 export interface EvidenceContribution {
+  key: string;
   source:
     | "visual_hive"
     | "playwright"
@@ -22,6 +23,7 @@ export interface EvidenceContribution {
   kind: string;
   status: EvidenceContributionStatus;
   gating: boolean;
+  authority: "gating" | "advisory";
   mode?: string;
   contractId?: string;
   targetId?: string;

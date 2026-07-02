@@ -45,8 +45,9 @@ export async function buildVerdictReport(options: BuildVerdictReportOptions): Pr
       repoMapPath: options.repoMapPath,
       artifactsIndexPath: options.artifactsIndexPath
     }));
-  const allContributions = contributionRows(evidencePacket.evidenceContributions);
-  const verdict = aggregateVerdict(evidencePacket.evidenceContributions);
+  const normalizedContributions = normalizeEvidenceContributions(evidencePacket.evidenceContributions);
+  const allContributions = contributionRows(normalizedContributions);
+  const verdict = aggregateVerdict(normalizedContributions);
   const evidencePacketExists = await exists(evidencePacketPath);
 
   return sanitizeValue({
@@ -121,11 +122,20 @@ export function renderVerdictMarkdown(report: VerdictReport): string {
 function contributionRows(contributions: EvidenceContribution[]): VerdictContribution[] {
   return contributions.map((contribution) => ({
     ...contribution,
-    key: contributionKey(contribution)
+    key: contribution.key ?? contributionKey(contribution),
+    authority: contribution.authority ?? (contribution.gating ? "gating" : "advisory")
   }));
 }
 
-function contributionKey(contribution: EvidenceContribution): string {
+function normalizeEvidenceContributions(contributions: EvidenceContribution[]): EvidenceContribution[] {
+  return contributions.map((contribution) => ({
+    ...contribution,
+    key: contribution.key ?? contributionKey(contribution),
+    authority: contribution.authority ?? (contribution.gating ? "gating" : "advisory")
+  }));
+}
+
+function contributionKey(contribution: Pick<EvidenceContribution, "source" | "kind" | "contractId" | "operator" | "providerId">): string {
   const id = contribution.contractId ?? contribution.operator ?? contribution.providerId;
   return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
 }

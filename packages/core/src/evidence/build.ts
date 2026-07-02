@@ -7,6 +7,8 @@ import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { EvidenceContribution, EvidencePacket, EvidencePacketTestingLayer, VerdictSummary, VisualHiveVerdict } from "./types.js";
 
+type EvidenceContributionInput = Omit<EvidenceContribution, "key" | "authority">;
+
 export interface BuildEvidencePacketOptions {
   rootDir: string;
   project: string;
@@ -54,7 +56,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     ...(providerRunReport?.providers?.map((provider) => provider.result).filter((result): result is ProviderResult => Boolean(result)) ?? [])
   ];
 
-  const evidenceContributions = sanitizeValue([
+  const evidenceContributions = normalizeEvidenceContributions(sanitizeValue([
     ...contributionsFromPlan(plan),
     ...contributionsFromReport(report),
     ...contributionsFromMutation(mutationReport),
@@ -62,7 +64,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     ...contributionsFromReadiness(readiness),
     ...contributionsFromCoverage(coverage),
     ...contributionsFromTriage(triageReport)
-  ]) as EvidenceContribution[];
+  ]) as EvidenceContributionInput[]);
   const verdictSummary = aggregateVerdict(evidenceContributions);
   const testingLayers = buildTestingLayers({ plan, report, mutationReport, providerResults, coverage, triageReport, repoMap });
   const generatedAt = (options.now ?? new Date()).toISOString();
@@ -267,7 +269,7 @@ export function renderEvidenceSummary(packet: EvidencePacket): string {
   return `${sanitizeText(lines.join("\n"))}\n`;
 }
 
-function contributionsFromPlan(plan?: Plan): EvidenceContribution[] {
+function contributionsFromPlan(plan?: Plan): EvidenceContributionInput[] {
   if (!plan) {
     return [{ source: "visual_hive", kind: "plan", status: "inconclusive", gating: false, reason: "No plan artifact was available.", artifacts: [] }];
   }
@@ -297,11 +299,11 @@ function contributionsFromPlan(plan?: Plan): EvidenceContribution[] {
   ];
 }
 
-function contributionsFromReport(report?: Report): EvidenceContribution[] {
+function contributionsFromReport(report?: Report): EvidenceContributionInput[] {
   if (!report) {
     return [{ source: "playwright", kind: "deterministic_run", status: "inconclusive", gating: true, reason: "No deterministic report was available.", artifacts: [] }];
   }
-  const contributions: EvidenceContribution[] = [
+  const contributions: EvidenceContributionInput[] = [
     {
       source: "playwright",
       kind: "deterministic_run",
@@ -371,9 +373,9 @@ function contributionsFromReport(report?: Report): EvidenceContribution[] {
   return contributions;
 }
 
-function contributionsFromMutation(mutationReport?: MutationReport): EvidenceContribution[] {
+function contributionsFromMutation(mutationReport?: MutationReport): EvidenceContributionInput[] {
   if (!mutationReport) return [];
-  const contributions: EvidenceContribution[] = [];
+  const contributions: EvidenceContributionInput[] = [];
   if (mutationReport.total > 0 && mutationReport.score < mutationReport.minScore) {
     contributions.push({
       source: "mutation",
@@ -419,7 +421,7 @@ function contributionsFromMutation(mutationReport?: MutationReport): EvidenceCon
   return contributions;
 }
 
-function contributionsFromProviders(providers: ProviderResult[], mode?: string): EvidenceContribution[] {
+function contributionsFromProviders(providers: ProviderResult[], mode?: string): EvidenceContributionInput[] {
   return providers.map((provider) => {
     const gating = provider.deterministicRole === "oracle";
     return {
@@ -435,7 +437,7 @@ function contributionsFromProviders(providers: ProviderResult[], mode?: string):
   });
 }
 
-function contributionsFromReadiness(readiness?: { status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }): EvidenceContribution[] {
+function contributionsFromReadiness(readiness?: { status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }): EvidenceContributionInput[] {
   if (!readiness) return [];
   if (readiness.status === "blocked") {
     return [
@@ -473,7 +475,7 @@ function contributionsFromReadiness(readiness?: { status?: string; score?: numbe
   ];
 }
 
-function contributionsFromCoverage(coverage?: { uncoveredAreas?: Array<{ severity?: string; message?: string }> }): EvidenceContribution[] {
+function contributionsFromCoverage(coverage?: { uncoveredAreas?: Array<{ severity?: string; message?: string }> }): EvidenceContributionInput[] {
   if (!coverage) return [];
   const highGaps = coverage.uncoveredAreas?.filter((gap) => gap.severity === "high").length ?? 0;
   if (highGaps > 0) {
@@ -491,7 +493,7 @@ function contributionsFromCoverage(coverage?: { uncoveredAreas?: Array<{ severit
   return [];
 }
 
-function contributionsFromTriage(triage?: TriageReport): EvidenceContribution[] {
+function contributionsFromTriage(triage?: TriageReport): EvidenceContributionInput[] {
   if (!triage) return [];
   return triage.findings.map((finding) => ({
     source: "triage",
@@ -567,7 +569,15 @@ function hiveBlockedReasons(verdict: VerdictSummary, report?: Report, triage?: T
   return reasons;
 }
 
-function contributionKey(contribution: EvidenceContribution): string {
+function normalizeEvidenceContributions(contributions: EvidenceContributionInput[]): EvidenceContribution[] {
+  return contributions.map((contribution) => ({
+    ...contribution,
+    key: contributionKey(contribution),
+    authority: contribution.gating ? "gating" : "advisory"
+  }));
+}
+
+function contributionKey(contribution: Pick<EvidenceContribution, "source" | "kind" | "contractId" | "operator" | "providerId">): string {
   const id = contribution.contractId ?? contribution.operator ?? contribution.providerId;
   return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
 }

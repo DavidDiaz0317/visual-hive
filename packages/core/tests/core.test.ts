@@ -4785,6 +4785,9 @@ describe("evidence packets", () => {
     expect(JSON.stringify(result.packet)).toContain("[REDACTED]");
     expect(result.packet.governance.verdictAuthority).toBe("visual_hive");
     expect(result.packet.governance.defaultBrowserBackend).toBe("playwright");
+    expect(result.packet.evidenceContributions.every((contribution) => contribution.key.length > 0)).toBe(true);
+    expect(result.packet.evidenceContributions.find((contribution) => contribution.key === "mutation.mutation_survivor.force-login-on-demo")?.authority).toBe("gating");
+    expect(result.packet.evidenceContributions.find((contribution) => contribution.key === "mutation.not_applicable.mobile-overflow")?.authority).toBe("advisory");
     expect(result.packet.mutation?.survivedOperators[0]?.operator).toBe("force-login-on-demo");
     expect(result.packet.testingLayers.find((layer) => layer.id === 9)?.status).toBe("covered");
     expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.evidence-packet.v1");
@@ -4855,6 +4858,7 @@ describe("verdict reports", () => {
     expect(result.report.governance.verdictAuthority).toBe("visual_hive");
     expect(result.report.policy.passFailOwnedBy).toBe("visual_hive_verdict_engine");
     expect(result.report.gatingContributions.map((contribution) => contribution.key)).toContain("mutation.mutation_survivor.force-login-on-demo");
+    expect(result.report.gatingContributions.every((contribution) => contribution.authority === "gating")).toBe(true);
     expect(result.report.advisoryContributions.some((contribution) => contribution.key.startsWith("triage."))).toBe(false);
     expect(result.report.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
     expect(JSON.stringify(result.report)).not.toContain("secret-value");
@@ -4876,6 +4880,57 @@ describe("verdict reports", () => {
     expect(report.summary.blockedBecause).toContain("playwright.deterministic_run");
     expect(report.sourceArtifacts.evidencePacket).toBeUndefined();
     expect(report.gatingContributions.map((contribution) => contribution.key)).toContain("playwright.deterministic_run");
+  });
+
+  it("normalizes legacy Evidence Packet contributions without key or authority", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-verdict-legacy-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), {
+      schemaVersion: "visual-hive.evidence-packet.v1",
+      generatedAt: "2026-06-15T00:02:00.000Z",
+      project: "legacy",
+      sourceArtifacts: {},
+      governance: {
+        verdictAuthority: "visual_hive",
+        defaultBrowserBackend: "playwright",
+        llmAuthority: "advisory_only",
+        providerAuthority: "policy_gated_when_normalized",
+        secretPolicy: "redacted_values_names_only"
+      },
+      repo: {},
+      providers: [],
+      testingLayers: [],
+      evidenceContributions: [
+        {
+          source: "playwright",
+          kind: "deterministic_run",
+          status: "failed",
+          gating: true,
+          reason: "Legacy deterministic failure.",
+          artifacts: [".visual-hive/report.json"]
+        }
+      ],
+      verdictSummary: {
+        visualHiveVerdict: "failed",
+        failedBecause: ["playwright.deterministic_run"],
+        warningBecause: [],
+        blockedBecause: [],
+        advisoryOnly: []
+      },
+      hiveReadiness: {
+        readyForIssueHandoff: true,
+        readyForHiveDryRun: true,
+        blockedReasons: [],
+        suggestedLabels: ["visual-hive"]
+      }
+    });
+
+    const report = await buildVerdictReport({ rootDir, project: "legacy", now: new Date("2026-06-15T00:03:00.000Z") });
+
+    expect(report.summary.visualHiveVerdict).toBe("failed");
+    expect(report.gatingContributions[0]?.key).toBe("playwright.deterministic_run");
+    expect(report.gatingContributions[0]?.authority).toBe("gating");
   });
 });
 

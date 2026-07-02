@@ -112,14 +112,29 @@
   "$defs": {
     "verdictContribution": {
       "type": "object",
-      "required": ["key", "source", "kind", "status", "gating", "reason", "artifacts"],
+      "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],
       "additionalProperties": false,
       "properties": {
         "key": { "type": "string" },
-        "source": { "type": "string" },
+        "source": {
+          "enum": [
+            "visual_hive",
+            "playwright",
+            "screenshot_diff",
+            "mutation",
+            "provider",
+            "triage",
+            "readiness",
+            "coverage",
+            "llm",
+            "hive",
+            "agent"
+          ]
+        },
         "kind": { "type": "string" },
         "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
         "gating": { "type": "boolean" },
+        "authority": { "enum": ["gating", "advisory"] },
         "mode": { "type": "string" },
         "contractId": { "type": "string" },
         "targetId": { "type": "string" },

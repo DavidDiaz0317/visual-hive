@@ -35,10 +35,12 @@ Verdict statuses:
 
 Each contribution records:
 
+- a stable `key` such as `playwright.contract_result.dashboard-shell`
 - source, such as `playwright`, `screenshot_diff`, `mutation`, `provider`, `coverage`, or `triage`
 - kind, such as `deterministic_run`, `contract_result`, `mutation_adequacy`, or `normalized_provider_result`
 - status
 - whether it is gating
+- `authority`, either `gating` or `advisory`, so agents do not infer pass/fail from source names
 - human-readable reason
 - artifact paths
 

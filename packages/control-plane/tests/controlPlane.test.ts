@@ -908,29 +908,35 @@ jobs:
   );
   const evidenceContributions = [
     {
+      key: "playwright.deterministic_run.dashboard",
       source: "playwright",
       kind: "deterministic_run",
       status: "failed",
       gating: true,
+      authority: "gating",
       mode: "pr",
       contractId: "dashboard",
       reason: "Deterministic contract run failed.",
       artifacts: [".visual-hive/report.json"]
     },
     {
+      key: "mutation.mutation_adequacy.remove-demo-badge",
       source: "mutation",
       kind: "mutation_adequacy",
       status: "failed",
       gating: true,
+      authority: "gating",
       operator: "remove-demo-badge",
       reason: "Mutation remove-demo-badge survived.",
       artifacts: [".visual-hive/mutation-report.json"]
     },
     {
+      key: "triage.insufficient_coverage",
       source: "triage",
       kind: "insufficient_coverage",
       status: "skipped",
       gating: false,
+      authority: "advisory",
       reason: "Coverage recommendation is advisory.",
       artifacts: [".visual-hive/triage.json"]
     }
