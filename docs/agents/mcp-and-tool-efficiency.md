@@ -36,7 +36,10 @@ These resources are sanitized before being returned. Missing artifacts are repor
 
 Default MCP tools are read-only:
 
+- `visual_hive_doctor`
 - `visual_hive_validate_config`
+- `visual_hive_recommend_setup`
+- `visual_hive_plan`
 - `visual_hive_read_latest_report`
 - `visual_hive_read_evidence_packet`
 - `visual_hive_explain_failure`
@@ -44,7 +47,7 @@ Default MCP tools are read-only:
 - `visual_hive_generate_repair_prompt`
 - `visual_hive_generate_handoff_dry_run`
 
-The `generate_*` names reflect agent workflow intent, but the default implementation only reads existing local artifacts. It does not create issues, call Hive, upload provider screenshots, approve baselines, run Playwright, run mutation checks, call an LLM, or contact external services.
+`visual_hive_doctor`, `visual_hive_recommend_setup`, and `visual_hive_plan` return bounded summaries from loaded config, repo setup signals, or in-memory PR planning. They do not write `plan.json`, start target servers, run Playwright, run mutation checks, call an LLM, upload screenshots, create issues, approve baselines, call Hive, or contact external services. The `generate_*` names reflect agent workflow intent, but the default implementation only reads existing local artifacts.
 
 ## Disabled By Default
 
@@ -66,7 +69,8 @@ Agents should prefer compact resources and tools before loading broad files:
 1. Read `visual-hive://latest-evidence` first.
 2. Use `visual_hive_explain_failure` for a compact failure summary.
 3. Use `visual_hive_list_reproduction_commands` before asking for shell access.
-4. Read raw report/artifact resources only when the compact evidence is insufficient.
-5. Do not load screenshots or large artifacts unless the task specifically needs visual evidence.
+4. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.
+5. Read raw report/artifact resources only when the compact evidence is insufficient.
+6. Do not load screenshots or large artifacts unless the task specifically needs visual evidence.
 
 Visual Hive remains the deterministic verdict authority. MCP clients and agents may explain, repair, or hand off evidence, but they do not decide pass/fail.

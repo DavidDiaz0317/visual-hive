@@ -101,7 +101,10 @@
         "name": {
           "type": "string",
           "enum": [
+            "visual_hive_doctor",
             "visual_hive_validate_config",
+            "visual_hive_recommend_setup",
+            "visual_hive_plan",
             "visual_hive_read_latest_report",
             "visual_hive_read_evidence_packet",
             "visual_hive_explain_failure",

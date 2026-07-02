@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig, sanitizeText, writeJson, type LoadedConfig } from "@visual-hive/core";
+import { createPlan, loadConfig, recommendSetup, sanitizeText, writeJson, type LoadedConfig } from "@visual-hive/core";
 
 export interface McpCommandOptions {
   config?: string;
@@ -127,9 +127,27 @@ export const MCP_RESOURCES: McpResourceDefinition[] = [
 
 export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
   {
+    name: "visual_hive_doctor",
+    title: "Doctor Summary",
+    description: "Summarize the loaded config, targets, contracts, and missing secret names without running target code.",
+    mode: "read_only"
+  },
+  {
     name: "visual_hive_validate_config",
     title: "Validate Config",
     description: "Validate the configured Visual Hive repository without running tests or making external calls.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_recommend_setup",
+    title: "Recommend Setup",
+    description: "Inspect repository setup signals and return bounded setup recommendations without writing files.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_plan",
+    title: "Plan Summary",
+    description: "Create an in-memory PR-mode plan summary without writing plan.json or executing contracts.",
     mode: "read_only"
   },
   {
@@ -309,6 +327,8 @@ export async function readMcpResourceText(loaded: LoadedConfig, resource: McpRes
 
 export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): Promise<string> {
   switch (toolName) {
+    case "visual_hive_doctor":
+      return JSON.stringify(buildDoctorSummary(loaded), null, 2);
     case "visual_hive_validate_config":
       return JSON.stringify(
         sanitizeObject({
@@ -323,6 +343,10 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
         null,
         2
       );
+    case "visual_hive_recommend_setup":
+      return JSON.stringify(await buildSetupRecommendationSummary(loaded), null, 2);
+    case "visual_hive_plan":
+      return JSON.stringify(buildReadOnlyPlanSummary(loaded), null, 2);
     case "visual_hive_read_latest_report":
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "report.json"), ".visual-hive/report.json");
     case "visual_hive_read_evidence_packet":
@@ -340,6 +364,94 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
   }
 }
 
+function buildDoctorSummary(loaded: LoadedConfig): Record<string, unknown> {
+  const targetRows = Object.entries(loaded.config.targets).map(([id, target]) => {
+    const missingSecrets = target.kind === "protected" ? (target.requiresSecrets ?? []).filter((name) => !process.env[name]) : [];
+    return {
+      id,
+      kind: target.kind,
+      url: "url" in target ? target.url : undefined,
+      prSafe: target.prSafe,
+      cost: target.cost,
+      missingSecrets,
+      hasInstall: "install" in target ? Boolean(target.install) : false,
+      hasBuild: "build" in target ? Boolean(target.build) : false,
+      hasServe: "serve" in target ? Boolean(target.serve) : false,
+      serviceCount: "services" in target ? (target.services?.length ?? 0) : 0
+    };
+  });
+  return sanitizeObject({
+    ok: true,
+    project: loaded.config.project.name,
+    configPath: loaded.configPath,
+    rootDir: loaded.rootDir,
+    targetCount: targetRows.length,
+    contractCount: loaded.config.contracts.length,
+    targets: targetRows,
+    contracts: loaded.config.contracts.map((contract) => ({
+      id: contract.id,
+      target: contract.target,
+      severity: contract.severity,
+      runOn: contract.runOn
+    })),
+    externalCallsMade: 0
+  });
+}
+
+async function buildSetupRecommendationSummary(loaded: LoadedConfig): Promise<Record<string, unknown>> {
+  const recommendation = await recommendSetup({
+    repoRoot: loaded.rootDir,
+    configPath: path.relative(loaded.rootDir, loaded.configPath)
+  });
+  return sanitizeObject({
+    schemaVersion: recommendation.schemaVersion,
+    project: recommendation.project,
+    setupProfile: recommendation.setupProfile,
+    recommendedTarget: recommendation.recommendedTarget,
+    recommendedContracts: recommendation.recommendedContracts.map((contract) => ({
+      id: contract.id,
+      targetId: contract.targetId,
+      selectors: contract.selectors,
+      screenshots: contract.screenshots,
+      reasons: contract.reasons
+    })),
+    onboardingChecklist: recommendation.onboardingChecklist.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      action: item.action,
+      command: item.command
+    })),
+    warnings: recommendation.warnings,
+    externalCallsMade: 0
+  });
+}
+
+function buildReadOnlyPlanSummary(loaded: LoadedConfig): Record<string, unknown> {
+  const plan = createPlan(loaded.config, {
+    mode: "pr",
+    changedFiles: [],
+    allowUnsafeTargets: false
+  });
+  return sanitizeObject({
+    schemaVersion: plan.schemaVersion,
+    project: plan.project,
+    mode: plan.mode,
+    selectedContracts: plan.items.map((item) => ({
+      contractId: item.contractId,
+      targetId: item.targetId,
+      reasons: item.reasons,
+      cost: item.cost
+    })),
+    selectedTargets: plan.targets,
+    excludedContracts: plan.excluded,
+    mutation: plan.mutation,
+    providerPolicy: plan.providerPolicy,
+    externalCallsMade: 0,
+    wroteArtifacts: false
+  });
+}
+
 async function explainLatestFailure(rootDir: string): Promise<string> {
   const report = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "report.json"));
   const mutation = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "mutation-report.json"));
@@ -352,9 +464,10 @@ async function explainLatestFailure(rootDir: string): Promise<string> {
   const verdict = readNestedString(evidence, ["verdictSummary", "visualHiveVerdict"]);
   lines.push(`- Deterministic report: ${reportStatus ?? "missing"}`);
   lines.push(`- Visual Hive verdict: ${verdict ?? "missing"}`);
-  const failedContracts = Array.isArray(report?.contractResults)
-    ? report.contractResults.filter((result) => readString(result, "status") === "failed").map((result) => readString(result, "contractId")).filter(Boolean)
-    : [];
+  const failedContracts = reportResults(report)
+    .filter((result) => readString(result, "status") === "failed")
+    .map((result) => readString(result, "contractId"))
+    .filter(Boolean);
   lines.push(`- Failed contracts: ${failedContracts.length ? failedContracts.join(", ") : "none"}`);
   const survivedMutations = Array.isArray(mutation?.results)
     ? mutation.results.filter((result) => readString(result, "status") === "survived").map((result) => readString(result, "operator")).filter(Boolean)
@@ -378,15 +491,25 @@ async function listReproductionCommands(rootDir: string): Promise<string> {
       if (typeof command === "string" && command.trim()) commands.add(command.trim());
     }
   }
-  if (Array.isArray(report.contractResults)) {
-    for (const result of report.contractResults) {
-      const command = readString(result, "reproductionCommand");
-      if (command) commands.add(command);
-    }
+  for (const result of reportResults(report)) {
+    const command = readString(result, "reproductionCommand");
+    if (command) commands.add(command);
   }
   return commands.size
     ? [...commands].map((command) => `- \`${sanitizeText(command)}\``).join("\n")
     : "No reproduction commands were recorded in the latest report.";
+}
+
+function reportResults(report?: Record<string, unknown>): Record<string, unknown>[] {
+  const results = report?.results;
+  if (Array.isArray(results)) return results.filter(isRecord);
+  const legacyResults = report?.contractResults;
+  if (Array.isArray(legacyResults)) return legacyResults.filter(isRecord);
+  return [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
 }
 
 async function readArtifactText(filePath: string, displayPath: string): Promise<string> {

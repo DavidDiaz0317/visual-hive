@@ -1908,7 +1908,7 @@ contracts:
       project: "cli-mcp",
       status: "failed",
       reproductionCommands: ["visual-hive run --token=secret-value"],
-      contractResults: [
+      results: [
         {
           contractId: "dashboard",
           status: "failed",
@@ -1951,6 +1951,9 @@ contracts:
     await expectMatchesSchema("visual-hive.mcp.schema.json", writtenManifest);
     expect(manifest.server.defaultAccess).toBe("read_only");
     expect(manifest.server.externalCallsMade).toBe(0);
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_doctor");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_recommend_setup");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_plan");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
     expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
@@ -1963,13 +1966,20 @@ contracts:
     await expect(readMcpResourceText(loaded, configResource!)).resolves.toContain("cli-mcp");
     const explanation = await callReadOnlyTool(loaded, "visual_hive_explain_failure");
     const reproduction = await callReadOnlyTool(loaded, "visual_hive_list_reproduction_commands");
+    const doctor = await callReadOnlyTool(loaded, "visual_hive_doctor");
+    const setup = await callReadOnlyTool(loaded, "visual_hive_recommend_setup");
+    const plan = await callReadOnlyTool(loaded, "visual_hive_plan");
     const repairPrompt = await callReadOnlyTool(loaded, "visual_hive_generate_repair_prompt");
     const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
 
     expect(explanation).toContain("Visual Hive verdict: failed");
+    expect(explanation).toContain("Failed contracts: dashboard");
     expect(explanation).toContain("Survived mutations: force-login-on-demo");
     expect(reproduction).toContain("visual-hive run");
     expect(reproduction).not.toContain("secret-value");
+    expect(doctor).toContain("\"externalCallsMade\": 0");
+    expect(setup).toContain("\"externalCallsMade\": 0");
+    expect(plan).toContain("\"wroteArtifacts\": false");
     expect(repairPrompt).not.toContain("secret-value");
     expect(handoff).toContain("visual-hive.handoff.v1");
   });
@@ -2007,7 +2017,7 @@ contracts:
       project: "cli-mcp-sdk",
       status: "passed",
       reproductionCommands: ["visual-hive run --cookie=secret-value"],
-      contractResults: []
+      results: []
     });
 
     const loaded = await loadConfig(undefined, tempRoot);
@@ -2021,13 +2031,18 @@ contracts:
       const tools = await client.listTools(undefined, { timeout: 10_000 });
       const evidence = await client.readResource({ uri: "visual-hive://latest-evidence" }, { timeout: 10_000 });
       const config = await client.callTool({ name: "visual_hive_validate_config" }, undefined, { timeout: 10_000 });
+      const plan = await client.callTool({ name: "visual_hive_plan" }, undefined, { timeout: 10_000 });
       const reproduction = await client.callTool({ name: "visual_hive_list_reproduction_commands" }, undefined, { timeout: 10_000 });
 
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://latest-evidence");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_doctor");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_recommend_setup");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_plan");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
       expect(tools.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
       expect(JSON.stringify(evidence.contents)).toContain("cli-mcp-sdk");
       expect(config.content.find((item) => item.type === "text")?.text).toContain("\"externalCallsMade\": 0");
+      expect(plan.content.find((item) => item.type === "text")?.text).toContain("\"wroteArtifacts\": false");
       expect(reproduction.content.find((item) => item.type === "text")?.text).toContain("visual-hive run");
       expect(reproduction.content.find((item) => item.type === "text")?.text).not.toContain("secret-value");
     } finally {
