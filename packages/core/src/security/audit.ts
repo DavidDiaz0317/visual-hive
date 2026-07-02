@@ -250,7 +250,7 @@ function llmFindings(config: VisualHiveConfig): SecurityAuditFinding[] {
       title: "LLM cost budget is nonzero",
       message: "A nonzero model budget should be paired with an explicit trusted workflow and usage review.",
       evidence: [`maxEstimatedCostUsd=${config.ai.maxEstimatedCostUsd}`],
-      recommendation: "Record an LLM governance decision and keep deterministic checks as the pass/fail oracle.",
+      recommendation: "Record an LLM governance decision and keep Visual Hive deterministic verdict artifacts as the pass/fail authority.",
       trustedOnly: true
     });
   }

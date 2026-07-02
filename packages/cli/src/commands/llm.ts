@@ -103,7 +103,7 @@ export function formatLLMUsage(result: LLMCommandResult, format: "markdown" | "j
   if (result.report.recommendations.length) {
     lines.push("", "## Recommendations", ...result.report.recommendations.map((recommendation) => `- ${sanitizeText(recommendation)}`));
   }
-  lines.push("", "LLM output is advisory only. Deterministic Playwright contracts and mutation adequacy remain the pass/fail oracle.");
+  lines.push("", "LLM output is advisory only. Visual Hive's deterministic verdict layer remains the pass/fail authority; Playwright and mutation adequacy are default local evidence inputs.");
   return lines.join("\n");
 }
 

@@ -14,7 +14,7 @@ The command detects:
 - a likely PR-safe target, including `localPreview` for single-service apps or `commandGroup` for detected fullstack/fake-OAuth script sets
 - starter visual contracts: an app-shell contract plus route-specific contracts for detected app routes, or Storybook component contracts for component-library repos
 - an opinionated setup profile such as `free-local`, `component-storybook`, or `complex-app`
-- provider recommendations that keep Playwright as the default oracle and external uploads disabled by default
+- provider recommendations that keep Playwright as the default local browser runner, keep Visual Hive as the verdict authority, and keep external uploads disabled by default
 - CI runtime, screenshot, and external upload cost estimates
 - PR/scheduled permission guidance and required secret names only
 - setup PR file list, steps, and security notes
@@ -23,7 +23,7 @@ The command detects:
 - repo-specific setup documentation for `docs/visual-hive.md`
 - initial changed-file selection and mutation operators
 
-It does not run target code, call LLMs, contact paid visual providers, or decide pass/fail. Playwright contracts remain the only deterministic oracle once the generated config is used.
+It does not run target code, call LLMs, contact paid visual providers, or decide pass/fail. The generated config feeds Visual Hive's deterministic verdict layer; Playwright is the default local browser runner for the first evidence lane.
 
 ## Commands
 

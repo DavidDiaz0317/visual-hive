@@ -4,7 +4,7 @@ Visual Hive is not just another screenshot runner.
 
 ## Playwright-only
 
-Playwright gives deterministic browser automation. Visual Hive keeps Playwright as the oracle, then adds project-aware planning, target safety, report schemas, mutation adequacy, and repair-ready issue context.
+Playwright gives deterministic browser automation. Visual Hive keeps Playwright as the default first-party local runner and primary evidence source, then adds the verdict layer, project-aware planning, target safety, report schemas, mutation adequacy, and repair-ready issue context.
 
 ## Percy, Chromatic, Argos, and Applitools
 
@@ -26,4 +26,4 @@ Argos upload is opt-in:
 visual-hive providers upload --provider argos --dry-run
 ```
 
-A real upload requires `providers.argos.enabled=true`, `ARGOS_TOKEN`, and a cost policy that allows the trusted scheduled/manual lane. Argos evidence is supplemental; Playwright remains the deterministic pass/fail oracle.
+A real upload requires `providers.argos.enabled=true`, `ARGOS_TOKEN`, and a cost policy that allows the trusted scheduled/manual lane. Argos evidence is supplemental unless normalized provider gating is explicitly enabled; Visual Hive remains the verdict authority.

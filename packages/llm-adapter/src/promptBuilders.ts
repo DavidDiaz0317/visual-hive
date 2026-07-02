@@ -2,7 +2,7 @@ import type { PromptInput } from "./types.js";
 import { sanitizeText } from "@visual-hive/core";
 
 const ORACLE_NOTICE =
-  "Important: LLM output is advisory only. Deterministic Playwright contracts and mutation results are the only pass/fail oracle.";
+  "Important: LLM output is advisory only. Visual Hive's deterministic verdict layer is the pass/fail authority; Playwright and mutation evidence are default local inputs.";
 
 export function buildVisualFailureTriagePrompt(input: PromptInput): string {
   return buildPrompt("Visual failure triage", input, [
@@ -131,7 +131,7 @@ export function buildBaselineReviewSummaryMarkdown(input: PromptInput): string {
     "",
     "- Review screenshots in the Control Plane Baselines page before changing baselines.",
     "- Approve intentional changes explicitly, reject unintended changes with a reason, then rerun `visual-hive run --ci`.",
-    "- Keep deterministic Playwright results as the pass/fail source; LLM output may only explain or summarize the evidence.",
+    "- Keep Visual Hive verdict artifacts as the pass/fail authority; LLM output may only explain or summarize the evidence.",
     ""
   ];
   return lines.join("\n");

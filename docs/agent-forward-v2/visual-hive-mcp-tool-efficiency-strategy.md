@@ -33,7 +33,7 @@ For Visual Hive, useful categories are:
 | Sentry MCP | Production/protected error context and MCP observability | Optional, protected/trusted only |
 | Jira/Linear/Slack MCPs | Enterprise routing and team workflow integration | Later, issue-routing only |
 
-MCPs should be strongest in setup, test generation, failure diagnosis, external provider result review, and issue handoff. They should not replace Visual Hive's deterministic oracle.
+MCPs should be strongest in setup, test generation, failure diagnosis, external provider result review, and issue handoff. They should not replace Visual Hive's deterministic verdict authority.
 
 ---
 

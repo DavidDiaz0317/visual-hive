@@ -82,7 +82,7 @@ function recommendationFor(provider: ProviderInspection): ProviderSetupRecommend
 
 function configChangesFor(provider: ProviderInspection): string[] {
   if (provider.id === "playwright") {
-    return ["Keep providers.playwright enabled; it is the default deterministic oracle."];
+    return ["Keep providers.playwright enabled; it is the default first-party local browser runner."];
   }
   if (!provider.enabled) {
     return [
@@ -121,7 +121,7 @@ function workflowStepsFor(provider: ProviderInspection): string[] {
 
 function safetyChecksFor(provider: ProviderInspection): string[] {
   const checks = [
-    "LLM output and provider output must never be the sole pass/fail oracle.",
+    "LLM output must never be a verdict authority; provider output is gating only when explicitly normalized, trusted, and configured.",
     "Do not use pull_request_target for workflows that execute PR code.",
     "Do not print credential values; show required environment variable names only.",
     "Keep issue creation in a trusted workflow_run consumer of sanitized artifacts."

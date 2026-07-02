@@ -28,7 +28,7 @@ jobs:
           arguments: --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule --ci --enforce-mutation --github-step-summary
       # Optional trusted Argos upload. Keep disabled until ARGOS_TOKEN is configured,
       # costPolicy allows this run mode, and maintainers approve hosted review usage.
-      # Playwright remains the pass/fail oracle even when Argos is enabled.
+      # Visual Hive remains the verdict authority even when Argos is enabled.
       # - uses: DavidDiaz0317/visual-hive/actions/run@main
       #   with:
       #     command: providers

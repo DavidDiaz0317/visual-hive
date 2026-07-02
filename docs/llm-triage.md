@@ -10,7 +10,7 @@ The LLM adapter builds prompts for:
 - baseline review summary
 - repair planning
 
-Every prompt states that LLM output is advisory only. Deterministic Playwright contracts and mutation results remain the only pass/fail oracle.
+Every prompt states that LLM output is advisory only. Visual Hive's deterministic verdict layer remains the pass/fail authority, with Playwright and mutation evidence as default local inputs.
 
 `visual-hive triage` writes local artifacts:
 
@@ -78,4 +78,4 @@ visual-hive llm decision --decision approve_trusted_prompt_only
 
 Recording a decision does not create API keys, enable billing, call a model, upload artifacts, or change CI pass/fail behavior. Every entry records `externalCallsMade: 0`.
 
-`visual-hive risk` and `visual-hive readiness` load `.visual-hive/llm-decisions.json` when it exists. A recorded `keep_disabled` or `review_later` decision keeps the governance posture visible, and a conflict with a non-none LLM provider becomes a trusted-lane warning. This evidence is advisory governance only; deterministic Playwright contracts and mutation adequacy remain the pass/fail oracle.
+`visual-hive risk` and `visual-hive readiness` load `.visual-hive/llm-decisions.json` when it exists. A recorded `keep_disabled` or `review_later` decision keeps the governance posture visible, and a conflict with a non-none LLM provider becomes a trusted-lane warning. This evidence is advisory governance only; Visual Hive's deterministic verdict layer remains the pass/fail authority.

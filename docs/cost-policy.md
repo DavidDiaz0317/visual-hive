@@ -29,7 +29,7 @@ The default should remain:
 }
 ```
 
-External providers are supplemental. Argos is the first optional upload adapter and must be invoked explicitly with `visual-hive providers upload --provider argos`; Playwright remains the deterministic pass/fail oracle. Disabled, missing-credential, policy-blocked, and dry-run Argos paths record zero external calls.
+External providers are supplemental by default. Argos is the first optional upload adapter and must be invoked explicitly with `visual-hive providers upload --provider argos`; Visual Hive remains the deterministic verdict authority. Disabled, missing-credential, policy-blocked, and dry-run Argos paths record zero external calls, and provider output becomes gating only when explicitly enabled for a trusted lane.
 
 ## PR Safety
 

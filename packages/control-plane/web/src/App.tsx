@@ -559,7 +559,7 @@ function ConfigureWorkspace({
       <div className="span-12">
         <GitHubView snapshot={snapshot} runAction={runAction} connection={connection} />
       </div>
-      <SectionHeader className="span-12" title="LLM" description="Prompt-only advisory triage controls; never the pass/fail oracle." />
+      <SectionHeader className="span-12" title="LLM" description="Prompt-only advisory triage controls; never the verdict authority." />
       <div className="span-12">
         <LLM snapshot={snapshot} runAction={runAction} connection={connection} />
       </div>
@@ -1046,7 +1046,7 @@ function LLM({ snapshot, runAction, connection }: { snapshot: Snapshot; runActio
   return (
     <div className="view-grid">
       <Card className="span-6" title="LLM policy">
-        <p className="card-subtext">LLM output is advisory only and never the sole pass/fail oracle.</p>
+        <p className="card-subtext">LLM output is advisory only and never the verdict authority.</p>
         <ConfirmButton
           disabled={snapshot.readOnly}
           message="Record the decision to keep LLM triage disabled by default?"

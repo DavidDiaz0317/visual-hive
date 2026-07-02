@@ -167,7 +167,7 @@ function usageRecord(governance: LLMGovernanceSettings, prompt: LLMPromptArtifac
   const notes = [
     "Prompt artifact generated locally.",
     "No LLM API call was made.",
-    "Deterministic Playwright and mutation results remain the pass/fail oracle."
+    "Visual Hive verdict artifacts remain the pass/fail authority; Playwright and mutation results are deterministic evidence inputs."
   ];
   return {
     task: prompt.task,
@@ -236,7 +236,7 @@ function collectWarnings(governance: LLMGovernanceSettings, records: LLMUsageRec
 function recommendationsFor(governance: LLMGovernanceSettings, records: LLMUsageRecord[], warnings: string[]): string[] {
   const recommendations = new Set<string>();
   recommendations.add("Keep LLM use prompt-only unless a trusted workflow explicitly performs a governed model call.");
-  recommendations.add("Never use LLM output as the sole pass/fail oracle.");
+  recommendations.add("Never use LLM output as a verdict authority.");
   if (warnings.length) recommendations.add("Review LLM governance warnings before wiring external providers.");
   if (records.some((record) => record.status === "blocked_by_token_budget")) {
     recommendations.add("Reduce prompt size or raise ai.maxPromptTokens in config after review.");

@@ -500,7 +500,7 @@ function uploadWarnings(
   stagedArtifactCount: number
 ): string[] {
   const warnings = new Set<string>();
-  if (provider.id !== "playwright") warnings.add("Playwright remains the deterministic pass/fail oracle; provider output is supplemental.");
+  if (provider.id !== "playwright") warnings.add("Visual Hive remains the deterministic verdict authority; provider output is supplemental unless explicitly configured as gating.");
   if (status === "skipped") warnings.add("Argos upload skipped because the provider is disabled or in non-external mode.");
   if (status === "missing_credentials") warnings.add(`Missing credential names: ${provider.missingEnv.join(", ")}`);
   if (status === "blocked") warnings.add(`External upload blocked: ${blockedReasons.join(" ")}`);

@@ -1,6 +1,6 @@
 # Security And Supply Chain
 
-Visual Hive is secure by default: deterministic Playwright contracts remain the pass/fail oracle, PR workflows should be read-only and secret-free, protected targets run only in trusted lanes, and LLM/provider integrations are disabled or advisory unless explicitly governed.
+Visual Hive is secure by default: the Visual Hive deterministic verdict layer decides pass/fail from configured deterministic evidence, PR workflows should be read-only and secret-free, protected targets run only in trusted lanes, and LLM/provider integrations are disabled or advisory unless explicitly governed.
 
 ## Security audit command
 
@@ -53,7 +53,8 @@ Use the direct mode only where network access and npm registry calls are accepta
 
 ## Provider and LLM rules
 
-- Playwright is the default deterministic oracle.
+- Playwright is the default first-party local browser runner and primary local evidence source.
+- Visual Hive owns the final deterministic verdict assembled from configured evidence.
 - External visual providers are optional supplemental adapters.
 - External uploads stay disabled on PRs unless explicitly reviewed.
 - LLM prompts are advisory artifacts by default.

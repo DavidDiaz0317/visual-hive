@@ -132,7 +132,9 @@ The CLI/core engine must remain usable without the UI. The UI must act as a cont
 
 Deterministic tests decide pass/fail.
 
-Allowed pass/fail sources:
+Visual Hive should own the final verdict layer. Playwright is the default first-party local browser runner and primary local deterministic evidence source, but the long-term pass/fail decision should be a Visual Hive verdict assembled from configured deterministic evidence.
+
+Allowed deterministic verdict inputs:
 
 - Playwright selector assertions
 - Playwright user-flow assertions
@@ -140,9 +142,9 @@ Allowed pass/fail sources:
 - route assertions
 - console/page/network error assertions
 - mutation adequacy thresholds
-- provider-normalized deterministic results when explicitly configured
+- provider-normalized deterministic results when explicitly configured as trusted, gating, and budget-authorized
 
-LLM output must never be the sole pass/fail oracle.
+LLM output must never be a verdict authority.
 
 ## AI-amplified, not AI-dependent
 
@@ -371,7 +373,7 @@ Visual Hive should not treat provider integrations as an afterthought, but it sh
 
 ### Playwright
 
-- Default deterministic oracle.
+- Default first-party local browser runner and primary local evidence source.
 - No paid account.
 - Should always be usable.
 

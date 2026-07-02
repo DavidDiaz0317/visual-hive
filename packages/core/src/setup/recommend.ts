@@ -843,7 +843,7 @@ function buildProviderRecommendations(
       providerId: "playwright",
       label: PROVIDER_LABELS.playwright,
       recommendation: "use",
-      reason: "Default deterministic oracle. No paid account or external upload is required.",
+      reason: "Default local browser evidence runner. No paid account or external upload is required.",
       requiredEnv: [],
       externalUploadAllowedByDefault: false
     }
@@ -1081,7 +1081,7 @@ function buildSetupActionRecommendations(input: {
       requiresConfirmation: false,
       writes: [".visual-hive/plan.json", ".visual-hive/report.json", ".visual-hive/triage.json"],
       safetyNotes: [
-        "Playwright contracts remain the pass/fail oracle.",
+        "Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner.",
         "First local screenshot runs may create baselines for human review."
       ],
       outcome: "Proves the local PR-safe path before making CI required."

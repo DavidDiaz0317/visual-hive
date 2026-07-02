@@ -540,7 +540,7 @@ function buildPortfolio(connections: RepoConnectionEntry[]): RepoConnectionPortf
       label: "Deterministic failures",
       description: "Latest Playwright-backed deterministic run failed.",
       severity: "critical",
-      nextAction: "Open the failed report, inspect artifacts, and keep deterministic tests as the pass/fail oracle.",
+      nextAction: "Open the failed report, inspect artifacts, and keep Visual Hive verdict artifacts as the pass/fail authority.",
       filter: (connection) => connection.latestDeterministicStatus === "failed"
     },
     {

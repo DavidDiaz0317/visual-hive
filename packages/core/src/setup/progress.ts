@@ -139,7 +139,7 @@ export function buildSetupProgress(options: BuildSetupProgressOptions = {}): Set
       id: "run",
       label: "Run deterministic contracts",
       status: options.report ? (options.report.status === "passed" ? "complete" : "blocked") : "pending",
-      description: "Use Playwright contracts, selector assertions, flows, screenshot diffs, console/page/network evidence, and artifacts as the pass/fail oracle.",
+      description: "Run Playwright contracts and collect selector, flow, screenshot, console, page, network, and artifact evidence for the Visual Hive verdict layer.",
       evidence: options.report
         ? [`status=${options.report.status}`, `passed=${options.report.summary.passed}`, `failed=${options.report.summary.failed}`]
         : ["No .visual-hive/report.json artifact found."],

@@ -41,7 +41,7 @@ Visual Hive is enterprise-level only when these properties are true:
 
 1. **Reproducible:** every failure has a target, contract, mode, commit, run command, artifact path, and reason.
 2. **Governed:** PR-safe, protected, provider, LLM, baseline, and issue-creation policy is explicit.
-3. **Deterministic-first:** Playwright/contracts/mutation/provider-normalized deterministic results decide status; LLM output never decides pass/fail alone.
+3. **Deterministic-first:** Visual Hive's verdict layer decides status from configured deterministic evidence; Playwright is the default first-party runner, and LLM output never decides pass/fail alone.
 4. **Local-first:** the default path works with CLI + Playwright + GitHub Actions + artifacts, without a paid provider.
 5. **Cloud-ready:** artifacts and schemas are stable enough for a future GitHub App or hosted Control Plane.
 6. **Agent-ready:** docs and artifacts are structured enough that coding agents can work without guessing the architecture.
@@ -298,7 +298,7 @@ Hosted review/cross-browser provider lane. These should be optional, budget-awar
 
 ### Meticulous/Wopee/AI QA tools
 
-Inspiration for route discovery, session-derived test suggestions, and self-healing setup recommendations. They should not become pass/fail oracles in Visual Hive.
+Inspiration for route discovery, session-derived test suggestions, and self-healing setup recommendations. They should not become verdict authorities in Visual Hive.
 
 ### Currents/Replay/Checkly
 

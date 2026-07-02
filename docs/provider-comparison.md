@@ -16,13 +16,13 @@ Percy, Chromatic, Argos, and Applitools are valuable visual testing products. Vi
 - Deterministic selector, route, and user-visible contract checks through Playwright.
 - Mutation adequacy checks that intentionally break UI/auth/API behavior and verify tests catch the breakage.
 - Repair-ready GitHub issue/comment context with sanitized logs, changed files, artifacts, and likely failure classes.
-- Optional prompt generation for LLM triage without making the LLM a pass/fail oracle.
+- Optional prompt generation for LLM triage without making the LLM a verdict authority.
 
 ## How they work together
 
 Visual Hive can run first to decide which targets/contracts deserve attention. The v0.2 adapter surface can inspect optional provider readiness, report missing credential names, and run mock-mode adapters without external accounts. `visual-hive providers list --mock-results` writes `.visual-hive/provider-results.json` with availability, artifact upload, compare, fetch, normalize, and report-metadata operation evidence. Argos has the first real optional upload path through `visual-hive providers upload --provider argos`; Percy, Chromatic, and Applitools remain governed/deferred adapters. A hosted provider can own review UI while Visual Hive owns planning, contract coverage, mutation score, and issue context.
 
-Visual Hive also owns external upload policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, upload status, staged/uploaded artifact counts, and external call counts. Playwright remains the deterministic oracle even when Argos upload succeeds or fails.
+Visual Hive also owns external upload and verdict policy. The `costPolicy` config can block PR uploads, require failure-only upload, limit external screenshots per run, and keep critical-contract-only provider usage as the default posture. Provider results record `externalUploadAllowed`, blocked reasons, estimated external screenshot counts, upload status, staged/uploaded artifact counts, and external call counts. Provider output affects the Visual Hive verdict only when normalized, trusted, configured as gating, and budget-authorized.
 
 The CLI and Control Plane use the same core governance helper to record provider decisions in `.visual-hive/provider-decisions.json`. These decisions are local audit evidence only: skip a provider for now, review it later, or approve it for a future trusted setup review. Recording a decision does not create credentials, enable billing, upload screenshots, or call a provider API. `visual-hive risk` and `visual-hive readiness` load the decision log so governance choices are visible before a team enables trusted provider-backed lanes.
 

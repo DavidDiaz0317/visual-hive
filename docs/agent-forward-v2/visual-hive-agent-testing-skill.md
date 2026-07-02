@@ -29,7 +29,7 @@ The LLM/agent can help write code and tests, but deterministic artifacts decide 
 
 ## Non-negotiables
 
-- Do not make an LLM the pass/fail oracle.
+- Do not make an LLM a verdict authority.
 - Do not add external provider calls by default.
 - Do not put secrets in PR workflows.
 - Do not use `pull_request_target` to execute untrusted PR code.

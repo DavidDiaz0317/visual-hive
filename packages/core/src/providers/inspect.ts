@@ -181,7 +181,7 @@ function providerMessage(
   missingEnv: string[],
   blockedReasons: string[]
 ): string {
-  if (metadata.id === "playwright") return "Built-in deterministic oracle.";
+  if (metadata.id === "playwright") return "Default first-party local browser runner.";
   if (availability === "disabled") return "Disabled; Visual Hive will not call this provider.";
   if (availability === "mock") return "Mock mode; no external provider call will be made.";
   if (availability === "missing_credentials") return `Missing environment variables by name only: ${missingEnv.join(", ")}`;

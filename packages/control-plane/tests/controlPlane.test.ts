@@ -178,7 +178,7 @@ viewports:
             externalUploadBlockedReasons: [],
             estimatedExternalScreenshots: 1,
             externalCallsPlanned: 0,
-            reasons: ["Playwright remains the deterministic pass/fail oracle."]
+            reasons: ["Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner."]
           },
           {
             providerId: "argos",
@@ -366,7 +366,7 @@ viewports:
           }
         ],
         warnings: ["LLM usage is disabled; prompts are generated for offline review only."],
-        recommendations: ["Never use LLM output as the sole pass/fail oracle."]
+        recommendations: ["Never use LLM output as a verdict authority."]
       },
       null,
       2
@@ -418,7 +418,7 @@ viewports:
                 comparedArtifacts: 1,
                 uploadMode: "local-only"
               },
-              notes: ["Playwright is the deterministic pass/fail oracle."]
+              notes: ["Playwright is the default first-party local browser runner for Visual Hive verdict evidence."]
             },
             artifacts: [".visual-hive/report.json"],
             missingEnv: [],
@@ -498,7 +498,7 @@ viewports:
             blockedReasons: ["Provider is in mock mode; the handoff is review-only and will not upload externally."]
           }
         ],
-        trustedWorkflowSteps: ["Run visual-hive plan/run first and treat Playwright as the pass/fail oracle."],
+        trustedWorkflowSteps: ["Run visual-hive plan/run first so Visual Hive can produce deterministic verdict evidence."],
         validationCommands: ["visual-hive providers handoff --provider argos"],
         warnings: ["This manifest made zero external calls and does not upload screenshots."]
       },
@@ -528,7 +528,7 @@ viewports:
             providerId: "playwright",
             label: "Playwright built-in",
             recommendation: "use",
-            reason: "Default deterministic oracle. No paid account or external upload is required.",
+            reason: "Default local browser evidence runner. No paid account or external upload is required.",
             requiredEnv: [],
             externalUploadAllowedByDefault: false
           },
@@ -1239,7 +1239,7 @@ describe("control plane", () => {
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).toContain("--output .visual-hive/plan.full.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-full-safe")?.command).not.toContain("--allow-unsafe-targets");
     expect(snapshot.runbook.commands.find((command) => command.id === "run-ci")?.expectedArtifacts).toContain(".visual-hive/report.json");
-    expect(snapshot.runbook.notes).toContain("Playwright contracts remain the deterministic pass/fail oracle.");
+    expect(snapshot.runbook.notes).toContain("Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
       enabled: true,
       commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "readiness", "triage-report"],

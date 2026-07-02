@@ -85,7 +85,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
       ],
       suggestedFiles: changedFiles,
       suggestedNextTests: [
-        "Keep Playwright deterministic contracts as the pass/fail oracle.",
+        "Keep Visual Hive verdict artifacts as the pass/fail authority.",
         "Configure optional provider credentials only in trusted workflows if this provider is required."
       ]
     });
@@ -131,7 +131,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
         ],
         suggestedFiles: changedFiles,
         suggestedNextTests: [
-          "Keep Playwright deterministic contracts as the pass/fail oracle.",
+          "Keep Visual Hive verdict artifacts as the pass/fail authority.",
           "If this optional provider is required, configure credential names only in trusted workflows and rerun provider mock validation."
         ]
       });

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.evidence-packet.schema.json",
+  "title": "Visual Hive Evidence Packet",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "sourceArtifacts",
+    "governance",
+    "repo",
+    "providers",
+    "testingLayers",
+    "evidenceContributions",
+    "verdictSummary",
+    "hiveReadiness"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.evidence-packet.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plan": { "type": "string" },
+        "report": { "type": "string" },
+        "mutationReport": { "type": "string" },
+        "triageReport": { "type": "string" },
+        "providerResults": { "type": "string" },
+        "readiness": { "type": "string" },
+        "coverage": { "type": "string" },
+        "artifactsIndex": { "type": "string" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["verdictAuthority", "defaultBrowserBackend", "llmAuthority", "providerAuthority", "secretPolicy"],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": { "const": "visual_hive" },
+        "defaultBrowserBackend": { "const": "playwright" },
+        "llmAuthority": { "const": "advisory_only" },
+        "providerAuthority": { "const": "policy_gated_when_normalized" },
+        "secretPolicy": { "const": "redacted_values_names_only" }
+      }
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "branch": { "type": "string" },
+        "commitSha": { "type": "string" },
+        "runContext": { "type": "string" }
+      }
+    },
+    "plan": { "type": "object" },
+    "deterministicReport": { "type": "object" },
+    "mutation": { "type": "object" },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["providerId", "label", "status", "deterministicRole", "message", "requiredEnv", "missingEnv", "artifactCount"],
+        "additionalProperties": false,
+        "properties": {
+          "providerId": { "type": "string" },
+          "label": { "type": "string" },
+          "status": { "type": "string" },
+          "deterministicRole": { "type": "string" },
+          "message": { "type": "string" },
+          "requiredEnv": { "type": "array", "items": { "type": "string" } },
+          "missingEnv": { "type": "array", "items": { "type": "string" } },
+          "artifactCount": { "type": "number" }
+        }
+      }
+    },
+    "triage": { "type": "object" },
+    "testingLayers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "status", "evidence", "gaps"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "number" },
+          "name": { "type": "string" },
+          "status": { "enum": ["covered", "partial", "missing", "not_applicable", "unknown"] },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "gaps": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "evidenceContributions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceContribution" }
+    },
+    "verdictSummary": {
+      "type": "object",
+      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "additionalProperties": false,
+      "properties": {
+        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
+        "failedBecause": { "type": "array", "items": { "type": "string" } },
+        "warningBecause": { "type": "array", "items": { "type": "string" } },
+        "blockedBecause": { "type": "array", "items": { "type": "string" } },
+        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "hiveReadiness": {
+      "type": "object",
+      "required": ["readyForIssueHandoff", "readyForHiveDryRun", "blockedReasons", "suggestedLabels"],
+      "additionalProperties": false,
+      "properties": {
+        "readyForIssueHandoff": { "type": "boolean" },
+        "readyForHiveDryRun": { "type": "boolean" },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } },
+        "suggestedLabels": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "evidenceContribution": {
+      "type": "object",
+      "required": ["source", "kind", "status", "gating", "reason", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string" },
+        "kind": { "type": "string" },
+        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
+        "gating": { "type": "boolean" },
+        "mode": { "type": "string" },
+        "contractId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "operator": { "type": "string" },
+        "providerId": { "type": "string" },
+        "reason": { "type": "string" },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

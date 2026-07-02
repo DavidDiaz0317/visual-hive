@@ -55,9 +55,9 @@ The modern testing ecosystem is no longer a simple unit/integration/e2e pyramid.
 
 ### Lessons from specific tools
 
-#### Playwright remains the default deterministic oracle
+#### Playwright remains the default first-party runner
 
-Playwright should stay the default runner because it supports real browser contracts, screenshots, traces, and CI execution without a paid provider. Visual Hive should continue generating readable Playwright specs and should treat `toHaveScreenshot`, selector checks, route checks, console/page/network failures, and trace artifacts as deterministic evidence.
+Playwright should stay the default runner because it supports real browser contracts, screenshots, traces, and CI execution without a paid provider. Visual Hive should continue generating readable Playwright specs and should treat `toHaveScreenshot`, selector checks, route checks, console/page/network failures, and trace artifacts as deterministic evidence. Visual Hive, not Playwright, should own the final verdict layer assembled from all configured deterministic evidence.
 
 Visual Hive should avoid overfitting to Playwright, though. The product should make space for Cypress, WebdriverIO, Vitest Browser Mode, Storybook, and provider-backed runs as adapters. The config and Evidence Packet should describe contracts, targets, outputs, and policy in Visual Hive terms first, then map to backend-specific tools second.
 
@@ -819,7 +819,7 @@ High-value categories:
 | MCP/tool category | Value | Default posture |
 | --- | --- | --- |
 | Visual Hive MCP | Read plans, reports, evidence, mutation survivors, repair prompts, safe commands | First-party, supported |
-| Playwright MCP | Live DOM/accessibility snapshots for authoring and repair | Local, optional, not CI oracle |
+| Playwright MCP | Live DOM/accessibility snapshots for authoring and repair | Local, optional, not verdict authority |
 | Storybook/Chromatic MCP | Component/story/design-system context | Optional, strong for component-heavy repos |
 | GitHub MCP | PRs, issues, checks, logs, workflow state | Read-only by default; writes trusted only |
 | Applitools MCP | Enterprise visual AI and cross-browser result analysis | Paid/trusted profile only |

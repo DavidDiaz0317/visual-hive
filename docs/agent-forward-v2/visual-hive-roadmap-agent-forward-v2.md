@@ -392,7 +392,7 @@ Only after v1.0 foundations are stable:
 Do not prioritize these before the deterministic/agent packet foundation is stable:
 
 - paid provider dependency as the main path;
-- LLM as pass/fail oracle;
+- LLM as verdict authority;
 - direct production-impacting actions from untrusted PR workflows;
 - broad MCP tool exposure;
 - autonomous baseline approval;

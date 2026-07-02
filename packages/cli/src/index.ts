@@ -41,6 +41,7 @@ import { formatSchedulesAudit, runSchedulesCommand } from "./commands/schedules.
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "./commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
+import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -429,6 +430,27 @@ program
         format: options.format
       });
       console.log(formatCoverageImprovementReport(result.report, result.reportPath, options.format, result.applyResult, Boolean(options.yes && result.applyResult?.applied)));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("evidence")
+  .description("Compose sanitized Visual Hive evidence packet and verdict summary from latest artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--output <path>", "evidence packet output path", ".visual-hive/evidence-packet.json")
+  .option("--markdown <path>", "evidence summary markdown output path", ".visual-hive/evidence-summary.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runEvidenceCommand({
+        config: options.config,
+        output: options.output,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatEvidencePacket(result, options.format));
     } catch (error) {
       fail(error);
     }

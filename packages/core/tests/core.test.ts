@@ -26,6 +26,7 @@ import { buildProviderSetupPlan } from "../src/providers/setupPlan.js";
 import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
 import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
+import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -372,7 +373,7 @@ describe("config validation", () => {
     expect(plan.readiness.externalUploadBlockedReasons.join(" ")).toContain("onFailureOnly=true");
     expect(plan.configChanges.join(" ")).toContain("costPolicy.externalUpload.pullRequest=false");
     expect(plan.workflowSteps.join(" ")).toContain("trusted environments");
-    expect(plan.safetyChecks.join(" ")).toContain("sole pass/fail oracle");
+    expect(plan.safetyChecks.join(" ")).toContain("verdict authority");
     expect(plan.validationCommands).toContain("visual-hive providers list --mock-results");
     expect(JSON.stringify(plan)).not.toContain("super-secret-token-value");
   });
@@ -4554,6 +4555,82 @@ describe("local repository connections", () => {
     expect(connection?.attention.join(" ")).toContain("Readiness gate is blocked");
     expect(connection?.attention.join(" ")).toContain("Security audit has 2 critical/high findings");
     expect(connection?.attention.join(" ")).toContain("Cost policy is blocked");
+  });
+});
+
+describe("evidence packets", () => {
+  it("aggregates deterministic and mutation evidence into a Visual Hive verdict", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-evidence-"));
+    tempDirs.push(rootDir);
+    const actualPath = ".visual-hive/artifacts/screenshots/dashboard.png";
+    const baselinePath = ".visual-hive/snapshots/dashboard.png";
+    const report = reportFixture(rootDir, actualPath, baselinePath);
+    report.results[0]?.errors.push("token=super-secret-value");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["unexpected_element"],
+          failedAssertion: "Login exposure mutation survived",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        },
+        {
+          operator: "mobile-overflow",
+          status: "not_applicable",
+          killed: false,
+          contractIds: [],
+          applicable: false,
+          durationMs: 1,
+          errors: []
+        }
+      ]
+    });
+
+    const result = await writeEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(result.packet.verdictSummary.visualHiveVerdict).toBe("failed");
+    expect(result.packet.verdictSummary.failedBecause).toEqual(
+      expect.arrayContaining(["playwright.deterministic_run", "mutation.mutation_adequacy", "mutation.mutation_survivor.force-login-on-demo"])
+    );
+    expect(JSON.stringify(result.packet)).not.toContain("super-secret-value");
+    expect(JSON.stringify(result.packet)).toContain("[REDACTED]");
+    expect(result.packet.governance.verdictAuthority).toBe("visual_hive");
+    expect(result.packet.governance.defaultBrowserBackend).toBe("playwright");
+    expect(result.packet.mutation?.survivedOperators[0]?.operator).toBe("force-login-on-demo");
+    expect(result.packet.testingLayers.find((layer) => layer.id === 9)?.status).toBe("covered");
+    expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.evidence-packet.v1");
+    expect(await readFile(result.summaryPath, "utf8")).toContain("Visual Hive verdict: failed");
+  });
+
+  it("marks missing deterministic evidence as inconclusive", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-evidence-empty-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "empty",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    expect(packet.verdictSummary.visualHiveVerdict).toBe("inconclusive");
+    expect(packet.verdictSummary.blockedBecause).toContain("playwright.deterministic_run");
+    expect(packet.hiveReadiness.readyForHiveDryRun).toBe(false);
   });
 });
 

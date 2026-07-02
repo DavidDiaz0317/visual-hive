@@ -104,7 +104,7 @@ targets:
       - "src/components/**"
 ```
 
-Storybook targets still use Playwright contracts as the deterministic oracle by default. Chromatic or other hosted component review tools remain optional providers.
+Storybook targets still use Playwright contracts as the default local browser evidence path. Chromatic or other hosted component review tools remain optional providers that can feed Visual Hive's verdict only when explicitly normalized and configured as gating.
 
 Changed-file selection:
 

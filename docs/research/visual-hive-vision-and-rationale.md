@@ -23,10 +23,42 @@ It should answer:
 
 The product should remain deterministic-first:
 
-- Playwright contracts decide pass/fail.
-- Mutation adequacy measures whether the contracts catch intentional breakage.
-- LLMs, hosted providers, and agents consume evidence but do not replace the deterministic oracle.
+- Visual Hive's verdict layer decides pass/fail from configured deterministic evidence.
+- Playwright is the default first-party local browser runner and primary PR-safe evidence source.
+- Mutation adequacy measures whether contracts catch intentional breakage and may become independent gating evidence.
+- LLMs, MCP tools, Hive, hosted providers, and agents consume evidence but do not replace the deterministic verdict authority unless a provider result is normalized, trusted, configured as gating, and budget-authorized.
 - PR workflows remain read-only and secret-free by default.
+
+## Verdict Engine Framing
+
+Visual Hive should not hard-code its long-term pass/fail decision to one runner. The enterprise architecture is:
+
+```text
+Playwright = default execution engine
+Visual Hive = final deterministic verdict engine
+LLMs / MCPs / Hive agents = evidence consumers and repair actors
+```
+
+The verdict engine receives deterministic evidence from:
+
+- Playwright selector, text, screenshot, route, and user-flow contracts;
+- screenshot diff metadata and baseline policy;
+- console, page, and network error policy;
+- accessibility checks when configured;
+- API/route/user-flow contracts;
+- mutation adequacy thresholds;
+- protected canary and synthetic checks;
+- provider-normalized visual results when explicitly configured as gating.
+
+It produces:
+
+- `passed`
+- `failed`
+- `warning`
+- `blocked`
+- `inconclusive`
+
+LLM explanations, agent recommendations, MCP summaries, and Hive routing are advisory. They may explain a verdict or create repair tasks; they may not become the sole source of the verdict.
 
 ## Current State of Testing
 

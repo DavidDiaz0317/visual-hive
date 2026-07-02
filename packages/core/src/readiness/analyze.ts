@@ -633,7 +633,7 @@ function llmGates(config: VisualHiveConfig, llmDecisions?: LLMDecisionLog): Read
       `provider=${config.ai.provider}`,
       `neverSoleOracle=${config.ai.neverSoleOracle}`,
       latestDecision ? `decision=${latestDecision.decision}` : "decision=missing"
-    ], [".visual-hive/llm-usage.json"], ["Run LLM calls only from trusted workflows and keep deterministic contracts as the pass/fail oracle."])
+    ], [".visual-hive/llm-usage.json"], ["Run LLM calls only from trusted workflows and keep Visual Hive verdict artifacts as the pass/fail authority."])
   ];
 }
 

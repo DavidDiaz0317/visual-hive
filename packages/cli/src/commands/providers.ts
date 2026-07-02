@@ -415,7 +415,7 @@ export function formatProviderUpload(result: ProviderUploadCommandResult, format
     ...(manifest.blockedReasons.length ? ["", "## Blocked Reasons", ...manifest.blockedReasons.map((reason) => `- ${reason}`)] : []),
     ...(manifest.warnings.length ? ["", "## Warnings", ...manifest.warnings.map((warning) => `- ${warning}`)] : []),
     "",
-    "Playwright remains the deterministic pass/fail oracle; hosted provider evidence is supplemental."
+    "Visual Hive remains the deterministic verdict authority; hosted provider evidence is supplemental unless explicitly configured as gating."
   ].join("\n");
 }
 

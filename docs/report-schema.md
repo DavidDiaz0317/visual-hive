@@ -1,6 +1,8 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, and `baseline-review.md` are sanitized human-review artifacts, not pass/fail oracles.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, and `evidence-summary.md` are sanitized human-review artifacts, not verdict authorities.
+
+The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
 ## Plan
 
@@ -74,7 +76,7 @@ Top-level fields include project, repository metadata, mode, generated time, cha
 
 Per-contract fields include selector assertions, user-flow step results, screenshot assertions, console/page/network errors, artifacts, duration, and a reproduction command. Flow steps record action, selector/route/value metadata, status, duration, and an error message when the deterministic user-flow action failed. Screenshot assertions include contract ID, screenshot name, route, viewport, baseline path, actual path, optional diff path, max diff thresholds, actual diff ratio, diff pixel count, and `passed | failed | created | missing_baseline` status.
 
-`providerResults` normalizes provider adapter status. Playwright is the built-in deterministic oracle. Optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks are reported as skipped, mock, available/missing-credential metadata, policy-blocked metadata, or future external adapter output. Missing credentials are listed by environment variable name only.
+`providerResults` normalizes provider adapter status. Playwright is the built-in first-party local browser runner and primary local evidence source. Visual Hive owns the final deterministic verdict. Optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks are reported as skipped, mock, available/missing-credential metadata, policy-blocked metadata, future external adapter output, or explicitly configured gating evidence. Missing credentials are listed by environment variable name only.
 
 Each provider result can include:
 
@@ -90,7 +92,7 @@ Path: `.visual-hive/provider-results.json`
 
 Schema: `schemas/visual-hive.provider-results.schema.json`
 
-The provider-results artifact is written by `visual-hive providers list --mock-results` after a deterministic run or by `visual-hive providers upload --provider argos`. Mock/list mode exercises the provider adapter lifecycle without making paid-provider or external network calls. Argos upload mode records upload status (`uploaded`, `skipped`, `blocked`, `missing_credentials`, `failed`, or `dry_run`), external call count, staged/uploaded artifact counts, sanitized command/stdout/stderr excerpts, and an optional provider URL. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Playwright remains the deterministic oracle; provider output is supplemental evidence only.
+The provider-results artifact is written by `visual-hive providers list --mock-results` after a deterministic run or by `visual-hive providers upload --provider argos`. Mock/list mode exercises the provider adapter lifecycle without making paid-provider or external network calls. Argos upload mode records upload status (`uploaded`, `skipped`, `blocked`, `missing_credentials`, `failed`, or `dry_run`), external call count, staged/uploaded artifact counts, sanitized command/stdout/stderr excerpts, and an optional provider URL. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Provider output is supplemental unless the config explicitly marks a normalized provider result as gating for a trusted lane.
 
 ## Provider Upload Manifest
 
@@ -98,7 +100,7 @@ Path: `.visual-hive/provider-upload/argos/manifest.json`
 
 Schema: `schemas/visual-hive.provider-upload.schema.json`
 
-The Argos upload manifest is written by `visual-hive providers upload --provider argos`. Dry-run and skipped/blocked/missing-credential paths make zero external calls. A real upload is attempted only when `providers.argos.enabled=true`, `mode=external`, `ARGOS_TOKEN` is present by name in the environment, cost policy permits the run, and the command is invoked explicitly. The manifest records deterministic status, run mode, readiness, staged actual/diff/text artifacts, upload status, uploaded artifact count, external calls made, blocked reasons, warnings, and sanitized command output. It never becomes the pass/fail oracle.
+The Argos upload manifest is written by `visual-hive providers upload --provider argos`. Dry-run and skipped/blocked/missing-credential paths make zero external calls. A real upload is attempted only when `providers.argos.enabled=true`, `mode=external`, `ARGOS_TOKEN` is present by name in the environment, cost policy permits the run, and the command is invoked explicitly. The manifest records deterministic status, run mode, readiness, staged actual/diff/text artifacts, upload status, uploaded artifact count, external calls made, blocked reasons, warnings, and sanitized command output. It never becomes a verdict authority unless normalized provider gating is explicitly configured for a trusted lane.
 
 When this artifact exists before `visual-hive triage`, `.visual-hive/triage.json` records it under `sourceArtifacts.providerResults`, offline findings include provider credential failures and cost-policy upload blocks, `triage-prompt.md` includes the sanitized provider adapter JSON, and `issue.md` / `pr-comment.md` include provider adapter operation evidence.
 
@@ -110,7 +112,7 @@ Schema: `schemas/visual-hive.provider-decisions.schema.json`
 
 Provider decisions are local governance records written through the shared core helper used by both the CLI and Control Plane. They record provider ID, optional label, decision (`skip`, `review_later`, or `approve_trusted_setup`), sanitized reason, timestamp, source (`cli` or `control-plane`), and `externalCallsMade: 0`. They do not enable credentials, billing, external uploads, or provider network calls.
 
-When present, `.visual-hive/provider-decisions.json` is also loaded by `visual-hive risk` and `visual-hive readiness`. Risk reports surface provider-decision rows as trusted-only governance evidence, and readiness reports show whether optional providers remain local-only, have recorded skip/review decisions, or conflict with an enabled external-provider config. These gates are advisory governance evidence only; deterministic Playwright contracts remain the pass/fail oracle.
+When present, `.visual-hive/provider-decisions.json` is also loaded by `visual-hive risk` and `visual-hive readiness`. Risk reports surface provider-decision rows as trusted-only governance evidence, and readiness reports show whether optional providers remain local-only, have recorded skip/review decisions, or conflict with an enabled external-provider config. These gates are advisory governance evidence only unless provider gating is explicitly configured; Visual Hive remains the verdict authority.
 
 ## Provider Setup Plan
 
@@ -129,6 +131,24 @@ Schema: `schemas/visual-hive.provider-handoff.schema.json`
 The provider handoff manifest is written by `visual-hive providers handoff --provider <id>` after a deterministic report exists. It enumerates the exact actual/diff/baseline screenshot artifacts and context files that a trusted external-provider lane would review, marks which artifacts are eligible for upload, records blocked reasons from credential names and `costPolicy`, and includes trusted workflow steps plus validation commands. It always records `externalCallsMade: 0`; the default CLI does not upload screenshots or call provider APIs.
 
 The setup plan does not enable a provider, create credentials, upload screenshots, make provider API calls, or change deterministic pass/fail authority. Missing credentials are reported by environment variable name only.
+
+## Evidence Packet
+
+Path: `.visual-hive/evidence-packet.json`
+
+Schema: `schemas/visual-hive.evidence-packet.schema.json`
+
+The Evidence Packet is written by `visual-hive evidence`. It is the canonical agent-forward artifact for downstream humans, GitHub issue workflows, optional provider review, LLM prompt builders, and future Hive dry-run handoff.
+
+Key fields:
+
+- `governance`: declares Visual Hive as verdict authority, Playwright as default browser backend, LLMs as advisory-only, providers as policy-gated when normalized, and secrets as redacted.
+- `evidenceContributions`: normalized gating and advisory evidence from Playwright contracts, screenshot diffs, mutation adequacy, provider results, readiness, coverage, and triage.
+- `verdictSummary`: `passed`, `failed`, `warning`, `blocked`, or `inconclusive`, plus `failedBecause`, `warningBecause`, `blockedBecause`, and `advisoryOnly`.
+- `testingLayers`: layer coverage from repo intelligence through agent/Hive feedback.
+- `hiveReadiness`: whether the packet is ready for trusted GitHub issue handoff or Hive dry-run handoff.
+
+`visual-hive evidence` also writes `.visual-hive/evidence-summary.md`, a sanitized human-readable summary of the same verdict and handoff state.
 
 ## Schedule Audit
 
@@ -172,7 +192,7 @@ Path: `.visual-hive/readiness.json`
 
 Schema: `schemas/visual-hive.readiness.schema.json`
 
-The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, provider decisions, provider setup plans, provider handoff manifests, LLM decisions, run history, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic Playwright contracts, screenshot diffs, and mutation adequacy remain the pass/fail evidence.
+The readiness gate is written by `visual-hive readiness`. It combines the current plan, deterministic report, baseline review queue, mutation report, workflow audit, security audit, cost audit, provider policy, provider decisions, provider setup plans, provider handoff manifests, LLM decisions, run history, and LLM governance into a single go/no-go summary for enabling or reviewing Visual Hive automation. Gates use `passed`, `warning`, `blocked`, or `missing`; the top-level status is `ready`, `attention`, or `blocked`. This artifact is guidance and adoption evidence only. Deterministic contracts, screenshot diffs, console/page/network policy, mutation adequacy, and explicitly configured provider gates are the evidence Visual Hive can use for verdicts.
 
 When `.visual-hive/readiness.json` exists, `visual-hive report` includes a readiness summary in both Markdown and JSON output. `visual-hive triage` also threads the readiness result into sanitized `.visual-hive/issue.md` and `.visual-hive/pr-comment.md` so PR reviewers can see whether adoption gates are ready, blocked, or missing evidence without opening every supporting artifact.
 
@@ -202,7 +222,7 @@ Path: `.visual-hive/triage.json`
 
 Schema: `schemas/visual-hive.triage.schema.json`
 
-The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but deterministic reports remain the pass/fail oracle. Source artifacts can include deterministic report, mutation report, coverage report, provider-results report, and baseline approval/rejection logs.
+The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but Visual Hive verdict artifacts remain the pass/fail authority. Source artifacts can include deterministic report, mutation report, coverage report, provider-results report, and baseline approval/rejection logs.
 
 ## Run History
 

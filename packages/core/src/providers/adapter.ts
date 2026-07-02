@@ -196,7 +196,7 @@ function compareOperation(metadata: ProviderAdapterMetadata, context: ProviderAd
   if (context.provider.availability === "policy_blocked") {
     return operation("compare", "skipped", "External compare skipped because external upload is blocked by cost policy.");
   }
-  return operation("compare", "skipped", "External compare is deferred; deterministic Playwright remains the oracle.");
+  return operation("compare", "skipped", "External compare is deferred; Visual Hive uses local deterministic evidence for the verdict unless provider gating is explicitly enabled.");
 }
 
 function fetchOperation(metadata: ProviderAdapterMetadata, context: ProviderAdapterRunContext): ProviderAdapterOperationResult {
@@ -340,7 +340,7 @@ function uploadMode(metadata: ProviderAdapterMetadata, networkMode: ProviderNetw
 }
 
 function providerNotes(metadata: ProviderAdapterMetadata, provider: ProviderInspection, networkMode: ProviderNetworkMode): string[] {
-  if (metadata.id === "playwright") return ["Playwright is the deterministic pass/fail oracle."];
+  if (metadata.id === "playwright") return ["Playwright is the default first-party local browser runner for Visual Hive verdict evidence."];
   if (networkMode === "disabled") return ["Provider is disabled in config."];
   if (networkMode === "missing_credentials") return [`Missing credential names: ${provider.missingEnv.join(", ")}`];
   if (networkMode === "policy_blocked") return [`External upload blocked by cost policy: ${provider.costPolicy.blockedReasons.join(" ")}`];

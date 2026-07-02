@@ -64,9 +64,9 @@ The modern testing ecosystem is no longer a simple unit/integration/e2e pyramid.
 
 ### Lessons from specific tools
 
-#### Playwright remains the default deterministic oracle
+#### Playwright remains the default first-party runner
 
-Playwright should stay the default runner because it supports real browser contracts, screenshots, traces, and CI execution without a paid provider. Visual Hive should continue generating readable Playwright specs and should treat `toHaveScreenshot`, selector checks, route checks, console/page/network failures, and trace artifacts as deterministic evidence.
+Playwright should stay the default runner because it supports real browser contracts, screenshots, traces, and CI execution without a paid provider. Visual Hive should continue generating readable Playwright specs and should treat `toHaveScreenshot`, selector checks, route checks, console/page/network failures, and trace artifacts as deterministic evidence. Visual Hive, not Playwright, should own the final verdict layer assembled from all configured deterministic evidence.
 
 Visual Hive should avoid overfitting to Playwright, though. The product should make space for Cypress, WebdriverIO, Vitest Browser Mode, Storybook, and provider-backed runs as adapters. The config and Evidence Packet should describe contracts, targets, outputs, and policy in Visual Hive terms first, then map to backend-specific tools second.
 
@@ -828,7 +828,7 @@ High-value categories:
 | MCP/tool category | Value | Default posture |
 | --- | --- | --- |
 | Visual Hive MCP | Read plans, reports, evidence, mutation survivors, repair prompts, safe commands | First-party, supported |
-| Playwright MCP | Live DOM/accessibility snapshots for authoring and repair | Local, optional, not CI oracle |
+| Playwright MCP | Live DOM/accessibility snapshots for authoring and repair | Local, optional, not verdict authority |
 | Storybook/Chromatic MCP | Component/story/design-system context | Optional, strong for component-heavy repos |
 | GitHub MCP | PRs, issues, checks, logs, workflow state | Read-only by default; writes trusted only |
 | Applitools MCP | Enterprise visual AI and cross-browser result analysis | Paid/trusted profile only |
@@ -989,7 +989,7 @@ Visual Hive is enterprise-level only when these properties are true:
 
 1. **Reproducible:** every failure has a target, contract, mode, commit, run command, artifact path, and reason.
 2. **Governed:** PR-safe, protected, provider, LLM, baseline, and issue-creation policy is explicit.
-3. **Deterministic-first:** Playwright/contracts/mutation/provider-normalized deterministic results decide status; LLM output never decides pass/fail alone.
+3. **Deterministic-first:** Visual Hive's verdict layer decides status from configured deterministic evidence; Playwright is the default first-party runner, and LLM output never decides pass/fail alone.
 4. **Local-first:** the default path works with CLI + Playwright + GitHub Actions + artifacts, without a paid provider.
 5. **Cloud-ready:** artifacts and schemas are stable enough for a future GitHub App or hosted Control Plane.
 6. **Agent-ready:** docs and artifacts are structured enough that coding agents can work without guessing the architecture.
@@ -1246,7 +1246,7 @@ Hosted review/cross-browser provider lane. These should be optional, budget-awar
 
 ### Meticulous/Wopee/AI QA tools
 
-Inspiration for route discovery, session-derived test suggestions, and self-healing setup recommendations. They should not become pass/fail oracles in Visual Hive.
+Inspiration for route discovery, session-derived test suggestions, and self-healing setup recommendations. They should not become verdict authorities in Visual Hive.
 
 ### Currents/Replay/Checkly
 
@@ -2371,7 +2371,7 @@ Only after v1.0 foundations are stable:
 Do not prioritize these before the deterministic/agent packet foundation is stable:
 
 - paid provider dependency as the main path;
-- LLM as pass/fail oracle;
+- LLM as verdict authority;
 - direct production-impacting actions from untrusted PR workflows;
 - broad MCP tool exposure;
 - autonomous baseline approval;
@@ -3790,7 +3790,7 @@ For Visual Hive, useful categories are:
 | Sentry MCP | Production/protected error context and MCP observability | Optional, protected/trusted only |
 | Jira/Linear/Slack MCPs | Enterprise routing and team workflow integration | Later, issue-routing only |
 
-MCPs should be strongest in setup, test generation, failure diagnosis, external provider result review, and issue handoff. They should not replace Visual Hive's deterministic oracle.
+MCPs should be strongest in setup, test generation, failure diagnosis, external provider result review, and issue handoff. They should not replace Visual Hive's deterministic verdict authority.
 
 ---
 
@@ -4320,7 +4320,7 @@ The LLM/agent can help write code and tests, but deterministic artifacts decide 
 
 ## Non-negotiables
 
-- Do not make an LLM the pass/fail oracle.
+- Do not make an LLM a verdict authority.
 - Do not add external provider calls by default.
 - Do not put secrets in PR workflows.
 - Do not use `pull_request_target` to execute untrusted PR code.

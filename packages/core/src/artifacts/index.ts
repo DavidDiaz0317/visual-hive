@@ -225,6 +225,8 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("provider-handoff.json")) labels.add("provider-handoff");
   if (normalized.endsWith("llm-decisions.json")) labels.add("llm-decisions");
   if (normalized.endsWith("connections-portfolio.json")) labels.add("connections-portfolio");
+  if (normalized.endsWith("evidence-packet.json")) labels.add("evidence-packet");
+  if (normalized.endsWith("evidence-summary.md")) labels.add("evidence-summary");
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
   if (normalized.endsWith("coverage-recommendations.json")) labels.add("coverage-recommendations");
   return [...labels].sort();
@@ -257,6 +259,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "llm-decisions.json": "visual-hive.llm-decisions.schema.json",
     "connections.json": "visual-hive.connections.schema.json",
     "connections-portfolio.json": "visual-hive.connections-portfolio.schema.json",
+    "evidence-packet.json": "visual-hive.evidence-packet.schema.json",
     "provider-results.json": "visual-hive.provider-results.schema.json",
     "provider-decisions.json": "visual-hive.provider-decisions.schema.json",
     "provider-setup-plan.json": "visual-hive.provider-setup-plan.schema.json",

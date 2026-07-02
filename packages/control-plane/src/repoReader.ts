@@ -360,7 +360,7 @@ function buildGuidanceState(input: {
   let primaryAction: ControlPlaneGuidanceState["primaryAction"] = {
     id: "run-pr-safe",
     label: "Run PR-safe checks",
-    description: "Refresh the deterministic Playwright oracle for safe targets.",
+    description: "Refresh Visual Hive deterministic verdict evidence for safe targets.",
     area: "run",
     commandId: "run-ci",
     tone: "success"
@@ -715,7 +715,7 @@ function buildRunbook(
       command: `visual-hive run ${configFlag} --ci`,
       cwd: resolved.repoRoot,
       safety: "pr_safe",
-      description: "Run generated Playwright contracts as the pass/fail oracle. CI mode fails on missing baselines unless snapshot updates are explicitly enabled.",
+      description: "Run generated Playwright contracts and feed the Visual Hive verdict layer. CI mode fails on missing baselines unless snapshot updates are explicitly enabled.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/report.json", ".visual-hive/generated/visual-hive.generated.spec.ts", ".visual-hive/artifacts"]
     },
@@ -879,7 +879,7 @@ function buildRunbook(
     });
   }
   const notes = [
-    "Playwright contracts remain the deterministic pass/fail oracle.",
+    "Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner.",
     "PR commands require no secrets and should run under pull_request with read-only permissions.",
     "LLM and provider outputs are advisory/supplemental unless a future trusted adapter explicitly changes policy.",
     "Protected commands show required environment variable names only; secret values are never included."

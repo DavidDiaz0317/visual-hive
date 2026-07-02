@@ -168,7 +168,7 @@ function screenshotArtifact(
 
 function applyProviderPolicy(provider: ProviderInspection, artifact: ProviderHandoffArtifact): ProviderHandoffArtifact {
   const blockedReasons = [...artifact.blockedReasons];
-  if (provider.id === "playwright") blockedReasons.push("Playwright is the local deterministic oracle and does not need external handoff.");
+  if (provider.id === "playwright") blockedReasons.push("Playwright is the local first-party evidence runner and does not need external handoff.");
   if (provider.id !== "playwright" && !provider.supports.includes("artifact_upload") && artifact.eligibleForUpload) {
     blockedReasons.push(`${provider.label} does not support artifact upload in the built-in adapter registry.`);
   }
@@ -217,7 +217,7 @@ function trustedWorkflowSteps(provider: ProviderInspection): string[] {
     return ["Run visual-hive run in PR-safe workflows; no provider handoff is required."];
   }
   return [
-    "Run visual-hive plan/run first and treat Playwright as the pass/fail oracle.",
+    "Run visual-hive plan/run first so Visual Hive can produce deterministic verdict evidence.",
     `Run visual-hive providers handoff --provider ${provider.id} after report.json exists.`,
     "Review .visual-hive/provider-handoff.json and provider-decisions.json before enabling external mode.",
     provider.id === "argos"

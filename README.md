@@ -2,7 +2,7 @@
 
 Visual Hive is a deterministic-first visual QA and testing orchestration tool for web projects. It turns screenshot and user-flow checks into a layered, project-aware quality system that can plan test depth, run Playwright contracts, compare screenshots with tolerances, measure mutation adequacy, produce machine-readable reports, and generate sanitized GitHub-ready failure context.
 
-The default v0.2 path works without paid services. Playwright is the deterministic oracle. Argos has an optional explicit upload adapter, while Percy, Chromatic, and Applitools remain governed/deferred integrations. No hosted provider is required for normal use.
+The default v0.2 path works without paid services. Playwright is the default first-party local browser runner and primary local evidence source. Visual Hive owns the final deterministic verdict layer. Argos has an optional explicit upload adapter, while Percy, Chromatic, and Applitools remain governed/deferred integrations. No hosted provider is required for normal use.
 
 ## Vision
 
@@ -11,7 +11,7 @@ Modern frontend quality is not just "did one screenshot change?" A real release 
 Visual Hive is built to be that orchestration layer. It does not replace Playwright, Argos, Percy, Chromatic, Applitools, or GitHub Actions. It coordinates them around a deterministic core:
 
 - **Plan** the right work from changed files, target safety, schedule, cost, and risk.
-- **Run** Playwright selector, flow, and tolerant screenshot checks as the pass/fail oracle.
+- **Run** Playwright selector, flow, and tolerant screenshot checks as the default local evidence path.
 - **Measure** mutation adequacy so weak visual contracts are visible instead of assumed.
 - **Explain** failures with structured reports, sanitized issue bodies, triage prompts, baseline review queues, and artifact indexes.
 - **Govern** optional hosted providers, LLM prompts, protected targets, workflow safety, and cost policy without requiring paid services by default.
@@ -39,9 +39,23 @@ Use it in three ways:
 
 ## Why deterministic-first and AI-amplified
 
-Visual Hive treats deterministic tests as the only pass/fail source. Playwright selector, flow, and screenshot checks decide status. Mutation testing asks whether those checks detect intentional UI/auth/API breakage. Optional LLM output is limited to triage, explanation, missing-test suggestions, and issue drafting.
+Visual Hive treats deterministic evidence as the only pass/fail source. Its verdict layer assembles configured evidence from Playwright contracts, screenshot diffs, selector/text/user-flow assertions, console/page/network error policy, mutation adequacy, protected canaries, and future normalized provider results when explicitly configured as gating.
 
-LLM output is never the sole pass/fail oracle.
+Playwright remains the default first-party local browser runner and primary PR-safe evidence source. It is excellent for browser automation, selector assertions, flows, screenshots, traces, and CI-friendly local checks. Visual Hive owns the final verdict so the product can grow into a multi-oracle deterministic QA system without making provider output, LLM output, or agent judgment authoritative by default.
+
+LLM output is never a verdict authority.
+
+### Verdict model
+
+Visual Hive verdicts should be understood as:
+
+- `passed`: all configured gating deterministic evidence passed.
+- `failed`: at least one configured gating deterministic evidence source failed.
+- `warning`: non-gating evidence needs review, such as advisory provider output or weak coverage.
+- `blocked`: the run could not collect required evidence because setup, target readiness, policy, or secret availability failed.
+- `inconclusive`: evidence is insufficient to make a trustworthy verdict.
+
+LLMs, MCP tools, Hive agents, and prompt builders may explain evidence and recommend actions. They do not decide the verdict.
 
 ## Quickstart
 
@@ -56,7 +70,7 @@ npm run ui:build
 npm run smoke:ui
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, handoff manifests, Argos upload dry-run evidence, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
+`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, handoff manifests, Argos upload dry-run evidence, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, Evidence Packet generation, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
 
 Initialize Visual Hive in another repo:
 
@@ -144,6 +158,14 @@ For YAML language-server support:
 
 Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.visual-hive/mutation-report.json` are documented in `docs/report-schema.md`.
 
+The agent-facing Evidence Packet is generated with:
+
+```bash
+visual-hive evidence --config visual-hive.config.yaml
+```
+
+It writes `.visual-hive/evidence-packet.json` and `.visual-hive/evidence-summary.md`. The packet records normalized evidence contributions, Visual Hive's final deterministic verdict, advisory-only signals, testing-layer coverage, and Hive handoff readiness.
+
 ## CLI commands
 
 - `visual-hive init`: creates config, workflow templates, and `.visual-hive/generated`.
@@ -174,12 +196,13 @@ Output schemas for `.visual-hive/plan.json`, `.visual-hive/report.json`, and `.v
 - `visual-hive llm`: re-audits prompt-only LLM governance, token/cost estimates, and available prompt artifacts without making model calls.
 - `visual-hive llm decision`: records a local sanitized LLM governance decision in `.visual-hive/llm-decisions.json` without enabling API keys or model calls.
 - `visual-hive report`: prints markdown or JSON, includes readiness evidence when `.visual-hive/readiness.json` exists, and can append to `GITHUB_STEP_SUMMARY`.
+- `visual-hive evidence`: writes `.visual-hive/evidence-packet.json` and `.visual-hive/evidence-summary.md`, composing existing artifacts into a sanitized Visual Hive verdict and agent/handoff-ready evidence contract.
 - `visual-hive baselines list|approve|reject`: inspect screenshot baselines, write `.visual-hive/baselines.json` with `baselines list --write`, and explicitly approve or reject reviewed screenshots with audit records.
 - `visual-hive providers list`: inspect optional provider adapters and missing credential names without calling paid services.
 - `visual-hive providers list --mock-results`: after a deterministic run, write `.visual-hive/provider-results.json` with no-network mock adapter operation evidence, provider-specific normalized metadata, and external upload cost-policy decisions.
 - `visual-hive providers plan --provider argos`: write `.visual-hive/provider-setup-plan.json`, a no-network provider setup plan with required env names, config changes, trusted workflow steps, safety checks, and validation commands.
 - `visual-hive providers handoff --provider argos`: after a deterministic run, write `.visual-hive/provider-handoff.json`, a no-network manifest of exact screenshot artifacts, eligibility, blocked reasons, required env names, and trusted workflow steps for optional provider upload review.
-- `visual-hive providers upload --provider argos --dry-run`: stage eligible screenshots into `.visual-hive/provider-upload/argos` and write provider upload evidence without network calls. A real Argos upload is opt-in, trusted-lane oriented, requires `ARGOS_TOKEN`, and never changes the deterministic Playwright pass/fail result.
+- `visual-hive providers upload --provider argos --dry-run`: stage eligible screenshots into `.visual-hive/provider-upload/argos` and write provider upload evidence without network calls. A real Argos upload is opt-in, trusted-lane oriented, requires `ARGOS_TOKEN`, and affects the Visual Hive verdict only if normalized provider gating is explicitly enabled for that trusted lane.
 - `visual-hive providers decision`: records a local sanitized provider governance decision in `.visual-hive/provider-decisions.json` without enabling credentials, billing, uploads, or provider network calls.
 - `visual-hive ui`: starts the local-first Control Plane over config, setup recommendations, reports, baselines, coverage, flows, mutation, failures, and raw artifacts.
 

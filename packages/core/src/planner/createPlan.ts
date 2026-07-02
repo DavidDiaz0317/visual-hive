@@ -308,7 +308,7 @@ function providerExternalUploadBlockedReasons(provider: ReturnType<typeof inspec
 function providerPolicyReasons(provider: ReturnType<typeof inspectProviders>[number]): string[] {
   const reasons = [provider.message];
   if (provider.id === "playwright") {
-    reasons.push("Playwright remains the deterministic pass/fail oracle.");
+    reasons.push("Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner.");
   } else if (!provider.enabled) {
     reasons.push("Provider is disabled in config.");
   } else if (provider.mode === "mock") {
