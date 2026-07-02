@@ -40,6 +40,25 @@ import type {
   WorkflowAuditReport
 } from "@visual-hive/core";
 
+export interface ControlPlanePipelineReport {
+  schemaVersion: number;
+  project: string;
+  mode: string;
+  generatedAt: string;
+  status: "passed" | "failed" | "blocked";
+  exitCode: number;
+  rootCause?: string;
+  steps: Array<{
+    id: string;
+    label: string;
+    status: "passed" | "failed" | "skipped";
+    exitCode: number;
+    artifacts: string[];
+    message?: string;
+  }>;
+  artifacts: string[];
+}
+
 export interface ControlPlaneOptions {
   repo?: string;
   config?: string;
@@ -76,6 +95,9 @@ export interface ControlPlaneOverview {
   visualDiffs: number;
   consoleErrors: number;
   pageErrors: number;
+  pipelineStatus?: ControlPlanePipelineReport["status"];
+  pipelineSteps?: number;
+  pipelineFailedSteps?: number;
   nextActions: string[];
   explanations: string[];
 }
@@ -308,6 +330,7 @@ export interface ControlPlaneSnapshot {
   workflowAudit?: WorkflowAuditReport;
   setupRecommendation?: SetupRecommendationReport;
   setupPullRequestPlan?: SetupPullRequestPlanReport;
+  pipelineReport?: ControlPlanePipelineReport;
   issueMarkdown?: string;
   prCommentMarkdown?: string;
   triagePrompt?: string;

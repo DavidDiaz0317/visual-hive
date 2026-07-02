@@ -255,6 +255,7 @@ function StartWorkspace({
       <SignalCard className="span-3" icon={<Activity size={17} />} label="Project health" tone="amber" value={overview.healthGrade ?? "unknown"} detail={snapshot.config?.project?.name ?? "No config loaded"} />
       <SignalCard className="span-3" icon={<Shield size={17} />} label="Browser run" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} detail={`${report?.selectedContracts?.length ?? 0} selected contracts`} />
       <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} detail="Adequacy" />
+      <SignalCard className="span-3" icon={<Activity size={17} />} label="Operational pipeline" tone={pipelineTone(snapshot.pipelineReport?.status)} value={snapshot.pipelineReport?.status ?? "missing"} detail={`${snapshot.overview.pipelineSteps ?? 0} steps`} />
       <VerdictContributionPanel className="span-12" snapshot={snapshot} />
       <VisualEvidenceStrip className="span-7" connection={connection} screenshots={snapshot.screenshots} selectArea={selectArea} />
       <FailurePreview className="span-5" failures={snapshot.failures} selectArea={selectArea} />
@@ -268,6 +269,7 @@ function StartWorkspace({
             ["Generated", formatDate(report?.generatedAt)],
             ["Selected contracts", report?.selectedContracts?.length ?? 0],
             ["Baselines", createdOrPendingBaselines ? `${createdOrPendingBaselines} need review` : "clear"],
+            ["Pipeline", snapshot.pipelineReport ? `${snapshot.pipelineReport.status}; failed=${snapshot.overview.pipelineFailedSteps ?? 0}` : "not run"],
             ["Artifacts", snapshot.artifacts?.length ?? 0]
           ]}
         />
@@ -794,7 +796,7 @@ function AgentForwardWorkflow({
     snapshot.agentPacket?.evidenceSummary?.advisoryContributions?.length ??
     snapshot.evidencePacket?.evidenceContributions?.filter((contribution) => !contribution.gating).length ??
     0;
-  const handoffStatus = snapshot.handoffPacket?.status ?? (snapshot.evidencePacket?.hiveReadiness?.readyForHiveDryRun ? "ready" : "missing");
+  const pipelineStatus = snapshot.pipelineReport?.status ?? "missing";
   const workItems = snapshot.handoffPacket?.workItems ?? snapshot.agentPacket?.evidenceSummary?.workItems ?? [];
   const blockedReasons = snapshot.handoffPacket?.blockedReasons ?? snapshot.evidencePacket?.hiveReadiness?.blockedReasons ?? [];
   const packetArtifacts = [
@@ -830,10 +832,11 @@ function AgentForwardWorkflow({
         <MetricCard className="span-3" label="Visual Hive verdict" tone={verdictTone(verdict)} value={verdict ?? "missing"} />
         <MetricCard className="span-3" label="Gating evidence" tone={gatingCount > 0 ? "success" : "warning"} value={gatingCount} />
         <MetricCard className="span-3" label="Agent work items" tone={workItems.length > 0 ? "warning" : "success"} value={workItems.length} />
-        <MetricCard className="span-3" label="Hive handoff" tone={handoffStatus === "ready" ? "success" : "warning"} value={handoffStatus} />
+        <MetricCard className="span-3" label="Pipeline" tone={pipelineTone(snapshot.pipelineReport?.status)} value={pipelineStatus} />
         <Card className="span-6" title="Packet chain">
           <KeyValueTable
             rows={[
+              ["Pipeline", snapshot.pipelineReport ? `${snapshot.pipelineReport.status}; steps=${snapshot.pipelineReport.steps.length}` : "missing"],
               ["Evidence Packet", snapshot.evidencePacket ? "ready" : "missing"],
               ["Verdict Report", snapshot.verdictReport ? "ready" : "missing"],
               ["Handoff Packet", snapshot.handoffPacket ? `${snapshot.handoffPacket.status}; calls=${snapshot.handoffPacket.externalCallsMade}` : "missing"],
@@ -862,7 +865,8 @@ function AgentForwardWorkflow({
               evidencePacket: snapshot.evidencePacket,
               verdictReport: snapshot.verdictReport,
               handoffPacket: snapshot.handoffPacket,
-              agentPacket: snapshot.agentPacket
+              agentPacket: snapshot.agentPacket,
+              pipelineReport: snapshot.pipelineReport
             }}
           />
         )}
@@ -1509,6 +1513,13 @@ function verdictTone(value?: string): Tone {
   if (value === "failed") return "danger";
   if (value === "blocked" || value === "warning") return "warning";
   if (value === "inconclusive") return "info";
+  return "neutral";
+}
+
+function pipelineTone(value?: string): Tone {
+  if (value === "passed") return "success";
+  if (value === "failed") return "danger";
+  if (value === "blocked") return "warning";
   return "neutral";
 }
 

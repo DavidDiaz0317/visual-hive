@@ -1242,6 +1242,69 @@ jobs:
   );
   await writeFile(path.join(repoRoot, ".visual-hive", "test-creation-plan.md"), "# Visual Hive Test Creation Plan\n", "utf8");
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "pipeline.json"),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        project: "ui-fixture",
+        mode: "pr",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        status: "passed",
+        exitCode: 0,
+        options: {
+          ci: true,
+          bootstrapBaselines: false,
+          enforceMutation: false,
+          continueOnError: true,
+          skipInstall: true,
+          skipBuild: true
+        },
+        steps: [
+          {
+            id: "run",
+            label: "Deterministic Run",
+            status: "passed",
+            startedAt: "2026-06-15T00:00:00.000Z",
+            completedAt: "2026-06-15T00:00:01.000Z",
+            durationMs: 1000,
+            exitCode: 0,
+            artifacts: [".visual-hive/report.json"]
+          },
+          {
+            id: "evidence",
+            label: "Evidence Packet",
+            status: "passed",
+            startedAt: "2026-06-15T00:00:01.000Z",
+            completedAt: "2026-06-15T00:00:02.000Z",
+            durationMs: 1000,
+            exitCode: 0,
+            artifacts: [".visual-hive/evidence-packet.json"]
+          },
+          {
+            id: "handoff",
+            label: "Hive Handoff Dry Run",
+            status: "passed",
+            startedAt: "2026-06-15T00:00:02.000Z",
+            completedAt: "2026-06-15T00:00:03.000Z",
+            durationMs: 1000,
+            exitCode: 0,
+            artifacts: [".visual-hive/handoff.json", ".visual-hive/hive-handoff-result.json"]
+          }
+        ],
+        artifacts: [
+          ".visual-hive/pipeline.json",
+          ".visual-hive/report.json",
+          ".visual-hive/evidence-packet.json",
+          ".visual-hive/handoff.json",
+          ".visual-hive/agent-packet.json"
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".visual-hive", "security.json"),
     JSON.stringify(
       {
@@ -1435,6 +1498,15 @@ describe("control plane", () => {
     expect(snapshot.overview.advisoryContributions).toBe(1);
     expect(snapshot.overview.failedContributions).toBe(2);
     expect(snapshot.overview.blockedContributions).toBe(0);
+    expect(snapshot.overview.pipelineStatus).toBe("passed");
+    expect(snapshot.overview.pipelineSteps).toBe(3);
+    expect(snapshot.overview.pipelineFailedSteps).toBe(0);
+    expect(snapshot.pipelineReport).toMatchObject({
+      schemaVersion: 1,
+      status: "passed",
+      exitCode: 0,
+      steps: [{ id: "run", status: "passed" }, { id: "evidence", status: "passed" }, { id: "handoff", status: "passed" }]
+    });
     expect(snapshot.guidanceState).toMatchObject({
       state: "failures_need_triage",
       title: "Failures need triage",

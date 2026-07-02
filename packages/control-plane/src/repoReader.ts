@@ -72,6 +72,7 @@ import type {
   ControlPlaneGuidanceState,
   ControlPlaneNavigationBadges,
   ControlPlaneOptions,
+  ControlPlanePipelineReport,
   ControlPlaneOverview,
   ControlPlaneRunProfile,
   ControlPlaneRunbook,
@@ -121,6 +122,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     flowAuditArtifact,
     setupRecommendation,
     setupPullRequestPlan,
+    pipelineReport,
     workflowAuditArtifact,
     runHistoryArtifact,
     riskArtifact,
@@ -157,6 +159,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<FlowAuditReport>(path.join(hiveRoot, "flows.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<SetupPullRequestPlanReport>(path.join(hiveRoot, "setup-pr-plan.json")),
+    readJsonIfExists<ControlPlanePipelineReport>(path.join(hiveRoot, "pipeline.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
@@ -199,7 +202,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const scheduleAudit = config ? auditSchedules(config, { changedFiles: isPlan(plan) ? plan.changedFiles : report?.changedFiles }) : undefined;
   const workflowAudit = config ? (workflowAuditArtifact ?? (await auditWorkflowFilesIfPresent(config, resolved.repoRoot))) : undefined;
   const contracts = collectContracts(config, report, mutationReport);
-  const overview = buildOverview(report, mutationReport, configError, evidencePacket, verdictReport);
+  const overview = buildOverview(report, mutationReport, configError, evidencePacket, verdictReport, pipelineReport);
   const providers = config ? inspectProviders(config) : [];
   const costAudit = config ? costAuditArtifact ?? analyzeCosts(config, { plan: isPlan(plan) ? plan : undefined, report, mutationReport, providerRunReport }) : undefined;
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
@@ -313,6 +316,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerHandoff,
     setupRecommendation,
     setupPullRequestPlan,
+    pipelineReport,
     targetAudit,
     contractAudit,
     flowAudit,
@@ -1282,7 +1286,8 @@ function buildOverview(
   mutationReport?: MutationReport,
   configError?: string,
   evidencePacket?: EvidencePacket,
-  verdictReport?: VerdictReport
+  verdictReport?: VerdictReport,
+  pipelineReport?: ControlPlanePipelineReport
 ): ControlPlaneOverview {
   const deterministicStatus = !report ? "missing" : report.status;
   const visualHiveVerdict = resolveVisualHiveVerdict(report, evidencePacket, verdictReport);
@@ -1293,6 +1298,7 @@ function buildOverview(
   const visualDiffs = report?.summary.visualDiffs ?? 0;
   const consoleErrors = report?.summary.consoleErrors ?? 0;
   const pageErrors = report?.summary.pageErrors ?? 0;
+  const pipelineFailedSteps = pipelineReport?.steps.filter((step) => step.status === "failed").length;
   const mutationScore = mutationReport?.score;
   let healthScore = report ? (visualHiveVerdict === "passed" ? 70 : visualHiveVerdict === "blocked" ? 45 : 35) : 10;
   if (mutationScore !== undefined) healthScore += Math.round(mutationScore * 20);
@@ -1318,10 +1324,14 @@ function buildOverview(
     visualDiffs,
     consoleErrors,
     pageErrors,
+    pipelineStatus: pipelineReport?.status,
+    pipelineSteps: pipelineReport?.steps.length,
+    pipelineFailedSteps,
     nextActions: nextActions(report, mutationReport, configError, visualHiveVerdict),
     explanations: [
       report ? `Latest deterministic run ${report.status}; Visual Hive verdict ${visualHiveVerdict ?? "missing"}.` : "No deterministic report found yet.",
       mutationReport ? `Mutation score is ${Math.round(mutationReport.score * 100)}%.` : "No mutation report found yet.",
+      pipelineReport ? `Operational pipeline ${pipelineReport.status}; ${pipelineFailedSteps ?? 0} failed step(s).` : "No operational pipeline report found yet.",
       configError ? `Config needs attention: ${configError}` : "Config loaded successfully."
     ]
   };
