@@ -252,6 +252,7 @@ See also:
 - `docs/install.md`
 - `docs/roadmap.md`
 - `docs/research/visual-hive-vision-and-rationale.md`
+- `docs/agent-forward-v2/README-DOC-PACK.md`
 
 ## Security model
 
