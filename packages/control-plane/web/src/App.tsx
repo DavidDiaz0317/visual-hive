@@ -251,10 +251,11 @@ function StartWorkspace({
   return (
     <div className="view-grid">
       <GuidedActionPanel className="span-12" snapshot={snapshot} selectArea={selectArea} />
+      <SignalCard className="span-3" icon={<Shield size={17} />} label="Visual Hive verdict" tone={verdictTone(overview.visualHiveVerdict)} value={overview.visualHiveVerdict ?? "missing"} detail={`${overview.gatingContributions} gating signals`} />
       <SignalCard className="span-3" icon={<Activity size={17} />} label="Project health" tone="amber" value={overview.healthGrade ?? "unknown"} detail={snapshot.config?.project?.name ?? "No config loaded"} />
-      <SignalCard className="span-3" icon={<Shield size={17} />} label="PR-safe lane" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} detail={`${report?.selectedContracts?.length ?? 0} selected contracts`} />
+      <SignalCard className="span-3" icon={<Shield size={17} />} label="Browser run" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} detail={`${report?.selectedContracts?.length ?? 0} selected contracts`} />
       <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof mutationScore === "number" && mutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(mutationScore)} detail="Adequacy" />
-      <SignalCard className="span-3" icon={<AlertTriangle size={17} />} label="Review queue" tone={overview.failedContracts > 0 || createdOrPendingBaselines > 0 ? "danger" : "success"} value={(overview.failedContracts ?? 0) + createdOrPendingBaselines} detail="Failures and visual changes" />
+      <VerdictContributionPanel className="span-12" snapshot={snapshot} />
       <VisualEvidenceStrip className="span-7" connection={connection} screenshots={snapshot.screenshots} selectArea={selectArea} />
       <FailurePreview className="span-5" failures={snapshot.failures} selectArea={selectArea} />
       <Card className="span-7" title="First-run guide">
@@ -357,6 +358,53 @@ function SignalCard({
       </div>
       <div className="signal-value">{safeText(value)}</div>
       {detail && <div className="metric-detail">{detail}</div>}
+    </Card>
+  );
+}
+
+function VerdictContributionPanel({ className = "", snapshot }: { className?: string; snapshot: Snapshot }) {
+  const contributions = verdictContributions(snapshot);
+  const blocked = contributions.filter((contribution) => contribution.status === "blocked" && contribution.gating).slice(0, 3);
+  const failed = contributions.filter((contribution) => contribution.status === "failed" && contribution.gating).slice(0, 3);
+  const warnings = contributions.filter((contribution) => contribution.status === "warning").slice(0, 3);
+  const visible = blocked.length ? blocked : failed.length ? failed : warnings;
+  const verdict = snapshot.overview.visualHiveVerdict ?? "missing";
+  const message =
+    verdict === "blocked"
+      ? "Evidence is blocked by setup, baseline, secret, or policy conditions. Fix those before treating this as a product regression."
+      : verdict === "failed"
+        ? "Visual Hive found deterministic regression evidence that should be triaged."
+        : verdict === "passed"
+          ? "Gating evidence is currently passing. Advisory signals can still suggest stronger coverage."
+          : "Generate evidence to let Visual Hive assemble a verdict.";
+  return (
+    <Card
+      className={`verdict-panel ${className}`}
+      title="Why Visual Hive reached this verdict"
+      action={<Badge tone={verdictTone(verdict)}>{verdict}</Badge>}
+    >
+      <p className="card-subtext">{message}</p>
+      <div className="verdict-grid">
+        <MetricCard label="Gating" tone="info" value={snapshot.overview.gatingContributions} />
+        <MetricCard label="Blocked" tone={snapshot.overview.blockedContributions > 0 ? "warning" : "success"} value={snapshot.overview.blockedContributions} />
+        <MetricCard label="Failed" tone={snapshot.overview.failedContributions > 0 ? "danger" : "success"} value={snapshot.overview.failedContributions} />
+        <MetricCard label="Advisory" tone="neutral" value={snapshot.overview.advisoryContributions} />
+      </div>
+      {visible.length ? (
+        <div className="contribution-list">
+          {visible.map((contribution) => (
+            <div className="contribution-row" key={contribution.key}>
+              <Badge tone={statusTone(contribution.status)}>{contribution.status}</Badge>
+              <div>
+                <strong>{contribution.key}</strong>
+                <p>{contribution.reason}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No verdict contributions yet">Run evidence or a deterministic check to populate verdict reasons.</EmptyState>
+      )}
     </Card>
   );
 }
@@ -729,16 +777,19 @@ function AgentForwardWorkflow({
 }) {
   const profile = snapshot.runProfiles?.find((candidate) => candidate.id === "agent-handoff-review");
   const verdict =
+    snapshot.report?.verdictSummary?.visualHiveVerdict ??
     snapshot.verdictReport?.summary?.visualHiveVerdict ??
     snapshot.evidencePacket?.verdictSummary?.visualHiveVerdict ??
     snapshot.handoffPacket?.verdict?.visualHiveVerdict ??
     snapshot.agentPacket?.verdict?.visualHiveVerdict;
   const gatingCount =
+    snapshot.report?.verdictContributions?.filter((contribution) => contribution.gating).length ??
     snapshot.verdictReport?.summary?.gatingContributions ??
     snapshot.agentPacket?.evidenceSummary?.gatingContributions?.length ??
     snapshot.evidencePacket?.evidenceContributions?.filter((contribution) => contribution.gating).length ??
     0;
   const advisoryCount =
+    snapshot.report?.verdictContributions?.filter((contribution) => !contribution.gating).length ??
     snapshot.verdictReport?.summary?.advisoryContributions ??
     snapshot.agentPacket?.evidenceSummary?.advisoryContributions?.length ??
     snapshot.evidencePacket?.evidenceContributions?.filter((contribution) => !contribution.gating).length ??
@@ -1027,10 +1078,11 @@ function Runs({ snapshot, connection }: { snapshot: Snapshot; connection?: strin
   const report = snapshot.report;
   return (
     <div className="view-grid">
-      <MetricCard className="span-3" label="Passed" tone="success" value={report?.summary?.passed ?? 0} />
-      <MetricCard className="span-3" label="Failed" tone={(report?.summary?.failed ?? 0) > 0 ? "danger" : "success"} value={report?.summary?.failed ?? 0} />
-      <MetricCard className="span-3" label="Screenshots failed" tone={(report?.summary?.screenshotsFailed ?? 0) > 0 ? "danger" : "success"} value={report?.summary?.screenshotsFailed ?? 0} />
-      <MetricCard className="span-3" label="Console/page errors" tone={(report?.summary?.consoleErrors ?? 0) + (report?.summary?.pageErrors ?? 0) > 0 ? "warning" : "success"} value={(report?.summary?.consoleErrors ?? 0) + (report?.summary?.pageErrors ?? 0)} />
+      <MetricCard className="span-3" label="Visual Hive verdict" tone={verdictTone(snapshot.overview.visualHiveVerdict)} value={snapshot.overview.visualHiveVerdict ?? "missing"} />
+      <MetricCard className="span-3" label="Passed contracts" tone="success" value={report?.summary?.passed ?? 0} />
+      <MetricCard className="span-3" label="Failed contracts" tone={(report?.summary?.failed ?? 0) > 0 ? "danger" : "success"} value={report?.summary?.failed ?? 0} />
+      <MetricCard className="span-3" label="Blocked evidence" tone={snapshot.overview.blockedContributions > 0 ? "warning" : "success"} value={snapshot.overview.blockedContributions} />
+      <VerdictContributionPanel className="span-12" snapshot={snapshot} />
       <Card className="span-6" title="Selected contracts">
         <SimpleTable rows={(report?.selectedContracts ?? []).map((contract) => [contract])} headers={["Contract"]} />
       </Card>
@@ -1437,6 +1489,12 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: Array<Array<u
 
 function isRenderable(value: unknown): value is ReactElement {
   return isValidElement(value);
+}
+
+function verdictContributions(snapshot: Snapshot) {
+  if (snapshot.report?.verdictContributions?.length) return snapshot.report.verdictContributions;
+  if (snapshot.verdictReport?.allContributions?.length) return snapshot.verdictReport.allContributions;
+  return snapshot.evidencePacket?.evidenceContributions ?? [];
 }
 
 function formatDate(value?: string) {

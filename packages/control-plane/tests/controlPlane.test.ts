@@ -1430,6 +1430,11 @@ describe("control plane", () => {
 
     expect(snapshot.config?.project.name).toBe("ui-fixture");
     expect(snapshot.overview.deterministicStatus).toBe("passed");
+    expect(snapshot.overview.visualHiveVerdict).toBe("failed");
+    expect(snapshot.overview.gatingContributions).toBe(2);
+    expect(snapshot.overview.advisoryContributions).toBe(1);
+    expect(snapshot.overview.failedContributions).toBe(2);
+    expect(snapshot.overview.blockedContributions).toBe(0);
     expect(snapshot.guidanceState).toMatchObject({
       state: "failures_need_triage",
       title: "Failures need triage",
@@ -1744,6 +1749,74 @@ describe("control plane", () => {
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
+  });
+
+  it("surfaces blocked verdict evidence separately from deterministic failures", async () => {
+    const fixture = await makeFixture();
+    const blockedSummary = {
+      visualHiveVerdict: "blocked",
+      failedBecause: [],
+      warningBecause: [],
+      blockedBecause: ["target.startup.localPreview"],
+      advisoryOnly: ["triage.insufficient_coverage"]
+    };
+    const blockedContribution = {
+      key: "target.startup.localPreview",
+      source: "target",
+      kind: "target_startup",
+      status: "blocked",
+      gating: true,
+      authority: "deterministic",
+      targetId: "localPreview",
+      reason: "Target localPreview did not become ready before timeout.",
+      artifacts: [".visual-hive/report.json"]
+    };
+
+    const evidencePath = path.join(fixture.repoRoot, ".visual-hive", "evidence-packet.json");
+    const evidencePacket = JSON.parse(await readFile(evidencePath, "utf8"));
+    evidencePacket.evidenceContributions = [blockedContribution, ...(evidencePacket.evidenceContributions ?? [])];
+    evidencePacket.verdictSummary = blockedSummary;
+    evidencePacket.hiveReadiness = {
+      ...(evidencePacket.hiveReadiness ?? {}),
+      readyForHiveDryRun: false,
+      blockedReasons: ["target.startup.localPreview"]
+    };
+    await writeFile(evidencePath, JSON.stringify(evidencePacket, null, 2), "utf8");
+
+    const verdictPath = path.join(fixture.repoRoot, ".visual-hive", "verdict.json");
+    const verdictReport = JSON.parse(await readFile(verdictPath, "utf8"));
+    verdictReport.summary = {
+      ...verdictReport.summary,
+      ...blockedSummary,
+      totalContributions: 4,
+      gatingContributions: 3,
+      advisoryContributions: 1,
+      failedContributions: 0,
+      blockedContributions: 1,
+      warningContributions: 0,
+      inconclusiveContributions: 0,
+      passedContributions: 0,
+      skippedContributions: 1
+    };
+    verdictReport.gatingContributions = [blockedContribution, ...(verdictReport.gatingContributions ?? [])];
+    verdictReport.allContributions = [blockedContribution, ...(verdictReport.allContributions ?? [])];
+    await writeFile(verdictPath, JSON.stringify(verdictReport, null, 2), "utf8");
+
+    const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
+
+    expect(snapshot.overview.deterministicStatus).toBe("passed");
+    expect(snapshot.overview.visualHiveVerdict).toBe("blocked");
+    expect(snapshot.overview.blockedContributions).toBe(1);
+    expect(snapshot.guidanceState).toMatchObject({
+      state: "readiness_blocked",
+      title: "Checks are blocked",
+      primaryAction: {
+        label: "Review blockers",
+        area: "review"
+      }
+    });
+    expect(snapshot.guidanceState.blockedReasons).toContain("target.startup.localPreview");
+    expect(snapshot.overview.nextActions[0]).toContain("blocked evidence");
   });
 
   it("builds beginner guidance when no config exists yet", async () => {
@@ -2533,6 +2606,9 @@ contracts:
       expect(appJs).toContain("Control Plane");
       expect(appJs).toContain("Quality cockpit");
       expect(appJs).toContain("What should I do next?");
+      expect(appJs).toContain("Visual Hive verdict");
+      expect(appJs).toContain("Why Visual Hive reached this verdict");
+      expect(appJs).toContain("Blocked evidence");
       expect(appJs).toContain("Expert console");
       expect(appJs).toContain("Failure Inbox");
       expect(appJs).toContain("Baselines");
@@ -2574,6 +2650,9 @@ contracts:
       for (const expected of [
         "Quality cockpit",
         "What should I do next?",
+        "Visual Hive verdict",
+        "Why Visual Hive reached this verdict",
+        "Blocked evidence",
         "Run PR-safe checks",
         "Review visual changes",
         "Expert console",

@@ -25,6 +25,7 @@ import type {
   TriageReport,
   TargetConfig,
   HandoffPacket,
+  VisualHiveVerdict,
   VerdictReport,
   VisualHiveConfig,
   ArtifactIndexEntry,
@@ -63,6 +64,11 @@ export interface ControlPlaneOverview {
   healthScore: number;
   healthGrade: "unknown" | "poor" | "fair" | "good" | "excellent";
   deterministicStatus: "missing" | "passed" | "failed";
+  visualHiveVerdict?: VisualHiveVerdict;
+  gatingContributions: number;
+  advisoryContributions: number;
+  failedContributions: number;
+  blockedContributions: number;
   mutationScore?: number;
   failedContracts: number;
   createdBaselines: number;

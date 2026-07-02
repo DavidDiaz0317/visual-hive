@@ -199,7 +199,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
   const scheduleAudit = config ? auditSchedules(config, { changedFiles: isPlan(plan) ? plan.changedFiles : report?.changedFiles }) : undefined;
   const workflowAudit = config ? (workflowAuditArtifact ?? (await auditWorkflowFilesIfPresent(config, resolved.repoRoot))) : undefined;
   const contracts = collectContracts(config, report, mutationReport);
-  const overview = buildOverview(report, mutationReport, configError);
+  const overview = buildOverview(report, mutationReport, configError, evidencePacket, verdictReport);
   const providers = config ? inspectProviders(config) : [];
   const costAudit = config ? costAuditArtifact ?? analyzeCosts(config, { plan: isPlan(plan) ? plan : undefined, report, mutationReport, providerRunReport }) : undefined;
   const runHistory = runHistoryArtifact ?? buildTransientRunHistory(resolved.repoRoot, plan, report, mutationReport);
@@ -260,6 +260,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     hasConfigFile: Boolean(configRaw),
     plan: isPlan(plan) ? plan : undefined,
     report,
+    evidencePacket,
+    verdictReport,
     mutationReport,
     setupProgress,
     readinessReport,
@@ -352,6 +354,8 @@ function buildGuidanceState(input: {
   hasConfigFile: boolean;
   plan?: Plan;
   report?: Report;
+  evidencePacket?: EvidencePacket;
+  verdictReport?: VerdictReport;
   mutationReport?: MutationReport;
   setupProgress: SetupProgressReport;
   readinessReport?: ReadinessReport;
@@ -359,6 +363,9 @@ function buildGuidanceState(input: {
   failures: ControlPlaneFailure[];
 }): ControlPlaneGuidanceState {
   const baselineReviewCount = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
+  const verdict = resolveVisualHiveVerdict(input.report, input.evidencePacket, input.verdictReport);
+  const blockedReasonsFromVerdict = resolveBlockedReasons(input.report, input.evidencePacket, input.verdictReport);
+  const failedReasonsFromVerdict = resolveFailedReasons(input.report, input.evidencePacket, input.verdictReport);
   const mutationScore = input.mutationReport?.score;
   const minMutationScore = input.mutationReport?.minScore ?? input.config?.mutation?.minScore ?? 0.7;
   const readinessStatus = String(input.readinessReport?.status ?? "").toLowerCase();
@@ -431,10 +438,22 @@ function buildGuidanceState(input: {
       commandId: "run-ci",
       tone: "amber"
     };
-  } else if (input.failures.length > 0 || input.report.status === "failed") {
+  } else if (verdict === "blocked") {
+    state = "readiness_blocked";
+    title = "Checks are blocked";
+    summary = "Visual Hive could not make a clean product-regression verdict because evidence is missing, unsafe, or environment setup failed.";
+    primaryAction = {
+      id: "review-blockers",
+      label: "Review blockers",
+      description: "Inspect blocked evidence such as target startup, missing baselines, protected secrets, or policy gates.",
+      area: "review",
+      tone: "warning"
+    };
+    blockedReasons.push(...blockedReasonsFromVerdict.slice(0, 4));
+  } else if (input.failures.length > 0 || verdict === "failed" || input.report.status === "failed") {
     state = "failures_need_triage";
     title = "Failures need triage";
-    summary = "Deterministic evidence found failing contracts, unexpected elements, visual diffs, or mutation survivors.";
+    summary = "Visual Hive found deterministic regression evidence such as failing contracts, unexpected elements, visual diffs, or mutation survivors.";
     primaryAction = {
       id: "review-failures",
       label: "Review failures",
@@ -442,6 +461,7 @@ function buildGuidanceState(input: {
       area: "review",
       tone: "danger"
     };
+    blockedReasons.push(...failedReasonsFromVerdict.slice(0, 4));
   } else if (baselineReviewCount > 0) {
     state = "baselines_need_review";
     title = "Review visual changes";
@@ -497,6 +517,8 @@ function buildGuidanceProgress(
     configError?: string;
     plan?: Plan;
     report?: Report;
+    evidencePacket?: EvidencePacket;
+    verdictReport?: VerdictReport;
     mutationReport?: MutationReport;
     setupProgress: SetupProgressReport;
     screenshots: ControlPlaneScreenshot[];
@@ -505,6 +527,7 @@ function buildGuidanceProgress(
   state: ControlPlaneGuidanceState["state"]
 ): ControlPlaneGuidanceState["progress"] {
   const baselineReviewCount = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
+  const verdict = resolveVisualHiveVerdict(input.report, input.evidencePacket, input.verdictReport);
   const mutationScore = input.mutationReport?.score;
   const minMutationScore = input.mutationReport?.minScore ?? input.config?.mutation?.minScore ?? 0.7;
   return [
@@ -525,7 +548,7 @@ function buildGuidanceProgress(
     {
       id: "run",
       label: "Run",
-      status: input.report ? (input.report.status === "failed" ? "blocked" : "complete") : input.plan ? "current" : "pending",
+      status: input.report ? (verdict === "failed" || verdict === "blocked" ? "blocked" : "complete") : input.plan ? "current" : "pending",
       description: "Execute deterministic Playwright contracts.",
       commandId: "run-ci"
     },
@@ -1254,8 +1277,16 @@ function collectContracts(config?: VisualHiveConfig, report?: Report, mutationRe
   }));
 }
 
-function buildOverview(report?: Report, mutationReport?: MutationReport, configError?: string): ControlPlaneOverview {
+function buildOverview(
+  report?: Report,
+  mutationReport?: MutationReport,
+  configError?: string,
+  evidencePacket?: EvidencePacket,
+  verdictReport?: VerdictReport
+): ControlPlaneOverview {
   const deterministicStatus = !report ? "missing" : report.status;
+  const visualHiveVerdict = resolveVisualHiveVerdict(report, evidencePacket, verdictReport);
+  const contributionSummary = resolveContributionSummary(report, evidencePacket, verdictReport);
   const failedContracts = report?.summary.failed ?? 0;
   const createdBaselines = report?.summary.createdBaselines ?? report?.summary.baselinesCreated ?? 0;
   const missingBaselines = report?.summary.missingBaselines ?? 0;
@@ -1263,7 +1294,7 @@ function buildOverview(report?: Report, mutationReport?: MutationReport, configE
   const consoleErrors = report?.summary.consoleErrors ?? 0;
   const pageErrors = report?.summary.pageErrors ?? 0;
   const mutationScore = mutationReport?.score;
-  let healthScore = report ? (report.status === "passed" ? 70 : 35) : 10;
+  let healthScore = report ? (visualHiveVerdict === "passed" ? 70 : visualHiveVerdict === "blocked" ? 45 : 35) : 10;
   if (mutationScore !== undefined) healthScore += Math.round(mutationScore * 20);
   if (createdBaselines > 0) healthScore -= 5;
   if (missingBaselines > 0) healthScore -= 20;
@@ -1275,6 +1306,11 @@ function buildOverview(report?: Report, mutationReport?: MutationReport, configE
     healthScore,
     healthGrade: grade(healthScore, deterministicStatus),
     deterministicStatus,
+    visualHiveVerdict,
+    gatingContributions: contributionSummary.gating,
+    advisoryContributions: contributionSummary.advisory,
+    failedContributions: contributionSummary.failed,
+    blockedContributions: contributionSummary.blocked,
     mutationScore,
     failedContracts,
     createdBaselines,
@@ -1282,13 +1318,66 @@ function buildOverview(report?: Report, mutationReport?: MutationReport, configE
     visualDiffs,
     consoleErrors,
     pageErrors,
-    nextActions: nextActions(report, mutationReport, configError),
+    nextActions: nextActions(report, mutationReport, configError, visualHiveVerdict),
     explanations: [
-      report ? `Latest deterministic run ${report.status}.` : "No deterministic report found yet.",
+      report ? `Latest deterministic run ${report.status}; Visual Hive verdict ${visualHiveVerdict ?? "missing"}.` : "No deterministic report found yet.",
       mutationReport ? `Mutation score is ${Math.round(mutationReport.score * 100)}%.` : "No mutation report found yet.",
       configError ? `Config needs attention: ${configError}` : "Config loaded successfully."
     ]
   };
+}
+
+function resolveVisualHiveVerdict(report?: Report, evidencePacket?: EvidencePacket, verdictReport?: VerdictReport): ControlPlaneOverview["visualHiveVerdict"] {
+  return report?.verdictSummary?.visualHiveVerdict ?? verdictReport?.summary?.visualHiveVerdict ?? evidencePacket?.verdictSummary?.visualHiveVerdict;
+}
+
+function resolveContributionSummary(report?: Report, evidencePacket?: EvidencePacket, verdictReport?: VerdictReport): {
+  gating: number;
+  advisory: number;
+  failed: number;
+  blocked: number;
+} {
+  if (report?.verdictContributions?.length) {
+    return {
+      gating: report.verdictContributions.filter((contribution) => contribution.gating).length,
+      advisory: report.verdictContributions.filter((contribution) => !contribution.gating).length,
+      failed: report.verdictContributions.filter((contribution) => contribution.status === "failed").length,
+      blocked: report.verdictContributions.filter((contribution) => contribution.status === "blocked").length
+    };
+  }
+  if (verdictReport) {
+    return {
+      gating: verdictReport.summary.gatingContributions,
+      advisory: verdictReport.summary.advisoryContributions,
+      failed: verdictReport.summary.failedContributions,
+      blocked: verdictReport.summary.blockedContributions
+    };
+  }
+  if (evidencePacket?.evidenceContributions?.length) {
+    return {
+      gating: evidencePacket.evidenceContributions.filter((contribution) => contribution.gating).length,
+      advisory: evidencePacket.evidenceContributions.filter((contribution) => !contribution.gating).length,
+      failed: evidencePacket.evidenceContributions.filter((contribution) => contribution.status === "failed").length,
+      blocked: evidencePacket.evidenceContributions.filter((contribution) => contribution.status === "blocked").length
+    };
+  }
+  return { gating: 0, advisory: 0, failed: 0, blocked: 0 };
+}
+
+function resolveBlockedReasons(report?: Report, evidencePacket?: EvidencePacket, verdictReport?: VerdictReport): string[] {
+  return uniqueStrings([
+    ...(report?.verdictSummary?.blockedBecause ?? []),
+    ...(verdictReport?.summary?.blockedBecause ?? []),
+    ...(evidencePacket?.verdictSummary?.blockedBecause ?? [])
+  ]);
+}
+
+function resolveFailedReasons(report?: Report, evidencePacket?: EvidencePacket, verdictReport?: VerdictReport): string[] {
+  return uniqueStrings([
+    ...(report?.verdictSummary?.failedBecause ?? []),
+    ...(verdictReport?.summary?.failedBecause ?? []),
+    ...(evidencePacket?.verdictSummary?.failedBecause ?? [])
+  ]);
 }
 
 function buildTransientRunHistory(repoRoot: string, plan?: unknown, report?: Report, mutationReport?: MutationReport): RunHistoryReport | undefined {
@@ -1315,10 +1404,11 @@ function buildTransientRunHistory(repoRoot: string, plan?: unknown, report?: Rep
   });
 }
 
-function nextActions(report?: Report, mutationReport?: MutationReport, configError?: string): string[] {
+function nextActions(report?: Report, mutationReport?: MutationReport, configError?: string, visualHiveVerdict?: ControlPlaneOverview["visualHiveVerdict"]): string[] {
   if (configError) return ["Fix visual-hive.config.yaml validation errors."];
   if (!report) return ["Run visual-hive plan && visual-hive run."];
-  if (report.status === "failed") return ["Open Failure Inbox and inspect failed contracts.", "Run visual-hive triage to refresh issue and repair context."];
+  if (visualHiveVerdict === "blocked") return ["Open Review and inspect blocked evidence.", "Fix target startup, missing baselines, protected secrets, or policy gates before rerunning."];
+  if (visualHiveVerdict === "failed" || report.status === "failed") return ["Open Failure Inbox and inspect failed contracts.", "Run visual-hive triage to refresh issue and repair context."];
   if ((report.summary.createdBaselines ?? report.summary.baselinesCreated) > 0) return ["Review created baselines before committing or using CI enforcement."];
   if (!mutationReport) return ["Run visual-hive mutate to measure test adequacy."];
   if (mutationReport.score < mutationReport.minScore) return ["Strengthen contracts for survived mutations."];
