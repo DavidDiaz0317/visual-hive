@@ -10,6 +10,7 @@ const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-smoke-"));
 
 try {
   run("node", [cliPath, "--help"], repoRoot);
+  run("node", [path.join(repoRoot, "scripts", "run-demo-suite.mjs"), "--dry-run", "ci"], repoRoot);
   run("node", [cliPath, "init", "--force"], tempRoot);
   assertExists(path.join(tempRoot, "visual-hive.config.yaml"));
   assertExists(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"));
@@ -26,6 +27,7 @@ function run(command, args, cwd) {
     cwd,
     stdio: "pipe",
     encoding: "utf8",
+    timeout: 30_000,
     windowsHide: true
   });
   if (result.status !== 0) {

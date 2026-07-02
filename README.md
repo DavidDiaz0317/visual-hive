@@ -72,6 +72,8 @@ npm run smoke:ui
 
 `demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It exercises the local-first product surface end to end: setup recommendations, no-network setup PR plans, PR/canary/full-safe planning, plan-lane summary artifacts, deterministic run, baseline review artifacts, mutation adequacy, coverage, target/contract/flow/schedule audits, workflow-safety audit, no-network provider adapter results, handoff manifests, Argos upload dry-run evidence, triage, LLM governance, PR-comment/issue markdown, risk register, security audit, cost audit, run history, raw artifact index, Evidence Packet generation, Hive handoff dry-run artifacts, KubeStellar planning dogfood, and a read-only Control Plane smoke check over the generated artifacts. `demo:ci` first ensures local baselines exist, then reruns deterministic checks in CI mode and emits the same management artifacts plus the Control Plane smoke.
 
+The aggregate demo commands are intentionally run through `scripts/run-demo-suite.mjs`, which gives every step an explicit timeout and kills the child process tree if a tool stalls. Use `npm run demo:list` to inspect the suites, or run smaller bounded slices with `npm run demo:acceptance:core`, `npm run demo:acceptance:governance`, `npm run demo:acceptance:agent`, and `npm run demo:acceptance:portfolio`.
+
 Initialize Visual Hive in another repo:
 
 ```bash

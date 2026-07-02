@@ -1,4 +1,5 @@
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,6 +72,19 @@ const sampleRepository = {
   branch: "main",
   commitSha: "abcdef1234567890"
 };
+
+function runDemoSuiteDryRun(suite: "all" | "ci"): string {
+  const result = spawnSync(process.execPath, [path.join(repoRoot, "scripts", "run-demo-suite.mjs"), "--dry-run", suite], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true
+  });
+  if (result.status !== 0) {
+    throw new Error(`demo suite dry-run failed for ${suite}\n${result.stdout}\n${result.stderr}`);
+  }
+  return result.stdout;
+}
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
@@ -292,6 +306,11 @@ mutation:
     const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8")) as {
       scripts: Record<string, string>;
     };
+    const demoAllOutput = runDemoSuiteDryRun("all");
+    const demoCiOutput = runDemoSuiteDryRun("ci");
+    expect(packageJson.scripts["demo:all"]).toBe("node scripts/run-demo-suite.mjs all");
+    expect(packageJson.scripts["demo:ci"]).toBe("node scripts/run-demo-suite.mjs ci");
+    expect(packageJson.scripts["demo:list"]).toBe("node scripts/run-demo-suite.mjs --list");
     const expectedCommands = [
       "demo:coverage",
       "demo:baselines",
@@ -331,8 +350,8 @@ mutation:
     ];
 
     for (const command of expectedCommands) {
-      expect(packageJson.scripts["demo:all"]).toContain(command);
-      expect(packageJson.scripts["demo:ci"]).toContain(command);
+      expect(demoAllOutput).toContain(command);
+      expect(demoCiOutput).toContain(command);
     }
     expect(packageJson.scripts["demo:providers"]).toContain("providers list --config");
     expect(packageJson.scripts["demo:provider-handoff"]).toContain("providers handoff --config");
@@ -340,8 +359,8 @@ mutation:
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
-    expect(packageJson.scripts["demo:all"].indexOf("demo:flows")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:improve"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:flows")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:improve"));
+    expect(demoAllOutput.indexOf("demo:flows")).toBeLessThan(demoAllOutput.indexOf("demo:improve"));
+    expect(demoCiOutput.indexOf("demo:flows")).toBeLessThan(demoCiOutput.indexOf("demo:improve"));
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:security"]).toContain("security --config");
@@ -354,46 +373,48 @@ mutation:
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
     expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
     expect(packageJson.scripts["demo:layers"]).toContain("layers --config");
-    expect(packageJson.scripts["demo:all"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:layers"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:layers"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:layers")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:verdict"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:layers")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:verdict"));
+    expect(demoAllOutput.indexOf("demo:evidence")).toBeLessThan(demoAllOutput.indexOf("demo:layers"));
+    expect(demoCiOutput.indexOf("demo:evidence")).toBeLessThan(demoCiOutput.indexOf("demo:layers"));
+    expect(demoAllOutput.indexOf("demo:layers")).toBeLessThan(demoAllOutput.indexOf("demo:verdict"));
+    expect(demoCiOutput.indexOf("demo:layers")).toBeLessThan(demoCiOutput.indexOf("demo:verdict"));
     expect(packageJson.scripts["demo:verdict"]).toContain("verdict --config");
-    expect(packageJson.scripts["demo:all"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:verdict"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:verdict"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:verdict")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:handoff"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:verdict")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:handoff"));
+    expect(demoAllOutput.indexOf("demo:evidence")).toBeLessThan(demoAllOutput.indexOf("demo:verdict"));
+    expect(demoCiOutput.indexOf("demo:evidence")).toBeLessThan(demoCiOutput.indexOf("demo:verdict"));
+    expect(demoAllOutput.indexOf("demo:verdict")).toBeLessThan(demoAllOutput.indexOf("demo:handoff"));
+    expect(demoCiOutput.indexOf("demo:verdict")).toBeLessThan(demoCiOutput.indexOf("demo:handoff"));
     expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
     expect(packageJson.scripts["demo:test-creation"]).toContain("test-creation-plan --config");
-    expect(packageJson.scripts["demo:all"].indexOf("demo:handoff")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:test-creation"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:handoff")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:test-creation"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:test-creation")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:agent-packet"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:test-creation")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:agent-packet"));
+    expect(demoAllOutput.indexOf("demo:handoff")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
+    expect(demoCiOutput.indexOf("demo:handoff")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
+    expect(demoAllOutput.indexOf("demo:test-creation")).toBeLessThan(demoAllOutput.indexOf("demo:agent-packet"));
+    expect(demoCiOutput.indexOf("demo:test-creation")).toBeLessThan(demoCiOutput.indexOf("demo:agent-packet"));
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
     expect(packageJson.scripts["demo:context"]).toContain("context --config");
     expect(packageJson.scripts["demo:analyze"]).toContain("analyze --repo");
-    expect(packageJson.scripts["demo:all"].indexOf("demo:doctor")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:analyze"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:doctor")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:analyze"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:analyze")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:recommend"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:analyze")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:recommend"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:context"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:pipeline")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:pipeline")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:context"));
-    expect(packageJson.scripts["demo:all"].indexOf("demo:context")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:artifacts"));
-    expect(packageJson.scripts["demo:ci"].indexOf("demo:context")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:artifacts"));
+    expect(demoAllOutput.indexOf("demo:doctor")).toBeLessThan(demoAllOutput.indexOf("demo:analyze"));
+    expect(demoCiOutput.indexOf("demo:doctor")).toBeLessThan(demoCiOutput.indexOf("demo:analyze"));
+    expect(demoAllOutput.indexOf("demo:analyze")).toBeLessThan(demoAllOutput.indexOf("demo:recommend"));
+    expect(demoCiOutput.indexOf("demo:analyze")).toBeLessThan(demoCiOutput.indexOf("demo:recommend"));
+    expect(demoAllOutput.indexOf("demo:tools")).toBeLessThan(demoAllOutput.indexOf("demo:context"));
+    expect(demoCiOutput.indexOf("demo:tools")).toBeLessThan(demoCiOutput.indexOf("demo:context"));
+    expect(demoAllOutput.indexOf("demo:pipeline")).toBeLessThan(demoAllOutput.indexOf("demo:context"));
+    expect(demoCiOutput.indexOf("demo:pipeline")).toBeLessThan(demoCiOutput.indexOf("demo:context"));
+    expect(demoAllOutput.indexOf("demo:context")).toBeLessThan(demoAllOutput.indexOf("demo:artifacts"));
+    expect(demoCiOutput.indexOf("demo:context")).toBeLessThan(demoCiOutput.indexOf("demo:artifacts"));
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--output .visual-hive/plan.canary.json");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--output .visual-hive/plan.full.json");
     expect(packageJson.scripts["demo:plan:full"]).not.toContain("--allow-unsafe-targets");
     expect(packageJson.scripts["demo:plans"]).toContain("plans --config");
-    expect(packageJson.scripts["demo:all"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run");
-    expect(packageJson.scripts["demo:ci"]).toContain("demo:plan:full && npm run demo:plans && npm run demo:run:seed");
-    expect(packageJson.scripts["demo:ci"]).toContain("demo:run:seed");
+    expect(demoAllOutput.indexOf("demo:plan:full")).toBeLessThan(demoAllOutput.indexOf("demo:plans"));
+    expect(demoAllOutput.indexOf("demo:plans")).toBeLessThan(demoAllOutput.indexOf("demo:run"));
+    expect(demoCiOutput.indexOf("demo:plan:full")).toBeLessThan(demoCiOutput.indexOf("demo:plans"));
+    expect(demoCiOutput.indexOf("demo:plans")).toBeLessThan(demoCiOutput.indexOf("demo:run:seed"));
+    expect(demoCiOutput.indexOf("demo:run:seed")).toBeLessThan(demoCiOutput.indexOf("demo:run:ci"));
     expect(packageJson.scripts["demo:run:seed"]).toContain("VISUAL_HIVE_CI=false");
     expect(packageJson.scripts["demo:run:seed"]).toContain("scripts/run-with-env.mjs");
     expect(packageJson.scripts["demo:pipeline"]).toContain("--skip-install");
