@@ -56,6 +56,17 @@ try {
   if (!snapshot.hiveExport || snapshot.hiveExport.externalCallsMade !== 0 || !snapshot.hiveExport.outputArtifacts?.export) {
     throw new Error("snapshot did not include no-network Hive native export evidence");
   }
+  for (const artifactKey of ["beads", "knowledgeFacts", "knowledgeGraph", "issueContext", "repairWorkOrders", "agentPolicy", "wikiVaultDir"]) {
+    if (!snapshot.hiveExport.outputArtifacts?.[artifactKey]) {
+      throw new Error(`snapshot did not include Hive-native output artifact path: ${artifactKey}`);
+    }
+  }
+  if (!snapshot.hiveExport.summary || typeof snapshot.hiveExport.summary.knowledgeFacts !== "number" || typeof snapshot.hiveExport.summary.graphNodes !== "number") {
+    throw new Error("snapshot did not include Hive-native summary counts");
+  }
+  if (snapshot.hiveExport.agentPolicy?.finalValidation?.passFailOwnedBy !== "visual_hive_verdict_engine") {
+    throw new Error("snapshot did not include governed Hive final-validation policy evidence");
+  }
   if (!snapshot.agentPacket?.budgets || snapshot.agentPacket.budgets.allowExternalNetwork !== false) {
     throw new Error("snapshot did not include bounded Agent Packet evidence");
   }
@@ -134,6 +145,10 @@ try {
     "Review visual changes",
     "Evidence to agent handoff",
     "Hive-native bundle",
+    "Hive work queue",
+    "Knowledge graph preview",
+    "Repair guardrails",
+    "Wiki vault facts",
     "Refresh handoff packet",
     "Visual Hive owns the verdict",
     "Test creation plan",

@@ -816,6 +816,14 @@ function AgentForwardWorkflow({
     ".visual-hive/hive/repair-work-orders.json",
     ".visual-hive/hive/hive-agent-policy.json"
   ];
+  const hiveExport = snapshot.hiveExport;
+  const hivePreviewLimit = mode === "expert" ? 8 : 3;
+  const hiveBeads = hiveExport?.beads ?? [];
+  const hiveFacts = hiveExport?.knowledgeFacts ?? [];
+  const hiveGraphEdges = hiveExport?.knowledgeGraph?.edges ?? [];
+  const repairOrders = hiveExport?.repairWorkOrders ?? [];
+  const wikiVaultDir = hiveExport?.outputArtifacts?.wikiVaultDir;
+  const wikiArtifacts = wikiVaultDir ? hiveFacts.slice(0, hivePreviewLimit).map((fact) => `${wikiVaultDir}/${fact.slug}.md`) : [];
   return (
     <Card
       title="Evidence to agent handoff"
@@ -875,6 +883,77 @@ function AgentForwardWorkflow({
           />
           {snapshot.hiveExport?.blockedReasons?.length ? <FindingList findings={snapshot.hiveExport.blockedReasons} tone="warning" /> : null}
           <ArtifactList artifacts={hiveArtifacts} connection={connection} />
+        </Card>
+        <Card className="span-6" title="Hive work queue">
+          <p className="card-subtext">Beads turn Visual Hive evidence into bounded quality work items for Hive or a trusted maintainer queue.</p>
+          {hiveBeads.length ? (
+            <SimpleTable
+              headers={["Priority", "Actor", "Bead"]}
+              rows={hiveBeads.slice(0, hivePreviewLimit).map((bead) => [
+                bead.priority,
+                bead.actor,
+                `${bead.title} (${bead.type}; ${bead.status})`
+              ])}
+            />
+          ) : (
+            <EmptyState title="No Beads exported">Run measured or repair-request Hive export mode after evidence exists.</EmptyState>
+          )}
+        </Card>
+        <Card className="span-6" title="Knowledge graph preview">
+          <p className="card-subtext">Graph edges connect evidence, facts, Beads, and repair work so agents receive context instead of raw logs.</p>
+          {hiveGraphEdges.length ? (
+            <SimpleTable
+              headers={["Predicate", "From", "To"]}
+              rows={hiveGraphEdges.slice(0, hivePreviewLimit).map((edge) => [
+                edge.predicate,
+                compactGraphId(edge.from),
+                compactGraphId(edge.to)
+              ])}
+            />
+          ) : (
+            <EmptyState title="No graph edges exported">Measured mode emits graph nodes and edges for Hive-native context.</EmptyState>
+          )}
+        </Card>
+        <Card className="span-6" title="Repair guardrails">
+          <p className="card-subtext">Repair work orders are PR-only, bounded, and require a fresh Visual Hive rerun before completion.</p>
+          {repairOrders.length ? (
+            <SimpleTable
+              headers={["Work order", "Limits", "Validation"]}
+              rows={repairOrders.slice(0, hivePreviewLimit).map((order) => [
+                order.title,
+                `${order.actor}; attempts=${order.maxAttempts}; humanReview=${order.requireHumanReview}`,
+                order.acceptanceCriteria.join("; ")
+              ])}
+            />
+          ) : (
+            <EmptyState title="No repair work orders">Repair-request mode emits guarded work orders only when deterministic evidence creates actionable work.</EmptyState>
+          )}
+          {hiveExport?.agentPolicy ? (
+            <KeyValueTable
+              rows={[
+                ["Verdict authority", hiveExport.agentPolicy.verdictAuthority],
+                ["Hive authority", hiveExport.agentPolicy.hiveAuthority],
+                ["Final validation", hiveExport.agentPolicy.finalValidation.command],
+                ["Forbidden actions", hiveExport.agentPolicy.forbiddenActions.slice(0, 4).join(", ")]
+              ]}
+            />
+          ) : null}
+        </Card>
+        <Card className="span-6" title="Wiki vault facts">
+          <p className="card-subtext">Knowledge facts and wiki pages preserve reusable testing context for future humans and agents.</p>
+          {hiveFacts.length ? (
+            <SimpleTable
+              headers={["Type", "Fact", "Evidence"]}
+              rows={hiveFacts.slice(0, hivePreviewLimit).map((fact) => [
+                fact.type,
+                `${fact.title} (${Math.round(fact.confidence * 100)}% confidence)`,
+                fact.relatedEvidenceKeys.join(", ")
+              ])}
+            />
+          ) : (
+            <EmptyState title="No knowledge facts exported">Measured mode emits reusable project facts and wiki pages.</EmptyState>
+          )}
+          <ArtifactList artifacts={wikiArtifacts} connection={connection} />
         </Card>
         <Card className="span-6" title="Next handoff work">
           {blockedReasons.length ? <FindingList findings={blockedReasons} tone="warning" /> : null}
@@ -1520,6 +1599,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: Array<Array<u
       </table>
     </div>
   );
+}
+
+function compactGraphId(value: string): string {
+  const [, id = value] = value.split(":");
+  return id.length > 42 ? `${id.slice(0, 39)}...` : id;
 }
 
 function isRenderable(value: unknown): value is ReactElement {

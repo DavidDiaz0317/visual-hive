@@ -1729,6 +1729,26 @@ describe("control plane", () => {
       }
     });
     expect(snapshot.hiveExport?.repairWorkOrders[0]?.forbiddenActions).toContain("auto_merge_without_visual_hive_pass");
+    expect(snapshot.hiveExport?.beads[0]).toMatchObject({
+      id: "vhb-mutation-remove-demo-badge-dashboard",
+      actor: "quality",
+      title: "Strengthen demo badge contract"
+    });
+    expect(snapshot.hiveExport?.knowledgeFacts[0]).toMatchObject({
+      slug: "mutation-remove-demo-badge-survived",
+      type: "coverage_rule",
+      relatedEvidenceKeys: ["mutation.mutation_adequacy.remove-demo-badge"]
+    });
+    expect(snapshot.hiveExport?.knowledgeGraph.edges[0]).toMatchObject({
+      predicate: "derived_from",
+      from: "bead:vhb-mutation-remove-demo-badge-dashboard",
+      to: "fact:mutation-remove-demo-badge-survived"
+    });
+    expect(snapshot.hiveExport?.outputArtifacts.wikiVaultDir).toBe(".visual-hive/hive/wiki");
+    expect(snapshot.hiveExport?.agentPolicy.finalValidation).toMatchObject({
+      required: true,
+      passFailOwnedBy: "visual_hive_verdict_engine"
+    });
     expect(snapshot.agentPacket).toMatchObject({
       schemaVersion: "visual-hive.agent-packet.v1",
       profile: "repair_agent",
