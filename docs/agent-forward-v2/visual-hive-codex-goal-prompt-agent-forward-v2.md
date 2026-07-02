@@ -1,6 +1,8 @@
 # Codex Goal Prompt — Visual Hive Agent-Forward Enterprise Operational Beta v2
 
-Paste this into Codex goal mode together with the v2 docs in this pack.
+Paste this into Codex goal mode. The canonical product goal is in this repo at:
+
+`docs/goals/visual-hive-complete-product.md`
 
 You are working in `DavidDiaz0317/visual-hive`.
 
@@ -12,7 +14,7 @@ The product thesis is:
 
 The new architecture decision is:
 
-> Prioritize CLI + stable JSON first, Evidence Packet second, Handoff/Agent Packets third, trusted GitHub/Hive dry-run handoff fourth, Visual Hive MCP fifth, direct Hive Bead API sixth, and HTTP/hosted API later.
+> Prioritize CLI + stable JSON first, Evidence Packet second, Handoff/Agent Packets third, Hive-native no-network export fourth, Visual Hive MCP fifth, trusted GitHub/Hive handoff sixth, direct Hive Bead API seventh, and HTTP/hosted API later.
 
 ## Read first
 
@@ -21,6 +23,9 @@ Before changing code, inspect the current repository state. Read at least:
 - `README.md`
 - `AGENTS.md`
 - `package.json`
+- `docs/goals/visual-hive-complete-product.md`
+- `docs/research/visual-hive-vision-and-rationale.md`
+- `docs/agents/hive-handoff-policy.md`
 - `packages/**/package.json`
 - `packages/core/**`
 - `packages/cli/**`
@@ -31,7 +36,7 @@ Before changing code, inspect the current repository state. Read at least:
 - `docs/**`
 - `.github/workflows/**`
 
-Also read the attached v2 docs:
+Also read the agent-forward v2 docs in `docs/agent-forward-v2/` when they are relevant:
 
 - `visual-hive-vision-and-research-rationale-agent-forward-v2.md`
 - `visual-hive-complete-product-goal-agent-forward-v2.md`
@@ -42,9 +47,10 @@ Also read the attached v2 docs:
 
 ## Non-negotiable invariants
 
-- Deterministic tests decide pass/fail.
-- LLM output is advisory only and must never be the sole oracle.
-- Playwright remains the default deterministic browser execution backend.
+- Visual Hive owns the final deterministic verdict layer.
+- Playwright remains the default first-party local browser runner and primary local deterministic evidence source.
+- LLM output, MCP summaries, and Hive/agent judgment are advisory or repair-routing inputs; they must never be the sole pass/fail authority.
+- Optional provider results may become gating only when normalized, trusted, explicitly configured, and budget-authorized.
 - External providers are optional, explicit, mockable, budget-aware, and disabled by default.
 - No paid provider, external upload, or real LLM call should be required by default.
 - MCP-enabled tools are strength amplifiers, not uncontrolled context dumps.
@@ -79,6 +85,7 @@ Tool Registry and Tool Cards
 Context Ledger
 triage and issue bodies
 Hive handoff artifacts
+Hive-native export artifacts
 Control Plane UX
 ```
 
@@ -107,6 +114,7 @@ Make these layers visible in docs and, where feasible, artifacts such as:
 .visual-hive/testing-layers.json
 .visual-hive/coverage.json
 .visual-hive/evidence-packet.json
+.visual-hive/hive/hive-export.json
 ```
 
 ## Primary mission
@@ -142,10 +150,13 @@ Move the repo toward v0.3/v0.4 “Agent-Forward Operational Beta.” Do this in 
 7. Add or harden testing-layer audit:
    - output layer coverage and missing-test guidance;
    - make skipped layers and reasons visible.
-8. Add or harden Handoff Packet and Hive dry-run:
-   - config defaults disabled/dry-run;
+8. Add or harden Handoff Packet and Hive-native export:
+   - config defaults disabled/advisory;
    - no network by default;
    - outputs `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, `.visual-hive/hive-handoff-result.json`;
+   - outputs `.visual-hive/hive/hive-export.json`, `.visual-hive/hive/beads.json`, `.visual-hive/hive/knowledge-facts.json`, `.visual-hive/hive/knowledge-graph.json`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/repair-work-orders.json`, and `.visual-hive/hive/wiki/*.md`;
+   - command: `visual-hive hive export --dry-run`;
+   - modes: `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full`;
    - include labels such as `visual-hive`, `hive/quality`, `ai-ready`;
    - require sanitized Evidence Packet.
 9. Add or harden Agent Packet generation:
@@ -186,6 +197,7 @@ visual-hive://latest-plan
 visual-hive://latest-report
 visual-hive://latest-evidence
 visual-hive://latest-handoff
+visual-hive://hive-export
 visual-hive://coverage-map
 visual-hive://mutation-report
 visual-hive://repair-prompt
@@ -205,6 +217,7 @@ visual_hive_explain_failure
 visual_hive_list_reproduction_commands
 visual_hive_generate_repair_prompt
 visual_hive_generate_handoff_dry_run
+visual_hive_read_hive_export
 ```
 
 Execution tools must be disabled unless explicitly enabled:
@@ -215,6 +228,7 @@ visual_hive_mutate
 visual_hive_update_baseline
 visual_hive_handoff_github_issue
 visual_hive_handoff_hive_bead
+visual_hive_hive_repair
 visual_hive_provider_upload
 ```
 
@@ -282,6 +296,7 @@ Also validate important CLI flows where available:
 ```bash
 node packages/cli/dist/index.js --help
 node packages/cli/dist/index.js recommend --help
+node packages/cli/dist/index.js hive export --config examples/demo-react-app/visual-hive.config.yaml --dry-run
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-docs-changed-files.txt
 node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode schedule

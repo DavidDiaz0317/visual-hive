@@ -130,9 +130,9 @@ The CLI/core engine must remain usable without the UI. The UI must act as a cont
 
 ## Deterministic-first
 
-Deterministic tests decide pass/fail.
+Visual Hive owns the final deterministic verdict layer.
 
-Visual Hive should own the final verdict layer. Playwright is the default first-party local browser runner and primary local deterministic evidence source, but the long-term pass/fail decision should be a Visual Hive verdict assembled from configured deterministic evidence.
+Playwright is the default first-party local browser runner and primary local deterministic evidence source, but the long-term pass/fail decision should be a Visual Hive verdict assembled from configured deterministic evidence. This distinction matters: Visual Hive should be able to normalize evidence from Playwright, screenshot diffing, mutation adequacy, console/page/network policy, accessibility/API checks, protected canaries, and explicitly trusted provider results into one governed verdict.
 
 Allowed deterministic verdict inputs:
 
@@ -195,6 +195,41 @@ LLMs may not:
 Visual Hive should work locally and in GitHub Actions without a hosted backend.
 
 A future cloud/GitHub App Control Plane should be possible, but the local-first experience must remain complete enough to be useful.
+
+## Hive-native, agent-forward evidence
+
+Visual Hive should integrate deeply with KubeStellar Hive without making Hive, LLMs, or any hosted service required for the default path.
+
+The safest first-class integration surface is a no-network Hive-native export bundle:
+
+```text
+.visual-hive/hive/hive-export.json
+.visual-hive/hive/beads.json
+.visual-hive/hive/knowledge-facts.json
+.visual-hive/hive/knowledge-graph.json
+.visual-hive/hive/issue-context.md
+.visual-hive/hive/repair-work-orders.json
+.visual-hive/hive/hive-agent-policy.json
+.visual-hive/hive/wiki/*.md
+```
+
+The command surface should include:
+
+```bash
+visual-hive hive export --dry-run
+visual-hive hive export --mode measured
+visual-hive hive export --mode repair_request
+```
+
+Hive-native export modes should be governed:
+
+- `advisory`: explain and package evidence only.
+- `measured`: emit Beads, knowledge facts, graph nodes/edges, and wiki pages.
+- `repair_request`: create bounded repair work orders from deterministic evidence.
+- `guarded_repair`: allow repair execution only under explicit policy, branch, budget, and revalidation constraints.
+- `full`: reserved for future mature automation and blocked locally until governance is proven.
+
+Hive may route, explain, and eventually repair issues, but Visual Hive evidence and verdict policy must remain the safety boundary. A Hive repair work order must include allowed files, forbidden actions, reproduction commands, acceptance criteria, and a requirement to rerun Visual Hive before a repair can be considered complete.
 
 ## No paid provider required by default
 
