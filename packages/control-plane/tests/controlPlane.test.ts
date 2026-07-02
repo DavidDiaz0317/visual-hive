@@ -1653,7 +1653,12 @@ describe("control plane", () => {
     expect(snapshot.scheduleAudit?.lanes.map((lane) => lane.id)).toContain("trusted_issue");
     expect(snapshot.workflowAudit?.summary.pullRequestWorkflows).toBe(1);
     expect(snapshot.workflowAudit?.summary.criticalFindings).toBe(0);
-    expect(snapshot.workflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(snapshot.workflowTemplates.map((template) => template.id)).toEqual([
+      "pull_request",
+      "scheduled",
+      "trusted_failure_issue",
+      "trusted_hive_handoff"
+    ]);
     expect(snapshot.workflowTemplates.find((template) => template.id === "trusted_failure_issue")?.content).toContain("function walkArtifacts");
     expect(snapshot.runbook.configPath).toBe("visual-hive.config.yaml");
     expect(snapshot.runbook.commands.find((command) => command.id === "plan-pr")).toMatchObject({
@@ -3201,6 +3206,7 @@ contracts:
       expect(payload.docs.docsPath).toBe("docs/visual-hive.md");
       expect(payload.workflows.written.map((entry: { path: string }) => entry.path).sort()).toEqual([
         ".github/workflows/visual-hive-failure-issue.yml",
+        ".github/workflows/visual-hive-hive-handoff.yml",
         ".github/workflows/visual-hive-pr.yml",
         ".github/workflows/visual-hive-scheduled.yml"
       ]);

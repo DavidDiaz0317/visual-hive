@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defaultConfigTemplate, failureIssueWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate } from "./templates.js";
+import { defaultConfigTemplate, failureIssueWorkflowTemplate, hiveHandoffWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate } from "./templates.js";
 
 export interface InitOptions {
   cwd?: string;
@@ -15,7 +15,8 @@ export async function runInit(options: InitOptions = {}): Promise<string[]> {
     { path: path.join(cwd, "visual-hive.config.yaml"), content: defaultConfigTemplate },
     { path: path.join(cwd, ".github", "workflows", "visual-hive-pr.yml"), content: prWorkflowTemplate },
     { path: path.join(cwd, ".github", "workflows", "visual-hive-scheduled.yml"), content: scheduledWorkflowTemplate },
-    { path: path.join(cwd, ".github", "workflows", "visual-hive-failure-issue.yml"), content: failureIssueWorkflowTemplate }
+    { path: path.join(cwd, ".github", "workflows", "visual-hive-failure-issue.yml"), content: failureIssueWorkflowTemplate },
+    { path: path.join(cwd, ".github", "workflows", "visual-hive-hive-handoff.yml"), content: hiveHandoffWorkflowTemplate }
   ];
 
   const created: string[] = [];

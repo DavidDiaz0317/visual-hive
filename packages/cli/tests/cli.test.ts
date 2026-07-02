@@ -2385,6 +2385,7 @@ jobs:
     expect(result.setupBundle?.ok).toBe(true);
     expect(result.setupBundle?.workflows.written.map((entry) => entry.path).sort()).toEqual([
       ".github/workflows/visual-hive-failure-issue.yml",
+      ".github/workflows/visual-hive-hive-handoff.yml",
       ".github/workflows/visual-hive-pr.yml",
       ".github/workflows/visual-hive-scheduled.yml"
     ]);
@@ -2750,10 +2751,12 @@ contracts:
 
     await expect(access(path.join(tempRoot, "visual-hive.config.yaml"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".github", "workflows", "visual-hive-hive-handoff.yml"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "generated"))).resolves.toBeUndefined();
     const prWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-pr.yml"), "utf8");
     const scheduledWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-scheduled.yml"), "utf8");
     const failureWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-failure-issue.yml"), "utf8");
+    const hiveHandoffWorkflow = await readFile(path.join(tempRoot, ".github", "workflows", "visual-hive-hive-handoff.yml"), "utf8");
     expect(prWorkflow).toContain("include-hidden-files: true");
     expect(prWorkflow).toContain("DavidDiaz0317/visual-hive/actions/run@main");
     expect(prWorkflow).toContain("command: pipeline");
@@ -2770,6 +2773,12 @@ contracts:
     expect(failureWorkflow).toContain("client_secret");
     expect(failureWorkflow).toContain("visual-hive-dedupe");
     expect(failureWorkflow).not.toContain("context.payload.workflow_run.id + \" -->\"");
+    expect(hiveHandoffWorkflow).toContain("hive-bead-request.json");
+    expect(hiveHandoffWorkflow).toContain("externalCallsMade");
+    expect(hiveHandoffWorkflow).toContain("Future trusted Hive Bead API adapter");
+    expect(hiveHandoffWorkflow).toContain("actions/download-artifact@v4");
+    expect(hiveHandoffWorkflow).not.toContain("actions/checkout");
+    expect(hiveHandoffWorkflow).not.toContain("pull_request_target");
   });
 
   it("lists and approves baselines from the CLI command helpers", async () => {
@@ -3091,6 +3100,7 @@ contracts:
         pullRequestWorkflows: 1,
         scheduledWorkflows: 0,
         trustedIssueWorkflows: 0,
+        trustedHandoffWorkflows: 0,
         unknownWorkflows: 0,
         criticalFindings: 0,
         highFindings: 1,
@@ -3099,7 +3109,8 @@ contracts:
         prWorkflowsWithWritePermissions: 0,
         workflowsUploadingArtifacts: 1,
         workflowsMissingHiddenArtifactUpload: 0,
-        trustedIssueWorkflowsCheckingOutCode: 0
+        trustedIssueWorkflowsCheckingOutCode: 0,
+        trustedHandoffWorkflowsCheckingOutCode: 0
       },
       workflows: [],
       findings: [

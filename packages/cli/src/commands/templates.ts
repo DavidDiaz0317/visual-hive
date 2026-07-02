@@ -1,6 +1,6 @@
-import { failureIssueWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate } from "@visual-hive/core";
+import { failureIssueWorkflowTemplate, hiveHandoffWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate } from "@visual-hive/core";
 
-export { failureIssueWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate };
+export { failureIssueWorkflowTemplate, hiveHandoffWorkflowTemplate, prWorkflowTemplate, scheduledWorkflowTemplate };
 
 export const defaultConfigTemplate = `project:
   name: visual-hive-target

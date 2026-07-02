@@ -2521,6 +2521,66 @@ jobs:
     expect(audit.findings).toHaveLength(0);
   });
 
+  it("recognizes a safe trusted Hive handoff workflow that only consumes artifacts", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-hive-handoff.yml",
+        content: `name: Visual Hive Hive Handoff
+on:
+  workflow_run:
+    workflows: ["Visual Hive PR"]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@1234567890abcdef1234567890abcdef12345678
+        with:
+          name: visual-hive
+          path: visual-hive-artifacts
+      - uses: actions/github-script@abcdef1234567890abcdef1234567890abcdef12
+        with:
+          script: |
+            const fs = require("fs");
+            function walkArtifacts(dir) {
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walkArtifacts(entry.name) : [entry.name]);
+            }
+            function redactSecretValues(value) {
+              return String(value)
+                .replace(/client_secret=.*/gi, "client_secret=[REDACTED]")
+                .replace(/authorization:.*/gi, "authorization: [REDACTED]")
+                .replace(/set-cookie:.*/gi, "set-cookie: [REDACTED]")
+                .replace(/Bearer .*/gi, "Bearer [REDACTED]");
+            }
+            const files = walkArtifacts("visual-hive-artifacts");
+            const evidence = files.find((file) => file.endsWith("evidence-packet.json"));
+            const handoff = files.find((file) => file.endsWith("handoff.json"));
+            const bead = files.find((file) => file.endsWith("hive-bead-request.json"));
+            const result = files.find((file) => file.endsWith("hive-handoff-result.json"));
+            const body = redactSecretValues(JSON.stringify({ evidence, handoff, bead, result, externalCallsMade: 0 }));
+            await core.summary.addRaw(body).write();
+`
+      }
+    ]);
+
+    const trusted = audit.workflows[0];
+    expect(audit.summary.trustedHandoffWorkflows).toBe(1);
+    expect(audit.summary.trustedHandoffWorkflowsCheckingOutCode).toBe(0);
+    expect(trusted?.kind).toBe("trusted_handoff");
+    expect(trusted?.permissions).toMatchObject({ contents: "read", actions: "read" });
+    expect(trusted?.downloadsArtifacts).toBe(true);
+    expect(trusted?.checksOutCode).toBe(false);
+    expect(trusted?.createsIssues).toBe(false);
+    expect(trusted?.readsHiveHandoffArtifacts).toBe(true);
+    expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
+    expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.risk).toBe("low");
+    expect(audit.findings).toHaveLength(0);
+  });
+
   it("ships built-in GitHub workflow templates that audit as safe lanes", () => {
     const audit = auditWorkflows(
       sampleConfig(),
@@ -2531,9 +2591,15 @@ jobs:
       { workflowRoot: ".github/workflows", now: new Date("2026-06-15T00:00:00.000Z") }
     );
 
-    expect(githubWorkflowTemplates.map((template) => template.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(githubWorkflowTemplates.map((template) => template.id)).toEqual([
+      "pull_request",
+      "scheduled",
+      "trusted_failure_issue",
+      "trusted_hive_handoff"
+    ]);
     const prTemplate = githubWorkflowTemplates.find((template) => template.id === "pull_request")?.content ?? "";
     const scheduledTemplate = githubWorkflowTemplates.find((template) => template.id === "scheduled")?.content ?? "";
+    const hiveHandoffTemplate = githubWorkflowTemplates.find((template) => template.id === "trusted_hive_handoff")?.content ?? "";
     expect(prTemplate).toContain("DavidDiaz0317/visual-hive/actions/run@main");
     expect(prTemplate).toContain("command: pipeline");
     expect(prTemplate).toContain("arguments: --mode pr --base origin/main --ci --github-step-summary");
@@ -2542,24 +2608,39 @@ jobs:
     expect(scheduledTemplate).toContain("command: pipeline");
     expect(scheduledTemplate).toContain("arguments: --mode schedule --ci --enforce-mutation --github-step-summary");
     expect(scheduledTemplate).not.toContain("npx visual-hive");
+    expect(hiveHandoffTemplate).toContain("workflow_run:");
+    expect(hiveHandoffTemplate).toContain("hive-bead-request.json");
+    expect(hiveHandoffTemplate).toContain("externalCallsMade");
+    expect(hiveHandoffTemplate).toContain("Future trusted Hive Bead API adapter");
+    expect(hiveHandoffTemplate).not.toContain("actions/checkout");
+    expect(hiveHandoffTemplate).not.toContain("pull_request_target");
     expect(audit.summary).toMatchObject({
       pullRequestWorkflows: 1,
       scheduledWorkflows: 1,
       trustedIssueWorkflows: 1,
+      trustedHandoffWorkflows: 1,
       criticalFindings: 0,
       highFindings: 0,
       workflowsUsingPullRequestTarget: 0,
       prWorkflowsUsingSecrets: 0,
       prWorkflowsWithWritePermissions: 0,
       trustedIssueWorkflowsCheckingOutCode: 0,
-      workflowsUsingUnpinnedActions: 3
+      trustedHandoffWorkflowsCheckingOutCode: 0,
+      workflowsUsingUnpinnedActions: 4
     });
     const trusted = audit.workflows.find((workflow) => workflow.kind === "trusted_issue");
+    const trustedHandoff = audit.workflows.find((workflow) => workflow.kind === "trusted_handoff");
     expect(audit.workflows.find((workflow) => workflow.kind === "pull_request")?.writesBaselineReview).toBe(true);
     expect(audit.workflows.find((workflow) => workflow.kind === "scheduled")?.writesBaselineReview).toBe(true);
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
     expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
+    expect(trustedHandoff?.downloadsArtifacts).toBe(true);
+    expect(trustedHandoff?.checksOutCode).toBe(false);
+    expect(trustedHandoff?.readsHiveHandoffArtifacts).toBe(true);
+    expect(trustedHandoff?.usesRecursiveArtifactDiscovery).toBe(true);
+    expect(trustedHandoff?.reSanitizesIssueBody).toBe(true);
+    expect(trustedHandoff?.permissions).toMatchObject({ actions: "read", contents: "read" });
     expect(audit.findings.filter((finding) => finding.kind === "action_not_sha_pinned").length).toBeGreaterThan(0);
     expect(audit.recommendations.join(" ")).toContain("pin external GitHub Actions");
   });
@@ -4077,7 +4158,12 @@ jobs:
       "Existing workflow uses pull_request_target. Do not execute untrusted PR code in that workflow."
     );
     expect(recommendation.warnings).toContain("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");
-    expect(recommendation.workflowPreviews.map((workflow) => workflow.id)).toEqual(["pull_request", "scheduled", "trusted_failure_issue"]);
+    expect(recommendation.workflowPreviews.map((workflow) => workflow.id)).toEqual([
+      "pull_request",
+      "scheduled",
+      "trusted_failure_issue",
+      "trusted_hive_handoff"
+    ]);
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")).toMatchObject({
       path: ".github/workflows/visual-hive-pr.yml",
       label: "Visual Hive PR"
@@ -4085,6 +4171,7 @@ jobs:
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("pull_request:");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("include-hidden-files: true");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_failure_issue")?.content).toContain("workflow_run:");
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_hive_handoff")?.content).toContain("hive-bead-request.json");
     const setupPrPlan = buildSetupPullRequestPlan(recommendation, new Date("2026-06-15T00:00:00.000Z"));
     expect(setupPrPlan).toMatchObject({
       schemaVersion: 1,
@@ -4093,12 +4180,13 @@ jobs:
       status: "review",
       summary: {
         externalCallsMade: 0,
-        workflowsPlanned: 3,
+        workflowsPlanned: 4,
         requiresReview: true
       }
     });
     expect(setupPrPlan.files.map((file) => file.path)).toEqual([
       ".github/workflows/visual-hive-failure-issue.yml",
+      ".github/workflows/visual-hive-hive-handoff.yml",
       ".github/workflows/visual-hive-pr.yml",
       ".github/workflows/visual-hive-scheduled.yml",
       ".visual-hive/recommendations.json",

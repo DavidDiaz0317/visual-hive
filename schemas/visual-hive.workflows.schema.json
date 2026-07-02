@@ -16,6 +16,7 @@
         "pullRequestWorkflows",
         "scheduledWorkflows",
         "trustedIssueWorkflows",
+        "trustedHandoffWorkflows",
         "unknownWorkflows",
         "criticalFindings",
         "highFindings",
@@ -25,6 +26,7 @@
         "workflowsUploadingArtifacts",
         "workflowsMissingHiddenArtifactUpload",
         "trustedIssueWorkflowsCheckingOutCode",
+        "trustedHandoffWorkflowsCheckingOutCode",
         "workflowsUsingUnpinnedActions",
         "unpinnedActionReferences"
       ],
@@ -33,6 +35,7 @@
         "pullRequestWorkflows": { "type": "integer", "minimum": 0 },
         "scheduledWorkflows": { "type": "integer", "minimum": 0 },
         "trustedIssueWorkflows": { "type": "integer", "minimum": 0 },
+        "trustedHandoffWorkflows": { "type": "integer", "minimum": 0 },
         "unknownWorkflows": { "type": "integer", "minimum": 0 },
         "criticalFindings": { "type": "integer", "minimum": 0 },
         "highFindings": { "type": "integer", "minimum": 0 },
@@ -42,6 +45,7 @@
         "workflowsUploadingArtifacts": { "type": "integer", "minimum": 0 },
         "workflowsMissingHiddenArtifactUpload": { "type": "integer", "minimum": 0 },
         "trustedIssueWorkflowsCheckingOutCode": { "type": "integer", "minimum": 0 },
+        "trustedHandoffWorkflowsCheckingOutCode": { "type": "integer", "minimum": 0 },
         "workflowsUsingUnpinnedActions": { "type": "integer", "minimum": 0 },
         "unpinnedActionReferences": { "type": "integer", "minimum": 0 }
       },
@@ -79,6 +83,7 @@
         "downloadsArtifacts",
         "checksOutCode",
         "readsIssueArtifact",
+        "readsHiveHandoffArtifacts",
         "usesRecursiveArtifactDiscovery",
         "reSanitizesIssueBody",
         "runsVisualHive",
@@ -95,7 +100,7 @@
       "properties": {
         "path": { "type": "string" },
         "name": { "type": "string" },
-        "kind": { "enum": ["pull_request", "scheduled", "trusted_issue", "unknown"] },
+        "kind": { "enum": ["pull_request", "scheduled", "trusted_issue", "trusted_handoff", "unknown"] },
         "triggers": { "type": "array", "items": { "type": "string" } },
         "permissions": {
           "type": "object",
@@ -111,6 +116,7 @@
         "downloadsArtifacts": { "type": "boolean" },
         "checksOutCode": { "type": "boolean" },
         "readsIssueArtifact": { "type": "boolean" },
+        "readsHiveHandoffArtifacts": { "type": "boolean" },
         "usesRecursiveArtifactDiscovery": { "type": "boolean" },
         "reSanitizesIssueBody": { "type": "boolean" },
         "runsVisualHive": { "type": "boolean" },

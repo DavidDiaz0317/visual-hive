@@ -41,6 +41,20 @@ Policy:
 - Secret values must never appear in handoff JSON or Markdown.
 - Missing secret names may be reported when useful for trusted setup.
 
+Trusted workflow templates:
+
+- `.github/workflows/visual-hive-failure-issue.yml` consumes `.visual-hive/issue.md` from uploaded artifacts and may create or update GitHub issues.
+- `.github/workflows/visual-hive-hive-handoff.yml` consumes `.visual-hive/evidence-packet.json`, `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`.
+
+The Hive handoff workflow is intentionally artifact-only:
+
+- it uses `workflow_run`, not `pull_request_target`;
+- it does not checkout or execute PR code;
+- it downloads the `visual-hive` artifact produced by a prior run;
+- it re-redacts secret-like values before writing the step summary;
+- it expects dry-run artifacts with `externalCallsMade: 0`;
+- it leaves the real Hive Bead API call as a future trusted insertion point, not a default behavior.
+
 Default config:
 
 ```yaml

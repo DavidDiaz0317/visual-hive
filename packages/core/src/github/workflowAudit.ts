@@ -2,7 +2,7 @@ import YAML from "yaml";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
-export type WorkflowKind = "pull_request" | "scheduled" | "trusted_issue" | "unknown";
+export type WorkflowKind = "pull_request" | "scheduled" | "trusted_issue" | "trusted_handoff" | "unknown";
 
 export interface WorkflowAuditInputFile {
   path: string;
@@ -41,6 +41,7 @@ export interface WorkflowAuditEntry {
   downloadsArtifacts: boolean;
   checksOutCode: boolean;
   readsIssueArtifact: boolean;
+  readsHiveHandoffArtifacts: boolean;
   usesRecursiveArtifactDiscovery: boolean;
   reSanitizesIssueBody: boolean;
   runsVisualHive: boolean;
@@ -65,6 +66,7 @@ export interface WorkflowAuditReport {
     pullRequestWorkflows: number;
     scheduledWorkflows: number;
     trustedIssueWorkflows: number;
+    trustedHandoffWorkflows: number;
     unknownWorkflows: number;
     criticalFindings: number;
     highFindings: number;
@@ -74,6 +76,7 @@ export interface WorkflowAuditReport {
     workflowsUploadingArtifacts: number;
     workflowsMissingHiddenArtifactUpload: number;
     trustedIssueWorkflowsCheckingOutCode: number;
+    trustedHandoffWorkflowsCheckingOutCode: number;
     workflowsUsingUnpinnedActions: number;
     unpinnedActionReferences: number;
   };
@@ -104,6 +107,7 @@ export function auditWorkflows(
       pullRequestWorkflows: workflows.filter((workflow) => workflow.kind === "pull_request").length,
       scheduledWorkflows: workflows.filter((workflow) => workflow.kind === "scheduled").length,
       trustedIssueWorkflows: workflows.filter((workflow) => workflow.kind === "trusted_issue").length,
+      trustedHandoffWorkflows: workflows.filter((workflow) => workflow.kind === "trusted_handoff").length,
       unknownWorkflows: workflows.filter((workflow) => workflow.kind === "unknown").length,
       criticalFindings: findings.filter((finding) => finding.severity === "critical").length,
       highFindings: findings.filter((finding) => finding.severity === "high").length,
@@ -115,6 +119,7 @@ export function auditWorkflows(
         (workflow) => workflow.uploadsVisualHiveArtifacts && !workflow.includesHiddenArtifacts
       ).length,
       trustedIssueWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_issue" && workflow.checksOutCode).length,
+      trustedHandoffWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_handoff" && workflow.checksOutCode).length,
       workflowsUsingUnpinnedActions: workflows.filter((workflow) => workflow.usesUnpinnedActions).length,
       unpinnedActionReferences: workflows.reduce((sum, workflow) => sum + workflow.unpinnedActions.length, 0)
     },
@@ -148,6 +153,7 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     downloadsArtifacts: /actions\/download-artifact@/i.test(content),
     checksOutCode: /actions\/checkout@/i.test(content),
     readsIssueArtifact: /issue\.md/i.test(content),
+    readsHiveHandoffArtifacts: /evidence-packet\.json|handoff\.json|hive-bead-request\.json|hive-handoff-result\.json/i.test(content),
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
     reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
     runsVisualHive:
@@ -294,6 +300,58 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
     }
   }
 
+  if (workflow.kind === "trusted_handoff") {
+    if (!workflow.triggers.includes("workflow_run")) {
+      add("missing_workflow_run_trigger", "high", "Trusted handoff workflow should be triggered by workflow_run.", "workflow_run");
+    }
+    if (workflow.checksOutCode) {
+      add("trusted_handoff_checks_out_code", "critical", "Trusted handoff workflow should not checkout or execute PR code.", "actions/checkout");
+    }
+    if (!workflow.downloadsArtifacts) {
+      add("missing_artifact_download", "high", "Trusted handoff workflow should download Visual Hive artifacts.", "actions/download-artifact");
+    }
+    if (!workflow.readsHiveHandoffArtifacts) {
+      add(
+        "missing_handoff_artifacts",
+        "high",
+        "Trusted handoff workflow should read Evidence Packet and Hive handoff artifacts from uploaded .visual-hive output.",
+        "evidence-packet.json/hive-bead-request.json"
+      );
+    }
+    if (workflow.downloadsArtifacts && workflow.readsHiveHandoffArtifacts && !workflow.usesRecursiveArtifactDiscovery) {
+      add(
+        "brittle_handoff_artifact_path",
+        "medium",
+        "Trusted handoff workflow should discover handoff artifacts recursively because uploaded artifact roots vary by workflow.",
+        "recursive artifact discovery"
+      );
+    }
+    if (!workflow.reSanitizesIssueBody) {
+      add(
+        "missing_trusted_handoff_redaction",
+        "medium",
+        "Trusted handoff workflow should redact secret-like values again before summarizing or forwarding artifacts.",
+        "redact handoff artifacts"
+      );
+    }
+    if (workflow.checksOutCode || workflow.runsVisualHive) {
+      add(
+        "trusted_handoff_executes_code",
+        "critical",
+        "Trusted handoff workflow should consume artifacts only, not checkout code or run Visual Hive again.",
+        "artifact-only workflow"
+      );
+    }
+    if (workflow.createsIssues) {
+      add(
+        "trusted_handoff_creates_issues",
+        "medium",
+        "Hive handoff workflow should stay focused on handoff validation; keep issue creation in the trusted failure issue workflow.",
+        "issue creation"
+      );
+    }
+  }
+
   return findings;
 }
 
@@ -314,6 +372,11 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
     recommendations.add("Use issues: write only in this trusted workflow and dedupe by signature.");
     recommendations.add("Discover issue.md recursively from downloaded artifacts and redact again before issue creation.");
   }
+  if (workflow.kind === "trusted_handoff") {
+    recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
+    recommendations.add("Validate dry-run Hive artifacts before any future trusted Bead API call.");
+    recommendations.add("Keep real Hive network calls behind explicit trusted-lane policy and human approval.");
+  }
   for (const finding of workflow.findings) {
     if (finding.kind === "pull_request_target_execution") recommendations.add("Replace pull_request_target with pull_request for untrusted validation.");
     if (finding.kind === "hidden_artifacts_excluded") recommendations.add("Set include-hidden-files: true on upload-artifact.");
@@ -330,6 +393,7 @@ function reportRecommendations(workflows: WorkflowAuditEntry[], findings: Workfl
   recommendations.add("Use workflow_run for trusted issue creation from sanitized artifacts.");
   if (!workflows.some((workflow) => workflow.kind === "pull_request")) recommendations.add("Add a Visual Hive pull_request workflow.");
   if (!workflows.some((workflow) => workflow.kind === "trusted_issue")) recommendations.add("Add a trusted failure issue workflow when issue creation is needed.");
+  if (!workflows.some((workflow) => workflow.kind === "trusted_handoff")) recommendations.add("Add a trusted Hive handoff workflow when agent handoff is needed.");
   if (findings.some((finding) => finding.severity === "critical")) recommendations.add("Fix critical workflow safety findings before enabling required checks.");
   if (workflows.some((workflow) => workflow.uploadsVisualHiveArtifacts && !workflow.includesHiddenArtifacts)) {
     recommendations.add("Set include-hidden-files: true wherever .visual-hive artifacts are uploaded.");
@@ -445,6 +509,7 @@ function workflowPermissionsFromText(content: string): Record<string, string> {
 function classifyWorkflow(path: string, triggers: string[], content: string): WorkflowKind {
   const lowerPath = path.toLowerCase();
   const lowerContent = content.toLowerCase();
+  if (lowerPath.includes("hive-handoff") || lowerContent.includes("hive-bead-request.json")) return "trusted_handoff";
   if (triggers.includes("workflow_run") || lowerPath.includes("failure-issue") || lowerPath.includes("trusted")) return "trusted_issue";
   if (triggers.includes("pull_request") || triggers.includes("pull_request_target") || lowerPath.includes("-pr")) return "pull_request";
   if (triggers.includes("schedule") || lowerPath.includes("scheduled")) return "scheduled";

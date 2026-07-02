@@ -1,5 +1,5 @@
 export interface GitHubWorkflowTemplate {
-  id: "pull_request" | "scheduled" | "trusted_failure_issue";
+  id: "pull_request" | "scheduled" | "trusted_failure_issue" | "trusted_hive_handoff";
   label: string;
   path: string;
   description: string;
@@ -166,6 +166,106 @@ jobs:
             }
 `;
 
+export const hiveHandoffWorkflowTemplate = `name: Visual Hive Hive Handoff
+
+on:
+  workflow_run:
+    workflows:
+      - Visual Hive PR
+      - Visual Hive Scheduled
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  validate-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      # This trusted workflow consumes sanitized Visual Hive artifacts only. It
+      # does not checkout or execute PR code, and it makes no Hive network call
+      # by default. For stricter supply-chain hardening, pin actions by SHA.
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-hive
+          path: visual-hive-artifacts
+          run-id: \${{ github.event.workflow_run.id }}
+          github-token: \${{ github.token }}
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const artifactRoot = "visual-hive-artifacts";
+
+            function walkArtifacts(dir) {
+              if (!fs.existsSync(dir)) return [];
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+                const fullPath = path.join(dir, entry.name);
+                return entry.isDirectory() ? walkArtifacts(fullPath) : [fullPath];
+              });
+            }
+
+            const artifactFiles = walkArtifacts(artifactRoot);
+            function findArtifact(name) {
+              const normalizedSuffix = "/" + name;
+              return artifactFiles.find((file) => file.replace(/\\\\/g, "/").endsWith("/.visual-hive/" + name))
+                || artifactFiles.find((file) => file.replace(/\\\\/g, "/").endsWith(normalizedSuffix))
+                || artifactFiles.find((file) => path.basename(file) === name);
+            }
+
+            function redactSecretValues(value) {
+              return String(value)
+                .replace(/((?:access_token|id_token|refresh_token|token|password|secret|key|code|client_secret)\\s*[:=]\\s*)[^\\s"'&]+/gi, "$1[REDACTED]")
+                .replace(/(authorization\\s*:\\s*(?:bearer\\s+)?)\\S+/gi, "$1[REDACTED]")
+                .replace(/\\bBearer\\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
+                .replace(/((?:set-cookie|cookie)\\s*:\\s*)[^\\n\\r]+/gi, "$1[REDACTED]");
+            }
+
+            function readJsonArtifact(name) {
+              const artifactPath = findArtifact(name);
+              if (!artifactPath || !fs.existsSync(artifactPath)) return undefined;
+              try {
+                return JSON.parse(redactSecretValues(fs.readFileSync(artifactPath, "utf8")));
+              } catch (error) {
+                core.warning("Unable to parse " + name + ": " + redactSecretValues(error.message));
+                return undefined;
+              }
+            }
+
+            const evidence = readJsonArtifact("evidence-packet.json");
+            const handoff = readJsonArtifact("handoff.json");
+            const beadRequest = readJsonArtifact("hive-bead-request.json");
+            const handoffResult = readJsonArtifact("hive-handoff-result.json");
+            if (!evidence) core.setFailed("Missing .visual-hive/evidence-packet.json artifact.");
+            if (!handoff) core.setFailed("Missing .visual-hive/handoff.json artifact.");
+            if (!beadRequest) core.setFailed("Missing .visual-hive/hive-bead-request.json artifact.");
+
+            const externalCalls = Number(beadRequest?.externalCallsMade ?? handoffResult?.externalCallsMade ?? 0);
+            const mode = String(beadRequest?.mode ?? handoff?.integration?.mode ?? "unknown");
+            if (externalCalls !== 0) {
+              core.setFailed("Hive handoff artifact claims externalCallsMade=" + externalCalls + "; trusted template expects dry-run artifacts only.");
+            }
+
+            await core.summary
+              .addHeading("Visual Hive Hive Handoff")
+              .addRaw("Trusted workflow_run artifact consumer. No checkout, no PR code execution, no Hive network call by default.\\n")
+              .addList([
+                "Evidence packet: " + (evidence ? "found" : "missing"),
+                "Handoff packet: " + (handoff ? "found" : "missing"),
+                "Hive bead request: " + (beadRequest ? "found" : "missing"),
+                "Handoff mode: " + redactSecretValues(mode),
+                "External calls made: " + externalCalls
+              ])
+              .write();
+      - name: Future trusted Hive Bead API adapter
+        run: |
+          echo "Future insertion point for a governed Hive Bead API call."
+          echo "Keep disabled until endpoint, token env, approval, and retry policy are configured."
+`;
+
 export const scheduledWorkflowTemplate = `name: Visual Hive Scheduled
 
 on:
@@ -231,5 +331,18 @@ export const githubWorkflowTemplates: GitHubWorkflowTemplate[] = [
       "Dedupes by stable deterministic failure signature."
     ],
     content: failureIssueWorkflowTemplate
+  },
+  {
+    id: "trusted_hive_handoff",
+    label: "Visual Hive Hive Handoff",
+    path: ".github/workflows/visual-hive-hive-handoff.yml",
+    description: "Trusted workflow_run consumer that validates sanitized Evidence/Handoff/Hive dry-run artifacts without checking out PR code or calling Hive by default.",
+    safetyNotes: [
+      "Does not checkout or execute PR code.",
+      "Consumes uploaded .visual-hive artifacts only.",
+      "Requires dry-run Hive artifacts with externalCallsMade: 0.",
+      "Leaves the real Hive Bead API call as a trusted, policy-gated future insertion point."
+    ],
+    content: hiveHandoffWorkflowTemplate
   }
 ];

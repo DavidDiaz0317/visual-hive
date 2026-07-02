@@ -71,6 +71,7 @@ export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: stri
     `- PR workflows: ${audit.summary.pullRequestWorkflows}`,
     `- Scheduled workflows: ${audit.summary.scheduledWorkflows}`,
     `- Trusted issue workflows: ${audit.summary.trustedIssueWorkflows}`,
+    `- Trusted Hive handoff workflows: ${audit.summary.trustedHandoffWorkflows}`,
     `- Critical findings: ${audit.summary.criticalFindings}`,
     `- High findings: ${audit.summary.highFindings}`,
     `- pull_request_target workflows: ${audit.summary.workflowsUsingPullRequestTarget}`,

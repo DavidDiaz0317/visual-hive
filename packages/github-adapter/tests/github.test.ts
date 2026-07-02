@@ -169,6 +169,7 @@ describe("buildIssueBody", () => {
         pullRequestWorkflows: 1,
         scheduledWorkflows: 0,
         trustedIssueWorkflows: 1,
+        trustedHandoffWorkflows: 0,
         unknownWorkflows: 0,
         criticalFindings: 1,
         highFindings: 0,
@@ -177,7 +178,8 @@ describe("buildIssueBody", () => {
         prWorkflowsWithWritePermissions: 1,
         workflowsUploadingArtifacts: 1,
         workflowsMissingHiddenArtifactUpload: 1,
-        trustedIssueWorkflowsCheckingOutCode: 0
+        trustedIssueWorkflowsCheckingOutCode: 0,
+        trustedHandoffWorkflowsCheckingOutCode: 0
       },
       workflows: [],
       findings: [
@@ -275,6 +277,7 @@ describe("buildPrComment", () => {
           pullRequestWorkflows: 1,
           scheduledWorkflows: 0,
           trustedIssueWorkflows: 0,
+          trustedHandoffWorkflows: 0,
           unknownWorkflows: 0,
           criticalFindings: 0,
           highFindings: 1,
@@ -283,7 +286,8 @@ describe("buildPrComment", () => {
           prWorkflowsWithWritePermissions: 0,
           workflowsUploadingArtifacts: 1,
           workflowsMissingHiddenArtifactUpload: 0,
-          trustedIssueWorkflowsCheckingOutCode: 0
+          trustedIssueWorkflowsCheckingOutCode: 0,
+          trustedHandoffWorkflowsCheckingOutCode: 0
         },
         workflows: [],
         findings: [
