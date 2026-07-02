@@ -3,6 +3,9 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig, readJson, writeJson, type Plan, type Report } from "@visual-hive/core";
 import { runDoctor } from "../src/commands/doctor.js";
@@ -52,7 +55,7 @@ import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/comma
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
 import { formatContextLedger, runContextCommand } from "../src/commands/context.js";
-import { callReadOnlyTool, formatMcpManifest, readMcpResourceText, runMcpCommand } from "../src/commands/mcp.js";
+import { callReadOnlyTool, createVisualHiveMcpServer, formatMcpManifest, readMcpResourceText, runMcpCommand } from "../src/commands/mcp.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -85,6 +88,16 @@ function runDemoSuiteDryRun(suite: "all" | "ci"): string {
     throw new Error(`demo suite dry-run failed for ${suite}\n${result.stdout}\n${result.stderr}`);
   }
   return result.stdout;
+}
+
+async function expectMatchesSchema(schemaName: string, value: unknown): Promise<void> {
+  const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", schemaName), "utf8")) as Record<string, unknown>;
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  const valid = validate(value);
+  if (!valid) {
+    throw new Error(`${schemaName} validation failed: ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
+  }
 }
 
 afterEach(async () => {
@@ -396,6 +409,7 @@ mutation:
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
     expect(packageJson.scripts["demo:mcp"]).toContain("mcp --config");
     expect(packageJson.scripts["demo:mcp"]).toContain("--describe");
+    expect(packageJson.scripts["demo:mcp"]).toContain("--output .visual-hive/mcp-manifest.json");
     expect(packageJson.scripts["demo:context"]).toContain("context --config");
     expect(packageJson.scripts["demo:analyze"]).toContain("analyze --repo");
     expect(demoAllOutput.indexOf("demo:doctor")).toBeLessThan(demoAllOutput.indexOf("demo:analyze"));
@@ -1926,13 +1940,15 @@ contracts:
     });
     await writeFile(path.join(tempRoot, ".visual-hive", "repair-prompt.md"), "Repair dashboard without using token=secret-value.", "utf8");
 
-    const manifest = await runMcpCommand({ cwd: tempRoot });
+    const manifest = await runMcpCommand({ cwd: tempRoot, output: ".visual-hive/mcp-manifest.json" });
     const summary = formatMcpManifest(manifest);
     const loaded = await loadConfig(undefined, tempRoot);
+    const writtenManifest = await readJson<typeof manifest>(path.join(tempRoot, ".visual-hive", "mcp-manifest.json"));
     const evidenceResource = manifest.resources.find((resource) => resource.uri === "visual-hive://latest-evidence");
     const configResource = manifest.resources.find((resource) => resource.uri === "visual-hive://config");
 
     expect(manifest.schemaVersion).toBe("visual-hive.mcp.v1");
+    await expectMatchesSchema("visual-hive.mcp.schema.json", writtenManifest);
     expect(manifest.server.defaultAccess).toBe("read_only");
     expect(manifest.server.externalCallsMade).toBe(0);
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
@@ -1956,6 +1972,68 @@ contracts:
     expect(reproduction).not.toContain("secret-value");
     expect(repairPrompt).not.toContain("secret-value");
     expect(handoff).toContain("visual-hive.handoff.v1");
+  });
+
+  it("serves MCP resources and read-only tools through the SDK client transport", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-mcp-sdk-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-mcp-sdk
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "evidence-packet.json"), {
+      schemaVersion: "visual-hive.evidence-packet.v2",
+      project: "cli-mcp-sdk",
+      verdictSummary: {
+        visualHiveVerdict: "passed",
+        failedBecause: [],
+        blockedBecause: [],
+        advisoryOnly: ["llm.offline_summary"]
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-mcp-sdk",
+      status: "passed",
+      reproductionCommands: ["visual-hive run --cookie=secret-value"],
+      contractResults: []
+    });
+
+    const loaded = await loadConfig(undefined, tempRoot);
+    const server = createVisualHiveMcpServer(loaded);
+    const client = new Client({ name: "visual-hive-cli-test", version: "0.0.0" }, { capabilities: {} });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      const resources = await client.listResources(undefined, { timeout: 10_000 });
+      const tools = await client.listTools(undefined, { timeout: 10_000 });
+      const evidence = await client.readResource({ uri: "visual-hive://latest-evidence" }, { timeout: 10_000 });
+      const config = await client.callTool({ name: "visual_hive_validate_config" }, undefined, { timeout: 10_000 });
+      const reproduction = await client.callTool({ name: "visual_hive_list_reproduction_commands" }, undefined, { timeout: 10_000 });
+
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://latest-evidence");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
+      expect(tools.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
+      expect(JSON.stringify(evidence.contents)).toContain("cli-mcp-sdk");
+      expect(config.content.find((item) => item.type === "text")?.text).toContain("\"externalCallsMade\": 0");
+      expect(reproduction.content.find((item) => item.type === "text")?.text).toContain("visual-hive run");
+      expect(reproduction.content.find((item) => item.type === "text")?.text).not.toContain("secret-value");
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 
   it("writes Context Ledger artifact from generated agent/tool governance files", async () => {

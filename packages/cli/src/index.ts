@@ -1270,6 +1270,7 @@ program
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--stdio", "start the MCP stdio server")
   .option("--describe", "print the MCP manifest and exit")
+  .option("--output <path>", "write the MCP manifest JSON relative to the config root")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -1278,7 +1279,8 @@ program
       }
       const manifest = await runMcpCommand({
         config: options.config,
-        stdio: options.stdio
+        stdio: options.stdio,
+        output: options.output
       });
       if (!options.stdio || options.describe) {
         console.log(formatMcpManifest(manifest, options.format));

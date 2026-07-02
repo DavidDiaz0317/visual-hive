@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -249,6 +249,24 @@ Key fields:
 - `roleProfiles`: compact allowed tool lists and forbidden actions for setup, repair, test creation, review, handoff, and provider-specialist agents.
 
 The companion `.visual-hive/tools/tool-cards.md` is a compact Markdown view intended for agents and reviewers. The registry does not execute tools or grant permissions by itself.
+
+## MCP Manifest
+
+Path: `.visual-hive/mcp-manifest.json`
+
+Schema: `schemas/visual-hive.mcp.schema.json`
+
+The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive/mcp-manifest.json`. It records the first-party read-only MCP resources and tools that expose existing Visual Hive artifacts to agents without changing verdict authority or starting execution tools.
+
+Key fields:
+
+- `server`: identifies Visual Hive's `stdio` MCP server, read-only default access, and `externalCallsMade: 0`.
+- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://latest-report`, and `visual-hive://artifacts/index`.
+- `tools`: default read-only tools such as `visual_hive_read_evidence_packet`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`.
+- `disabledExecutionTools`: write-capable or execution-capable tools that are intentionally not registered by default.
+- `policy`: enterprise defaults that keep third-party MCPs, PR writes, external uploads, baseline approval, and LLM verdict authority disabled.
+
+The manifest is advisory and access-policy evidence. It does not run tests, mutate baselines, create GitHub issues, call Hive, call LLMs, upload provider artifacts, or decide pass/fail.
 
 ## Context Ledger
 

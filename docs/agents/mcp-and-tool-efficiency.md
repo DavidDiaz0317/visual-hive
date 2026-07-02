@@ -6,10 +6,15 @@ Run:
 
 ```bash
 visual-hive mcp --config visual-hive.config.yaml --describe
+visual-hive mcp --config visual-hive.config.yaml --describe --output .visual-hive/mcp-manifest.json
 visual-hive mcp --config visual-hive.config.yaml --stdio
 ```
 
-The `--describe` form exits immediately and prints the read-only resource/tool manifest. The `--stdio` form starts a long-running MCP server for an MCP client. Use a supervising client, timeout, or process manager when launching it from automation.
+The `--describe` form exits immediately and prints the read-only resource/tool manifest. Add `--output .visual-hive/mcp-manifest.json` to persist the manifest for CI, agents, or schema validation.
+
+Schema: `schemas/visual-hive.mcp.schema.json`
+
+The `--stdio` form starts a long-running MCP server for an MCP client. Use a supervising client, timeout, or process manager when launching it from automation.
 
 ## Default Resources
 

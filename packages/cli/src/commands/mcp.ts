@@ -2,13 +2,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig, sanitizeText, type LoadedConfig } from "@visual-hive/core";
+import { loadConfig, sanitizeText, writeJson, type LoadedConfig } from "@visual-hive/core";
 
 export interface McpCommandOptions {
   config?: string;
   cwd?: string;
   stdio?: boolean;
   describe?: boolean;
+  output?: string;
 }
 
 export interface McpResourceDefinition {
@@ -186,6 +187,9 @@ export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
 export async function runMcpCommand(options: McpCommandOptions = {}): Promise<McpManifest> {
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
   const manifest = buildMcpManifest(loaded);
+  if (options.output) {
+    await writeJson(path.resolve(loaded.rootDir, options.output), manifest);
+  }
   if (options.stdio) {
     const server = createVisualHiveMcpServer(loaded, manifest);
     await server.connect(new StdioServerTransport());
