@@ -465,6 +465,7 @@ mutation:
     expect(packageJson.scripts["demo:kubestellar:schedule-plan"]).toContain("--output .visual-hive/plan.schedule.json");
     expect(packageJson.scripts["demo:kubestellar:schedule-plan"]).toContain("--mode schedule");
     expect(packageJson.scripts["demo:ui"]).toBe("npm run smoke:ui");
+    expect(packageJson.scripts["smoke:ui:browser"]).toBe("node scripts/smoke-ui-browser.mjs");
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });
 

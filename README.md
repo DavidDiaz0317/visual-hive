@@ -68,11 +68,12 @@ npm run demo:ci
 npm run smoke:cli
 npm run ui:build
 npm run smoke:ui
+npm run smoke:ui:browser
 ```
 
 `demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It is the normal bounded acceptance path: it builds and inspects the demo app, writes PR/canary/full-safe plans, seeds local baselines when needed, runs the end-to-end operational pipeline in CI verification mode, then emits the provider, LLM, Evidence Packet, Verdict, Hive handoff, Agent Packet, tool registry, KubeStellar planning, artifact index, and read-only Control Plane smoke evidence that the UI consumes. `demo:ci` uses the same acceptance sequence and is safe for clean CI workspaces because it seeds deterministic local baselines before strict verification.
 
-The aggregate demo commands are intentionally run through `scripts/run-demo-suite.mjs`, which gives every step an explicit timeout and kills the child process tree if a tool stalls. Use `npm run demo:list` to inspect the suites, run smaller bounded slices with `npm run demo:acceptance:core`, `npm run demo:acceptance:governance`, `npm run demo:acceptance:agent`, and `npm run demo:acceptance:portfolio`, or run the longer command-by-command sweep with `npm run demo:acceptance:exhaustive`.
+The aggregate demo commands are intentionally run through `scripts/run-demo-suite.mjs`, which gives every step an explicit timeout and kills the child process tree if a tool stalls. Use `npm run demo:list` to inspect the suites, run smaller bounded slices with `npm run demo:acceptance:core`, `npm run demo:acceptance:governance`, `npm run demo:acceptance:agent`, and `npm run demo:acceptance:portfolio`, or run the longer command-by-command sweep with `npm run demo:acceptance:exhaustive`. `smoke:ui` checks the served bundle and snapshot API; `smoke:ui:browser` launches Chromium and verifies the rendered guided cockpit, verdict panel, Review navigation, and Expert evidence disclosure.
 
 Initialize Visual Hive in another repo:
 
