@@ -44,6 +44,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { runEvidenceCommand } from "../src/commands/evidence.js";
+import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
@@ -311,6 +312,7 @@ mutation:
       "demo:connections",
       "demo:artifacts",
       "demo:evidence",
+      "demo:verdict",
       "demo:handoff",
       "demo:agent-packet",
       "demo:tools",
@@ -347,6 +349,11 @@ mutation:
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
     expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
+    expect(packageJson.scripts["demo:verdict"]).toContain("verdict --config");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:verdict"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:verdict"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:verdict")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:handoff"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:verdict")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:handoff"));
     expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
@@ -1412,6 +1419,89 @@ integrations:
     expect(JSON.stringify(result)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-bead-request.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes a standalone verdict artifact from normalized evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-verdict-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-verdict
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-verdict",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 12,
+          errors: ["Missing selector; token=secret-value"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    const result = await runVerdictCommand({ cwd: tempRoot });
+    const summary = formatVerdictReport(result);
+    const verdict = await readJson<typeof result.report>(result.reportPath);
+    const markdown = await readFile(result.markdownPath, "utf8");
+
+    expect(verdict.schemaVersion).toBe("visual-hive.verdict.v1");
+    expect(verdict.summary.visualHiveVerdict).toBe("failed");
+    expect(verdict.summary.failedBecause).toContain("playwright.deterministic_run");
+    expect(verdict.governance.verdictAuthority).toBe("visual_hive");
+    expect(verdict.policy.passFailOwnedBy).toBe("visual_hive_verdict_engine");
+    expect(verdict.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
+    expect(summary).toContain("Visual Hive Verdict: cli-verdict");
+    expect(markdown).toContain("Authority: Visual Hive deterministic Verdict Engine");
+    expect(JSON.stringify(verdict)).not.toContain("secret-value");
+    await expect(access(path.join(tempRoot, ".visual-hive", "verdict.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "verdict.md"))).resolves.toBeUndefined();
   });
 
   it("writes an Agent Packet from Evidence and Handoff artifacts", async () => {

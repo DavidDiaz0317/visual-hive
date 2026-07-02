@@ -13,6 +13,8 @@ export * from "./reports/triageReport.js";
 export * from "./reports/repositoryMetadata.js";
 export * from "./evidence/types.js";
 export * from "./evidence/build.js";
+export * from "./verdict/types.js";
+export * from "./verdict/build.js";
 export * from "./handoff/types.js";
 export * from "./handoff/build.js";
 export * from "./agent/types.js";

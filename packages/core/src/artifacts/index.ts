@@ -229,6 +229,8 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("repo-context.md")) labels.add("repo-context");
   if (normalized.endsWith("evidence-packet.json")) labels.add("evidence-packet");
   if (normalized.endsWith("evidence-summary.md")) labels.add("evidence-summary");
+  if (normalized.endsWith("verdict.json")) labels.add("verdict");
+  if (normalized.endsWith("verdict.md")) labels.add("verdict-summary");
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
@@ -271,6 +273,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "connections-portfolio.json": "visual-hive.connections-portfolio.schema.json",
     "repo-map.json": "visual-hive.repo-map.schema.json",
     "evidence-packet.json": "visual-hive.evidence-packet.schema.json",
+    "verdict.json": "visual-hive.verdict.schema.json",
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",

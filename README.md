@@ -162,9 +162,10 @@ The agent-facing Evidence Packet is generated with:
 
 ```bash
 visual-hive evidence --config visual-hive.config.yaml
+visual-hive verdict --config visual-hive.config.yaml
 ```
 
-It writes `.visual-hive/evidence-packet.json` and `.visual-hive/evidence-summary.md`. The packet records normalized evidence contributions, Visual Hive's final deterministic verdict, advisory-only signals, testing-layer coverage, and Hive handoff readiness.
+It writes `.visual-hive/evidence-packet.json`, `.visual-hive/evidence-summary.md`, `.visual-hive/verdict.json`, and `.visual-hive/verdict.md`. The packet records normalized evidence contributions, Visual Hive's final deterministic verdict, advisory-only signals, testing-layer coverage, and Hive handoff readiness. The standalone verdict artifact is the compact pass/fail contract for humans, CI summaries, and agents.
 
 Role-specific Agent Packets are generated with:
 
@@ -209,6 +210,7 @@ This writes `.visual-hive/agent-packet.json`, a sanitized work envelope with all
 - `visual-hive llm decision`: records a local sanitized LLM governance decision in `.visual-hive/llm-decisions.json` without enabling API keys or model calls.
 - `visual-hive report`: prints markdown or JSON, includes readiness evidence when `.visual-hive/readiness.json` exists, and can append to `GITHUB_STEP_SUMMARY`.
 - `visual-hive evidence`: writes `.visual-hive/evidence-packet.json` and `.visual-hive/evidence-summary.md`, composing existing artifacts into a sanitized Visual Hive verdict and agent/handoff-ready evidence contract.
+- `visual-hive verdict`: writes `.visual-hive/verdict.json` and `.visual-hive/verdict.md`, extracting the final Visual Hive verdict, gating contributions, advisory contributions, and oracle policy from normalized evidence.
 - `visual-hive handoff --dry-run`: consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json` with zero external calls.
 - `visual-hive agent-packet`: consumes `.visual-hive/evidence-packet.json` and optional `.visual-hive/handoff.json`, then writes `.visual-hive/agent-packet.json` for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent` profiles.
 - `visual-hive tools`: writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, describing first-party, optional MCP, GitHub, and provider tools with role access, mode restrictions, cost class, trusted-only status, and human-approval gates.

@@ -27,6 +27,7 @@ import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
 import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
+import { buildVerdictReport, writeVerdictReport } from "../src/verdict/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -965,6 +966,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
     expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
+    expect(schemaNames).toContain("visual-hive.verdict.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
@@ -3714,6 +3716,8 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "plans.json"), '{"schemaVersion":1,"lanes":[{"path":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "repo-map.json"), '{"schemaVersion":1,"riskSignals":[{"message":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "repo-context.md"), "Repo token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "verdict.json"), '{"schemaVersion":"visual-hive.verdict.v1","summary":{"visualHiveVerdict":"failed","failedBecause":["token=abc123"]}}', "utf8");
+    await writeFile(path.join(hiveRoot, "verdict.md"), "Verdict token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
@@ -3754,7 +3758,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(29);
+    expect(index.summary.artifactCount).toBe(31);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3775,6 +3779,13 @@ describe("artifact index", () => {
     const repoContext = index.artifacts.find((artifact) => artifact.path.endsWith("repo-context.md"));
     expect(repoContext?.preview).toContain("[REDACTED]");
     expect(repoContext?.labels).toContain("repo-context");
+    const verdict = index.artifacts.find((artifact) => artifact.path.endsWith("verdict.json"));
+    expect(verdict?.preview).toContain("[REDACTED]");
+    expect(verdict?.labels).toContain("verdict");
+    expect(verdict?.schemaPath).toBe("schemas/visual-hive.verdict.schema.json");
+    const verdictSummary = index.artifacts.find((artifact) => artifact.path.endsWith("verdict.md"));
+    expect(verdictSummary?.preview).toContain("[REDACTED]");
+    expect(verdictSummary?.labels).toContain("verdict-summary");
     const setupPrPlan = index.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"));
     expect(setupPrPlan?.preview).toContain("[REDACTED]");
     expect(setupPrPlan?.labels).toContain("setup-pr-plan");
@@ -4721,7 +4732,7 @@ describe("evidence packets", () => {
           contractIds: ["dashboard"],
           applicable: true,
           expectedFailureKinds: ["unexpected_element"],
-          failedAssertion: "Login exposure mutation survived",
+          failedAssertion: "Login exposure mutation survived with token=secret-value",
           durationMs: 10,
           errors: [],
           artifacts: [".visual-hive/mutation-report.json"]
@@ -4769,6 +4780,80 @@ describe("evidence packets", () => {
     expect(packet.verdictSummary.visualHiveVerdict).toBe("inconclusive");
     expect(packet.verdictSummary.blockedBecause).toContain("playwright.deterministic_run");
     expect(packet.hiveReadiness.readyForHiveDryRun).toBe(false);
+  });
+});
+
+describe("verdict reports", () => {
+  it("writes a compact Visual Hive verdict from an Evidence Packet", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-verdict-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.results[0]?.errors.push("Authorization: Bearer secret-value");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["unexpected_element"],
+          failedAssertion: "Login exposure mutation survived with token=secret-value",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    });
+    await writeEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    const result = await writeVerdictReport({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(result.report.schemaVersion).toBe("visual-hive.verdict.v1");
+    expect(result.report.summary.visualHiveVerdict).toBe("failed");
+    expect(result.report.summary.failedBecause).toEqual(
+      expect.arrayContaining(["playwright.deterministic_run", "mutation.mutation_adequacy", "mutation.mutation_survivor.force-login-on-demo"])
+    );
+    expect(result.report.governance.verdictAuthority).toBe("visual_hive");
+    expect(result.report.policy.passFailOwnedBy).toBe("visual_hive_verdict_engine");
+    expect(result.report.gatingContributions.map((contribution) => contribution.key)).toContain("mutation.mutation_survivor.force-login-on-demo");
+    expect(result.report.advisoryContributions.some((contribution) => contribution.key.startsWith("triage."))).toBe(false);
+    expect(result.report.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
+    expect(JSON.stringify(result.report)).not.toContain("secret-value");
+    expect(JSON.stringify(result.report)).toContain("[REDACTED]");
+    expect(await readFile(result.reportPath, "utf8")).toContain("visual-hive.verdict.v1");
+    expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Verdict: baseline-fixture");
+  });
+
+  it("can build an inconclusive verdict when no evidence artifacts exist yet", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-verdict-empty-"));
+    tempDirs.push(rootDir);
+    const report = await buildVerdictReport({
+      rootDir,
+      project: "empty",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(report.summary.visualHiveVerdict).toBe("inconclusive");
+    expect(report.summary.blockedBecause).toContain("playwright.deterministic_run");
+    expect(report.sourceArtifacts.evidencePacket).toBeUndefined();
+    expect(report.gatingContributions.map((contribution) => contribution.key)).toContain("playwright.deterministic_run");
   });
 });
 

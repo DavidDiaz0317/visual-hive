@@ -42,6 +42,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
+import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
@@ -456,6 +457,29 @@ program
         format: options.format
       });
       console.log(formatEvidencePacket(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("verdict")
+  .description("Write the standalone Visual Hive verdict report from normalized evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--output <path>", "write verdict JSON to this path relative to the config root", ".visual-hive/verdict.json")
+  .option("--markdown <path>", "write verdict Markdown summary to this path relative to the config root", ".visual-hive/verdict.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runVerdictCommand({
+        config: options.config,
+        evidence: options.evidence,
+        output: options.output,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatVerdictReport(result, options.format));
     } catch (error) {
       fail(error);
     }
