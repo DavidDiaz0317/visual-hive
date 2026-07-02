@@ -36,6 +36,9 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "verdict",
   "handoff",
   "hive-export",
+  "hive-export-advisory",
+  "hive-export-measured",
+  "hive-export-repair-request",
   "agent-packet",
   "pipeline",
   "connections-portfolio"
@@ -228,6 +231,12 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "handoff", args: ["handoff", "--config", configPath, "--dry-run"] }];
     case "hive-export":
       return [{ stepId: "hive-export", args: ["hive", "export", "--config", configPath, "--dry-run"] }];
+    case "hive-export-advisory":
+      return [{ stepId: "hive-export-advisory", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "advisory"] }];
+    case "hive-export-measured":
+      return [{ stepId: "hive-export-measured", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "measured"] }];
+    case "hive-export-repair-request":
+      return [{ stepId: "hive-export-repair-request", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "repair_request"] }];
     case "agent-packet":
       return [{ stepId: "agent-packet", args: ["agent-packet", "--config", configPath, "--profile", "repair_agent"] }];
     case "pipeline":

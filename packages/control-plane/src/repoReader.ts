@@ -990,6 +990,54 @@ function buildRunbook(
       ]
     },
     {
+      id: "hive-export-advisory",
+      label: "Preview Hive advisory mode",
+      lane: "local",
+      command: `visual-hive hive export ${configFlag} --dry-run --mode advisory`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write the safest no-network Hive export mode: issue context and agent policy only. Use this when Hive should advise or route work without creating beads or repair work orders.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/hive/hive-export.json", ".visual-hive/hive/issue-context.md", ".visual-hive/hive/hive-agent-policy.json"]
+    },
+    {
+      id: "hive-export-measured",
+      label: "Preview Hive measured mode",
+      lane: "local",
+      command: `visual-hive hive export ${configFlag} --dry-run --mode measured`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write no-network Hive beads, knowledge facts, graph data, wiki pages, and issue context so Hive can queue and understand Visual Hive evidence without repair authority.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/beads.json",
+        ".visual-hive/hive/knowledge-facts.json",
+        ".visual-hive/hive/knowledge-graph.json",
+        ".visual-hive/hive/issue-context.md",
+        ".visual-hive/hive/wiki"
+      ]
+    },
+    {
+      id: "hive-export-repair-request",
+      label: "Preview Hive repair-request mode",
+      lane: "local",
+      command: `visual-hive hive export ${configFlag} --dry-run --mode repair_request`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write no-network Hive repair work orders with PR-only guardrails, forbidden actions, acceptance criteria, and Visual Hive rerun requirements for a trusted repair lane.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/beads.json",
+        ".visual-hive/hive/repair-work-orders.json",
+        ".visual-hive/hive/hive-agent-policy.json"
+      ]
+    },
+    {
       id: "pipeline",
       label: "Run operational pipeline",
       lane: "pull_request",

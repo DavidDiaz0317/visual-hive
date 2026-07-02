@@ -19,6 +19,25 @@ The final product should make visual QA feel like a guided, understandable workf
 
 ---
 
+# Current Baseline To Preserve
+
+Recent work has moved Visual Hive beyond a pure MVP scaffold. Future Codex runs should build on this baseline rather than recreating it:
+
+- TypeScript npm workspace with CLI, core, Playwright adapter, GitHub adapter, LLM adapter, Control Plane UI, demo app, and KubeStellar examples.
+- CLI commands for init, doctor, plan, run, mutate, triage, report, pipeline, recommend, providers, evidence packets, handoff, Hive export, MCP, Control Plane UI, runbook, readiness, security, costs, baselines, coverage, flows, schedules, contracts, and connections.
+- Target model support for `url`, `command`, `commandGroup`, and `protected`.
+- Tolerant visual diffing with baseline, actual, and diff artifacts under `.visual-hive`.
+- Schema v2 deterministic reports and a Visual Hive Evidence Packet model.
+- Local-first Guided Cockpit Control Plane with beginner/expert access, runbook actions, artifact inspection, provider governance visibility, and Hive-native export visibility.
+- Optional Argos/provider upload path governed by policy, credentials, cost controls, and dry-run behavior.
+- No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, and agent policy.
+- Demo acceptance scripts including `demo:all`, `demo:ci`, `smoke:cli`, and `smoke:ui`.
+- Console dogfooding direction through KubeStellar-style hosted demo, local preview, fake OAuth planning, and protected live-cluster modeling.
+
+The next product work should focus on tightening vertical slices that connect scanner/recommendation, planning, execution, evidence, Control Plane guidance, provider governance, and Hive handoff into one understandable workflow.
+
+---
+
 # Product Thesis
 
 Visual Hive turns visual testing from isolated screenshot checks into a layered, project-aware quality system.

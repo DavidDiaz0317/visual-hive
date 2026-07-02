@@ -824,6 +824,43 @@ function AgentForwardWorkflow({
   const repairOrders = hiveExport?.repairWorkOrders ?? [];
   const wikiVaultDir = hiveExport?.outputArtifacts?.wikiVaultDir;
   const wikiArtifacts = wikiVaultDir ? hiveFacts.slice(0, hivePreviewLimit).map((fact) => `${wikiVaultDir}/${fact.slug}.md`) : [];
+  const hiveModeCommands = [
+    {
+      id: "hive-export-advisory",
+      mode: "Advisory",
+      emits: "Issue context and agent policy.",
+      control: "No Beads or repair work orders; safest default.",
+      command: snapshot.runbook?.commands?.find((candidate) => candidate.id === "hive-export-advisory")
+    },
+    {
+      id: "hive-export-measured",
+      mode: "Measured",
+      emits: "Beads, knowledge facts, graph, wiki pages, issue context.",
+      control: "Queues and context only; still zero external calls.",
+      command: snapshot.runbook?.commands?.find((candidate) => candidate.id === "hive-export-measured")
+    },
+    {
+      id: "hive-export-repair-request",
+      mode: "Repair request",
+      emits: "Repair work orders, forbidden actions, acceptance criteria.",
+      control: "PR-only repair instructions; Visual Hive rerun required.",
+      command: snapshot.runbook?.commands?.find((candidate) => candidate.id === "hive-export-repair-request")
+    },
+    {
+      id: "hive-export-guarded",
+      mode: "Guarded repair",
+      emits: "Future trusted branch/PR repair lane.",
+      control: "Displayed as policy; not launched from local UI.",
+      command: undefined
+    },
+    {
+      id: "hive-export-full",
+      mode: "Full",
+      emits: "Reserved mature automation mode.",
+      control: "Blocked locally until governance is proven.",
+      command: undefined
+    }
+  ];
   return (
     <Card
       title="Evidence to agent handoff"
@@ -864,6 +901,35 @@ function AgentForwardWorkflow({
             ]}
           />
           <ArtifactList artifacts={packetArtifacts} connection={connection} />
+        </Card>
+        <Card className="span-6" title="Hive export mode policy">
+          <p className="card-subtext">
+            Pick how much structured work Visual Hive gives Hive. Every preview is local, dry-run, and keeps Visual Hive as the verdict authority.
+          </p>
+          <SimpleTable
+            headers={["Mode", "Emits", "Control"]}
+            rows={hiveModeCommands.slice(0, mode === "expert" ? hiveModeCommands.length : 3).map((entry) => [
+              entry.mode,
+              entry.emits,
+              entry.control
+            ])}
+          />
+          {hiveModeCommands.map((entry) => {
+            const command = entry.command;
+            if (!command) return null;
+            return (
+              <div className="command-row" key={entry.id}>
+                <CodeBlock value={command.command} />
+                <ConfirmButton
+                  disabled={snapshot.readOnly || busyAction === command.id}
+                  message={`Run ${entry.mode.toLowerCase()} Hive export preview locally?`}
+                  onConfirm={() => runAction(command.id, () => postJson("/api/runbook/execute", { commandId: command.id }, connection))}
+                >
+                  Run preview
+                </ConfirmButton>
+              </div>
+            );
+          })}
         </Card>
         <Card className="span-6" title="Hive-native bundle">
           <p className="card-subtext">

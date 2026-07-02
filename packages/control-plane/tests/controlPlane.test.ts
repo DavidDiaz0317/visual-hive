@@ -1991,6 +1991,21 @@ describe("control plane", () => {
       command: expect.stringContaining("hive export"),
       expectedArtifacts: expect.arrayContaining([".visual-hive/hive/hive-export.json", ".visual-hive/hive/repair-work-orders.json"])
     });
+    expect(snapshot.runbook.commands.find((command) => command.id === "hive-export-advisory")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode advisory"),
+      expectedArtifacts: expect.arrayContaining([".visual-hive/hive/hive-export.json", ".visual-hive/hive/issue-context.md"])
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "hive-export-measured")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode measured"),
+      expectedArtifacts: expect.arrayContaining([".visual-hive/hive/beads.json", ".visual-hive/hive/knowledge-graph.json"])
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "hive-export-repair-request")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("--mode repair_request"),
+      expectedArtifacts: expect.arrayContaining([".visual-hive/hive/repair-work-orders.json", ".visual-hive/hive/hive-agent-policy.json"])
+    });
     expect(snapshot.runbook.commands.find((command) => command.id === "agent-packet")).toMatchObject({
       safety: "pr_safe",
       command: expect.stringContaining("agent-packet"),
@@ -2520,6 +2535,43 @@ contracts:
       expect(snapshot.actionHistory?.actions[0]?.commandId).toBe("doctor");
       expect(snapshot.actionHistory?.actions[0]?.steps[0]?.stdout).not.toContain("secret-token");
       expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("control-plane-actions.json"))?.kind).toBe("json");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes Hive export mode previews with fixed no-network args", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      for (const commandId of ["hive-export-advisory", "hive-export-measured", "hive-export-repair-request"]) {
+        const response = await fetch(`${server.url}/api/runbook/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commandId })
+        });
+        const payload = await response.json();
+        expect(response.status).toBe(200);
+        expect(payload.execution.status).toBe("passed");
+      }
+
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "hive-export-advisory:hive-export-advisory",
+        "hive-export-measured:hive-export-measured",
+        "hive-export-repair-request:hive-export-repair-request"
+      ]);
+      expect(calls[0]?.args.slice(-7)).toEqual(["hive", "export", "--config", path.resolve(fixture.configPath), "--dry-run", "--mode", "advisory"]);
+      expect(calls[1]?.args.slice(-7)).toEqual(["hive", "export", "--config", path.resolve(fixture.configPath), "--dry-run", "--mode", "measured"]);
+      expect(calls[2]?.args.slice(-7)).toEqual(["hive", "export", "--config", path.resolve(fixture.configPath), "--dry-run", "--mode", "repair_request"]);
     } finally {
       await server.close();
     }

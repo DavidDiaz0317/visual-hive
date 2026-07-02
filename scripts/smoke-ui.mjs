@@ -85,6 +85,9 @@ try {
     "hive-export",
     "runbook command ids"
   );
+  for (const commandId of ["hive-export-advisory", "hive-export-measured", "hive-export-repair-request"]) {
+    assertArrayIncludes(snapshot.runbook?.commands?.map((command) => command.id), commandId, "Hive export mode runbook command ids");
+  }
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "control-plane",
@@ -144,6 +147,10 @@ try {
     "Run PR-safe checks",
     "Review visual changes",
     "Evidence to agent handoff",
+    "Hive export mode policy",
+    "Measured",
+    "Repair request",
+    "Guarded repair",
     "Hive-native bundle",
     "Hive work queue",
     "Knowledge graph preview",
