@@ -75,7 +75,7 @@ const portfolioSteps = [
   script("demo:ui")
 ];
 
-const ciSteps = [
+const acceptanceSteps = [
   script("demo:build"),
   script("demo:doctor"),
   script("demo:analyze"),
@@ -85,27 +85,38 @@ const ciSteps = [
   script("demo:plan:full"),
   script("demo:plans"),
   script("demo:run:seed"),
-  command("demo:run:ci", process.execPath, [
-    "packages/cli/dist/index.js",
-    "run",
-    "--config",
-    "examples/demo-react-app/visual-hive.config.yaml",
-    "--skip-install",
-    "--skip-build",
-    "--ci"
-  ], 180_000),
-  ...coreSteps.slice(coreSteps.findIndex((step) => step.label === "demo:baselines")),
-  ...governanceSteps,
-  ...agentSteps,
-  ...portfolioSteps
+  script("demo:pipeline"),
+  script("demo:provider-plan"),
+  script("demo:provider-handoff"),
+  script("demo:provider-upload"),
+  script("demo:llm"),
+  script("demo:setup-status"),
+  script("demo:runbook"),
+  script("demo:report"),
+  script("demo:connections"),
+  script("demo:evidence"),
+  script("demo:layers"),
+  script("demo:verdict"),
+  script("demo:handoff"),
+  script("demo:test-creation"),
+  script("demo:agent-packet"),
+  script("demo:tools"),
+  script("demo:mcp"),
+  script("demo:kubestellar"),
+  script("demo:context"),
+  script("demo:artifacts"),
+  script("demo:ui")
 ];
+
+const ciSteps = acceptanceSteps;
 
 const suites = {
   core: coreSteps,
   governance: governanceSteps,
   agent: agentSteps,
   portfolio: portfolioSteps,
-  all: [...coreSteps, ...governanceSteps, ...agentSteps, ...portfolioSteps],
+  all: acceptanceSteps,
+  exhaustive: [...coreSteps, ...governanceSteps, ...agentSteps, ...portfolioSteps],
   ci: ciSteps
 };
 

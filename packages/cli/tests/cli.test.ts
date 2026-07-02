@@ -322,28 +322,28 @@ mutation:
     };
     const demoAllOutput = runDemoSuiteDryRun("all");
     const demoCiOutput = runDemoSuiteDryRun("ci");
+    const demoExhaustiveOutput = runDemoSuiteDryRun("exhaustive");
     expect(packageJson.scripts["demo:all"]).toBe("node scripts/run-demo-suite.mjs all");
     expect(packageJson.scripts["demo:ci"]).toBe("node scripts/run-demo-suite.mjs ci");
     expect(packageJson.scripts["demo:list"]).toBe("node scripts/run-demo-suite.mjs --list");
     const expectedCommands = [
-      "demo:coverage",
-      "demo:baselines",
-      "demo:improve",
-      "demo:targets",
-      "demo:contracts",
-      "demo:flows",
-      "demo:schedules",
-      "demo:workflows",
-      "demo:providers",
+      "demo:build",
+      "demo:doctor",
+      "demo:analyze",
+      "demo:recommend",
+      "demo:plan",
+      "demo:plan:canary",
+      "demo:plan:full",
+      "demo:plans",
+      "demo:run:seed",
+      "demo:pipeline",
+      "demo:provider-plan",
       "demo:provider-handoff",
-      "demo:triage",
+      "demo:provider-upload",
       "demo:llm",
       "demo:report",
-      "demo:risk",
-      "demo:security",
-      "demo:costs",
+      "demo:setup-status",
       "demo:runbook",
-      "demo:history",
       "demo:connections",
       "demo:artifacts",
       "demo:evidence",
@@ -355,27 +355,41 @@ mutation:
       "demo:tools",
       "demo:mcp",
       "demo:context",
-      "demo:analyze",
       "demo:kubestellar",
-      "demo:plan:canary",
-      "demo:plan:full",
-      "demo:plans",
-      "demo:pipeline",
       "demo:ui"
+    ];
+    const exhaustiveOnlyCommands = [
+      "demo:coverage",
+      "demo:baselines",
+      "demo:improve",
+      "demo:targets",
+      "demo:contracts",
+      "demo:flows",
+      "demo:schedules",
+      "demo:workflows",
+      "demo:providers",
+      "demo:triage",
+      "demo:risk",
+      "demo:security",
+      "demo:costs",
+      "demo:history"
     ];
 
     for (const command of expectedCommands) {
       expect(demoAllOutput).toContain(command);
       expect(demoCiOutput).toContain(command);
     }
+    for (const command of exhaustiveOnlyCommands) {
+      expect(demoExhaustiveOutput).toContain(command);
+    }
+    expect(packageJson.scripts["demo:acceptance:exhaustive"]).toBe("node scripts/run-demo-suite.mjs exhaustive");
     expect(packageJson.scripts["demo:providers"]).toContain("providers list --config");
     expect(packageJson.scripts["demo:provider-handoff"]).toContain("providers handoff --config");
     expect(packageJson.scripts["demo:provider-handoff"]).toContain("--provider argos");
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
-    expect(demoAllOutput.indexOf("demo:flows")).toBeLessThan(demoAllOutput.indexOf("demo:improve"));
-    expect(demoCiOutput.indexOf("demo:flows")).toBeLessThan(demoCiOutput.indexOf("demo:improve"));
+    expect(demoExhaustiveOutput.indexOf("demo:flows")).toBeLessThan(demoExhaustiveOutput.indexOf("demo:improve"));
     expect(packageJson.scripts["demo:providers"]).toContain("--mock-results");
     expect(packageJson.scripts["demo:llm"]).toContain("llm --config");
     expect(packageJson.scripts["demo:security"]).toContain("security --config");
@@ -433,10 +447,10 @@ mutation:
     expect(packageJson.scripts["demo:plan:full"]).not.toContain("--allow-unsafe-targets");
     expect(packageJson.scripts["demo:plans"]).toContain("plans --config");
     expect(demoAllOutput.indexOf("demo:plan:full")).toBeLessThan(demoAllOutput.indexOf("demo:plans"));
-    expect(demoAllOutput.indexOf("demo:plans")).toBeLessThan(demoAllOutput.indexOf("demo:run"));
+    expect(demoAllOutput.indexOf("demo:plans")).toBeLessThan(demoAllOutput.indexOf("demo:run:seed"));
     expect(demoCiOutput.indexOf("demo:plan:full")).toBeLessThan(demoCiOutput.indexOf("demo:plans"));
     expect(demoCiOutput.indexOf("demo:plans")).toBeLessThan(demoCiOutput.indexOf("demo:run:seed"));
-    expect(demoCiOutput.indexOf("demo:run:seed")).toBeLessThan(demoCiOutput.indexOf("demo:run:ci"));
+    expect(demoCiOutput.indexOf("demo:run:seed")).toBeLessThan(demoCiOutput.indexOf("demo:pipeline"));
     expect(packageJson.scripts["demo:run:seed"]).toContain("VISUAL_HIVE_CI=false");
     expect(packageJson.scripts["demo:run:seed"]).toContain("scripts/run-with-env.mjs");
     expect(packageJson.scripts["demo:pipeline"]).toContain("--skip-install");

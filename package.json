@@ -85,6 +85,7 @@
     "demo:acceptance:governance": "node scripts/run-demo-suite.mjs governance",
     "demo:acceptance:agent": "node scripts/run-demo-suite.mjs agent",
     "demo:acceptance:portfolio": "node scripts/run-demo-suite.mjs portfolio",
+    "demo:acceptance:exhaustive": "node scripts/run-demo-suite.mjs exhaustive",
     "demo:all": "node scripts/run-demo-suite.mjs all",
     "demo:ci": "node scripts/run-demo-suite.mjs ci",
     "smoke:cli": "node scripts/smoke-cli.mjs",
