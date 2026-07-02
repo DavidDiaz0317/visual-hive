@@ -343,12 +343,30 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
       );
     }
     if (workflow.createsIssues) {
-      add(
-        "trusted_handoff_creates_issues",
-        "medium",
-        "Hive handoff workflow should stay focused on handoff validation; keep issue creation in the trusted failure issue workflow.",
-        "issue creation"
-      );
+      if (workflow.permissions.issues !== "write") {
+        add(
+          "missing_handoff_issue_permission",
+          "high",
+          "Trusted handoff issue creation requires explicit issues: write permission.",
+          "issues: write"
+        );
+      }
+      if (!workflow.readsIssueArtifact) {
+        add(
+          "missing_hive_issue_artifact",
+          "high",
+          "Trusted handoff issue creation should use the sanitized hive-issue.md artifact.",
+          "hive-issue.md"
+        );
+      }
+      if (!workflow.hasDedupeSignature) {
+        add(
+          "missing_handoff_dedupe_signature",
+          "medium",
+          "Trusted handoff issue creation should dedupe issue updates from stable handoff evidence.",
+          "visual-hive-hive-handoff-dedupe"
+        );
+      }
     }
   }
 
@@ -374,6 +392,7 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   }
   if (workflow.kind === "trusted_handoff") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
+    recommendations.add("Create or update GitHub issues only from sanitized hive-issue.md artifacts after handoff validation is not blocked.");
     recommendations.add("Validate dry-run Hive artifacts before any future trusted Bead API call.");
     recommendations.add("Keep real Hive network calls behind explicit trusted-lane policy and human approval.");
   }

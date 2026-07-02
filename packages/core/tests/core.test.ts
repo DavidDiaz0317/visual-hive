@@ -2612,7 +2612,11 @@ jobs:
     expect(scheduledTemplate).not.toContain("npx visual-hive");
     expect(hiveHandoffTemplate).toContain("workflow_run:");
     expect(hiveHandoffTemplate).toContain("hive-bead-request.json");
+    expect(hiveHandoffTemplate).toContain("hive-handoff-validation.json");
+    expect(hiveHandoffTemplate).toContain("hive-issue.md");
     expect(hiveHandoffTemplate).toContain("externalCallsMade");
+    expect(hiveHandoffTemplate).toContain("visual-hive-hive-handoff-dedupe");
+    expect(hiveHandoffTemplate).toContain("github.rest.issues.create");
     expect(hiveHandoffTemplate).toContain("Future trusted Hive Bead API adapter");
     expect(hiveHandoffTemplate).not.toContain("actions/checkout");
     expect(hiveHandoffTemplate).not.toContain("pull_request_target");
@@ -2642,7 +2646,9 @@ jobs:
     expect(trustedHandoff?.readsHiveHandoffArtifacts).toBe(true);
     expect(trustedHandoff?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trustedHandoff?.reSanitizesIssueBody).toBe(true);
-    expect(trustedHandoff?.permissions).toMatchObject({ actions: "read", contents: "read" });
+    expect(trustedHandoff?.createsIssues).toBe(true);
+    expect(trustedHandoff?.hasDedupeSignature).toBe(true);
+    expect(trustedHandoff?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
     expect(audit.findings.filter((finding) => finding.kind === "action_not_sha_pinned").length).toBeGreaterThan(0);
     expect(audit.recommendations.join(" ")).toContain("pin external GitHub Actions");
   });

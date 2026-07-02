@@ -52,7 +52,7 @@ Policy:
 Trusted workflow templates:
 
 - `.github/workflows/visual-hive-failure-issue.yml` consumes `.visual-hive/issue.md` from uploaded artifacts and may create or update GitHub issues.
-- `.github/workflows/visual-hive-hive-handoff.yml` consumes `.visual-hive/evidence-packet.json`, `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`.
+- `.github/workflows/visual-hive-hive-handoff.yml` consumes `.visual-hive/evidence-packet.json`, `.visual-hive/handoff.json`, `.visual-hive/hive-bead-request.json`, `.visual-hive/hive-handoff-validation.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`.
 - `.visual-hive/hive-handoff-validation.json` is the local preflight evidence that the trusted workflow handoff package is structurally safe to consume.
 
 The Hive handoff workflow is intentionally artifact-only:
@@ -62,6 +62,9 @@ The Hive handoff workflow is intentionally artifact-only:
 - it downloads the `visual-hive` artifact produced by a prior run;
 - it re-redacts secret-like values before writing the step summary;
 - it expects dry-run artifacts with `externalCallsMade: 0`;
+- it runs issue creation only for failed upstream Visual Hive workflows by default;
+- it refuses issue creation when `hive-handoff-validation.json` is blocked or missing;
+- it creates or updates a deduped GitHub issue from sanitized `hive-issue.md` only after validation is not blocked;
 - it leaves the real Hive Bead API call as a future trusted insertion point, not a default behavior.
 
 Default config:

@@ -179,14 +179,18 @@ on:
 permissions:
   actions: read
   contents: read
+  issues: write
 
 jobs:
-  validate-handoff:
+  trusted-handoff:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
     steps:
       # This trusted workflow consumes sanitized Visual Hive artifacts only. It
       # does not checkout or execute PR code, and it makes no Hive network call
-      # by default. For stricter supply-chain hardening, pin actions by SHA.
+      # by default. It may create/update a GitHub issue from the sanitized
+      # hive-issue.md artifact after handoff validation passes. For stricter
+      # supply-chain hardening, pin actions by SHA.
       - uses: actions/download-artifact@v4
         with:
           name: visual-hive
@@ -198,6 +202,7 @@ jobs:
           script: |
             const fs = require("fs");
             const path = require("path");
+            const crypto = require("crypto");
             const artifactRoot = "visual-hive-artifacts";
 
             function walkArtifacts(dir) {
@@ -235,31 +240,126 @@ jobs:
               }
             }
 
+            function readTextArtifact(name) {
+              const artifactPath = findArtifact(name);
+              if (!artifactPath || !fs.existsSync(artifactPath)) return undefined;
+              return redactSecretValues(fs.readFileSync(artifactPath, "utf8"));
+            }
+
+            function safeLabels(values) {
+              return [...new Set((Array.isArray(values) ? values : [])
+                .concat(["visual-hive", "hive/quality", "ai-ready"])
+                .map((value) => redactSecretValues(value).trim())
+                .filter(Boolean))]
+                .slice(0, 10);
+            }
+
             const evidence = readJsonArtifact("evidence-packet.json");
             const handoff = readJsonArtifact("handoff.json");
             const beadRequest = readJsonArtifact("hive-bead-request.json");
             const handoffResult = readJsonArtifact("hive-handoff-result.json");
-            if (!evidence) core.setFailed("Missing .visual-hive/evidence-packet.json artifact.");
-            if (!handoff) core.setFailed("Missing .visual-hive/handoff.json artifact.");
-            if (!beadRequest) core.setFailed("Missing .visual-hive/hive-bead-request.json artifact.");
+            const handoffValidation = readJsonArtifact("hive-handoff-validation.json");
+            const issueBody = readTextArtifact("hive-issue.md");
+            const blocking = [];
+            if (!evidence) blocking.push("Missing .visual-hive/evidence-packet.json artifact.");
+            if (!handoff) blocking.push("Missing .visual-hive/handoff.json artifact.");
+            if (!beadRequest) blocking.push("Missing .visual-hive/hive-bead-request.json artifact.");
+            if (!handoffValidation) blocking.push("Missing .visual-hive/hive-handoff-validation.json artifact.");
+            if (!issueBody) blocking.push("Missing .visual-hive/hive-issue.md artifact.");
 
-            const externalCalls = Number(beadRequest?.externalCallsMade ?? handoffResult?.externalCallsMade ?? 0);
+            const externalCalls = Number(handoffValidation?.summary?.externalCallsMade ?? beadRequest?.externalCallsMade ?? handoffResult?.externalCallsMade ?? 0);
             const mode = String(beadRequest?.mode ?? handoff?.integration?.mode ?? "unknown");
             if (externalCalls !== 0) {
-              core.setFailed("Hive handoff artifact claims externalCallsMade=" + externalCalls + "; trusted template expects dry-run artifacts only.");
+              blocking.push("Hive handoff artifact claims externalCallsMade=" + externalCalls + "; trusted template expects dry-run artifacts only.");
+            }
+            if (handoffValidation?.status === "blocked") {
+              blocking.push("Hive handoff validation is blocked; refusing trusted issue creation.");
             }
 
             await core.summary
               .addHeading("Visual Hive Hive Handoff")
-              .addRaw("Trusted workflow_run artifact consumer. No checkout, no PR code execution, no Hive network call by default.\\n")
+              .addRaw("Trusted workflow_run artifact consumer. No checkout, no PR code execution, no Hive network call by default. GitHub issue creation uses sanitized artifacts only.\\n")
               .addList([
                 "Evidence packet: " + (evidence ? "found" : "missing"),
                 "Handoff packet: " + (handoff ? "found" : "missing"),
                 "Hive bead request: " + (beadRequest ? "found" : "missing"),
+                "Handoff validation: " + (handoffValidation?.status ?? "missing"),
+                "Hive issue body: " + (issueBody ? "found" : "missing"),
                 "Handoff mode: " + redactSecretValues(mode),
                 "External calls made: " + externalCalls
               ])
               .write();
+
+            if (blocking.length) {
+              throw new Error(redactSecretValues(blocking.join(" ")));
+            }
+
+            const project = redactSecretValues(String(handoff?.project || evidence?.project || context.repo.repo));
+            const verdict = redactSecretValues(String(handoff?.verdict?.visualHiveVerdict || evidence?.verdictSummary?.visualHiveVerdict || "unknown"));
+            const workItemKeys = Array.isArray(handoff?.workItems) ? handoff.workItems.map((item) => item.key || item.title).sort() : [];
+            const signatureSource = JSON.stringify({
+              workflow: context.payload.workflow_run.name,
+              project,
+              verdict,
+              workItemKeys
+            });
+            const signature = crypto.createHash("sha256").update(signatureSource).digest("hex").slice(0, 16);
+            const marker = "<!-- visual-hive-hive-handoff-dedupe:" + signature + " -->";
+            const validationSummary = [
+              "## Trusted handoff validation",
+              "",
+              "- Handoff validation: " + handoffValidation.status,
+              "- Visual Hive verdict: " + verdict,
+              "- External calls made: " + externalCalls,
+              "- Trusted workflow: workflow_run artifact consumer",
+              "- PR code checkout: false",
+              "- Hive API call: false"
+            ].join("\\n");
+            const body = redactSecretValues(marker + "\\n" + validationSummary + "\\n\\n---\\n\\n" + issueBody).slice(0, 60000);
+            const title = "Visual Hive Hive handoff: " + project;
+            const labels = safeLabels(handoff?.labels);
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+            const existing = issues.find((issue) => issue.body && issue.body.includes(marker));
+            const issuePayload = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              labels,
+              body
+            };
+            try {
+              if (existing) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  body
+                });
+              } else {
+                await github.rest.issues.create(issuePayload);
+              }
+            } catch (error) {
+              core.warning("Issue create/update with labels failed, retrying without labels: " + redactSecretValues(error.message));
+              if (existing) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  body
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title,
+                  body
+                });
+              }
+            }
       - name: Future trusted Hive Bead API adapter
         run: |
           echo "Future insertion point for a governed Hive Bead API call."

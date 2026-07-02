@@ -2810,7 +2810,11 @@ contracts:
     expect(failureWorkflow).toContain("visual-hive-dedupe");
     expect(failureWorkflow).not.toContain("context.payload.workflow_run.id + \" -->\"");
     expect(hiveHandoffWorkflow).toContain("hive-bead-request.json");
+    expect(hiveHandoffWorkflow).toContain("hive-handoff-validation.json");
+    expect(hiveHandoffWorkflow).toContain("hive-issue.md");
     expect(hiveHandoffWorkflow).toContain("externalCallsMade");
+    expect(hiveHandoffWorkflow).toContain("visual-hive-hive-handoff-dedupe");
+    expect(hiveHandoffWorkflow).toContain("github.rest.issues.create");
     expect(hiveHandoffWorkflow).toContain("Future trusted Hive Bead API adapter");
     expect(hiveHandoffWorkflow).toContain("actions/download-artifact@v4");
     expect(hiveHandoffWorkflow).not.toContain("actions/checkout");
