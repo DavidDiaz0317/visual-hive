@@ -857,8 +857,8 @@ program
   .command("analyze")
   .description("Scan a repo statically and use Claude to suggest enhanced visual-hive contracts")
   .option("--repo <path>", "repository path to inspect")
-  .option("--api-key <key>", "Anthropic API key (default: ANTHROPIC_API_KEY env var)")
-  .option("--model <model>", "Claude model to use", "claude-sonnet-4-6")
+  .option("--claude-path <path>", "path to the claude CLI binary (default: auto-detect)")
+  .option("--model <model>", "Claude model to use")
   .option("--write-config", "write the LLM-enhanced config to visual-hive.config.yaml")
   .option("--force", "overwrite existing visual-hive.config.yaml when used with --write-config")
   .option("--format <format>", "markdown or json", "markdown")
@@ -866,7 +866,7 @@ program
     try {
       const result = await runAnalyzeCommand({
         repo: options.repo,
-        apiKey: options.apiKey,
+        claudePath: options.claudePath,
         model: options.model,
         writeConfig: options.writeConfig,
         force: options.force,

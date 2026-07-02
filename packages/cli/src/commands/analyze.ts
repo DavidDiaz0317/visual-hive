@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { analyzeRepo, RepoAnalysisApiError, type RepoAnalysis } from "@visual-hive/llm-adapter";
 import { recommendSetup, writeJson, type SetupRecommendationReport } from "@visual-hive/core";
@@ -6,7 +6,7 @@ import { recommendSetup, writeJson, type SetupRecommendationReport } from "@visu
 export interface AnalyzeCommandOptions {
   cwd?: string;
   repo?: string;
-  apiKey?: string;
+  claudePath?: string;
   model?: string;
   writeConfig?: boolean;
   force?: boolean;
@@ -26,18 +26,11 @@ export async function runAnalyzeCommand(options: AnalyzeCommandOptions = {}): Pr
   const configPath = path.join(repoRoot, "visual-hive.config.yaml");
   const analysisPath = path.join(repoRoot, ".visual-hive", "analyze.json");
 
-  const apiKey = options.apiKey ?? process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey) {
-    throw new Error(
-      "Anthropic API key is required. Pass --api-key or set the ANTHROPIC_API_KEY environment variable."
-    );
-  }
-
   const report = await recommendSetup({ repoRoot, configPath });
 
   let analysis: RepoAnalysis;
   try {
-    analysis = await analyzeRepo({ report, apiKey, model: options.model });
+    analysis = await analyzeRepo({ report, claudePath: options.claudePath, model: options.model });
   } catch (err) {
     if (err instanceof RepoAnalysisApiError) {
       throw new Error(`LLM analysis failed: ${err.message}`);
@@ -50,8 +43,7 @@ export async function runAnalyzeCommand(options: AnalyzeCommandOptions = {}): Pr
 
   let configWritten: string | undefined;
   if (options.writeConfig && analysis.enhancedConfigYaml) {
-    const configExists = await fileExists(configPath);
-    if (!options.force && configExists) {
+    if (!options.force && (await fileExists(configPath))) {
       throw new Error(`Refusing to overwrite existing config: ${configPath}. Pass --force to replace it.`);
     }
     await writeFile(configPath, analysis.enhancedConfigYaml, "utf8");
@@ -74,7 +66,7 @@ export function formatAnalysis(result: AnalyzeCommandResult, format: "markdown" 
     `- Project: ${report.project.name}`,
     `- Frameworks: ${report.project.detectedFrameworks.join(", ") || "none detected"}`,
     `- Model: ${analysis.model}`,
-    `- API calls made: ${analysis.callsMade}`,
+    `- CLI calls made: ${analysis.callsMade}`,
     `- Input truncated: ${analysis.inputTruncated ? "yes (repo exceeds scan limits — suggestions reflect a partial view)" : "no"}`,
     `- Config written: ${configWritten ?? "no, pass --write-config to update visual-hive.config.yaml"}`,
     "",
@@ -107,7 +99,6 @@ export function formatAnalysis(result: AnalyzeCommandResult, format: "markdown" 
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
-    const { access } = await import("node:fs/promises");
     await access(filePath);
     return true;
   } catch {
