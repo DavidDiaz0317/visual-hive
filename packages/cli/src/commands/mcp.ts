@@ -84,6 +84,14 @@ export const MCP_RESOURCES: McpResourceDefinition[] = [
     mimeType: "application/json"
   },
   {
+    uri: "visual-hive://latest-verdict",
+    name: "latest-verdict",
+    title: "Latest Visual Hive Verdict",
+    description: "Normalized Visual Hive verdict artifact assembled from deterministic evidence contributions.",
+    relativePath: ".visual-hive/verdict.json",
+    mimeType: "application/json"
+  },
+  {
     uri: "visual-hive://latest-handoff",
     name: "latest-handoff",
     title: "Latest Handoff Packet",
@@ -121,6 +129,38 @@ export const MCP_RESOURCES: McpResourceDefinition[] = [
     title: "Artifact Index",
     description: "Sanitized index of Visual Hive JSON, markdown, screenshots, and generated spec artifacts.",
     relativePath: ".visual-hive/artifacts-index.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://agent-packet",
+    name: "agent-packet",
+    title: "Agent Packet",
+    description: "Bounded advisory work packet for repair, test-creation, review, or handoff agents.",
+    relativePath: ".visual-hive/agent-packet.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://tool-registry",
+    name: "tool-registry",
+    title: "Tool Registry",
+    description: "Governed Visual Hive tool registry and MCP/provider policy surface.",
+    relativePath: ".visual-hive/tools/tool-registry.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://context-ledger",
+    name: "context-ledger",
+    title: "Context Ledger",
+    description: "Governance ledger for tool calls, token estimates, external cost, provider screenshots, and escalation budgets.",
+    relativePath: ".visual-hive/context-ledger.json",
+    mimeType: "application/json"
+  },
+  {
+    uri: "visual-hive://pipeline-status",
+    name: "pipeline-status",
+    title: "Pipeline Status",
+    description: "Latest operational pipeline status across repo intelligence, evidence, verdict, handoff, agent, tool, and context artifacts.",
+    relativePath: ".visual-hive/pipeline.json",
     mimeType: "application/json"
   }
 ];
@@ -160,6 +200,36 @@ export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
     name: "visual_hive_read_evidence_packet",
     title: "Read Evidence Packet",
     description: "Read the latest sanitized Evidence Packet.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_verdict",
+    title: "Read Visual Hive Verdict",
+    description: "Read the latest normalized Visual Hive verdict artifact.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_agent_packet",
+    title: "Read Agent Packet",
+    description: "Read the latest bounded advisory Agent Packet.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_tool_registry",
+    title: "Read Tool Registry",
+    description: "Read the governed first-party and optional tool policy registry.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_context_ledger",
+    title: "Read Context Ledger",
+    description: "Read the governance ledger for tool, token, provider, and escalation budget evidence.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_pipeline_status",
+    title: "Read Pipeline Status",
+    description: "Read the latest operational pipeline artifact status.",
     mode: "read_only"
   },
   {
@@ -351,6 +421,16 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "report.json"), ".visual-hive/report.json");
     case "visual_hive_read_evidence_packet":
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "evidence-packet.json"), ".visual-hive/evidence-packet.json");
+    case "visual_hive_read_verdict":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "verdict.json"), ".visual-hive/verdict.json");
+    case "visual_hive_read_agent_packet":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "agent-packet.json"), ".visual-hive/agent-packet.json");
+    case "visual_hive_read_tool_registry":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "tools", "tool-registry.json"), ".visual-hive/tools/tool-registry.json");
+    case "visual_hive_read_context_ledger":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "context-ledger.json"), ".visual-hive/context-ledger.json");
+    case "visual_hive_read_pipeline_status":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "pipeline.json"), ".visual-hive/pipeline.json");
     case "visual_hive_explain_failure":
       return explainLatestFailure(loaded.rootDir);
     case "visual_hive_list_reproduction_commands":

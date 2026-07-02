@@ -24,11 +24,16 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://latest-plan`
 - `visual-hive://latest-report`
 - `visual-hive://latest-evidence`
+- `visual-hive://latest-verdict`
 - `visual-hive://latest-handoff`
 - `visual-hive://coverage-map`
 - `visual-hive://mutation-report`
 - `visual-hive://repair-prompt`
 - `visual-hive://artifacts/index`
+- `visual-hive://agent-packet`
+- `visual-hive://tool-registry`
+- `visual-hive://context-ledger`
+- `visual-hive://pipeline-status`
 
 These resources are sanitized before being returned. Missing artifacts are reported as missing evidence, not as pass/fail decisions.
 
@@ -42,6 +47,11 @@ Default MCP tools are read-only:
 - `visual_hive_plan`
 - `visual_hive_read_latest_report`
 - `visual_hive_read_evidence_packet`
+- `visual_hive_read_verdict`
+- `visual_hive_read_agent_packet`
+- `visual_hive_read_tool_registry`
+- `visual_hive_read_context_ledger`
+- `visual_hive_read_pipeline_status`
 - `visual_hive_explain_failure`
 - `visual_hive_list_reproduction_commands`
 - `visual_hive_generate_repair_prompt`
@@ -67,10 +77,12 @@ Those actions require trusted CLI workflows, human approval, protected credentia
 Agents should prefer compact resources and tools before loading broad files:
 
 1. Read `visual-hive://latest-evidence` first.
-2. Use `visual_hive_explain_failure` for a compact failure summary.
-3. Use `visual_hive_list_reproduction_commands` before asking for shell access.
-4. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.
-5. Read raw report/artifact resources only when the compact evidence is insufficient.
-6. Do not load screenshots or large artifacts unless the task specifically needs visual evidence.
+2. Read `visual-hive://latest-verdict` when the agent needs the final gating/advisory breakdown without scanning the full report.
+3. Use `visual_hive_explain_failure` for a compact failure summary.
+4. Use `visual_hive_list_reproduction_commands` before asking for shell access.
+5. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.
+6. Read `visual-hive://agent-packet`, `visual-hive://tool-registry`, and `visual-hive://context-ledger` only when the task requires agent role policy or budget context.
+7. Read raw report/artifact resources only when the compact evidence is insufficient.
+8. Do not load screenshots or large artifacts unless the task specifically needs visual evidence.
 
 Visual Hive remains the deterministic verdict authority. MCP clients and agents may explain, repair, or hand off evidence, but they do not decide pass/fail.

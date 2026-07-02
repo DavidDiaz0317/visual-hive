@@ -1953,6 +1953,40 @@ contracts:
       status: "ready",
       externalCallsMade: 0
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "verdict.json"), {
+      schemaVersion: "visual-hive.verdict.v1",
+      project: "cli-mcp",
+      summary: {
+        visualHiveVerdict: "failed",
+        failedBecause: ["playwright.selector_contract.dashboard"]
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "agent-packet.json"), {
+      schemaVersion: "visual-hive.agent-packet.v1",
+      project: "cli-mcp",
+      profile: "repair_agent",
+      objective: "Repair dashboard without using client_secret=secret-value"
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json"), {
+      schemaVersion: "visual-hive.tool-registry.v1",
+      project: "cli-mcp",
+      policy: {
+        exposeThirdPartyMcp: false
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "context-ledger.json"), {
+      schemaVersion: "visual-hive.context-ledger.v1",
+      project: "cli-mcp",
+      budgets: {
+        externalCostUsd: 0
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "pipeline.json"), {
+      schemaVersion: 1,
+      project: "cli-mcp",
+      status: "completed",
+      steps: [{ id: "evidence", status: "passed", message: "authorization: Bearer secret-value" }]
+    });
     await writeFile(path.join(tempRoot, ".visual-hive", "repair-prompt.md"), "Repair dashboard without using token=secret-value.", "utf8");
 
     const manifest = await runMcpCommand({ cwd: tempRoot, output: ".visual-hive/mcp-manifest.json" });
@@ -1961,6 +1995,10 @@ contracts:
     const writtenManifest = await readJson<typeof manifest>(path.join(tempRoot, ".visual-hive", "mcp-manifest.json"));
     const evidenceResource = manifest.resources.find((resource) => resource.uri === "visual-hive://latest-evidence");
     const configResource = manifest.resources.find((resource) => resource.uri === "visual-hive://config");
+    const verdictResource = manifest.resources.find((resource) => resource.uri === "visual-hive://latest-verdict");
+    const agentPacketResource = manifest.resources.find((resource) => resource.uri === "visual-hive://agent-packet");
+    const contextLedgerResource = manifest.resources.find((resource) => resource.uri === "visual-hive://context-ledger");
+    const pipelineResource = manifest.resources.find((resource) => resource.uri === "visual-hive://pipeline-status");
 
     expect(manifest.schemaVersion).toBe("visual-hive.mcp.v1");
     await expectMatchesSchema("visual-hive.mcp.schema.json", writtenManifest);
@@ -1970,6 +2008,11 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_recommend_setup");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_plan");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_verdict");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_agent_packet");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_tool_registry");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_context_ledger");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
     expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(manifest.policy.externalUploadsFromPr).toBe(false);
@@ -1977,8 +2020,16 @@ contracts:
     expect(summary).toContain("visual-hive://latest-evidence");
     expect(evidenceResource).toBeDefined();
     expect(configResource).toBeDefined();
+    expect(verdictResource).toBeDefined();
+    expect(agentPacketResource).toBeDefined();
+    expect(contextLedgerResource).toBeDefined();
+    expect(pipelineResource).toBeDefined();
     await expect(readMcpResourceText(loaded, evidenceResource!)).resolves.toContain("visual-hive.evidence-packet.v2");
     await expect(readMcpResourceText(loaded, configResource!)).resolves.toContain("cli-mcp");
+    await expect(readMcpResourceText(loaded, verdictResource!)).resolves.toContain("visual-hive.verdict.v1");
+    await expect(readMcpResourceText(loaded, agentPacketResource!)).resolves.not.toContain("secret-value");
+    await expect(readMcpResourceText(loaded, contextLedgerResource!)).resolves.toContain("visual-hive.context-ledger.v1");
+    await expect(readMcpResourceText(loaded, pipelineResource!)).resolves.not.toContain("secret-value");
     const explanation = await callReadOnlyTool(loaded, "visual_hive_explain_failure");
     const reproduction = await callReadOnlyTool(loaded, "visual_hive_list_reproduction_commands");
     const doctor = await callReadOnlyTool(loaded, "visual_hive_doctor");
@@ -1986,6 +2037,11 @@ contracts:
     const plan = await callReadOnlyTool(loaded, "visual_hive_plan");
     const repairPrompt = await callReadOnlyTool(loaded, "visual_hive_generate_repair_prompt");
     const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
+    const verdict = await callReadOnlyTool(loaded, "visual_hive_read_verdict");
+    const agentPacket = await callReadOnlyTool(loaded, "visual_hive_read_agent_packet");
+    const toolRegistry = await callReadOnlyTool(loaded, "visual_hive_read_tool_registry");
+    const contextLedger = await callReadOnlyTool(loaded, "visual_hive_read_context_ledger");
+    const pipeline = await callReadOnlyTool(loaded, "visual_hive_read_pipeline_status");
 
     expect(explanation).toContain("Visual Hive verdict: failed");
     expect(explanation).toContain("Failed contracts: dashboard");
@@ -1997,6 +2053,11 @@ contracts:
     expect(plan).toContain("\"wroteArtifacts\": false");
     expect(repairPrompt).not.toContain("secret-value");
     expect(handoff).toContain("visual-hive.handoff.v1");
+    expect(verdict).toContain("visual-hive.verdict.v1");
+    expect(agentPacket).not.toContain("secret-value");
+    expect(toolRegistry).toContain("visual-hive.tool-registry.v1");
+    expect(contextLedger).toContain("visual-hive.context-ledger.v1");
+    expect(pipeline).not.toContain("secret-value");
   });
 
   it("serves MCP resources and read-only tools through the SDK client transport", async () => {
@@ -2034,6 +2095,13 @@ contracts:
       reproductionCommands: ["visual-hive run --cookie=secret-value"],
       results: []
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "verdict.json"), {
+      schemaVersion: "visual-hive.verdict.v1",
+      project: "cli-mcp-sdk",
+      summary: {
+        visualHiveVerdict: "passed"
+      }
+    });
 
     const loaded = await loadConfig(undefined, tempRoot);
     const server = createVisualHiveMcpServer(loaded);
@@ -2048,18 +2116,24 @@ contracts:
       const config = await client.callTool({ name: "visual_hive_validate_config" }, undefined, { timeout: 10_000 });
       const plan = await client.callTool({ name: "visual_hive_plan" }, undefined, { timeout: 10_000 });
       const reproduction = await client.callTool({ name: "visual_hive_list_reproduction_commands" }, undefined, { timeout: 10_000 });
+      const verdict = await client.callTool({ name: "visual_hive_read_verdict" }, undefined, { timeout: 10_000 });
 
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://latest-evidence");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://latest-verdict");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://context-ledger");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_doctor");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_recommend_setup");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_plan");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_evidence_packet");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_verdict");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
       expect(tools.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
       expect(JSON.stringify(evidence.contents)).toContain("cli-mcp-sdk");
       expect(config.content.find((item) => item.type === "text")?.text).toContain("\"externalCallsMade\": 0");
       expect(plan.content.find((item) => item.type === "text")?.text).toContain("\"wroteArtifacts\": false");
       expect(reproduction.content.find((item) => item.type === "text")?.text).toContain("visual-hive run");
       expect(reproduction.content.find((item) => item.type === "text")?.text).not.toContain("secret-value");
+      expect(verdict.content.find((item) => item.type === "text")?.text).toContain("visual-hive.verdict.v1");
     } finally {
       await client.close();
       await server.close();

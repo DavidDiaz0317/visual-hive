@@ -263,8 +263,8 @@ The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive
 Key fields:
 
 - `server`: identifies Visual Hive's `stdio` MCP server, read-only default access, and `externalCallsMade: 0`.
-- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://latest-report`, and `visual-hive://artifacts/index`.
-- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`.
+- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://latest-verdict`, `visual-hive://agent-packet`, `visual-hive://tool-registry`, `visual-hive://context-ledger`, `visual-hive://pipeline-status`, and `visual-hive://artifacts/index`.
+- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_read_verdict`, `visual_hive_read_agent_packet`, `visual_hive_read_context_ledger`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`.
 - `disabledExecutionTools`: write-capable or execution-capable tools that are intentionally not registered by default.
 - `policy`: enterprise defaults that keep third-party MCPs, PR writes, external uploads, baseline approval, and LLM verdict authority disabled.
 
