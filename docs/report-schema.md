@@ -90,6 +90,8 @@ Per-contract fields include selector assertions, user-flow step results, screens
 
 `providerResults` normalizes provider adapter status. Playwright is the built-in first-party local browser runner and primary local evidence source. Visual Hive owns the final deterministic verdict. Optional providers such as Argos, Percy, Chromatic, Applitools, Storybook, and GitHub Checks are reported as skipped, mock, available/missing-credential metadata, policy-blocked metadata, future external adapter output, or explicitly configured gating evidence. Missing credentials are listed by environment variable name only.
 
+Generated reports also include `verdictSummary` and `verdictContributions`. These fields make `report.json` usable as a standalone CI artifact while preserving the product boundary: Playwright supplies the default local evidence, and Visual Hive assembles the final deterministic verdict from normalized gating and advisory contributions. The fuller Evidence Packet still composes plan, mutation, provider, readiness, coverage, triage, and repo-intelligence artifacts into the preferred agent-facing contract.
+
 Each provider result can include:
 
 - `externalUploadAllowed`: whether Visual Hive policy would allow external upload for the run context.

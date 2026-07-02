@@ -4,8 +4,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import {
   collectRepositoryMetadata,
+  buildReportVerdict,
   sanitizeText,
   normalizeProviderResults,
+  type EvidenceContribution,
   type ContractResult,
   type Plan,
   type Report,
@@ -208,7 +210,12 @@ async function buildReportFromPlaywrightOutput(input: {
   const summary = buildSummary(results);
 
   const status = results.some((result) => result.status === "failed") ? "failed" : "passed";
-  return sanitizeReport({
+  const providerResults = normalizeProviderResults(input.config, {
+    deterministicStatus: status,
+    artifactCount: artifacts.length,
+    mode: input.plan.mode
+  });
+  const reportWithoutVerdict: Report = {
     schemaVersion: 2,
     project: input.config.project.name,
     repository,
@@ -230,17 +237,18 @@ async function buildReportFromPlaywrightOutput(input: {
     consoleErrors: results.flatMap((result) => result.consoleErrors?.map((error) => error.message) ?? []),
     pageErrors: results.flatMap((result) => result.pageErrors ?? []),
     artifacts,
-    providerResults: normalizeProviderResults(input.config, {
-      deterministicStatus: status,
-      artifactCount: artifacts.length,
-      mode: input.plan.mode
-    }),
+    providerResults,
     reproductionCommands: [
       `visual-hive plan --mode ${input.plan.mode}`,
       "visual-hive run",
       "visual-hive triage",
       "visual-hive report"
     ]
+  };
+  const reportVerdict = buildReportVerdict(reportWithoutVerdict);
+  return sanitizeReport({
+    ...reportWithoutVerdict,
+    ...reportVerdict
   });
 }
 
@@ -381,7 +389,32 @@ function sanitizeReport(report: Report): Report {
       externalUploadBlockedReasons: provider.externalUploadBlockedReasons?.map((reason) => sanitizeText(reason)),
       externalUrl: provider.externalUrl ? sanitizeText(provider.externalUrl) : undefined
     })),
-    reproductionCommands: report.reproductionCommands.map((command) => sanitizeText(command))
+    reproductionCommands: report.reproductionCommands.map((command) => sanitizeText(command)),
+    verdictSummary: report.verdictSummary
+      ? {
+          visualHiveVerdict: report.verdictSummary.visualHiveVerdict,
+          failedBecause: report.verdictSummary.failedBecause.map((reason) => sanitizeText(reason)),
+          warningBecause: report.verdictSummary.warningBecause.map((reason) => sanitizeText(reason)),
+          blockedBecause: report.verdictSummary.blockedBecause.map((reason) => sanitizeText(reason)),
+          advisoryOnly: report.verdictSummary.advisoryOnly.map((reason) => sanitizeText(reason))
+        }
+      : undefined,
+    verdictContributions: report.verdictContributions?.map(sanitizeEvidenceContribution)
+  };
+}
+
+function sanitizeEvidenceContribution(contribution: EvidenceContribution): EvidenceContribution {
+  return {
+    ...contribution,
+    key: sanitizeText(contribution.key),
+    kind: sanitizeText(contribution.kind),
+    mode: contribution.mode ? sanitizeText(contribution.mode) : undefined,
+    contractId: contribution.contractId ? sanitizeText(contribution.contractId) : undefined,
+    targetId: contribution.targetId ? sanitizeText(contribution.targetId) : undefined,
+    operator: contribution.operator ? sanitizeText(contribution.operator) : undefined,
+    providerId: contribution.providerId ? sanitizeText(contribution.providerId) : undefined,
+    reason: sanitizeText(contribution.reason),
+    artifacts: contribution.artifacts.map((artifact) => sanitizeText(artifact))
   };
 }
 

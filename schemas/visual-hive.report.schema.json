@@ -44,9 +44,57 @@
     "artifacts": { "type": "array", "items": { "type": "string" } },
     "providerResults": { "type": "array", "items": { "$ref": "#/$defs/providerResult" } },
     "reproductionCommands": { "type": "array", "items": { "type": "string" } },
+    "verdictSummary": { "$ref": "#/$defs/verdictSummary" },
+    "verdictContributions": { "type": "array", "items": { "$ref": "#/$defs/evidenceContribution" } },
     "noContractsReason": { "type": "string" }
   },
   "$defs": {
+    "verdictSummary": {
+      "type": "object",
+      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "additionalProperties": false,
+      "properties": {
+        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
+        "failedBecause": { "type": "array", "items": { "type": "string" } },
+        "warningBecause": { "type": "array", "items": { "type": "string" } },
+        "blockedBecause": { "type": "array", "items": { "type": "string" } },
+        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evidenceContribution": {
+      "type": "object",
+      "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" },
+        "source": {
+          "enum": [
+            "visual_hive",
+            "playwright",
+            "screenshot_diff",
+            "mutation",
+            "provider",
+            "triage",
+            "readiness",
+            "coverage",
+            "llm",
+            "hive",
+            "agent"
+          ]
+        },
+        "kind": { "type": "string" },
+        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
+        "gating": { "type": "boolean" },
+        "authority": { "enum": ["gating", "advisory"] },
+        "mode": { "type": "string" },
+        "contractId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "operator": { "type": "string" },
+        "providerId": { "type": "string" },
+        "reason": { "type": "string" },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "runtimeError": {
       "type": "object",
       "required": ["type", "message"],

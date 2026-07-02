@@ -236,6 +236,17 @@ export async function writeEvidencePacket(options: WriteEvidencePacketOptions): 
   return { packet, packetPath, summaryPath };
 }
 
+export function buildReportVerdict(report: Report): { verdictSummary: VerdictSummary; verdictContributions: EvidenceContribution[] } {
+  const verdictContributions = normalizeEvidenceContributions([
+    ...contributionsFromReport(report),
+    ...contributionsFromProviders(report.providerResults ?? [], report.mode)
+  ]);
+  return {
+    verdictContributions,
+    verdictSummary: aggregateVerdict(verdictContributions)
+  };
+}
+
 export function renderEvidenceSummary(packet: EvidencePacket): string {
   const lines = [
     `# Visual Hive Evidence Packet: ${packet.project}`,
