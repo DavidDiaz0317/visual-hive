@@ -220,7 +220,7 @@ providers:
 integrations:
   hive:
     enabled: false
-    mode: dry_run
+    mode: advisory
     labels:
       - visual-hive
       - hive/quality

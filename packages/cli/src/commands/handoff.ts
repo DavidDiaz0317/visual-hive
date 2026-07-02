@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   loadConfig,
+  handoffModeFromHiveMode,
   readEvidencePacket,
   validateHandoffArtifacts,
   writeHandoffArtifacts,
@@ -58,7 +59,7 @@ export async function runHandoffCommand(options: HandoffCommandOptions = {}): Pr
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Missing or invalid Evidence Packet at ${evidencePath}. Run "visual-hive evidence" before "visual-hive handoff --dry-run". Details: ${message}`);
   }
-  const mode = options.mode ?? hiveConfig.mode ?? "dry_run";
+  const mode = options.mode ?? handoffModeFromHiveMode(hiveConfig.mode) ?? "dry_run";
   return writeHandoffArtifacts({
     rootDir: loaded.rootDir,
     evidencePacket,
@@ -68,7 +69,7 @@ export async function runHandoffCommand(options: HandoffCommandOptions = {}): Pr
     agent: options.agent ?? hiveConfig.beadApi.agent,
     hiveIntegration: {
       enabled: hiveConfig.enabled,
-      mode: hiveConfig.mode,
+      mode: handoffModeFromHiveMode(hiveConfig.mode),
       beadApi: {
         url: hiveConfig.beadApi.url,
         tokenEnv: hiveConfig.beadApi.tokenEnv,

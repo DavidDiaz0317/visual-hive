@@ -46,6 +46,7 @@ import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
+import { formatHiveExport, runHiveExportCommand } from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -588,6 +589,38 @@ program
       });
       console.log(formatHandoffValidation(result, options.format));
       process.exitCode = result.exitCode;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const hiveCommand = program.command("hive").description("Export Hive-native beads, knowledge, graph, and guarded repair artifacts");
+
+hiveCommand
+  .command("export")
+  .description("Write a no-network Hive-native export bundle from Visual Hive evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--output-dir <path>", "Hive export artifact directory", ".visual-hive/hive")
+  .option("--mode <mode>", "Hive mode: advisory, measured, repair_request, guarded_repair, full, or legacy dry_run/github_issue/bead_api")
+  .option("--dry-run", "force no-network local export semantics")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveExportCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        outputDir: options.outputDir,
+        mode: options.mode,
+        dryRun: options.dryRun,
+        format: options.format
+      });
+      console.log(formatHiveExport(result, options.format));
+      if (result.bundle.status === "blocked") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }

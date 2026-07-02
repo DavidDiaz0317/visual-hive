@@ -5,13 +5,14 @@ Visual Hive handoff is evidence-first and no-network by default.
 Required order:
 
 ```text
-plan -> run -> mutate/triage -> evidence -> handoff dry-run -> trusted issue/Hive workflow
+plan -> run -> mutate/triage -> evidence -> handoff dry-run -> hive export dry-run -> trusted issue/Hive workflow
 ```
 
 The local command is:
 
 ```bash
 visual-hive handoff --dry-run
+visual-hive hive export --dry-run
 ```
 
 It requires `.visual-hive/evidence-packet.json` and writes:
@@ -20,6 +21,14 @@ It requires `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive-issue.md`
 - `.visual-hive/hive-bead-request.json`
 - `.visual-hive/hive-handoff-result.json`
+- `.visual-hive/hive/hive-export.json`
+- `.visual-hive/hive/beads.json`
+- `.visual-hive/hive/knowledge-facts.json`
+- `.visual-hive/hive/knowledge-graph.json`
+- `.visual-hive/hive/issue-context.md`
+- `.visual-hive/hive/repair-work-orders.json`
+- `.visual-hive/hive/hive-agent-policy.json`
+- `.visual-hive/hive/wiki/*.md`
 
 Validate the dry-run package before trusted workflow consumption:
 
@@ -38,13 +47,21 @@ The Handoff Packet converts evidence into bounded work items:
 
 This keeps Hive and coding agents focused on concrete evidence gaps instead of raw logs or broad repository context.
 
+The Hive-native export expands that compact packet into artifacts that Hive can use directly:
+
+- `beads.json` mirrors Hive's bead/work-item shape for quality, CI-maintainer, and security actors;
+- `knowledge-facts.json` and `wiki/*.md` preserve regressions, gotchas, integration facts, coverage rules, and test scaffolds;
+- `knowledge-graph.json` links evidence, facts, beads, and repair work orders with `derived_from`, `depends_on`, and `related_to` edges;
+- `repair-work-orders.json` tells a trusted Hive repair lane what to fix, which artifacts to inspect, and how Visual Hive must re-verify the result.
+
 Policy:
 
 - Visual Hive's deterministic Verdict Engine owns pass/fail.
-- Hive, LLMs, MCP tools, and agents are advisory repair/handoff actors.
+- Hive, LLMs, MCP tools, and agents may advise, route, or repair under policy, but they do not own the Visual Hive verdict.
 - Dry-run handoff makes `externalCallsMade: 0`.
 - GitHub issue creation requires a trusted workflow that consumes sanitized artifacts.
 - Hive Bead creation requires human/trusted-workflow approval.
+- Hive repair requires a trusted workflow, a branch or pull request, human review unless explicitly governed otherwise, and a fresh passing Visual Hive rerun.
 - PR workflows must not use `pull_request_target` to execute untrusted code.
 - Secret values must never appear in handoff JSON or Markdown.
 - Missing secret names may be reported when useful for trusted setup.
@@ -73,16 +90,42 @@ Default config:
 integrations:
   hive:
     enabled: false
-    mode: dry_run
+    mode: advisory
+    acmmLevel: 3
+    defaultActor: quality
     labels:
       - visual-hive
       - hive/quality
       - ai-ready
+    export:
+      beads: true
+      knowledgeFacts: true
+      knowledgeGraph: true
+      wikiVault: true
+      repairWorkOrders: true
+      maxFacts: 50
+    repair:
+      enabled: false
+      prOnly: true
+      maxAttempts: 1
+      requireHumanReview: true
+      rerunVisualHive: true
+      branchPrefix: hive/visual-hive-
     beadApi:
       url: https://hive.example.invalid/api/beads
       tokenEnv: HIVE_DASHBOARD_TOKEN
       agent: quality
 ```
+
+Hive modes:
+
+- `advisory`: issue-context only, no beads/facts/repair orders.
+- `measured`: emits beads, project knowledge facts, wiki pages, and graph data.
+- `repair_request`: emits guarded repair work orders for a trusted Hive lane.
+- `guarded_repair`: allows Hive to open a repair branch/PR when trusted policy permits; Visual Hive must pass afterward.
+- `full`: reserved for future ACMM L6-compatible automation and blocked locally for now.
+
+Legacy `dry_run`, `github_issue`, and `bead_api` config values remain accepted for existing repos and map back to safe no-network local behavior.
 
 The bead request records only trusted-setup metadata: configured mode, optional bead API URL with secret-like query values redacted, token environment variable name, whether that environment variable was present, and the agent name. It never records the token value.
 

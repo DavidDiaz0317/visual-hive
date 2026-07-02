@@ -79,6 +79,7 @@
             "visual-hive://latest-verdict",
             "visual-hive://latest-handoff",
             "visual-hive://handoff-validation",
+            "visual-hive://hive-export",
             "visual-hive://coverage-map",
             "visual-hive://mutation-report",
             "visual-hive://repair-prompt",
@@ -122,7 +123,8 @@
             "visual_hive_list_reproduction_commands",
             "visual_hive_generate_repair_prompt",
             "visual_hive_generate_handoff_dry_run",
-            "visual_hive_validate_handoff"
+            "visual_hive_validate_handoff",
+            "visual_hive_read_hive_export"
           ]
         },
         "title": { "type": "string", "minLength": 1 },
@@ -143,6 +145,7 @@
             "visual_hive_update_baseline",
             "visual_hive_handoff_github_issue",
             "visual_hive_handoff_hive_bead",
+            "visual_hive_hive_repair",
             "visual_hive_provider_upload"
           ]
         },

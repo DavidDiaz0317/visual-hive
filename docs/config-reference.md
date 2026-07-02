@@ -271,18 +271,38 @@ Hive integration defaults:
 integrations:
   hive:
     enabled: false
-    mode: dry_run
+    mode: advisory
+    acmmLevel: 3
+    defaultActor: quality
     labels:
       - visual-hive
       - hive/quality
       - ai-ready
+    export:
+      beads: true
+      knowledgeFacts: true
+      knowledgeGraph: true
+      wikiVault: true
+      repairWorkOrders: true
+      maxFacts: 50
+    repair:
+      enabled: false
+      prOnly: true
+      maxAttempts: 1
+      requireHumanReview: true
+      rerunVisualHive: true
+      branchPrefix: hive/visual-hive-
     beadApi:
       url: https://hive.example.invalid/api/beads
       tokenEnv: HIVE_DASHBOARD_TOKEN
       agent: quality
 ```
 
+`integrations.hive.mode` supports `advisory`, `measured`, `repair_request`, `guarded_repair`, and reserved `full` automation levels. Legacy `dry_run`, `github_issue`, and `bead_api` values remain accepted for existing configs and are mapped back to safe local dry-run behavior unless a trusted workflow consumes the artifacts.
+
 `visual-hive handoff --dry-run` consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`. It makes zero network calls, does not create GitHub issues or Hive Beads, and records only safe connection metadata: configured mode, optional bead API URL with secret-like query values redacted, token environment variable name, and whether that environment variable was present. It never writes the token value. `bead_api` remains blocked locally until a trusted workflow/API adapter is explicitly implemented.
+
+`visual-hive hive export --dry-run` consumes the Evidence Packet plus optional Handoff Packet and writes `.visual-hive/hive/hive-export.json`, `beads.json`, `knowledge-facts.json`, `knowledge-graph.json`, `issue-context.md`, `repair-work-orders.json`, `hive-agent-policy.json`, and project wiki pages under `.visual-hive/hive/wiki/`. Advisory mode emits issue context only. Measured mode emits Hive beads, project knowledge facts, and graph data. Repair modes emit guarded PR-only work orders with the acceptance criterion that Visual Hive must pass after repair.
 
 Provider cost policy defaults:
 

@@ -234,11 +234,27 @@ flowchart TD
 integrations:
   hive:
     enabled: false
-    mode: github_issue # github_issue | bead_api | dry_run
+    mode: advisory # advisory | measured | repair_request | guarded_repair | full
+    acmmLevel: 3
+    defaultActor: quality
     labels:
       - visual-hive
       - hive/quality
       - ai-ready
+    export:
+      beads: true
+      knowledgeFacts: true
+      knowledgeGraph: true
+      wikiVault: true
+      repairWorkOrders: true
+      maxFacts: 50
+    repair:
+      enabled: false
+      prOnly: true
+      maxAttempts: 1
+      requireHumanReview: true
+      rerunVisualHive: true
+      branchPrefix: hive/visual-hive-
     beadApi:
       url: ${HIVE_DASHBOARD_URL}
       tokenEnv: HIVE_DASHBOARD_TOKEN
@@ -248,9 +264,10 @@ integrations:
 ### Suggested Future CLI
 
 ```bash
-visual-hive integrations hive handoff --dry-run
-visual-hive integrations hive handoff --mode github_issue
-visual-hive integrations hive handoff --mode bead_api
+visual-hive handoff --dry-run
+visual-hive hive export --dry-run
+visual-hive hive export --mode measured
+visual-hive hive export --mode repair_request
 ```
 
 ### Suggested Future Artifacts
@@ -259,8 +276,16 @@ visual-hive integrations hive handoff --mode bead_api
 - `.visual-hive/hive-issue.md`
 - `.visual-hive/hive-bead-request.json`
 - `.visual-hive/hive-handoff-result.json`
+- `.visual-hive/hive/hive-export.json`
+- `.visual-hive/hive/beads.json`
+- `.visual-hive/hive/knowledge-facts.json`
+- `.visual-hive/hive/knowledge-graph.json`
+- `.visual-hive/hive/issue-context.md`
+- `.visual-hive/hive/repair-work-orders.json`
+- `.visual-hive/hive/hive-agent-policy.json`
+- `.visual-hive/hive/wiki/*.md`
 
-Hive's current Beads API accepts structured bead creation through `POST /api/beads/{agent}` with title, type, priority, external reference, and metadata. A Visual Hive handoff should fit that model without requiring Hive to run Visual Hive or trust untrusted PR code.
+The first integration should fit Hive's bead, wiki, and graph model without requiring Hive to run Visual Hive or trust untrusted PR code. Direct Hive API calls can remain a later trusted adapter; the safer first path is to export a Hive-native bundle and let a trusted workflow or Hive operator consume it.
 
 ## Automation Maturity Model
 
@@ -331,14 +356,15 @@ Track:
 
 Add a schema such as `schemas/visual-hive.evidence-packet.schema.json`. This becomes the stable contract between Visual Hive, GitHub issue creation, Hive Beads, Control Plane views, and future LLM workflows.
 
-### Hive Handoff Adapter
+### Hive Native Export Adapter
 
-Implement `visual-hive integrations hive handoff` in phases:
+Implement Hive integration in phases:
 
-1. Dry run: write sanitized handoff artifacts only.
-2. GitHub issue mode: generate trusted workflow-ready issue body and labels.
-3. Bead API mode: post to Hive when explicitly enabled in trusted environments.
-4. Control Plane visibility: show handoff readiness, missing token names, and latest handoff result.
+1. Handoff dry run: write sanitized compact handoff artifacts only.
+2. Hive native export: write issue context, beads, project knowledge facts, graph data, wiki pages, agent policy, and guarded repair work orders.
+3. Trusted GitHub issue mode: create/update issues from sanitized artifacts without checking out or executing PR code.
+4. Bead/API mode: post to Hive only when explicitly enabled in trusted environments.
+5. Control Plane visibility: show Hive readiness, bead/fact/graph counts, repair-work-order status, missing token names, and latest handoff result.
 
 ### AI-Authored PR Risk Signal
 
@@ -386,12 +412,12 @@ The project should preserve these safety limits:
 - Publish this research rationale.
 - Add Evidence Packet schema and artifact writer.
 - Improve `triage` and `report` to reference the evidence packet.
-- Add Hive-friendly labels and issue body sections.
+- Add Hive-friendly labels, issue body sections, and no-network Hive native export artifacts.
 
 ### Next
 
 - Add `integrations.hive` config validation with default disabled posture.
-- Add `visual-hive integrations hive handoff --dry-run`.
+- Add and harden `visual-hive hive export --dry-run` around beads, project wiki facts, graph data, and guarded repair work orders.
 - Add trusted GitHub issue handoff workflow using evidence packets.
 - Add Control Plane "Agent handoff" readiness panel.
 

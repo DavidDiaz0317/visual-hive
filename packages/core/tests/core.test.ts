@@ -269,11 +269,29 @@ describe("config validation", () => {
     });
   });
 
-  it("applies disabled Hive integration dry-run defaults", () => {
+  it("applies disabled Hive integration advisory defaults", () => {
     expect(sampleConfig().integrations.hive).toMatchObject({
       enabled: false,
-      mode: "dry_run",
+      mode: "advisory",
+      acmmLevel: 3,
+      defaultActor: "quality",
       labels: ["visual-hive", "hive/quality", "ai-ready"],
+      export: {
+        beads: true,
+        knowledgeFacts: true,
+        knowledgeGraph: true,
+        wikiVault: true,
+        repairWorkOrders: true,
+        maxFacts: 50
+      },
+      repair: {
+        enabled: false,
+        prOnly: true,
+        maxAttempts: 1,
+        requireHumanReview: true,
+        rerunVisualHive: true,
+        branchPrefix: "hive/visual-hive-"
+      },
       beadApi: {
         tokenEnv: "HIVE_DASHBOARD_TOKEN",
         agent: "quality"

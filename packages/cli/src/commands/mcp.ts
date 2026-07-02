@@ -108,6 +108,14 @@ export const MCP_RESOURCES: McpResourceDefinition[] = [
     mimeType: "application/json"
   },
   {
+    uri: "visual-hive://hive-export",
+    name: "hive-export",
+    title: "Hive Native Export",
+    description: "Hive-native beads, knowledge facts, graph, issue context, agent policy, and guarded repair work-order summary.",
+    relativePath: ".visual-hive/hive/hive-export.json",
+    mimeType: "application/json"
+  },
+  {
     uri: "visual-hive://coverage-map",
     name: "coverage-map",
     title: "Coverage Map",
@@ -269,6 +277,12 @@ export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
     title: "Read Handoff Validation",
     description: "Return the existing no-network handoff validation report if it has been generated.",
     mode: "read_only"
+  },
+  {
+    name: "visual_hive_read_hive_export",
+    title: "Read Hive Native Export",
+    description: "Return the existing no-network Hive-native export bundle if it has been generated.",
+    mode: "read_only"
   }
 ];
 
@@ -278,6 +292,7 @@ export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
   "visual_hive_update_baseline",
   "visual_hive_handoff_github_issue",
   "visual_hive_handoff_hive_bead",
+  "visual_hive_hive_repair",
   "visual_hive_provider_upload"
 ].map((name) => ({
   name,
@@ -455,6 +470,8 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "handoff.json"), ".visual-hive/handoff.json");
     case "visual_hive_validate_handoff":
       return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "hive-handoff-validation.json"), ".visual-hive/hive-handoff-validation.json");
+    case "visual_hive_read_hive_export":
+      return readArtifactText(path.join(loaded.rootDir, ".visual-hive", "hive", "hive-export.json"), ".visual-hive/hive/hive-export.json");
     default:
       return `Tool ${sanitizeText(toolName)} is not registered as a default read-only Visual Hive MCP tool.`;
   }

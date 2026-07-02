@@ -141,11 +141,53 @@ export const CostPolicySchema = z
     }
   });
 
+const HiveModeSchema = z.enum(["advisory", "measured", "repair_request", "guarded_repair", "full", "dry_run", "github_issue", "bead_api"]);
+
+const HiveExportConfigSchema = z
+  .object({
+    beads: z.boolean().default(true),
+    knowledgeFacts: z.boolean().default(true),
+    knowledgeGraph: z.boolean().default(true),
+    wikiVault: z.boolean().default(true),
+    repairWorkOrders: z.boolean().default(true),
+    maxFacts: z.number().int().positive().default(50)
+  })
+  .default({
+    beads: true,
+    knowledgeFacts: true,
+    knowledgeGraph: true,
+    wikiVault: true,
+    repairWorkOrders: true,
+    maxFacts: 50
+  });
+
+const HiveRepairConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    prOnly: z.boolean().default(true),
+    maxAttempts: z.number().int().positive().default(1),
+    requireHumanReview: z.boolean().default(true),
+    rerunVisualHive: z.boolean().default(true),
+    branchPrefix: z.string().min(1).default("hive/visual-hive-")
+  })
+  .default({
+    enabled: false,
+    prOnly: true,
+    maxAttempts: 1,
+    requireHumanReview: true,
+    rerunVisualHive: true,
+    branchPrefix: "hive/visual-hive-"
+  });
+
 const HiveIntegrationConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
-    mode: z.enum(["dry_run", "github_issue", "bead_api"]).default("dry_run"),
+    mode: HiveModeSchema.default("advisory"),
+    acmmLevel: z.number().int().min(1).max(6).default(3),
+    defaultActor: z.string().min(1).default("quality"),
     labels: z.array(z.string().min(1)).default(["visual-hive", "hive/quality", "ai-ready"]),
+    export: HiveExportConfigSchema,
+    repair: HiveRepairConfigSchema,
     beadApi: z
       .object({
         url: z.string().min(1).optional(),
@@ -156,8 +198,26 @@ const HiveIntegrationConfigSchema = z
   })
   .default({
     enabled: false,
-    mode: "dry_run",
+    mode: "advisory",
+    acmmLevel: 3,
+    defaultActor: "quality",
     labels: ["visual-hive", "hive/quality", "ai-ready"],
+    export: {
+      beads: true,
+      knowledgeFacts: true,
+      knowledgeGraph: true,
+      wikiVault: true,
+      repairWorkOrders: true,
+      maxFacts: 50
+    },
+    repair: {
+      enabled: false,
+      prOnly: true,
+      maxAttempts: 1,
+      requireHumanReview: true,
+      rerunVisualHive: true,
+      branchPrefix: "hive/visual-hive-"
+    },
     beadApi: { tokenEnv: "HIVE_DASHBOARD_TOKEN", agent: "quality" }
   });
 
@@ -169,8 +229,26 @@ export const IntegrationsConfigSchema = z
   .default({
     hive: {
       enabled: false,
-      mode: "dry_run",
+      mode: "advisory",
+      acmmLevel: 3,
+      defaultActor: "quality",
       labels: ["visual-hive", "hive/quality", "ai-ready"],
+      export: {
+        beads: true,
+        knowledgeFacts: true,
+        knowledgeGraph: true,
+        wikiVault: true,
+        repairWorkOrders: true,
+        maxFacts: 50
+      },
+      repair: {
+        enabled: false,
+        prOnly: true,
+        maxAttempts: 1,
+        requireHumanReview: true,
+        rerunVisualHive: true,
+        branchPrefix: "hive/visual-hive-"
+      },
       beadApi: { tokenEnv: "HIVE_DASHBOARD_TOKEN", agent: "quality" }
     }
   });

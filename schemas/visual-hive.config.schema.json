@@ -474,11 +474,40 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": false },
-        "mode": { "enum": ["dry_run", "github_issue", "bead_api"], "default": "dry_run" },
+        "mode": {
+          "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "dry_run", "github_issue", "bead_api"],
+          "default": "advisory"
+        },
+        "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6, "default": 3 },
+        "defaultActor": { "type": "string", "minLength": 1, "default": "quality" },
         "labels": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "default": ["visual-hive", "hive/quality", "ai-ready"]
+        },
+        "export": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "beads": { "type": "boolean", "default": true },
+            "knowledgeFacts": { "type": "boolean", "default": true },
+            "knowledgeGraph": { "type": "boolean", "default": true },
+            "wikiVault": { "type": "boolean", "default": true },
+            "repairWorkOrders": { "type": "boolean", "default": true },
+            "maxFacts": { "type": "integer", "minimum": 1, "default": 50 }
+          }
+        },
+        "repair": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "prOnly": { "type": "boolean", "default": true },
+            "maxAttempts": { "type": "integer", "minimum": 1, "default": 1 },
+            "requireHumanReview": { "type": "boolean", "default": true },
+            "rerunVisualHive": { "type": "boolean", "default": true },
+            "branchPrefix": { "type": "string", "minLength": 1, "default": "hive/visual-hive-" }
+          }
         },
         "beadApi": {
           "type": "object",

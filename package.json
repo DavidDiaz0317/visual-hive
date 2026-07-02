@@ -67,6 +67,7 @@
     "demo:verdict": "node packages/cli/dist/index.js verdict --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:handoff": "node packages/cli/dist/index.js handoff --config examples/demo-react-app/visual-hive.config.yaml --dry-run",
     "demo:handoff-validate": "node packages/cli/dist/index.js handoff-validate --config examples/demo-react-app/visual-hive.config.yaml",
+    "demo:hive-export": "node packages/cli/dist/index.js hive export --config examples/demo-react-app/visual-hive.config.yaml --dry-run",
     "demo:test-creation": "node packages/cli/dist/index.js test-creation-plan --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:agent-packet": "node packages/cli/dist/index.js agent-packet --config examples/demo-react-app/visual-hive.config.yaml --profile repair_agent",
     "demo:tools": "node packages/cli/dist/index.js tools --config examples/demo-react-app/visual-hive.config.yaml",

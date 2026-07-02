@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-export.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, `hive-issue.md`, and `.visual-hive/hive/issue-context.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -200,6 +200,24 @@ Related artifacts:
 - `.visual-hive/hive-handoff-validation.json`: local no-network validation report from `visual-hive handoff-validate`; it checks schema versions, artifact path consistency, verdict consistency, issue-body sanitization, dry-run policy, and `externalCallsMade: 0`.
 
 The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default. Token values are never written; only environment variable names and presence/absence evidence may appear.
+
+## Hive Native Export
+
+Path: `.visual-hive/hive/hive-export.json`
+
+Schema: `schemas/visual-hive.hive-export.schema.json`
+
+The Hive export is written by `visual-hive hive export --dry-run` after an Evidence Packet exists. It is the richer downstream package for KubeStellar Hive and repair-capable agents. It keeps `externalCallsMade: 0` and writes split artifacts under `.visual-hive/hive/`:
+
+- `beads.json`: Hive-compatible work items with type, actor, priority, metadata, notes, and dependencies.
+- `knowledge-facts.json`: project-layer facts using Hive fact types such as `regression`, `coverage_rule`, `test_scaffold`, `integration`, and `decision`.
+- `knowledge-graph.json`: nodes and edges connecting evidence, contracts, facts, beads, and repair work orders.
+- `wiki/*.md`: markdown wiki-vault pages with YAML frontmatter for project knowledge ingestion.
+- `issue-context.md`: Hive-oriented agent work order for trusted issue creation or queueing.
+- `repair-work-orders.json`: guarded PR-only repair requests when `integrations.hive.mode` is `repair_request`, `guarded_repair`, or repair is explicitly enabled.
+- `hive-agent-policy.json`: allowed/forbidden agent actions, ACMM level, and Visual Hive rerun requirements.
+
+`advisory` mode emits issue context only. `measured` emits beads, knowledge facts, and graph data. Repair modes emit work orders, but Hive still cannot mark a finding resolved; a fresh Visual Hive verdict must pass after the repair PR.
 
 ## Test Creation Plan
 

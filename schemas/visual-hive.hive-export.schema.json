@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-export.schema.json",
+  "title": "Visual Hive Hive Native Export",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "mode",
+    "configuredMode",
+    "acmmLevel",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "governance",
+    "summary",
+    "labels",
+    "beads",
+    "knowledgeFacts",
+    "knowledgeGraph",
+    "repairWorkOrders",
+    "agentPolicy",
+    "blockedReasons"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-export.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "status": { "enum": ["ready", "blocked"] },
+    "externalCallsMade": { "const": 0 },
+    "mode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+    "configuredMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "dry_run", "github_issue", "bead_api"] },
+    "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": ["evidencePacket"],
+      "additionalProperties": false,
+      "properties": {
+        "evidencePacket": { "type": "string" },
+        "handoffPacket": { "type": "string" }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": ["export", "beads", "knowledgeFacts", "knowledgeGraph", "issueContext", "repairWorkOrders", "agentPolicy", "wikiVaultDir"],
+      "additionalProperties": false,
+      "properties": {
+        "export": { "type": "string" },
+        "beads": { "type": "string" },
+        "knowledgeFacts": { "type": "string" },
+        "knowledgeGraph": { "type": "string" },
+        "issueContext": { "type": "string" },
+        "repairWorkOrders": { "type": "string" },
+        "agentPolicy": { "type": "string" },
+        "wikiVaultDir": { "type": "string" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["verdictAuthority", "defaultMode", "repairAuthority", "validationRequired", "secretPolicy"],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": { "const": "visual_hive" },
+        "defaultMode": { "const": "advisory_no_network" },
+        "repairAuthority": { "const": "hive_may_open_pr_only_when_trusted_policy_allows" },
+        "validationRequired": { "const": "visual_hive_must_rerun_after_repair" },
+        "secretPolicy": { "const": "redacted_values_names_only" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["beads", "knowledgeFacts", "graphNodes", "graphEdges", "repairWorkOrders", "blockedReasons"],
+      "additionalProperties": false,
+      "properties": {
+        "beads": { "type": "integer", "minimum": 0 },
+        "knowledgeFacts": { "type": "integer", "minimum": 0 },
+        "graphNodes": { "type": "integer", "minimum": 0 },
+        "graphEdges": { "type": "integer", "minimum": 0 },
+        "repairWorkOrders": { "type": "integer", "minimum": 0 },
+        "blockedReasons": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "labels": { "type": "array", "items": { "type": "string" } },
+    "beads": { "type": "array", "items": { "$ref": "#/$defs/bead" } },
+    "knowledgeFacts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+    "knowledgeGraph": { "$ref": "#/$defs/graph" },
+    "repairWorkOrders": { "type": "array", "items": { "$ref": "#/$defs/repairWorkOrder" } },
+    "agentPolicy": { "$ref": "#/$defs/agentPolicy" },
+    "blockedReasons": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "bead": {
+      "type": "object",
+      "required": ["id", "title", "type", "status", "priority", "actor", "external_ref", "metadata", "notes", "created_at", "updated_at", "depends_on"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "enum": ["bug", "feature", "task", "epic", "chore", "decision", "advisory"] },
+        "status": { "enum": ["open", "in_progress", "blocked", "done", "closed"] },
+        "priority": { "type": "integer", "minimum": 0 },
+        "actor": { "type": "string" },
+        "external_ref": { "type": "string" },
+        "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+        "notes": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" },
+        "closed_at": { "type": "string" },
+        "depends_on": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "required": ["slug", "title", "type", "layer", "confidence", "tags", "source", "body", "relatedEvidenceKeys", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "enum": ["pattern", "gotcha", "decision", "regression", "test_scaffold", "integration", "coverage_rule"] },
+        "layer": { "const": "project" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "source": { "type": "string" },
+        "body": { "type": "string" },
+        "relatedEvidenceKeys": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "required": ["schemaVersion", "nodes", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": "visual-hive.hive-knowledge-graph.v1" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/graphNode" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/graphEdge" } }
+      }
+    },
+    "graphNode": {
+      "type": "object",
+      "required": ["id", "slug", "title", "type", "tags"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "layer": { "type": "string" },
+        "confidence": { "type": "number" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "artifactPath": { "type": "string" }
+      }
+    },
+    "graphEdge": {
+      "type": "object",
+      "required": ["from", "to", "predicate"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "predicate": { "enum": ["related_to", "supersedes", "depends_on", "derived_from", "shared_tag"] }
+      }
+    },
+    "repairWorkOrder": {
+      "type": "object",
+      "required": [
+        "id",
+        "actor",
+        "title",
+        "objective",
+        "sourceBeadIds",
+        "evidenceKeys",
+        "likelyFiles",
+        "artifacts",
+        "reproductionCommands",
+        "acceptanceCriteria",
+        "allowedActions",
+        "forbiddenActions",
+        "maxAttempts",
+        "branchPrefix",
+        "prOnly",
+        "requireHumanReview",
+        "rerunVisualHive"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "actor": { "type": "string" },
+        "title": { "type": "string" },
+        "objective": { "type": "string" },
+        "sourceBeadIds": { "type": "array", "items": { "type": "string" } },
+        "evidenceKeys": { "type": "array", "items": { "type": "string" } },
+        "likelyFiles": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "reproductionCommands": { "type": "array", "items": { "type": "string" } },
+        "acceptanceCriteria": { "type": "array", "items": { "type": "string" } },
+        "allowedActions": { "type": "array", "items": { "type": "string" } },
+        "forbiddenActions": { "type": "array", "items": { "type": "string" } },
+        "maxAttempts": { "type": "integer", "minimum": 1 },
+        "branchPrefix": { "type": "string" },
+        "prOnly": { "type": "boolean" },
+        "requireHumanReview": { "type": "boolean" },
+        "rerunVisualHive": { "type": "boolean" }
+      }
+    },
+    "agentPolicy": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "mode",
+        "acmmLevel",
+        "enabled",
+        "externalCallsMade",
+        "verdictAuthority",
+        "hiveAuthority",
+        "repair",
+        "allowedActions",
+        "forbiddenActions",
+        "trustedWorkflowRequiredFor",
+        "finalValidation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": "visual-hive.hive-agent-policy.v1" },
+        "mode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+        "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "enabled": { "type": "boolean" },
+        "externalCallsMade": { "const": 0 },
+        "verdictAuthority": { "const": "visual_hive" },
+        "hiveAuthority": { "const": "advisory_or_guarded_repair" },
+        "repair": { "type": "object" },
+        "allowedActions": { "type": "array", "items": { "type": "string" } },
+        "forbiddenActions": { "type": "array", "items": { "type": "string" } },
+        "trustedWorkflowRequiredFor": { "type": "array", "items": { "type": "string" } },
+        "finalValidation": {
+          "type": "object",
+          "required": ["required", "command", "passFailOwnedBy"],
+          "additionalProperties": false,
+          "properties": {
+            "required": { "const": true },
+            "command": { "type": "string" },
+            "passFailOwnedBy": { "const": "visual_hive_verdict_engine" }
+          }
+        }
+      }
+    }
+  }
+}

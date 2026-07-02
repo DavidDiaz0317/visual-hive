@@ -244,6 +244,14 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("hive-bead-request.json")) labels.add("hive-bead-request");
   if (normalized.endsWith("hive-handoff-result.json")) labels.add("hive-handoff-result");
   if (normalized.endsWith("hive-handoff-validation.json")) labels.add("hive-handoff-validation");
+  if (normalized.endsWith("/hive/hive-export.json")) labels.add("hive-export");
+  if (normalized.endsWith("/hive/beads.json")) labels.add("hive-beads");
+  if (normalized.endsWith("/hive/knowledge-facts.json")) labels.add("hive-knowledge");
+  if (normalized.endsWith("/hive/knowledge-graph.json")) labels.add("hive-graph");
+  if (normalized.endsWith("/hive/repair-work-orders.json")) labels.add("hive-repair");
+  if (normalized.endsWith("/hive/hive-agent-policy.json")) labels.add("hive-agent-policy");
+  if (normalized.endsWith("/hive/issue-context.md")) labels.add("hive-issue");
+  if (normalized.includes("/hive/wiki/")) labels.add("hive-wiki");
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
   if (normalized.endsWith("coverage-recommendations.json")) labels.add("coverage-recommendations");
   return [...labels].sort();
@@ -288,6 +296,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
       "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
       "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",
       "hive-handoff-validation.json": "visual-hive.handoff-validation.schema.json",
+      "hive-export.json": "visual-hive.hive-export.schema.json",
     "provider-results.json": "visual-hive.provider-results.schema.json",
     "provider-decisions.json": "visual-hive.provider-decisions.schema.json",
     "provider-setup-plan.json": "visual-hive.provider-setup-plan.schema.json",
