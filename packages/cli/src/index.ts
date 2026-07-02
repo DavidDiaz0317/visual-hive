@@ -43,6 +43,7 @@ import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
 import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
+import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
@@ -480,6 +481,29 @@ program
         format: options.format
       });
       console.log(formatVerdictReport(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("layers")
+  .description("Write the Visual Hive testing-layer audit from normalized evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--output <path>", "write layer audit JSON to this path relative to the config root", ".visual-hive/testing-layers.json")
+  .option("--markdown <path>", "write layer audit Markdown summary to this path relative to the config root", ".visual-hive/testing-layers.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLayersCommand({
+        config: options.config,
+        evidence: options.evidence,
+        output: options.output,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatLayersReport(result, options.format));
     } catch (error) {
       fail(error);
     }

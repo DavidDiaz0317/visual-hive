@@ -44,6 +44,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { runEvidenceCommand } from "../src/commands/evidence.js";
+import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
@@ -312,6 +313,7 @@ mutation:
       "demo:connections",
       "demo:artifacts",
       "demo:evidence",
+      "demo:layers",
       "demo:verdict",
       "demo:handoff",
       "demo:agent-packet",
@@ -349,6 +351,11 @@ mutation:
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
     expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
+    expect(packageJson.scripts["demo:layers"]).toContain("layers --config");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:layers"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:layers"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:layers")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:verdict"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:layers")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:verdict"));
     expect(packageJson.scripts["demo:verdict"]).toContain("verdict --config");
     expect(packageJson.scripts["demo:all"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:verdict"));
     expect(packageJson.scripts["demo:ci"].indexOf("demo:evidence")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:verdict"));
@@ -1502,6 +1509,87 @@ contracts:
     expect(JSON.stringify(verdict)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "verdict.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "verdict.md"))).resolves.toBeUndefined();
+  });
+
+  it("writes a testing-layer audit artifact from normalized evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-layers-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-layers
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-layers",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "passed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "passed",
+          durationMs: 12,
+          errors: [],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "passed" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 1,
+        failed: 0,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    const result = await runLayersCommand({ cwd: tempRoot });
+    const summary = formatLayersReport(result);
+    const layers = await readJson<typeof result.report>(result.reportPath);
+    const markdown = await readFile(result.markdownPath, "utf8");
+
+    expect(layers.schemaVersion).toBe(1);
+    expect(layers.summary.totalLayers).toBe(12);
+    expect(layers.layers.map((layer) => layer.id)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(layers.layers.find((layer) => layer.id === 6)?.status).toBe("covered");
+    expect(layers.layers.find((layer) => layer.id === 9)?.skippedReasons).toContain("No mutation report found.");
+    expect(summary).toContain("Testing Layers: cli-layers");
+    expect(markdown).toContain("Visual Hive Testing Layers: cli-layers");
+    await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.md"))).resolves.toBeUndefined();
   });
 
   it("writes an Agent Packet from Evidence and Handoff artifacts", async () => {

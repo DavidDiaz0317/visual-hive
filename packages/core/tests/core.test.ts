@@ -28,6 +28,7 @@ import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
 import { buildVerdictReport, writeVerdictReport } from "../src/verdict/build.js";
+import { buildTestingLayerReport, writeTestingLayerReport } from "../src/layers/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -966,6 +967,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
     expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
+    expect(schemaNames).toContain("visual-hive.testing-layers.schema.json");
     expect(schemaNames).toContain("visual-hive.verdict.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
@@ -3716,6 +3718,8 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "plans.json"), '{"schemaVersion":1,"lanes":[{"path":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "repo-map.json"), '{"schemaVersion":1,"riskSignals":[{"message":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "repo-context.md"), "Repo token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "testing-layers.json"), '{"schemaVersion":1,"recommendations":["token=abc123"]}', "utf8");
+    await writeFile(path.join(hiveRoot, "testing-layers.md"), "Layer token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "verdict.json"), '{"schemaVersion":"visual-hive.verdict.v1","summary":{"visualHiveVerdict":"failed","failedBecause":["token=abc123"]}}', "utf8");
     await writeFile(path.join(hiveRoot, "verdict.md"), "Verdict token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
@@ -3758,7 +3762,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(31);
+    expect(index.summary.artifactCount).toBe(33);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3779,6 +3783,13 @@ describe("artifact index", () => {
     const repoContext = index.artifacts.find((artifact) => artifact.path.endsWith("repo-context.md"));
     expect(repoContext?.preview).toContain("[REDACTED]");
     expect(repoContext?.labels).toContain("repo-context");
+    const testingLayers = index.artifacts.find((artifact) => artifact.path.endsWith("testing-layers.json"));
+    expect(testingLayers?.preview).toContain("[REDACTED]");
+    expect(testingLayers?.labels).toContain("testing-layers");
+    expect(testingLayers?.schemaPath).toBe("schemas/visual-hive.testing-layers.schema.json");
+    const testingLayersSummary = index.artifacts.find((artifact) => artifact.path.endsWith("testing-layers.md"));
+    expect(testingLayersSummary?.preview).toContain("[REDACTED]");
+    expect(testingLayersSummary?.labels).toContain("testing-layers-summary");
     const verdict = index.artifacts.find((artifact) => artifact.path.endsWith("verdict.json"));
     expect(verdict?.preview).toContain("[REDACTED]");
     expect(verdict?.labels).toContain("verdict");
@@ -4854,6 +4865,72 @@ describe("verdict reports", () => {
     expect(report.summary.blockedBecause).toContain("playwright.deterministic_run");
     expect(report.sourceArtifacts.evidencePacket).toBeUndefined();
     expect(report.gatingContributions.map((contribution) => contribution.key)).toContain("playwright.deterministic_run");
+  });
+});
+
+describe("testing layer reports", () => {
+  it("writes layer coverage, skipped reasons, and recommendations from evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-layers-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), {
+      schemaVersion: 1,
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      repoRoot: ".",
+      project: { name: "baseline-fixture", packageManager: "npm", workspaces: [], frameworks: ["react"] },
+      packages: [],
+      scripts: [],
+      sourceSummary: { scannedFiles: 1, truncated: false, extensions: { ".tsx": 1 } },
+      selectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+      routes: [],
+      workflows: [],
+      testTools: ["playwright"],
+      targetHints: [],
+      riskSignals: [{ id: "token", severity: "warning", message: "token=secret-value", evidence: [], recommendation: "Review selector coverage." }],
+      coverageGaps: [{ id: "route-coverage", layer: 6, severity: "medium", message: "token=secret-value", suggestedArtifact: "visual-hive.config.yaml" }],
+      recommendations: []
+    });
+    await writeEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    const result = await writeTestingLayerReport({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(result.report.schemaVersion).toBe(1);
+    expect(result.report.summary.totalLayers).toBe(12);
+    expect(result.report.summary.covered).toBeGreaterThan(0);
+    expect(result.report.summary.gapCount).toBeGreaterThan(0);
+    expect(result.report.layers.find((layer) => layer.id === 0)?.status).toBe("covered");
+    expect(result.report.layers.find((layer) => layer.id === 0)?.gaps.join(" ")).toContain("[REDACTED]");
+    expect(result.report.layers.find((layer) => layer.id === 9)?.status).toBe("missing");
+    expect(result.report.recommendations.join(" ")).toContain("No mutation report found");
+    expect(result.report.governance.verdictAuthority).toBe("visual_hive");
+    expect(JSON.stringify(result.report)).not.toContain("secret-value");
+    expect(JSON.stringify(result.report)).toContain("[REDACTED]");
+    expect(await readFile(result.reportPath, "utf8")).toContain('"schemaVersion": 1');
+    expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Testing Layers: baseline-fixture");
+  });
+
+  it("can build missing evidence status before deterministic artifacts exist", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-layers-empty-"));
+    tempDirs.push(rootDir);
+    const report = await buildTestingLayerReport({
+      rootDir,
+      project: "empty",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(report.summary.status).toBe("missing_evidence");
+    expect(report.layers.find((layer) => layer.id === 0)?.status).toBe("unknown");
+    expect(report.layers.find((layer) => layer.id === 6)?.status).toBe("missing");
+    expect(report.sourceArtifacts.evidencePacket).toBeUndefined();
   });
 });
 
