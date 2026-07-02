@@ -2521,14 +2521,72 @@ selection:
     });
     const pipeline = await readJson<typeof result.report>(path.join(tempRoot, ".visual-hive", "pipeline.json"));
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
+    const evidence = await readJson<Record<string, unknown>>(path.join(tempRoot, ".visual-hive", "evidence-packet.json"));
+    const handoffResult = await readJson<{ externalCallsMade: number; status: string }>(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"));
+    const agentPacket = await readJson<{ profile: string; budgets: { allowExternalNetwork: boolean; maxExternalCostUsd: number } }>(
+      path.join(tempRoot, ".visual-hive", "agent-packet.json")
+    );
+    const toolRegistry = await readJson<{ policy: { exposeThirdPartyMcp: boolean; externalUploadsFromPr: boolean } }>(
+      path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json")
+    );
 
     expect(result.exitCode).toBe(0);
     expect(pipeline.status).toBe("passed");
     expect(pipeline.steps.map((step) => step.id)).toEqual(
-      expect.arrayContaining(["doctor", "plan", "run", "baselines", "coverage", "readiness", "triage", "report", "history", "artifacts"])
+      expect.arrayContaining([
+        "doctor",
+        "analyze",
+        "plan",
+        "run",
+        "baselines",
+        "coverage",
+        "readiness",
+        "triage",
+        "report",
+        "history",
+        "artifacts",
+        "evidence",
+        "layers",
+        "verdict",
+        "handoff",
+        "test-creation-plan",
+        "agent-packet",
+        "tools",
+        "context",
+        "artifacts-final"
+      ])
     );
     expect(pipeline.artifacts).toContain(".visual-hive/pipeline.json");
+    expect(pipeline.artifacts).toEqual(
+      expect.arrayContaining([
+        ".visual-hive/repo-map.json",
+        ".visual-hive/evidence-packet.json",
+        ".visual-hive/testing-layers.json",
+        ".visual-hive/verdict.json",
+        ".visual-hive/handoff.json",
+        ".visual-hive/hive-issue.md",
+        ".visual-hive/hive-bead-request.json",
+        ".visual-hive/hive-handoff-result.json",
+        ".visual-hive/test-creation-plan.json",
+        ".visual-hive/agent-packet.json",
+        ".visual-hive/tools/tool-registry.json",
+        ".visual-hive/context-ledger.json"
+      ])
+    );
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
+    expect(evidence.schemaVersion).toBe("visual-hive.evidence-packet.v2");
+    expect(handoffResult.externalCallsMade).toBe(0);
+    expect(["dry_run_written", "blocked"]).toContain(handoffResult.status);
+    expect(agentPacket.profile).toBe("repair_agent");
+    expect(agentPacket.budgets.allowExternalNetwork).toBe(false);
+    expect(agentPacket.budgets.maxExternalCostUsd).toBe(0);
+    expect(toolRegistry.policy.exposeThirdPartyMcp).toBe(false);
+    expect(toolRegistry.policy.externalUploadsFromPr).toBe(false);
+    await expect(access(path.join(tempRoot, ".visual-hive", "repo-context.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "evidence-summary.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "verdict.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive-issue.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
   });
 

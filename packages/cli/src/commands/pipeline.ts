@@ -1,5 +1,7 @@
 import path from "node:path";
 import { loadConfig, readJson, sanitizeText, writeJson, writeText, type PlanMode, type Report } from "@visual-hive/core";
+import { runAgentPacketCommand } from "./agentPacket.js";
+import { runAnalyzeCommand } from "./analyze.js";
 import { runArtifactsCommand } from "./artifacts.js";
 import { formatBaselineList, runBaselineListCommand } from "./baselines.js";
 import { runContractsCommand } from "./contracts.js";
@@ -7,8 +9,10 @@ import { runCostsCommand } from "./costs.js";
 import { runCoverageCommand } from "./coverage.js";
 import { runDoctor } from "./doctor.js";
 import { runFlowsCommand } from "./flows.js";
+import { runHandoffCommand } from "./handoff.js";
 import { runHistoryCommand } from "./history.js";
 import { runImproveCoverageCommand } from "./improve.js";
+import { runLayersCommand } from "./layers.js";
 import { runMutateCommand } from "./mutate.js";
 import { runPlanCommand } from "./plan.js";
 import { runProvidersMockCommand } from "./providers.js";
@@ -18,9 +22,14 @@ import { runRiskCommand } from "./risk.js";
 import { runSchedulesCommand } from "./schedules.js";
 import { runSecurityCommand } from "./security.js";
 import { runTargetsCommand } from "./targets.js";
+import { runTestCreationPlanCommand } from "./testCreationPlan.js";
+import { runToolsCommand } from "./tools.js";
 import { runTriageCommand } from "./triage.js";
+import { runVerdictCommand } from "./verdict.js";
 import { runWorkflowsCommand } from "./workflows.js";
 import { runDeterministicCommand } from "./run.js";
+import { runContextCommand } from "./context.js";
+import { runEvidenceCommand } from "./evidence.js";
 
 export interface PipelineCommandOptions {
   config?: string;
@@ -133,6 +142,11 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
       throw new Error(result.diagnostics.filter((diagnostic) => !diagnostic.ok).map((diagnostic) => diagnostic.detail).join("; "));
     }
     return { artifacts: [] };
+  });
+
+  await runStep(context, "analyze", "Repo Intelligence", async () => {
+    await runAnalyzeCommand({ repo: context.rootDir });
+    return { artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"] };
   });
 
   await runStep(context, "plan", "Plan", async () => {
@@ -268,10 +282,46 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
     };
   });
   await runStep(context, "report", "Report", async () => {
-    await runReportCommand({ config: options.config, format: "markdown", githubStepSummary: options.githubStepSummary });
+    await runReportCommand({ config: options.config, cwd, format: "markdown", githubStepSummary: options.githubStepSummary });
     return { artifacts: [".visual-hive/report.json", ".visual-hive/mutation-report.json", ".visual-hive/readiness.json"] };
   });
   await runStep(context, "artifacts", "Artifact Index", async () => {
+    await runArtifactsCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/artifacts-index.json"] };
+  });
+  await runStep(context, "evidence", "Evidence Packet", async () => {
+    await runEvidenceCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/evidence-packet.json", ".visual-hive/evidence-summary.md"] };
+  });
+  await runStep(context, "layers", "Testing Layers", async () => {
+    await runLayersCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/testing-layers.json", ".visual-hive/testing-layers.md"] };
+  });
+  await runStep(context, "verdict", "Visual Hive Verdict", async () => {
+    await runVerdictCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/verdict.json", ".visual-hive/verdict.md"] };
+  });
+  await runStep(context, "handoff", "Hive Handoff Dry Run", async () => {
+    await runHandoffCommand({ config: options.config, cwd, mode: "dry_run" });
+    return { artifacts: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md", ".visual-hive/hive-bead-request.json", ".visual-hive/hive-handoff-result.json"] };
+  });
+  await runStep(context, "test-creation-plan", "Test Creation Plan", async () => {
+    await runTestCreationPlanCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/test-creation-plan.json", ".visual-hive/test-creation-plan.md"] };
+  });
+  await runStep(context, "agent-packet", "Agent Packet", async () => {
+    await runAgentPacketCommand({ config: options.config, cwd, profile: "repair_agent" });
+    return { artifacts: [".visual-hive/agent-packet.json"] };
+  });
+  await runStep(context, "tools", "Tool Registry", async () => {
+    await runToolsCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/tools/tool-registry.json", ".visual-hive/tools/tool-cards.md"] };
+  });
+  await runStep(context, "context", "Context Ledger", async () => {
+    await runContextCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/context-ledger.json"] };
+  });
+  await runStep(context, "artifacts-final", "Artifact Index Refresh", async () => {
     await runArtifactsCommand({ config: options.config, cwd });
     return { artifacts: [".visual-hive/artifacts-index.json"] };
   });
