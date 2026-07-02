@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `agent-packet.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `agent-packet.json`, `tool-registry.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -185,6 +185,22 @@ Key fields:
 - `artifactPointers`: exact artifacts the agent should read before broader context.
 
 The packet is advisory and repair-oriented. It does not grant agents pass/fail authority, secret access, provider upload authority, baseline approval authority, or protected target execution authority.
+
+## Tool Registry
+
+Path: `.visual-hive/tools/tool-registry.json`
+
+Schema: `schemas/visual-hive.tool-registry.schema.json`
+
+The Tool Registry is written by `visual-hive tools`. It records first-party Visual Hive CLI tools, planned first-party MCP access, optional local Playwright/Storybook MCP tools, read-only GitHub MCP posture, and disabled paid-provider MCP/provider tools.
+
+Key fields:
+
+- `policy`: default gated tool policy, token/call budgets, external cost budget, PR write restrictions, and human approval requirements.
+- `tools`: tool IDs, descriptions, access class, cost class, trusted-only status, allowed roles, allowed modes, write restrictions, and evidence artifacts.
+- `roleProfiles`: compact allowed tool lists and forbidden actions for setup, repair, test creation, review, handoff, and provider-specialist agents.
+
+The companion `.visual-hive/tools/tool-cards.md` is a compact Markdown view intended for agents and reviewers. The registry does not execute tools or grant permissions by itself.
 
 ## Schedule Audit
 

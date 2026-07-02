@@ -46,6 +46,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artif
 import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
+import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -310,6 +311,7 @@ mutation:
       "demo:evidence",
       "demo:handoff",
       "demo:agent-packet",
+      "demo:tools",
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
@@ -344,6 +346,7 @@ mutation:
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
+    expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--output .visual-hive/plan.canary.json");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
@@ -1415,6 +1418,46 @@ contracts:
     expect(summary).toContain("External network allowed: false");
     expect(JSON.stringify(packet)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "agent-packet.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes Tool Registry and Tool Cards artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-tools-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-tools
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+
+    const result = await runToolsCommand({ cwd: tempRoot });
+    const summary = formatToolsRegistry(result);
+    const registry = await readJson<typeof result.registry>(result.registryPath);
+    const cards = await readFile(result.cardsPath, "utf8");
+
+    expect(registry.schemaVersion).toBe("visual-hive.tool-registry.v1");
+    expect(registry.policy.exposeThirdPartyMcp).toBe(false);
+    expect(registry.policy.externalUploadsFromPr).toBe(false);
+    expect(registry.tools.find((tool) => tool.id === "visual_hive_provider_upload")).toMatchObject({
+      trustedOnly: true,
+      forbiddenInPullRequest: true,
+      externalNetwork: true
+    });
+    expect(cards).toContain("Tool: visual_hive_read_evidence_packet");
+    expect(cards).toContain("Max external cost per task: $0");
+    expect(summary).toContain("Tool Registry: cli-tools");
+    expect(summary).toContain("Third-party MCP exposed by default: false");
+    await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "tools", "tool-cards.md"))).resolves.toBeUndefined();
   });
 
   it("fails handoff clearly when the Evidence Packet is missing", async () => {

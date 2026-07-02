@@ -29,6 +29,7 @@ import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from 
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
+import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -959,6 +960,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.evidence-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.handoff.schema.json");
     expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
+    expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
@@ -3639,6 +3641,9 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "provider-handoff.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "agent-packet.json"), '{"schemaVersion":"visual-hive.agent-packet.v1","objective":"token=abc123"}', "utf8");
+    await mkdir(path.join(hiveRoot, "tools"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "tools", "tool-registry.json"), '{"schemaVersion":"visual-hive.tool-registry.v1","tools":[{"id":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -3658,7 +3663,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(24);
+    expect(index.summary.artifactCount).toBe(26);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3734,6 +3739,13 @@ describe("artifact index", () => {
     expect(agentPacket?.preview).toContain("[REDACTED]");
     expect(agentPacket?.labels).toContain("agent-packet");
     expect(agentPacket?.schemaPath).toBe("schemas/visual-hive.agent-packet.schema.json");
+    const toolRegistry = index.artifacts.find((artifact) => artifact.path.endsWith("tool-registry.json"));
+    expect(toolRegistry?.preview).toContain("[REDACTED]");
+    expect(toolRegistry?.labels).toContain("tool-registry");
+    expect(toolRegistry?.schemaPath).toBe("schemas/visual-hive.tool-registry.schema.json");
+    const toolCards = index.artifacts.find((artifact) => artifact.path.endsWith("tool-cards.md"));
+    expect(toolCards?.preview).toContain("[REDACTED]");
+    expect(toolCards?.labels).toContain("tool-cards");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");
@@ -4840,6 +4852,55 @@ describe("agent packets", () => {
       title: "Add contract coverage for remove-demo-badge"
     });
     expect(packet.reproductionCommands).toEqual(expect.arrayContaining(["visual-hive mutate", "visual-hive improve-coverage"]));
+  });
+});
+
+describe("tool registry", () => {
+  it("builds conservative tool policy and role-scoped cards", async () => {
+    const registry = buildToolRegistry({ project: "tool-fixture", now: new Date("2026-06-15T00:00:00.000Z") });
+    const providerUpload = registry.tools.find((tool) => tool.id === "visual_hive_provider_upload");
+    const githubIssue = registry.tools.find((tool) => tool.id === "visual_hive_handoff_github_issue");
+    const repairProfile = registry.roleProfiles.find((profile) => profile.role === "repair_agent");
+    const providerProfile = registry.roleProfiles.find((profile) => profile.role === "provider_specialist");
+
+    expect(registry.schemaVersion).toBe("visual-hive.tool-registry.v1");
+    expect(registry.policy.exposeThirdPartyMcp).toBe(false);
+    expect(registry.policy.externalUploadsFromPr).toBe(false);
+    expect(registry.policy.maxExternalCostUsdPerTask).toBe(0);
+    expect(registry.policy.requireHumanApprovalFor).toEqual(expect.arrayContaining(["provider_upload_enablement", "baseline_approval", "github_issue_creation"]));
+    expect(providerUpload).toMatchObject({
+      trustedOnly: true,
+      externalNetwork: true,
+      forbiddenInPullRequest: true,
+      costClass: "paid_provider"
+    });
+    expect(providerUpload?.requiresHumanApproval).toEqual(expect.arrayContaining(["provider_upload_enablement", "external_network_access"]));
+    expect(githubIssue).toMatchObject({
+      trustedOnly: true,
+      externalNetwork: true,
+      forbiddenInPullRequest: true
+    });
+    expect(repairProfile?.allowedToolIds).toContain("visual_hive_read_evidence_packet");
+    expect(repairProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
+    expect(providerProfile?.trustedOnly).toBe(true);
+    expect(providerProfile?.allowedToolIds).toContain("visual_hive_provider_upload");
+  });
+
+  it("writes registry and sanitized tool cards", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-tools-"));
+    tempDirs.push(rootDir);
+    const result = await writeToolRegistry({
+      rootDir,
+      project: "tool-fixture",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(result.registryPath).toMatch(/tool-registry\.json$/);
+    expect(result.cardsPath).toMatch(/tool-cards\.md$/);
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_evidence_packet");
+    expect(result.cardsMarkdown).toContain("Third-party MCP exposed by default: false");
+    expect(await readFile(result.registryPath, "utf8")).toContain("visual-hive.tool-registry.v1");
+    expect(await readFile(result.cardsPath, "utf8")).toContain("Visual Hive Tool Cards");
   });
 });
 

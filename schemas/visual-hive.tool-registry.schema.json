@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.tool-registry.schema.json",
+  "title": "Visual Hive Tool Registry",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "policy", "tools", "roleProfiles", "notes"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.tool-registry.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "policy": {
+      "type": "object",
+      "required": [
+        "defaultPolicy",
+        "exposeThirdPartyMcp",
+        "maxToolDefinitionsPerAgent",
+        "maxToolCallsPerTask",
+        "maxToolResultTokensPerTask",
+        "maxExternalCostUsdPerTask",
+        "requireTrustedModeForWrites",
+        "requireTrustedModeForProviderMcp",
+        "githubWritesFromPr",
+        "externalUploadsFromPr",
+        "baselineApprovalByAgent",
+        "requireHumanApprovalFor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "defaultPolicy": { "const": "gated" },
+        "exposeThirdPartyMcp": { "const": false },
+        "maxToolDefinitionsPerAgent": { "type": "number" },
+        "maxToolCallsPerTask": { "type": "number" },
+        "maxToolResultTokensPerTask": { "type": "number" },
+        "maxExternalCostUsdPerTask": { "const": 0 },
+        "requireTrustedModeForWrites": { "const": true },
+        "requireTrustedModeForProviderMcp": { "const": true },
+        "githubWritesFromPr": { "const": false },
+        "externalUploadsFromPr": { "const": false },
+        "baselineApprovalByAgent": { "const": false },
+        "requireHumanApprovalFor": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tools": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
+    "roleProfiles": { "type": "array", "items": { "$ref": "#/$defs/roleProfile" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "description",
+        "kind",
+        "enabled",
+        "defaultAccess",
+        "costClass",
+        "trustedOnly",
+        "externalNetwork",
+        "forbiddenInPullRequest",
+        "requiresHumanApproval",
+        "allowedRoles",
+        "allowedModes",
+        "reads",
+        "writes",
+        "writeRestrictions",
+        "evidenceArtifacts",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "kind": { "enum": ["first_party_cli", "first_party_mcp", "local_mcp", "github_mcp", "provider_mcp", "external_provider"] },
+        "enabled": { "type": "boolean" },
+        "defaultAccess": { "enum": ["read_only", "local_execution", "trusted_write", "external_upload"] },
+        "costClass": { "enum": ["local", "external_api", "paid_provider"] },
+        "trustedOnly": { "type": "boolean" },
+        "externalNetwork": { "type": "boolean" },
+        "forbiddenInPullRequest": { "type": "boolean" },
+        "requiresHumanApproval": { "type": "array", "items": { "type": "string" } },
+        "allowedRoles": {
+          "type": "array",
+          "items": { "enum": ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"] }
+        },
+        "allowedModes": {
+          "type": "array",
+          "items": { "enum": ["local", "pr", "pr_debug", "schedule", "manual", "protected", "trusted"] }
+        },
+        "command": { "type": "string" },
+        "mcp": {
+          "type": "object",
+          "required": ["server", "status"],
+          "additionalProperties": false,
+          "properties": {
+            "server": { "type": "string" },
+            "tool": { "type": "string" },
+            "transport": { "enum": ["stdio", "http", "remote"] },
+            "status": { "enum": ["available", "planned", "disabled"] }
+          }
+        },
+        "reads": { "type": "array", "items": { "type": "string" } },
+        "writes": { "type": "array", "items": { "type": "string" } },
+        "writeRestrictions": { "type": "array", "items": { "type": "string" } },
+        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "roleProfile": {
+      "type": "object",
+      "required": ["role", "purpose", "trustedOnly", "requiresBudget", "allowedToolIds", "forbiddenActions"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "enum": ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"] },
+        "purpose": { "type": "string" },
+        "trustedOnly": { "type": "boolean" },
+        "requiresBudget": { "type": "boolean" },
+        "allowedToolIds": { "type": "array", "items": { "type": "string" } },
+        "forbiddenActions": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

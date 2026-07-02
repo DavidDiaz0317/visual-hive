@@ -44,6 +44,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
+import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -503,6 +504,27 @@ program
         format: options.format
       });
       console.log(formatAgentPacketResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("tools")
+  .description("Write the agent-facing Tool Registry and compact Tool Cards")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--output <path>", "tool registry output path", ".visual-hive/tools/tool-registry.json")
+  .option("--markdown <path>", "tool cards markdown output path", ".visual-hive/tools/tool-cards.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runToolsCommand({
+        config: options.config,
+        output: options.output,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatToolsRegistry(result, options.format));
     } catch (error) {
       fail(error);
     }
