@@ -1,4 +1,6 @@
 import type {
+  AgentPacket,
+  EvidencePacket,
   ContractAuditReport,
   ContractConfig,
   CostAuditReport,
@@ -22,6 +24,8 @@ import type {
   TestCreationPlan,
   TriageReport,
   TargetConfig,
+  HandoffPacket,
+  VerdictReport,
   VisualHiveConfig,
   ArtifactIndexEntry,
   BaselineSummary,
@@ -282,6 +286,10 @@ export interface ControlPlaneSnapshot {
   readinessReport?: ReadinessReport;
   securityAudit?: SecurityAuditReport;
   costAudit?: CostAuditReport;
+  evidencePacket?: EvidencePacket;
+  verdictReport?: VerdictReport;
+  handoffPacket?: HandoffPacket;
+  agentPacket?: AgentPacket;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;

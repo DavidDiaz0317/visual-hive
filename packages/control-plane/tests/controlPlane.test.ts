@@ -906,6 +906,270 @@ jobs:
     ),
     "utf8"
   );
+  const evidenceContributions = [
+    {
+      source: "playwright",
+      kind: "deterministic_run",
+      status: "failed",
+      gating: true,
+      mode: "pr",
+      contractId: "dashboard",
+      reason: "Deterministic contract run failed.",
+      artifacts: [".visual-hive/report.json"]
+    },
+    {
+      source: "mutation",
+      kind: "mutation_adequacy",
+      status: "failed",
+      gating: true,
+      operator: "remove-demo-badge",
+      reason: "Mutation remove-demo-badge survived.",
+      artifacts: [".visual-hive/mutation-report.json"]
+    },
+    {
+      source: "triage",
+      kind: "insufficient_coverage",
+      status: "skipped",
+      gating: false,
+      reason: "Coverage recommendation is advisory.",
+      artifacts: [".visual-hive/triage.json"]
+    }
+  ];
+  const verdictSummary = {
+    visualHiveVerdict: "failed",
+    failedBecause: ["playwright.deterministic_run.dashboard", "mutation.mutation_adequacy.remove-demo-badge"],
+    warningBecause: [],
+    blockedBecause: [],
+    advisoryOnly: ["triage.insufficient_coverage"]
+  };
+  const testingLayers = [
+    { id: 0, name: "Repo intelligence", status: "covered", evidence: [".visual-hive/repo-map.json"], gaps: [] },
+    { id: 3, name: "Component/accessibility", status: "unknown", evidence: [], gaps: ["Accessibility evidence is not yet normalized."] },
+    { id: 9, name: "Mutation/fault injection", status: "partial", evidence: [".visual-hive/mutation-report.json"], gaps: ["One mutation survived."] }
+  ];
+  const handoffWorkItems = [
+    {
+      id: "mutation-remove-demo-badge-dashboard",
+      kind: "test_creation",
+      priority: "high",
+      title: "Strengthen demo badge contract",
+      summary: "The remove-demo-badge mutation survived and needs deterministic coverage.",
+      evidenceKeys: ["mutation.mutation_adequacy.remove-demo-badge"],
+      artifacts: [".visual-hive/mutation-report.json", ".visual-hive/evidence-packet.json"],
+      suggestedNextSteps: ["Add a selector assertion for [data-testid='demo-badge'].", "Rerun Visual Hive mutation checks."]
+    }
+  ];
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "evidence-packet.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.evidence-packet.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        sourceArtifacts: {
+          plan: ".visual-hive/plan.json",
+          report: ".visual-hive/report.json",
+          mutationReport: ".visual-hive/mutation-report.json",
+          triageReport: ".visual-hive/triage.json"
+        },
+        governance: {
+          verdictAuthority: "visual_hive",
+          defaultBrowserBackend: "playwright",
+          llmAuthority: "advisory_only",
+          providerAuthority: "policy_gated_when_normalized",
+          secretPolicy: "redacted_values_names_only"
+        },
+        repo: { repository: "local/ui-fixture", branch: "main", runContext: "test" },
+        plan: {
+          schemaVersion: 1,
+          project: "ui-fixture",
+          mode: "pr",
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          changedFiles: ["src/App.tsx"],
+          effectiveChangedFiles: ["src/App.tsx"],
+          selectedContracts: ["dashboard"],
+          selectedTargets: ["localPreview"],
+          excludedContracts: []
+        },
+        deterministicReport: {
+          schemaVersion: 2,
+          project: "ui-fixture",
+          mode: "pr",
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          status: "failed",
+          selectedTargets: [{ id: "localPreview", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap", missingSecrets: [] }],
+          selectedContracts: ["dashboard"],
+          excludedContracts: [],
+          summary: { passed: 0, failed: 1, screenshotsPassed: 0, screenshotsFailed: 1, baselinesCreated: 0, missingBaselines: 0, visualDiffs: 1, consoleErrors: 0, pageErrors: 0 },
+          generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+          reproductionCommands: ["visual-hive run"],
+          failedContracts: [{ contractId: "dashboard", targetId: "localPreview", errors: ["Missing selector"], artifacts: [".visual-hive/report.json"], reproductionCommand: "visual-hive run" }],
+          screenshotEvidence: [],
+          consoleErrors: 0,
+          pageErrors: 0,
+          networkErrors: 1
+        },
+        mutation: {
+          schemaVersion: 2,
+          project: "ui-fixture",
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          minScore: 0.75,
+          score: 0.5,
+          killed: 1,
+          total: 2,
+          survivedOperators: [{ operator: "remove-demo-badge", contractIds: ["dashboard"], artifacts: [".visual-hive/mutation-report.json"] }],
+          notApplicableOperators: ["hidden-error-banner"]
+        },
+        providers: [],
+        testingLayers,
+        evidenceContributions,
+        verdictSummary,
+        hiveReadiness: {
+          readyForIssueHandoff: true,
+          readyForHiveDryRun: true,
+          blockedReasons: [],
+          suggestedLabels: ["visual-hive", "hive/quality", "ai-ready"]
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "evidence-summary.md"), "# Evidence Summary\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "verdict.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.verdict.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        sourceArtifacts: { evidencePacket: ".visual-hive/evidence-packet.json" },
+        governance: {
+          verdictAuthority: "visual_hive",
+          defaultBrowserBackend: "playwright",
+          llmAuthority: "advisory_only",
+          providerAuthority: "policy_gated_when_normalized",
+          secretPolicy: "redacted_values_names_only"
+        },
+        policy: {
+          passFailOwnedBy: "visual_hive_verdict_engine",
+          deterministicSources: ["playwright", "mutation"],
+          advisorySources: ["triage", "llm", "agent"],
+          providerGating: "explicit_normalized_trusted_budget_authorized",
+          mutationGating: "configured_threshold"
+        },
+        summary: {
+          ...verdictSummary,
+          totalContributions: 3,
+          gatingContributions: 2,
+          advisoryContributions: 1,
+          failedContributions: 2,
+          blockedContributions: 0,
+          warningContributions: 0,
+          inconclusiveContributions: 0,
+          passedContributions: 0,
+          skippedContributions: 1
+        },
+        gatingContributions: evidenceContributions.filter((contribution) => contribution.gating).map((contribution) => ({ ...contribution, key: `${contribution.source}.${contribution.kind}.${contribution.contractId ?? contribution.operator}` })),
+        advisoryContributions: evidenceContributions.filter((contribution) => !contribution.gating).map((contribution) => ({ ...contribution, key: `${contribution.source}.${contribution.kind}` })),
+        allContributions: evidenceContributions.map((contribution) => ({ ...contribution, key: `${contribution.source}.${contribution.kind}.${contribution.contractId ?? contribution.operator ?? "advisory"}` }))
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "verdict.md"), "# Visual Hive Verdict\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "handoff.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.handoff.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        mode: "dry_run",
+        status: "ready",
+        externalCallsMade: 0,
+        sourceEvidencePacket: ".visual-hive/evidence-packet.json",
+        labels: ["visual-hive", "hive/quality", "ai-ready"],
+        verdict: verdictSummary,
+        governance: {
+          verdictAuthority: "visual_hive",
+          handoffAuthority: "advisory_repair_routing",
+          networkPolicy: "no_network_calls_in_dry_run",
+          secretPolicy: "redacted_values_names_only",
+          requiresHumanApprovalFor: ["github_issue_creation", "hive_bead_creation", "provider_upload_enablement"]
+        },
+        workItems: handoffWorkItems,
+        githubIssue: {
+          title: "[Visual Hive] ui-fixture failed evidence handoff",
+          labels: ["visual-hive", "hive/quality", "ai-ready"],
+          bodyPath: ".visual-hive/hive-issue.md",
+          dedupeSignature: "visual-hive-test",
+          trustedWorkflowRequired: true
+        },
+        hiveBeadRequest: {
+          dryRun: true,
+          requestPath: ".visual-hive/hive-bead-request.json",
+          agent: "quality",
+          labels: ["visual-hive", "hive/quality", "ai-ready"],
+          evidencePacketPath: ".visual-hive/evidence-packet.json",
+          handoffPacketPath: ".visual-hive/handoff.json"
+        },
+        blockedReasons: []
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "hive-issue.md"), "# Hive Issue\n", "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "hive-bead-request.json"), JSON.stringify({ schemaVersion: "visual-hive.hive-bead-request.v1", dryRun: true, externalCallsMade: 0 }, null, 2), "utf8");
+  await writeFile(path.join(repoRoot, ".visual-hive", "hive-handoff-result.json"), JSON.stringify({ schemaVersion: "visual-hive.hive-handoff-result.v1", status: "dry_run_written", externalCallsMade: 0 }, null, 2), "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "agent-packet.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.agent-packet.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        profile: "repair_agent",
+        objective: "Strengthen deterministic coverage for the survived demo badge mutation.",
+        sourceArtifacts: {
+          evidencePacket: ".visual-hive/evidence-packet.json",
+          handoffPacket: ".visual-hive/handoff.json",
+          testCreationPlan: ".visual-hive/test-creation-plan.json"
+        },
+        verdict: verdictSummary,
+        evidenceSummary: {
+          gatingContributions: evidenceContributions.filter((contribution) => contribution.gating),
+          advisoryContributions: evidenceContributions.filter((contribution) => !contribution.gating),
+          workItems: handoffWorkItems,
+          selectedContracts: ["dashboard"],
+          selectedTargets: ["localPreview"],
+          mutationScore: 0.5,
+          testingLayers,
+          testCreationRecommendations: []
+        },
+        allowedTools: [{ id: "visual_hive_read_evidence_packet", label: "Read Evidence Packet", access: "read_only", reason: "Primary sanitized evidence source." }],
+        forbiddenActions: ["decide_visual_hive_verdict", "read_secret_values", "approve_baselines_without_human_review"],
+        budgets: { maxToolCalls: 20, maxToolResultTokens: 12000, maxExternalCostUsd: 0, allowExternalNetwork: false },
+        reproductionCommands: ["visual-hive run", "visual-hive mutate"],
+        artifactPointers: [".visual-hive/evidence-packet.json", ".visual-hive/handoff.json", ".visual-hive/test-creation-plan.json"],
+        instructions: ["Use the Evidence Packet as the source of truth.", "Do not decide pass/fail."],
+        governance: {
+          verdictAuthority: "visual_hive",
+          agentAuthority: "advisory_repair_only",
+          secretPolicy: "redacted_values_names_only",
+          requireHumanApprovalFor: ["github_issue_creation", "hive_bead_creation", "provider_upload_enablement"]
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(
     path.join(repoRoot, ".visual-hive", "test-creation-plan.json"),
     JSON.stringify(
@@ -1199,6 +1463,26 @@ describe("control plane", () => {
     expect(snapshot.mutationReport?.results.map((result) => result.status)).toEqual(["killed", "survived", "not_applicable", "error"]);
     expect(snapshot.coverageImprovementReport?.summary.fromMutationSurvivors).toBe(1);
     expect(snapshot.coverageImprovementReport?.recommendations.map((recommendation) => recommendation.mutationOperator)).toContain("remove-demo-badge");
+    expect(snapshot.evidencePacket).toMatchObject({
+      schemaVersion: "visual-hive.evidence-packet.v1",
+      verdictSummary: { visualHiveVerdict: "failed" },
+      hiveReadiness: { readyForHiveDryRun: true }
+    });
+    expect(snapshot.verdictReport).toMatchObject({
+      schemaVersion: "visual-hive.verdict.v1",
+      summary: { visualHiveVerdict: "failed", gatingContributions: 2 }
+    });
+    expect(snapshot.handoffPacket).toMatchObject({
+      schemaVersion: "visual-hive.handoff.v1",
+      status: "ready",
+      externalCallsMade: 0,
+      workItems: [{ kind: "test_creation", priority: "high" }]
+    });
+    expect(snapshot.agentPacket).toMatchObject({
+      schemaVersion: "visual-hive.agent-packet.v1",
+      profile: "repair_agent",
+      budgets: { allowExternalNetwork: false, maxExternalCostUsd: 0 }
+    });
     expect(snapshot.testCreationPlan).toMatchObject({
       schemaVersion: "visual-hive.test-creation-plan.v1",
       governance: { writePolicy: "no_config_or_test_files_written" },
@@ -1339,6 +1623,12 @@ describe("control plane", () => {
     expect(snapshot.runProfiles.find((profile) => profile.id === "coverage-improvement")?.expectedArtifacts).toEqual(
       expect.arrayContaining([".visual-hive/coverage.json", ".visual-hive/coverage-recommendations.json", ".visual-hive/test-creation-plan.json"])
     );
+    expect(snapshot.runProfiles.find((profile) => profile.id === "agent-handoff-review")).toMatchObject({
+      enabled: true,
+      commandIds: ["evidence", "verdict", "handoff", "test-creation-plan", "agent-packet"],
+      safety: "pr_safe",
+      expectedArtifacts: expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/verdict.json", ".visual-hive/handoff.json", ".visual-hive/agent-packet.json"])
+    });
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "providers")).toMatchObject({
@@ -1377,6 +1667,21 @@ describe("control plane", () => {
       safety: "pr_safe",
       command: expect.stringContaining("test-creation-plan"),
       expectedArtifacts: [".visual-hive/test-creation-plan.json", ".visual-hive/test-creation-plan.md"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "evidence")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("evidence"),
+      expectedArtifacts: [".visual-hive/evidence-packet.json", ".visual-hive/evidence-summary.md"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "handoff")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("handoff"),
+      expectedArtifacts: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md", ".visual-hive/hive-bead-request.json", ".visual-hive/hive-handoff-result.json"]
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "agent-packet")).toMatchObject({
+      safety: "pr_safe",
+      command: expect.stringContaining("agent-packet"),
+      expectedArtifacts: [".visual-hive/agent-packet.json"]
     });
     expect(snapshot.runProfiles.find((profile) => profile.id === "security-audit")).toMatchObject({
       enabled: true,
@@ -1925,6 +2230,51 @@ contracts:
       const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
       expect(snapshot.actionHistory?.summary.total).toBe(3);
       expect(snapshot.actionHistory?.summary.latestCommandId).toBe("test-creation-plan");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("executes the agent-handoff-review profile as a no-network evidence handoff workflow", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "agent-handoff-review" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual([
+        "evidence",
+        "verdict",
+        "handoff",
+        "test-creation-plan",
+        "agent-packet"
+      ]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual([
+        "evidence:evidence",
+        "verdict:verdict",
+        "handoff:handoff",
+        "test-creation-plan:test-creation-plan",
+        "agent-packet:agent-packet"
+      ]);
+      expect(calls[0]?.args.slice(-3)).toEqual(["evidence", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[1]?.args.slice(-3)).toEqual(["verdict", "--config", path.resolve(fixture.configPath)]);
+      expect(calls[2]?.args.slice(-4)).toEqual(["handoff", "--config", path.resolve(fixture.configPath), "--dry-run"]);
+      expect(calls[4]?.args.slice(-5)).toEqual(["agent-packet", "--config", path.resolve(fixture.configPath), "--profile", "repair_agent"]);
     } finally {
       await server.close();
     }

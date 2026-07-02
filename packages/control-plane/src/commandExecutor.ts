@@ -32,6 +32,10 @@ const EXECUTABLE_COMMAND_IDS = new Set([
   "provider-plan",
   "provider-handoff",
   "readiness",
+  "evidence",
+  "verdict",
+  "handoff",
+  "agent-packet",
   "connections-portfolio"
 ]);
 const OUTPUT_TAIL_CHARS = 12_000;
@@ -214,6 +218,14 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "provider-handoff", args: ["providers", "handoff", "--config", configPath, "--provider", providerIdFromCommand(command)] }];
     case "readiness":
       return [{ stepId: "readiness", args: ["readiness", "--config", configPath] }];
+    case "evidence":
+      return [{ stepId: "evidence", args: ["evidence", "--config", configPath] }];
+    case "verdict":
+      return [{ stepId: "verdict", args: ["verdict", "--config", configPath] }];
+    case "handoff":
+      return [{ stepId: "handoff", args: ["handoff", "--config", configPath, "--dry-run"] }];
+    case "agent-packet":
+      return [{ stepId: "agent-packet", args: ["agent-packet", "--config", configPath, "--profile", "repair_agent"] }];
     case "connections-portfolio":
       return [{ stepId: "connections-portfolio", args: ["connections", "list", "--config", configPath, "--write"] }];
     default:

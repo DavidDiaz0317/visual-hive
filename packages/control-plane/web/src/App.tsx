@@ -503,6 +503,9 @@ function ReviewWorkspace({
       <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof snapshot.mutationReport?.score === "number" && snapshot.mutationReport.score >= (snapshot.mutationReport.minScore ?? 0.7) ? "success" : "warning"} value={formatPercent(snapshot.mutationReport?.score)} detail="Adequacy" />
       <SignalCard className="span-3" icon={<Clock size={17} />} label="Last run" tone={statusTone(snapshot.report?.status)} value={snapshot.report?.status ?? "missing"} detail={formatDate(snapshot.report?.generatedAt)} />
       <div className="span-12">
+        <AgentForwardWorkflow snapshot={snapshot} runAction={runAction} busyAction={busyAction} connection={connection} mode={mode} />
+      </div>
+      <div className="span-12">
         <FailureInbox snapshot={snapshot} connection={connection} />
       </div>
       <div className="span-12">
@@ -517,7 +520,7 @@ function ReviewWorkspace({
       <div className="span-12">
         <Runs snapshot={snapshot} connection={connection} />
       </div>
-      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, testCreationPlan: snapshot.testCreationPlan }} />}
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, evidencePacket: snapshot.evidencePacket, verdictReport: snapshot.verdictReport, handoffPacket: snapshot.handoffPacket, agentPacket: snapshot.agentPacket, testCreationPlan: snapshot.testCreationPlan }} />}
     </div>
   );
 }
@@ -708,6 +711,112 @@ function EvidenceDisclosure({ className = "", title, data, compact = false }: { 
       </summary>
       {data ? <CodeBlock value={JSON.stringify(data, null, 2)} /> : <EmptyState title="No raw evidence yet" />}
     </details>
+  );
+}
+
+function AgentForwardWorkflow({
+  snapshot,
+  runAction,
+  busyAction,
+  connection,
+  mode
+}: {
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+  mode: UserMode;
+}) {
+  const profile = snapshot.runProfiles?.find((candidate) => candidate.id === "agent-handoff-review");
+  const verdict =
+    snapshot.verdictReport?.summary?.visualHiveVerdict ??
+    snapshot.evidencePacket?.verdictSummary?.visualHiveVerdict ??
+    snapshot.handoffPacket?.verdict?.visualHiveVerdict ??
+    snapshot.agentPacket?.verdict?.visualHiveVerdict;
+  const gatingCount =
+    snapshot.verdictReport?.summary?.gatingContributions ??
+    snapshot.agentPacket?.evidenceSummary?.gatingContributions?.length ??
+    snapshot.evidencePacket?.evidenceContributions?.filter((contribution) => contribution.gating).length ??
+    0;
+  const advisoryCount =
+    snapshot.verdictReport?.summary?.advisoryContributions ??
+    snapshot.agentPacket?.evidenceSummary?.advisoryContributions?.length ??
+    snapshot.evidencePacket?.evidenceContributions?.filter((contribution) => !contribution.gating).length ??
+    0;
+  const handoffStatus = snapshot.handoffPacket?.status ?? (snapshot.evidencePacket?.hiveReadiness?.readyForHiveDryRun ? "ready" : "missing");
+  const workItems = snapshot.handoffPacket?.workItems ?? snapshot.agentPacket?.evidenceSummary?.workItems ?? [];
+  const blockedReasons = snapshot.handoffPacket?.blockedReasons ?? snapshot.evidencePacket?.hiveReadiness?.blockedReasons ?? [];
+  const packetArtifacts = [
+    ".visual-hive/evidence-packet.json",
+    ".visual-hive/verdict.json",
+    ".visual-hive/handoff.json",
+    ".visual-hive/agent-packet.json",
+    ".visual-hive/test-creation-plan.json"
+  ];
+  return (
+    <Card
+      title="Evidence to agent handoff"
+      action={
+        <div className="row">
+          {profile && <CopyButton label="Copy profile command" value={profile.commandIds.join(" -> ")} />}
+          {profile && (
+            <ConfirmButton
+              disabled={snapshot.readOnly || !profile.enabled || busyAction === profile.id}
+              message="Regenerate the sanitized Evidence Packet, verdict, Hive dry run, test plan, and Agent Packet?"
+              onConfirm={() => runAction(profile.id, () => postJson("/api/runbook/profile", { profileId: profile.id }, connection))}
+              variant="primary"
+            >
+              Refresh handoff packet
+            </ConfirmButton>
+          )}
+        </div>
+      }
+    >
+      <p className="card-subtext">
+        A guided chain from deterministic evidence to repair-ready handoff. Visual Hive owns the verdict; Hive, LLMs, MCP tools, and agents only consume this packet and recommend actions.
+      </p>
+      <div className="view-grid">
+        <MetricCard className="span-3" label="Visual Hive verdict" tone={verdictTone(verdict)} value={verdict ?? "missing"} />
+        <MetricCard className="span-3" label="Gating evidence" tone={gatingCount > 0 ? "success" : "warning"} value={gatingCount} />
+        <MetricCard className="span-3" label="Agent work items" tone={workItems.length > 0 ? "warning" : "success"} value={workItems.length} />
+        <MetricCard className="span-3" label="Hive handoff" tone={handoffStatus === "ready" ? "success" : "warning"} value={handoffStatus} />
+        <Card className="span-6" title="Packet chain">
+          <KeyValueTable
+            rows={[
+              ["Evidence Packet", snapshot.evidencePacket ? "ready" : "missing"],
+              ["Verdict Report", snapshot.verdictReport ? "ready" : "missing"],
+              ["Handoff Packet", snapshot.handoffPacket ? `${snapshot.handoffPacket.status}; calls=${snapshot.handoffPacket.externalCallsMade}` : "missing"],
+              ["Agent Packet", snapshot.agentPacket ? `${snapshot.agentPacket.profile}; network=${snapshot.agentPacket.budgets.allowExternalNetwork}` : "missing"],
+              ["Advisory evidence", advisoryCount]
+            ]}
+          />
+          <ArtifactList artifacts={packetArtifacts} connection={connection} />
+        </Card>
+        <Card className="span-6" title="Next handoff work">
+          {blockedReasons.length ? <FindingList findings={blockedReasons} tone="warning" /> : null}
+          {workItems.length ? (
+            <SimpleTable
+              headers={["Priority", "Kind", "Work item"]}
+              rows={workItems.slice(0, mode === "expert" ? 8 : 4).map((item) => [item.priority, item.kind, item.title])}
+            />
+          ) : (
+            <EmptyState title="No handoff work items">Generate a handoff packet after evidence exists, or inspect the verdict if no repair work is needed.</EmptyState>
+          )}
+        </Card>
+        {mode === "expert" && (
+          <EvidenceDisclosure
+            className="span-12"
+            title="View raw agent-forward packets"
+            data={{
+              evidencePacket: snapshot.evidencePacket,
+              verdictReport: snapshot.verdictReport,
+              handoffPacket: snapshot.handoffPacket,
+              agentPacket: snapshot.agentPacket
+            }}
+          />
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -1335,6 +1444,14 @@ function formatDate(value?: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString();
+}
+
+function verdictTone(value?: string): Tone {
+  if (value === "passed") return "success";
+  if (value === "failed") return "danger";
+  if (value === "blocked" || value === "warning") return "warning";
+  if (value === "inconclusive") return "info";
+  return "neutral";
 }
 
 function readHashWorkArea(): WorkAreaId {

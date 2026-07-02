@@ -29,7 +29,10 @@ import {
   type CostAuditReport,
   type CoverageImprovementReport,
   type CoverageReport,
+  type AgentPacket,
+  type EvidencePacket,
   type FlowAuditReport,
+  type HandoffPacket,
   type BaselineList,
   type LLMUsageReport,
   type MockProviderRunReport,
@@ -50,6 +53,7 @@ import {
   type TestCreationPlan,
   type TriageFinding,
   type TriageReport,
+  type VerdictReport,
   type VisualHiveConfig,
   type WorkflowAuditReport
 } from "@visual-hive/core";
@@ -123,6 +127,10 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readinessArtifact,
     securityAudit,
     costAuditArtifact,
+    evidencePacket,
+    verdictReport,
+    handoffPacket,
+    agentPacket,
     testCreationPlan,
     issueMarkdown,
     prCommentMarkdown,
@@ -155,6 +163,10 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<ReadinessReport>(path.join(hiveRoot, "readiness.json")),
     readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
     readJsonIfExists<CostAuditReport>(path.join(hiveRoot, "costs.json")),
+    readJsonIfExists<EvidencePacket>(path.join(hiveRoot, "evidence-packet.json")),
+    readJsonIfExists<VerdictReport>(path.join(hiveRoot, "verdict.json")),
+    readJsonIfExists<HandoffPacket>(path.join(hiveRoot, "handoff.json")),
+    readJsonIfExists<AgentPacket>(path.join(hiveRoot, "agent-packet.json")),
     readJsonIfExists<TestCreationPlan>(path.join(hiveRoot, "test-creation-plan.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
@@ -261,6 +273,9 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     riskReport,
     providers,
     testCreationPlan,
+    evidencePacket,
+    handoffPacket,
+    agentPacket,
     artifacts
   });
 
@@ -285,6 +300,10 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readinessReport,
     securityAudit,
     costAudit,
+    evidencePacket,
+    verdictReport,
+    handoffPacket,
+    agentPacket,
     mutationReport,
     providerRunReport,
     providerDecisionLog,
@@ -534,6 +553,9 @@ function buildNavigationBadges(input: {
   riskReport?: RiskRegisterReport;
   providers: Array<{ costPolicy?: { blockedReasons?: string[] }; missingEnv?: string[] }>;
   testCreationPlan?: TestCreationPlan;
+  evidencePacket?: EvidencePacket;
+  handoffPacket?: HandoffPacket;
+  agentPacket?: AgentPacket;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
   const baselines = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
@@ -542,10 +564,11 @@ function buildNavigationBadges(input: {
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
+  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.agentPacket].filter((artifact) => !artifact).length;
   return {
-    start: Math.min(setup + failures + baselines + testCreation, 99),
+    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets, 99),
     run: 0,
-    review: Math.min(failures + baselines + testCreation, 99),
+    review: Math.min(failures + baselines + testCreation + missingAgentForwardPackets, 99),
     configure: Math.min(setup + risks + providerBlocks, 99),
     expert: input.artifacts.length,
     failures,
@@ -593,6 +616,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       label: "Coverage improvement",
       description: "Refresh deterministic coverage evidence and generate guarded config recommendations that can be previewed or applied from the Coverage page.",
       commandIds: ["coverage", "improve-coverage", "test-creation-plan"]
+    },
+    {
+      id: "agent-handoff-review",
+      label: "Evidence to agent handoff",
+      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, advisory test plan, and bounded Agent Packet.",
+      commandIds: ["evidence", "verdict", "handoff", "test-creation-plan", "agent-packet"]
     },
     {
       id: "security-audit",
@@ -857,6 +886,50 @@ function buildRunbook(
       description: "Combine plan, deterministic run, baselines, mutation, workflows, security, cost, provider, and LLM evidence into one beginner-friendly go/no-go artifact.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/readiness.json"]
+    },
+    {
+      id: "evidence",
+      label: "Write Evidence Packet",
+      lane: "local",
+      command: `visual-hive evidence ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write the canonical sanitized Evidence Packet and markdown summary from current deterministic, mutation, provider, readiness, coverage, and triage artifacts.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/evidence-packet.json", ".visual-hive/evidence-summary.md"]
+    },
+    {
+      id: "verdict",
+      label: "Write Visual Hive verdict",
+      lane: "local",
+      command: `visual-hive verdict ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Aggregate normalized deterministic evidence into the Visual Hive verdict without giving LLMs, agents, or MCP tools pass/fail authority.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/verdict.json", ".visual-hive/verdict.md"]
+    },
+    {
+      id: "handoff",
+      label: "Write Hive handoff dry run",
+      lane: "local",
+      command: `visual-hive handoff ${configFlag} --dry-run`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write sanitized GitHub/Hive handoff artifacts with zero external calls for trusted workflow or human review.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md", ".visual-hive/hive-bead-request.json", ".visual-hive/hive-handoff-result.json"]
+    },
+    {
+      id: "agent-packet",
+      label: "Write Agent Packet",
+      lane: "local",
+      command: `visual-hive agent-packet ${configFlag} --profile repair_agent`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write a bounded advisory packet for repair/test/review agents using sanitized Evidence Packet and Handoff Packet context.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/agent-packet.json"]
     },
     {
       id: "connections-portfolio",

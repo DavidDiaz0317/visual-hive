@@ -47,9 +47,23 @@ try {
   if (!snapshot.testCreationPlan?.recommendations?.length) {
     throw new Error("snapshot did not include test creation plan recommendations");
   }
+  if (!snapshot.evidencePacket?.verdictSummary?.visualHiveVerdict) {
+    throw new Error("snapshot did not include Evidence Packet verdict summary");
+  }
+  if (!snapshot.handoffPacket || snapshot.handoffPacket.externalCallsMade !== 0) {
+    throw new Error("snapshot did not include no-network Hive handoff packet evidence");
+  }
+  if (!snapshot.agentPacket?.budgets || snapshot.agentPacket.budgets.allowExternalNetwork !== false) {
+    throw new Error("snapshot did not include bounded Agent Packet evidence");
+  }
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "test-creation-plan",
+    "runbook command ids"
+  );
+  assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "agent-packet",
     "runbook command ids"
   );
   assertArrayIncludes(
@@ -107,6 +121,9 @@ try {
     "What should I do next?",
     "Run PR-safe checks",
     "Review visual changes",
+    "Evidence to agent handoff",
+    "Refresh handoff packet",
+    "Visual Hive owns the verdict",
     "Test creation plan",
     "Advisory no-write",
     "Expert console",
