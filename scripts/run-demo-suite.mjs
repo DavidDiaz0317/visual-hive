@@ -111,7 +111,13 @@ const suites = {
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const list = args.includes("--list");
-const suiteName = args.find((arg) => !arg.startsWith("--")) ?? "all";
+const selfTestTimeout = args.includes("--self-test-timeout");
+if (selfTestTimeout) {
+  suites["self-test-timeout"] = [
+    command("self-test-timeout", process.execPath, ["-e", "setTimeout(() => {}, 60000)"], 250)
+  ];
+}
+const suiteName = selfTestTimeout ? "self-test-timeout" : args.find((arg) => !arg.startsWith("--")) ?? "all";
 
 if (list) {
   for (const [name, steps] of Object.entries(suites)) {
@@ -150,11 +156,13 @@ for (const [index, step] of steps.entries()) {
 console.log(`\n[demo:${suiteName}] completed successfully`);
 
 function script(name) {
-  return command(name, npmCommand(), ["run", name], TIMEOUTS_BY_SCRIPT[name] ?? DEFAULT_TIMEOUT_MS);
+  return command(name, npmCommand(), ["run", name], TIMEOUTS_BY_SCRIPT[name] ?? DEFAULT_TIMEOUT_MS, {
+    shell: process.platform === "win32"
+  });
 }
 
-function command(label, executable, args, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  return { label, executable, args, timeoutMs };
+function command(label, executable, args, timeoutMs = DEFAULT_TIMEOUT_MS, options = {}) {
+  return { label, executable, args, timeoutMs, shell: options.shell ?? false };
 }
 
 function npmCommand() {
@@ -173,6 +181,7 @@ function runStep(step) {
       cwd: repoRoot,
       stdio: "inherit",
       windowsHide: true,
+      shell: step.shell,
       detached: process.platform !== "win32"
     });
 

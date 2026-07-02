@@ -432,6 +432,20 @@ mutation:
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
   });
 
+  it("demo acceptance runner terminates a timed-out child process", () => {
+    const result = spawnSync(process.execPath, [path.join(repoRoot, "scripts", "run-demo-suite.mjs"), "--self-test-timeout"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true
+    });
+
+    expect(result.status).toBe(124);
+    expect(result.stderr).toContain("timed out after");
+    expect(result.stderr).toContain("terminating process tree");
+    expect(result.stdout).toContain("[demo:self-test-timeout] 1/1 self-test-timeout");
+  });
+
   it("analyze writes repo map and context artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-analyze-"));
     tempDirs.push(tempRoot);
