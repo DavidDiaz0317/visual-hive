@@ -29,6 +29,7 @@ import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from 
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
 import { buildVerdictReport, writeVerdictReport } from "../src/verdict/build.js";
 import { buildTestingLayerReport, writeTestingLayerReport } from "../src/layers/build.js";
+import { buildTestCreationPlan, writeTestCreationPlan } from "../src/testCreation/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -968,6 +969,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
     expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
     expect(schemaNames).toContain("visual-hive.testing-layers.schema.json");
+    expect(schemaNames).toContain("visual-hive.test-creation-plan.schema.json");
     expect(schemaNames).toContain("visual-hive.verdict.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
@@ -3720,6 +3722,8 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "repo-context.md"), "Repo token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "testing-layers.json"), '{"schemaVersion":1,"recommendations":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "testing-layers.md"), "Layer token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "test-creation-plan.json"), '{"schemaVersion":"visual-hive.test-creation-plan.v1","recommendations":[{"title":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "test-creation-plan.md"), "Test creation token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "verdict.json"), '{"schemaVersion":"visual-hive.verdict.v1","summary":{"visualHiveVerdict":"failed","failedBecause":["token=abc123"]}}', "utf8");
     await writeFile(path.join(hiveRoot, "verdict.md"), "Verdict token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
@@ -3762,7 +3766,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(33);
+    expect(index.summary.artifactCount).toBe(35);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3790,6 +3794,13 @@ describe("artifact index", () => {
     const testingLayersSummary = index.artifacts.find((artifact) => artifact.path.endsWith("testing-layers.md"));
     expect(testingLayersSummary?.preview).toContain("[REDACTED]");
     expect(testingLayersSummary?.labels).toContain("testing-layers-summary");
+    const testCreationPlan = index.artifacts.find((artifact) => artifact.path.endsWith("test-creation-plan.json"));
+    expect(testCreationPlan?.preview).toContain("[REDACTED]");
+    expect(testCreationPlan?.labels).toContain("test-creation-plan");
+    expect(testCreationPlan?.schemaPath).toBe("schemas/visual-hive.test-creation-plan.schema.json");
+    const testCreationSummary = index.artifacts.find((artifact) => artifact.path.endsWith("test-creation-plan.md"));
+    expect(testCreationSummary?.preview).toContain("[REDACTED]");
+    expect(testCreationSummary?.labels).toContain("test-creation-summary");
     const verdict = index.artifacts.find((artifact) => artifact.path.endsWith("verdict.json"));
     expect(verdict?.preview).toContain("[REDACTED]");
     expect(verdict?.labels).toContain("verdict");
@@ -4931,6 +4942,115 @@ describe("testing layer reports", () => {
     expect(report.layers.find((layer) => layer.id === 0)?.status).toBe("unknown");
     expect(report.layers.find((layer) => layer.id === 6)?.status).toBe("missing");
     expect(report.sourceArtifacts.evidencePacket).toBeUndefined();
+  });
+});
+
+describe("test creation plans", () => {
+  it("builds a no-write advisory plan from layers, mutation survivors, coverage, and handoff items", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-test-creation-"));
+    tempDirs.push(rootDir);
+    const evidence = await buildEvidencePacket({
+      rootDir,
+      project: "test-creation-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const handoff = buildHandoffArtifacts({
+      evidencePacket: {
+        ...evidence,
+        testingLayers: evidence.testingLayers.map((layer) =>
+          layer.id === 3
+            ? { ...layer, status: "unknown", gaps: ["access_token=layer-secret"] }
+            : layer.id === 9
+              ? { ...layer, status: "missing", gaps: ["No mutation evidence found."] }
+              : layer
+        )
+      },
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    const plan = await buildTestCreationPlan({
+      project: "test-creation-fixture",
+      now: new Date("2026-06-15T00:04:00.000Z"),
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      coverageRecommendationsPath: ".visual-hive/coverage-recommendations.json",
+      handoffPacketPath: ".visual-hive/handoff.json",
+      evidencePacket: {
+        testingLayers: handoff.handoff.workItems.length
+          ? evidence.testingLayers.map((layer) =>
+              layer.id === 3
+                ? { ...layer, status: "unknown", gaps: ["access_token=layer-secret"] }
+                : layer.id === 9
+                  ? { ...layer, status: "missing", gaps: ["No mutation evidence found."] }
+                  : layer
+            )
+          : evidence.testingLayers,
+        mutation: {
+          survivedOperators: [
+            {
+              operator: "force-login-on-demo",
+              contractIds: ["hosted-demo-never-login"],
+              failedAssertion: "client_secret=mutation-secret",
+              artifacts: [".visual-hive/mutation-report.json"]
+            }
+          ]
+        }
+      },
+      coverageRecommendations: {
+        recommendations: [
+          {
+            id: "assertions:dashboard",
+            kind: "add_selector_assertion",
+            severity: "high",
+            title: "Add dashboard selector",
+            rationale: ["token=coverage-secret"],
+            contractId: "dashboard",
+            suggestedTests: ["Add a stable dashboard selector."],
+            suggestedConfigYaml: "selectors:\n  mustExist:\n    - \"[data-testid='dashboard-page']\""
+          }
+        ]
+      },
+      handoffPacket: handoff.handoff
+    });
+
+    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.governance.writePolicy).toBe("no_config_or_test_files_written");
+    expect(plan.summary.total).toBeGreaterThanOrEqual(4);
+    expect(plan.summary.fromTestingLayers).toBeGreaterThan(0);
+    expect(plan.summary.fromCoverageRecommendations).toBe(1);
+    expect(plan.summary.fromMutationSurvivors).toBe(1);
+    expect(plan.summary.fromHandoffWorkItems).toBeGreaterThan(0);
+    expect(plan.recommendations.map((recommendation) => recommendation.kind)).toEqual(
+      expect.arrayContaining(["accessibility_check", "mutation_mapping", "selector_assertion"])
+    );
+    expect(plan.recommendations.every((recommendation) => recommendation.applyMode === "advisory_no_write")).toBe(true);
+    const serialized = JSON.stringify(plan);
+    expect(serialized).toContain("[REDACTED]");
+    expect(serialized).not.toContain("layer-secret");
+    expect(serialized).not.toContain("mutation-secret");
+    expect(serialized).not.toContain("coverage-secret");
+  });
+
+  it("writes JSON and Markdown test creation plan artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-test-creation-write-"));
+    tempDirs.push(rootDir);
+    const evidence = await buildEvidencePacket({
+      rootDir,
+      project: "test-creation-write",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const result = await writeTestCreationPlan({
+      rootDir,
+      project: "test-creation-write",
+      evidencePacket: {
+        testingLayers: evidence.testingLayers.map((layer) => (layer.id === 2 ? { ...layer, status: "unknown", gaps: ["No unit evidence found."] } : layer))
+      },
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+
+    expect(result.planPath).toMatch(/test-creation-plan\.json$/);
+    expect(result.markdownPath).toMatch(/test-creation-plan\.md$/);
+    expect(await readFile(result.planPath, "utf8")).toContain("visual-hive.test-creation-plan.v1");
+    expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Test Creation Plan: test-creation-write");
   });
 });
 

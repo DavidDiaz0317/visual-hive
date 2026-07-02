@@ -45,6 +45,8 @@ When `visual-hive handoff --dry-run` runs from an Evidence Packet, non-covered l
 
 This is intentionally separate from pass/fail. The layer audit can tell an agent what to improve next, but only Visual Hive's normalized deterministic verdict can fail or pass the run.
 
+Run `visual-hive test-creation-plan --config visual-hive.config.yaml` after `evidence` and optional `handoff` to turn test-oriented layer gaps into `.visual-hive/test-creation-plan.json` and `.visual-hive/test-creation-plan.md`. The plan is advisory and no-write: it suggests selector assertions, screenshots, flows, accessibility checks, API contracts, or mutation mappings, but it does not edit config or test files.
+
 ## Agent Policy
 
 Agents may use this report to suggest tests, setup changes, or handoff tasks. They must not decide pass/fail, approve baselines, enable external providers, or run protected targets. Visual Hive's deterministic Verdict Engine remains the authority.

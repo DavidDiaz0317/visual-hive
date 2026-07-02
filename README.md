@@ -172,12 +172,13 @@ Role-specific Agent Packets are generated with:
 
 ```bash
 visual-hive handoff --dry-run --config visual-hive.config.yaml
+visual-hive test-creation-plan --config visual-hive.config.yaml
 visual-hive agent-packet --config visual-hive.config.yaml --profile repair_agent
 visual-hive tools --config visual-hive.config.yaml
 visual-hive context --config visual-hive.config.yaml
 ```
 
-This writes `.visual-hive/agent-packet.json`, a sanitized work envelope with allowed tools, forbidden actions, budgets, reproduction commands, artifact pointers, and testing-layer gap context for repair, test-generation, review, or handoff agents. `visual-hive handoff --dry-run` turns deterministic failures, mutation survivors, blocked evidence, and missing/partial testing layers into bounded work items without making agents verdict authorities. `visual-hive tools` writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, the conservative tool policy surface for future MCP/agent use. `visual-hive context` writes `.visual-hive/context-ledger.json`, a governance ledger for tool-call, token, provider-screenshot, external-cost, and escalation budgets.
+This writes `.visual-hive/test-creation-plan.json`, `.visual-hive/test-creation-plan.md`, and `.visual-hive/agent-packet.json`. The test-creation plan converts missing testing layers, mutation survivors, coverage recommendations, and handoff work items into advisory no-write test recommendations. It does not edit config or tests. The Agent Packet is a sanitized work envelope with allowed tools, forbidden actions, budgets, reproduction commands, artifact pointers, and testing-layer gap context for repair, test-generation, review, or handoff agents. `visual-hive handoff --dry-run` turns deterministic failures, mutation survivors, blocked evidence, and missing/partial testing layers into bounded work items without making agents verdict authorities. `visual-hive tools` writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, the conservative tool policy surface for future MCP/agent use. `visual-hive context` writes `.visual-hive/context-ledger.json`, a governance ledger for tool-call, token, provider-screenshot, external-cost, and escalation budgets.
 
 ## CLI commands
 
@@ -214,7 +215,8 @@ This writes `.visual-hive/agent-packet.json`, a sanitized work envelope with all
 - `visual-hive layers`: writes `.visual-hive/testing-layers.json` and `.visual-hive/testing-layers.md`, summarizing layer coverage, missing evidence, skipped reasons, and recommended next steps.
 - `visual-hive verdict`: writes `.visual-hive/verdict.json` and `.visual-hive/verdict.md`, extracting the final Visual Hive verdict, gating contributions, advisory contributions, and oracle policy from normalized evidence.
 - `visual-hive handoff --dry-run`: consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json` with zero external calls.
-- `visual-hive agent-packet`: consumes `.visual-hive/evidence-packet.json` and optional `.visual-hive/handoff.json`, then writes `.visual-hive/agent-packet.json` for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent` profiles.
+- `visual-hive test-creation-plan`: consumes `.visual-hive/evidence-packet.json`, optional `.visual-hive/coverage-recommendations.json`, and optional `.visual-hive/handoff.json`, then writes `.visual-hive/test-creation-plan.json` and `.visual-hive/test-creation-plan.md` with advisory no-write test recommendations.
+- `visual-hive agent-packet`: consumes `.visual-hive/evidence-packet.json` plus optional `.visual-hive/handoff.json` and `.visual-hive/test-creation-plan.json`, then writes `.visual-hive/agent-packet.json` for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent` profiles.
 - `visual-hive tools`: writes `.visual-hive/tools/tool-registry.json` and `.visual-hive/tools/tool-cards.md`, describing first-party, optional MCP, GitHub, and provider tools with role access, mode restrictions, cost class, trusted-only status, and human-approval gates.
 - `visual-hive context`: writes `.visual-hive/context-ledger.json`, tracking inferred tool calls, token estimates, provider screenshot budgets, external cost, remaining budget, and escalation reasons for agents and future MCP tooling.
 - `visual-hive baselines list|approve|reject`: inspect screenshot baselines, write `.visual-hive/baselines.json` with `baselines list --write`, and explicitly approve or reject reviewed screenshots with audit records.

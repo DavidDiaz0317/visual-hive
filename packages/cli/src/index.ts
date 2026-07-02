@@ -44,6 +44,7 @@ import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
 import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
+import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
@@ -510,6 +511,33 @@ program
   });
 
 program
+  .command("test-creation-plan")
+  .description("Write an advisory no-write test creation plan from evidence, layers, coverage, and handoff work")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "Evidence Packet path", ".visual-hive/evidence-packet.json")
+  .option("--coverage-recommendations <path>", "coverage recommendations path", ".visual-hive/coverage-recommendations.json")
+  .option("--handoff <path>", "Handoff Packet path", ".visual-hive/handoff.json")
+  .option("--output <path>", "test creation plan JSON output path", ".visual-hive/test-creation-plan.json")
+  .option("--markdown <path>", "test creation plan Markdown output path", ".visual-hive/test-creation-plan.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runTestCreationPlanCommand({
+        config: options.config,
+        evidence: options.evidence,
+        coverageRecommendations: options.coverageRecommendations,
+        handoff: options.handoff,
+        output: options.output,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatTestCreationPlan(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
   .command("handoff")
   .description("Write no-network GitHub/Hive handoff artifacts from the latest Evidence Packet")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
@@ -540,6 +568,7 @@ program
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
   .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--test-creation-plan <path>", "test creation plan path", ".visual-hive/test-creation-plan.json")
   .option("--profile <profile>", "repair_agent, test_creator, review_agent, or handoff_agent", "repair_agent")
   .option("--output <path>", "agent packet output path", ".visual-hive/agent-packet.json")
   .option("--format <format>", "markdown or json", "markdown")
@@ -549,6 +578,7 @@ program
         config: options.config,
         evidence: options.evidence,
         handoff: options.handoff,
+        testCreationPlan: options.testCreationPlan,
         profile: options.profile,
         output: options.output,
         format: options.format

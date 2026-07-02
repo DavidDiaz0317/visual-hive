@@ -1,5 +1,6 @@
 import type { EvidenceContribution, EvidencePacket, VisualHiveVerdict } from "../evidence/types.js";
 import type { HandoffPacket, HandoffWorkItem } from "../handoff/types.js";
+import type { TestCreationRecommendation } from "../testCreation/types.js";
 
 export type AgentPacketProfile = "repair_agent" | "test_creator" | "review_agent" | "handoff_agent";
 
@@ -19,6 +20,7 @@ export interface AgentPacket {
   sourceArtifacts: {
     evidencePacket: string;
     handoffPacket?: string;
+    testCreationPlan?: string;
   };
   verdict: {
     visualHiveVerdict: VisualHiveVerdict;
@@ -35,6 +37,7 @@ export interface AgentPacket {
     selectedTargets: string[];
     mutationScore?: number;
     testingLayers: EvidencePacket["testingLayers"];
+    testCreationRecommendations: TestCreationRecommendation[];
   };
   allowedTools: AgentToolPermission[];
   forbiddenActions: string[];
@@ -60,6 +63,8 @@ export interface BuildAgentPacketOptions {
   evidencePacketPath: string;
   handoffPacket?: HandoffPacket;
   handoffPacketPath?: string;
+  testCreationRecommendations?: TestCreationRecommendation[];
+  testCreationPlanPath?: string;
   profile?: AgentPacketProfile;
   now?: Date;
 }

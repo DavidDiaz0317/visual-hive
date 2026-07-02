@@ -47,6 +47,7 @@ import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
+import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
 import { formatContextLedger, runContextCommand } from "../src/commands/context.js";
@@ -316,6 +317,7 @@ mutation:
       "demo:layers",
       "demo:verdict",
       "demo:handoff",
+      "demo:test-creation",
       "demo:agent-packet",
       "demo:tools",
       "demo:context",
@@ -363,6 +365,11 @@ mutation:
     expect(packageJson.scripts["demo:ci"].indexOf("demo:verdict")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:handoff"));
     expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
+    expect(packageJson.scripts["demo:test-creation"]).toContain("test-creation-plan --config");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:handoff")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:test-creation"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:handoff")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:test-creation"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:test-creation")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:agent-packet"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:test-creation")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:agent-packet"));
     expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
@@ -1671,6 +1678,114 @@ contracts:
     expect(summary).toContain("External network allowed: false");
     expect(JSON.stringify(packet)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "agent-packet.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes a no-write test creation plan and threads it into test creator Agent Packets", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-test-creation-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-test-creation
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-test-creation",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173?token=secret-value", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 12,
+          errors: ["Missing selector; authorization: Bearer secret-value"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: 1,
+      project: "cli-test-creation",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      summary: { total: 1, high: 1, medium: 0, low: 0 },
+      recommendations: [
+        {
+          id: "selectors:dashboard",
+          kind: "add_selector_assertion",
+          severity: "high",
+          title: "Add dashboard selector assertion",
+          rationale: ["token=coverage-secret"],
+          contractId: "dashboard",
+          suggestedTests: ["Add a stable dashboard page selector."],
+          suggestedConfigYaml: "selectors:\n  mustExist:\n    - \"[data-testid='dashboard-page']\""
+        }
+      ]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    await runHandoffCommand({ cwd: tempRoot });
+    const testCreation = await runTestCreationPlanCommand({ cwd: tempRoot });
+    const testCreationSummary = formatTestCreationPlan(testCreation);
+    const agent = await runAgentPacketCommand({ cwd: tempRoot, profile: "test_creator" });
+    const agentSummary = formatAgentPacketResult(agent);
+    const plan = await readJson<typeof testCreation.plan>(testCreation.planPath);
+    const packet = await readJson<typeof agent.packet>(agent.packetPath);
+
+    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.governance.writePolicy).toBe("no_config_or_test_files_written");
+    expect(plan.summary.total).toBeGreaterThan(0);
+    expect(plan.summary.fromCoverageRecommendations).toBe(1);
+    expect(plan.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
+    expect(plan.sourceArtifacts.handoffPacket).toBe(".visual-hive/handoff.json");
+    expect(testCreationSummary).toContain("Test Creation Plan: cli-test-creation");
+    expect(packet.profile).toBe("test_creator");
+    expect(packet.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
+    expect(packet.evidenceSummary.testCreationRecommendations.length).toBeGreaterThan(0);
+    expect(agentSummary).toContain("Test creation plan: .visual-hive/test-creation-plan.json");
+    expect(JSON.stringify({ plan, packet })).not.toContain("secret-value");
+    expect(JSON.stringify({ plan, packet })).not.toContain("coverage-secret");
+    await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.md"))).resolves.toBeUndefined();
   });
 
   it("writes Tool Registry and Tool Cards artifacts", async () => {

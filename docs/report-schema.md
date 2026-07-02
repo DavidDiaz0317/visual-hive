@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `verdict.json`, `handoff.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -198,19 +198,35 @@ Related artifacts:
 
 The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default.
 
+## Test Creation Plan
+
+Path: `.visual-hive/test-creation-plan.json`
+
+Schema: `schemas/visual-hive.test-creation-plan.schema.json`
+
+The test-creation plan is written by `visual-hive test-creation-plan` after an Evidence Packet exists. It can also consume `.visual-hive/coverage-recommendations.json` and `.visual-hive/handoff.json`. It translates missing or partial testing layers, mutation survivors, coverage recommendations, and handoff `test_creation` work items into advisory no-write test recommendations.
+
+Key fields:
+
+- `governance`: declares Visual Hive as verdict authority, agents as advisory test-generation helpers, and `writePolicy: no_config_or_test_files_written`.
+- `summary`: counts recommendations by priority and source.
+- `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`.
+
+The companion `.visual-hive/test-creation-plan.md` is a sanitized summary for human review. Neither artifact edits config, writes tests, approves baselines, enables providers, or changes the Visual Hive verdict.
+
 ## Agent Packet
 
 Path: `.visual-hive/agent-packet.json`
 
 Schema: `schemas/visual-hive.agent-packet.schema.json`
 
-The Agent Packet is written by `visual-hive agent-packet` after an Evidence Packet exists. It optionally consumes `.visual-hive/handoff.json` and creates a profile-specific envelope for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent`.
+The Agent Packet is written by `visual-hive agent-packet` after an Evidence Packet exists. It optionally consumes `.visual-hive/handoff.json` and `.visual-hive/test-creation-plan.json`, then creates a profile-specific envelope for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent`.
 
 Key fields:
 
 - `objective`: a bounded task derived from the current evidence and profile.
 - `verdict`: Visual Hive's deterministic verdict summary.
-- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts/targets, and mutation score.
+- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts/targets, mutation score, testing layers, and optional test-creation recommendations.
 - `allowedTools`: role-scoped read-only or local-only tool affordances.
 - `forbiddenActions`: actions that must remain human/trusted-workflow controlled.
 - `budgets`: tool-call/token budgets with `allowExternalNetwork: false` and `maxExternalCostUsd: 0`.

@@ -17,6 +17,8 @@ export * from "./verdict/types.js";
 export * from "./verdict/build.js";
 export * from "./layers/types.js";
 export * from "./layers/build.js";
+export * from "./testCreation/types.js";
+export * from "./testCreation/build.js";
 export * from "./handoff/types.js";
 export * from "./handoff/build.js";
 export * from "./agent/types.js";

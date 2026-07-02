@@ -31,7 +31,9 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
   const artifactPointers = dedupe([
     normalize(options.evidencePacketPath),
     options.handoffPacketPath ? normalize(options.handoffPacketPath) : undefined,
+    options.testCreationPlanPath ? normalize(options.testCreationPlanPath) : undefined,
     ".visual-hive/evidence-summary.md",
+    ".visual-hive/test-creation-plan.json",
     ".visual-hive/report.json",
     ".visual-hive/mutation-report.json",
     ".visual-hive/triage.json",
@@ -48,7 +50,8 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
     objective: objectiveFor(profile, options.evidencePacket, workItems),
     sourceArtifacts: {
       evidencePacket: normalize(options.evidencePacketPath),
-      handoffPacket: options.handoffPacketPath ? normalize(options.handoffPacketPath) : undefined
+      handoffPacket: options.handoffPacketPath ? normalize(options.handoffPacketPath) : undefined,
+      testCreationPlan: options.testCreationPlanPath ? normalize(options.testCreationPlanPath) : undefined
     },
     verdict: options.evidencePacket.verdictSummary,
     evidenceSummary: {
@@ -58,7 +61,8 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
       selectedContracts: options.evidencePacket.deterministicReport?.selectedContracts ?? options.evidencePacket.plan?.selectedContracts ?? [],
       selectedTargets: options.evidencePacket.deterministicReport?.selectedTargets.map((target) => target.id) ?? options.evidencePacket.plan?.selectedTargets ?? [],
       mutationScore: options.evidencePacket.mutation?.score,
-      testingLayers: options.evidencePacket.testingLayers
+      testingLayers: options.evidencePacket.testingLayers,
+      testCreationRecommendations: (options.testCreationRecommendations ?? []).slice(0, 12)
     },
     allowedTools: allowedToolsFor(profile),
     forbiddenActions: forbiddenActionsFor(profile),

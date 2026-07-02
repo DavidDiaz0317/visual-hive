@@ -12,6 +12,7 @@ Run:
 ```bash
 visual-hive evidence --config visual-hive.config.yaml
 visual-hive handoff --dry-run --config visual-hive.config.yaml
+visual-hive test-creation-plan --config visual-hive.config.yaml
 visual-hive agent-packet --config visual-hive.config.yaml --profile repair_agent
 ```
 
@@ -25,7 +26,7 @@ The packet includes:
 
 - `objective`: the bounded job the agent should perform.
 - `verdict`: Visual Hive's deterministic verdict summary.
-- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts and targets, mutation score, and the testing-layer status snapshot.
+- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts and targets, mutation score, the testing-layer status snapshot, and optional test-creation recommendations.
 - `allowedTools`: read-only or local-only tools the profile may use.
 - `forbiddenActions`: actions that require human/trusted-workflow authority or are never allowed.
 - `budgets`: local tool-call and token budgets, with `allowExternalNetwork: false` and `maxExternalCostUsd: 0` by default.
@@ -46,4 +47,4 @@ Agents may repair, explain, suggest tests, or prepare handoff artifacts. They mu
 
 The packet is intentionally smaller than the Evidence Packet. It gives agents enough context to act without forcing them to scrape CI logs, ingest every raw artifact, or guess which tools are safe.
 
-Testing-layer gaps are converted into bounded work items before they reach the agent. For example, a missing mutation layer becomes a `test_creation` task, an unknown workflow-safety layer becomes a `setup` task, and flake/history gaps become `review` tasks. These tasks remain advisory repair or test-generation guidance; they do not affect the Visual Hive verdict unless normalized deterministic evidence and policy allow it.
+Testing-layer gaps are converted into bounded work items before they reach the agent. For example, a missing mutation layer becomes a `test_creation` task, an unknown workflow-safety layer becomes a `setup` task, and flake/history gaps become `review` tasks. `visual-hive test-creation-plan` can further convert those work items, coverage recommendations, and mutation survivors into `.visual-hive/test-creation-plan.json`; `agent-packet` will include those recommendations when the artifact exists. These tasks remain advisory repair or test-generation guidance; they do not affect the Visual Hive verdict unless normalized deterministic evidence and policy allow it.
