@@ -2,6 +2,7 @@ import path from "node:path";
 import { access } from "node:fs/promises";
 import type { MutationReport, ProviderResult, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
+import type { RepoMapReport } from "../repo/types.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { EvidenceContribution, EvidencePacket, EvidencePacketTestingLayer, VerdictSummary, VisualHiveVerdict } from "./types.js";
@@ -17,6 +18,7 @@ export interface BuildEvidencePacketOptions {
   providerResultsPath?: string;
   readinessPath?: string;
   coveragePath?: string;
+  repoMapPath?: string;
   artifactsIndexPath?: string;
 }
 
@@ -34,6 +36,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     providerResults: resolveArtifact(options.rootDir, options.providerResultsPath ?? path.join(".visual-hive", "provider-results.json")),
     readiness: resolveArtifact(options.rootDir, options.readinessPath ?? path.join(".visual-hive", "readiness.json")),
     coverage: resolveArtifact(options.rootDir, options.coveragePath ?? path.join(".visual-hive", "coverage.json")),
+    repoMap: resolveArtifact(options.rootDir, options.repoMapPath ?? path.join(".visual-hive", "repo-map.json")),
     artifactsIndex: resolveArtifact(options.rootDir, options.artifactsIndexPath ?? path.join(".visual-hive", "artifacts-index.json"))
   };
 
@@ -44,6 +47,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
   const providerRunReport = await readOptional<{ providers?: Array<{ result?: ProviderResult }> }>(artifactPaths.providerResults);
   const readiness = await readOptional<{ status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }>(artifactPaths.readiness);
   const coverage = await readOptional<{ summary?: Record<string, unknown>; uncoveredAreas?: Array<{ severity?: string; message?: string }> }>(artifactPaths.coverage);
+  const repoMap = await readOptional<RepoMapReport>(artifactPaths.repoMap);
 
   const providerResults = [
     ...(report?.providerResults ?? []),
@@ -60,7 +64,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     ...contributionsFromTriage(triageReport)
   ]) as EvidenceContribution[];
   const verdictSummary = aggregateVerdict(evidenceContributions);
-  const testingLayers = buildTestingLayers({ plan, report, mutationReport, providerResults, coverage, triageReport });
+  const testingLayers = buildTestingLayers({ plan, report, mutationReport, providerResults, coverage, triageReport, repoMap });
   const generatedAt = (options.now ?? new Date()).toISOString();
 
   const packet: EvidencePacket = {
@@ -75,6 +79,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
       providerResults: (await exists(artifactPaths.providerResults)) ? relative(options.rootDir, artifactPaths.providerResults) : undefined,
       readiness: (await exists(artifactPaths.readiness)) ? relative(options.rootDir, artifactPaths.readiness) : undefined,
       coverage: (await exists(artifactPaths.coverage)) ? relative(options.rootDir, artifactPaths.coverage) : undefined,
+      repoMap: (await exists(artifactPaths.repoMap)) ? relative(options.rootDir, artifactPaths.repoMap) : undefined,
       artifactsIndex: (await exists(artifactPaths.artifactsIndex)) ? relative(options.rootDir, artifactPaths.artifactsIndex) : undefined
     }) as EvidencePacket["sourceArtifacts"],
     governance: {
@@ -90,6 +95,19 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
       commitSha: report?.repository.commitSha,
       runContext: report?.repository.provider
     }) as EvidencePacket["repo"],
+    repoIntelligence: repoMap
+      ? (sanitizeValue({
+          project: repoMap.project,
+          sourceSummary: repoMap.sourceSummary,
+          testTools: repoMap.testTools,
+          targetHints: repoMap.targetHints,
+          riskSignals: repoMap.riskSignals,
+          coverageGaps: repoMap.coverageGaps,
+          selectorCount: repoMap.selectors.length,
+          routeCount: repoMap.routes.length,
+          workflowCount: repoMap.workflows.length
+        }) as EvidencePacket["repoIntelligence"])
+      : undefined,
     plan: plan
       ? sanitizeValue({
           schemaVersion: plan.schemaVersion,
@@ -514,9 +532,16 @@ function buildTestingLayers(input: {
   providerResults: ProviderResult[];
   coverage?: { uncoveredAreas?: Array<{ severity?: string; message?: string }> };
   triageReport?: TriageReport;
+  repoMap?: RepoMapReport;
 }): EvidencePacketTestingLayer[] {
   return [
-    layer(0, "Repo intelligence", input.plan ? "covered" : "unknown", input.plan ? [".visual-hive/plan.json"] : [], input.plan ? [] : ["No plan artifact found."]),
+    layer(
+      0,
+      "Repo intelligence",
+      input.repoMap ? "covered" : input.plan ? "partial" : "unknown",
+      input.repoMap ? [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"] : input.plan ? [".visual-hive/plan.json"] : [],
+      input.repoMap ? input.repoMap.coverageGaps.map((gap) => gap.message).slice(0, 5) : input.plan ? ["Run visual-hive analyze for source-level repo intelligence."] : ["No repo-map or plan artifact found."]
+    ),
     layer(1, "Static/build/workflow safety", "unknown", [], ["Use readiness/security/workflow artifacts for full coverage."]),
     layer(2, "Unit", "unknown", [], ["Unit test evidence is not yet normalized into Evidence Packet."]),
     layer(3, "Component/accessibility", "unknown", [], ["Accessibility evidence is not yet normalized."]),

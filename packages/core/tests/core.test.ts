@@ -31,6 +31,7 @@ import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/bui
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
+import { analyzeRepository, writeRepoMap } from "../src/repo/analyze.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -963,6 +964,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
+    expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
@@ -978,6 +980,90 @@ describe("schema catalog", () => {
     expect(llmSchema.$defs.decision.properties.externalCallsMade).toEqual({ const: 0 });
     expect(providerSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
     expect(llmSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
+  });
+});
+
+describe("repo intelligence", () => {
+  it("maps repo scripts, selectors, routes, workflows, target hints, and coverage gaps", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-map-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await mkdir(path.join(tempRoot, ".github", "workflows"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "package.json"),
+      JSON.stringify(
+        {
+          name: "repo-map-fixture",
+          private: true,
+          workspaces: ["packages/*"],
+          scripts: {
+            build: "vite build",
+            preview: "vite preview --host 127.0.0.1 --port 4173",
+            test: "vitest run"
+          },
+          dependencies: { react: "^19.0.0", vite: "^6.0.0" },
+          devDependencies: { vitest: "^2.0.0", "@playwright/test": "^1.0.0" }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(path.join(tempRoot, "package-lock.json"), "{}", "utf8");
+    await writeFile(
+      path.join(tempRoot, "src", "App.tsx"),
+      `<a href="/clusters" data-testid="dashboard-page">Clusters</a><button data-testid='critical-action-button'>Run</button>`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, ".github", "workflows", "unsafe.yml"),
+      `name: unsafe
+on: pull_request_target
+permissions:
+  contents: write
+jobs:
+  test:
+    steps:
+      - run: echo "\${{ secrets.SECRET_TOKEN }}"
+`,
+      "utf8"
+    );
+
+    const report = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(report.project).toMatchObject({
+      name: "repo-map-fixture",
+      packageManager: "npm",
+      workspaces: ["packages/*"],
+      frameworks: ["react", "vite"]
+    });
+    expect(report.scripts.map((script) => script.name)).toEqual(expect.arrayContaining(["build", "preview", "test"]));
+    expect(report.selectors.map((selector) => selector.selector)).toEqual(
+      expect.arrayContaining(["[data-testid='dashboard-page']", "[data-testid='critical-action-button']"])
+    );
+    expect(report.routes.map((route) => route.route)).toContain("/clusters");
+    expect(report.testTools).toEqual(expect.arrayContaining(["playwright", "vitest"]));
+    expect(report.targetHints.find((hint) => hint.id === "localPreview")).toMatchObject({ kind: "command", confidence: "high" });
+    expect(report.workflows[0]).toMatchObject({ usesPullRequestTarget: true, usesSecrets: true });
+    expect(report.riskSignals.map((risk) => risk.id)).toEqual(expect.arrayContaining(["missing_visual_hive_config", "workflow_pull_request_target"]));
+    expect(report.coverageGaps.map((gap) => gap.id)).toContain("repo-intelligence-config");
+    expect(JSON.stringify(report)).not.toContain("SECRET_TOKEN");
+  });
+
+  it("writes repo-map JSON and repo-context Markdown", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-map-write-"));
+    tempDirs.push(tempRoot);
+    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "repo-map-write", scripts: { dev: "vite dev" }, dependencies: { vite: "^6.0.0" } }), "utf8");
+
+    const result = await writeRepoMap({
+      repoRoot: tempRoot,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+
+    expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "repo-map.json"));
+    expect(result.markdownPath).toBe(path.join(tempRoot, ".visual-hive", "repo-context.md"));
+    expect(await readFile(result.reportPath, "utf8")).toContain('"schemaVersion": 1');
+    expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Repo Context: repo-map-write");
   });
 });
 
@@ -3626,6 +3712,8 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "report.json"), '{"token":"abc123","status":"failed"}', "utf8");
     await writeFile(path.join(hiveRoot, "plan.canary.json"), '{"schemaVersion":1,"mode":"canary","changedFiles":["src/App.tsx"]}', "utf8");
     await writeFile(path.join(hiveRoot, "plans.json"), '{"schemaVersion":1,"lanes":[{"path":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "repo-map.json"), '{"schemaVersion":1,"riskSignals":[{"message":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "repo-context.md"), "Repo token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
@@ -3666,7 +3754,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(27);
+    expect(index.summary.artifactCount).toBe(29);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3680,6 +3768,13 @@ describe("artifact index", () => {
     expect(planLaneSummary?.preview).toContain("[REDACTED]");
     expect(planLaneSummary?.labels).toContain("plan-lanes");
     expect(planLaneSummary?.schemaPath).toBe("schemas/visual-hive.plans.schema.json");
+    const repoMap = index.artifacts.find((artifact) => artifact.path.endsWith("repo-map.json"));
+    expect(repoMap?.preview).toContain("[REDACTED]");
+    expect(repoMap?.labels).toContain("repo-map");
+    expect(repoMap?.schemaPath).toBe("schemas/visual-hive.repo-map.schema.json");
+    const repoContext = index.artifacts.find((artifact) => artifact.path.endsWith("repo-context.md"));
+    expect(repoContext?.preview).toContain("[REDACTED]");
+    expect(repoContext?.labels).toContain("repo-context");
     const setupPrPlan = index.artifacts.find((artifact) => artifact.path.endsWith("setup-pr-plan.json"));
     expect(setupPrPlan?.preview).toContain("[REDACTED]");
     expect(setupPrPlan?.labels).toContain("setup-pr-plan");

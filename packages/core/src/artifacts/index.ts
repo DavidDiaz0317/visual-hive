@@ -225,6 +225,8 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("provider-handoff.json")) labels.add("provider-handoff");
   if (normalized.endsWith("llm-decisions.json")) labels.add("llm-decisions");
   if (normalized.endsWith("connections-portfolio.json")) labels.add("connections-portfolio");
+  if (normalized.endsWith("repo-map.json")) labels.add("repo-map");
+  if (normalized.endsWith("repo-context.md")) labels.add("repo-context");
   if (normalized.endsWith("evidence-packet.json")) labels.add("evidence-packet");
   if (normalized.endsWith("evidence-summary.md")) labels.add("evidence-summary");
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
@@ -267,6 +269,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "llm-decisions.json": "visual-hive.llm-decisions.schema.json",
     "connections.json": "visual-hive.connections.schema.json",
     "connections-portfolio.json": "visual-hive.connections-portfolio.schema.json",
+    "repo-map.json": "visual-hive.repo-map.schema.json",
     "evidence-packet.json": "visual-hive.evidence-packet.schema.json",
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",

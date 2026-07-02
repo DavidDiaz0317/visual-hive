@@ -1,5 +1,6 @@
 import type { MutationReport, ProviderResult, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
+import type { RepoMapReport } from "../repo/types.js";
 
 export type VisualHiveVerdict = "passed" | "failed" | "warning" | "blocked" | "inconclusive";
 
@@ -58,6 +59,7 @@ export interface EvidencePacket {
     providerResults?: string;
     readiness?: string;
     coverage?: string;
+    repoMap?: string;
     artifactsIndex?: string;
   };
   governance: {
@@ -72,6 +74,11 @@ export interface EvidencePacket {
     branch?: string;
     commitSha?: string;
     runContext?: string;
+  };
+  repoIntelligence?: Pick<RepoMapReport, "project" | "sourceSummary" | "testTools" | "targetHints" | "riskSignals" | "coverageGaps"> & {
+    selectorCount: number;
+    routeCount: number;
+    workflowCount: number;
   };
   plan?: Pick<Plan, "schemaVersion" | "project" | "mode" | "generatedAt" | "changedFiles" | "effectiveChangedFiles"> & {
     selectedContracts: string[];

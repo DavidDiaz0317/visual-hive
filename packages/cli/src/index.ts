@@ -53,6 +53,7 @@ import { formatSetupProgress, runSetupStatusCommand } from "./commands/setupStat
 import { formatRunbookReport, runRunbookCommand } from "./commands/runbook.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
+import { formatAnalyzeSummary, runAnalyzeCommand } from "./commands/analyze.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
@@ -1002,6 +1003,27 @@ program
         format: options.format
       });
       console.log(formatCostsReport(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("analyze")
+  .description("Scan a repository and write read-only repo intelligence artifacts")
+  .option("--repo <path>", "repository root to scan", ".")
+  .option("--out <path>", "repo map JSON output path", ".visual-hive/repo-map.json")
+  .option("--markdown <path>", "repo context markdown output path", ".visual-hive/repo-context.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runAnalyzeCommand({
+        repo: options.repo,
+        output: options.out,
+        markdown: options.markdown,
+        format: options.format
+      });
+      console.log(formatAnalyzeSummary(result, options.format));
     } catch (error) {
       fail(error);
     }

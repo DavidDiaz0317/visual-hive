@@ -21,6 +21,8 @@ export * from "./tools/types.js";
 export * from "./tools/build.js";
 export * from "./context/types.js";
 export * from "./context/build.js";
+export * from "./repo/types.js";
+export * from "./repo/analyze.js";
 export * from "./targets/audit.js";
 export * from "./targets/resolve.js";
 export * from "./schedules/audit.js";

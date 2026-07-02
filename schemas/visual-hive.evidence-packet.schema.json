@@ -32,6 +32,7 @@
         "providerResults": { "type": "string" },
         "readiness": { "type": "string" },
         "coverage": { "type": "string" },
+        "repoMap": { "type": "string" },
         "artifactsIndex": { "type": "string" }
       }
     },
@@ -57,6 +58,7 @@
         "runContext": { "type": "string" }
       }
     },
+    "repoIntelligence": { "type": "object" },
     "plan": { "type": "object" },
     "deterministicReport": { "type": "object" },
     "mutation": { "type": "object" },

@@ -55,6 +55,7 @@ import { formatSetupProgress, runSetupStatusCommand } from "../src/commands/setu
 import { formatRunbookReport, runRunbookCommand } from "../src/commands/runbook.js";
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
+import { formatAnalyzeSummary, runAnalyzeCommand } from "../src/commands/analyze.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { renderMarkdownReport } from "../src/commands/report.js";
@@ -314,6 +315,7 @@ mutation:
       "demo:agent-packet",
       "demo:tools",
       "demo:context",
+      "demo:analyze",
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
@@ -351,6 +353,11 @@ mutation:
     expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:tools"]).toContain("tools --config");
     expect(packageJson.scripts["demo:context"]).toContain("context --config");
+    expect(packageJson.scripts["demo:analyze"]).toContain("analyze --repo");
+    expect(packageJson.scripts["demo:all"].indexOf("demo:doctor")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:analyze"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:doctor")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:analyze"));
+    expect(packageJson.scripts["demo:all"].indexOf("demo:analyze")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:recommend"));
+    expect(packageJson.scripts["demo:ci"].indexOf("demo:analyze")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:recommend"));
     expect(packageJson.scripts["demo:all"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
     expect(packageJson.scripts["demo:ci"].indexOf("demo:tools")).toBeLessThan(packageJson.scripts["demo:ci"].indexOf("demo:context"));
     expect(packageJson.scripts["demo:all"].indexOf("demo:pipeline")).toBeLessThan(packageJson.scripts["demo:all"].indexOf("demo:context"));
@@ -381,6 +388,64 @@ mutation:
     expect(packageJson.scripts["demo:kubestellar:schedule-plan"]).toContain("--mode schedule");
     expect(packageJson.scripts["demo:ui"]).toBe("npm run smoke:ui");
     expect(packageJson.scripts["demo:risk"]).toContain("risk --config");
+  });
+
+  it("analyze writes repo map and context artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-analyze-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "package.json"),
+      JSON.stringify(
+        {
+          name: "analyze-fixture",
+          scripts: {
+            build: "vite build",
+            preview: "vite preview",
+            test: "vitest"
+          },
+          dependencies: {
+            react: "^19.0.0",
+            vite: "^6.0.0"
+          },
+          devDependencies: {
+            "@playwright/test": "^1.50.0",
+            vitest: "^2.1.8"
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, "src", "App.tsx"),
+      `export function App() {
+  const token = "secret-value";
+  return <a href="/clusters" data-testid="dashboard-page">Clusters</a>;
+}
+`,
+      "utf8"
+    );
+
+    const result = await runAnalyzeCommand({ repo: tempRoot });
+    const summary = formatAnalyzeSummary(result);
+    const report = await readJson<typeof result.report>(result.reportPath);
+    const markdown = await readFile(result.markdownPath, "utf8");
+
+    expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "repo-map.json"));
+    expect(result.markdownPath).toBe(path.join(tempRoot, ".visual-hive", "repo-context.md"));
+    expect(report.schemaVersion).toBe(1);
+    expect(report.project.name).toBe("analyze-fixture");
+    expect(report.project.frameworks).toEqual(expect.arrayContaining(["react", "vite"]));
+    expect(report.testTools).toEqual(expect.arrayContaining(["playwright", "vitest"]));
+    expect(report.selectors.map((selector) => selector.selector)).toContain("[data-testid='dashboard-page']");
+    expect(report.routes.map((route) => route.route)).toContain("/clusters");
+    expect(report.targetHints.map((hint) => hint.id)).toContain("localPreview");
+    expect(summary).toContain("Visual Hive Repo Context: analyze-fixture");
+    expect(markdown).toContain("Visual Hive Repo Context: analyze-fixture");
+    expect(JSON.stringify(report)).not.toContain("secret-value");
+    expect(markdown).not.toContain("secret-value");
   });
 
   it("passes explicit include and exclude options through plan command", async () => {
