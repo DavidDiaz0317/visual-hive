@@ -42,6 +42,7 @@ import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplates
 import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
+import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -451,6 +452,31 @@ program
         format: options.format
       });
       console.log(formatEvidencePacket(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("handoff")
+  .description("Write no-network GitHub/Hive handoff artifacts from the latest Evidence Packet")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--mode <mode>", "handoff mode: dry_run, github_issue, or bead_api", "dry_run")
+  .option("--dry-run", "force dry-run mode with zero external calls")
+  .option("--label <label>", "handoff label (repeatable)", collectRepeatable, [])
+  .option("--agent <agent>", "Hive agent name for the bead dry-run request")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHandoffCommand({
+        config: options.config,
+        evidence: options.evidence,
+        mode: options.dryRun ? "dry_run" : options.mode,
+        label: options.label,
+        agent: options.agent
+      });
+      console.log(formatHandoffResult(result, options.format));
     } catch (error) {
       fail(error);
     }

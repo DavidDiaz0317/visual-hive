@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, and `evidence-summary.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -149,6 +149,22 @@ Key fields:
 - `hiveReadiness`: whether the packet is ready for trusted GitHub issue handoff or Hive dry-run handoff.
 
 `visual-hive evidence` also writes `.visual-hive/evidence-summary.md`, a sanitized human-readable summary of the same verdict and handoff state.
+
+## Handoff Packet
+
+Path: `.visual-hive/handoff.json`
+
+Schema: `schemas/visual-hive.handoff.schema.json`
+
+The handoff packet is written by `visual-hive handoff --dry-run` after an Evidence Packet exists. It is a smaller task-oriented object for trusted GitHub issue workflows, Hive dry-run review, and future agent queueing. It records the source Evidence Packet, labels, Visual Hive verdict summary, governance policy, work items, trusted issue metadata, Hive Bead dry-run metadata, and `externalCallsMade: 0`.
+
+Related artifacts:
+
+- `.visual-hive/hive-issue.md`: sanitized GitHub/Hive issue body for trusted workflows.
+- `.visual-hive/hive-bead-request.json`: dry-run Hive Bead request object with allowed and forbidden agent actions.
+- `.visual-hive/hive-handoff-result.json`: command result summary and artifact paths.
+
+The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default.
 
 ## Schedule Audit
 

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-handoff-result.schema.json",
+  "title": "Visual Hive Hive Handoff Result",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "mode",
+    "status",
+    "externalCallsMade",
+    "artifacts",
+    "blockedReasons",
+    "message"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-handoff-result.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "mode": { "enum": ["dry_run", "github_issue", "bead_api"] },
+    "status": { "enum": ["dry_run_written", "blocked"] },
+    "externalCallsMade": { "const": 0 },
+    "artifacts": {
+      "type": "object",
+      "required": ["handoff", "issue", "beadRequest", "result", "evidencePacket"],
+      "additionalProperties": false,
+      "properties": {
+        "handoff": { "type": "string" },
+        "issue": { "type": "string" },
+        "beadRequest": { "type": "string" },
+        "result": { "type": "string" },
+        "evidencePacket": { "type": "string" }
+      }
+    },
+    "blockedReasons": { "type": "array", "items": { "type": "string" } },
+    "message": { "type": "string" }
+  }
+}

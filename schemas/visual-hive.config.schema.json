@@ -110,6 +110,13 @@
       }
     },
     "costPolicy": { "$ref": "#/$defs/costPolicy" },
+    "integrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hive": { "$ref": "#/$defs/hiveIntegration" }
+      }
+    },
     "github": {
       "type": "object",
       "additionalProperties": false,
@@ -458,6 +465,28 @@
             "full": { "type": "boolean", "default": true },
             "onFailureOnly": { "type": "boolean", "default": true },
             "criticalContractsOnly": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "hiveIntegration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "mode": { "enum": ["dry_run", "github_issue", "bead_api"], "default": "dry_run" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": ["visual-hive", "hive/quality", "ai-ready"]
+        },
+        "beadApi": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": { "type": "string", "minLength": 1 },
+            "tokenEnv": { "type": "string", "minLength": 1, "default": "HIVE_DASHBOARD_TOKEN" },
+            "agent": { "type": "string", "minLength": 1, "default": "quality" }
           }
         }
       }

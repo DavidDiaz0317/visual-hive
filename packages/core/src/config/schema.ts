@@ -141,6 +141,40 @@ export const CostPolicySchema = z
     }
   });
 
+const HiveIntegrationConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    mode: z.enum(["dry_run", "github_issue", "bead_api"]).default("dry_run"),
+    labels: z.array(z.string().min(1)).default(["visual-hive", "hive/quality", "ai-ready"]),
+    beadApi: z
+      .object({
+        url: z.string().min(1).optional(),
+        tokenEnv: z.string().min(1).default("HIVE_DASHBOARD_TOKEN"),
+        agent: z.string().min(1).default("quality")
+      })
+      .default({ tokenEnv: "HIVE_DASHBOARD_TOKEN", agent: "quality" })
+  })
+  .default({
+    enabled: false,
+    mode: "dry_run",
+    labels: ["visual-hive", "hive/quality", "ai-ready"],
+    beadApi: { tokenEnv: "HIVE_DASHBOARD_TOKEN", agent: "quality" }
+  });
+
+export const IntegrationsConfigSchema = z
+  .object({
+    hive: HiveIntegrationConfigSchema
+  })
+  .optional()
+  .default({
+    hive: {
+      enabled: false,
+      mode: "dry_run",
+      labels: ["visual-hive", "hive/quality", "ai-ready"],
+      beadApi: { tokenEnv: "HIVE_DASHBOARD_TOKEN", agent: "quality" }
+    }
+  });
+
 const RunOnSchema = z
   .object({
     pullRequest: z.boolean().optional().default(false),
@@ -397,6 +431,7 @@ export const VisualHiveConfigSchema = z.object({
     }),
   providers: ProvidersConfigSchema,
   costPolicy: CostPolicySchema,
+  integrations: IntegrationsConfigSchema,
   github: z
     .object({
       enabled: z.boolean().default(false),

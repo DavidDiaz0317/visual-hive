@@ -265,6 +265,24 @@ Provider `projectId` is optional and sanitized before it appears in `provider-re
 
 `providers.argos.upload.extraFiles` accepts repo-relative paths only. Absolute paths and parent-directory traversal are rejected. Text artifacts are sanitized while staged; screenshots are copied as image artifacts.
 
+Hive integration defaults:
+
+```yaml
+integrations:
+  hive:
+    enabled: false
+    mode: dry_run
+    labels:
+      - visual-hive
+      - hive/quality
+      - ai-ready
+    beadApi:
+      tokenEnv: HIVE_DASHBOARD_TOKEN
+      agent: quality
+```
+
+`visual-hive handoff --dry-run` consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`. It makes zero network calls, does not create GitHub issues or Hive Beads, and reports credential names only if future trusted `bead_api` mode is configured.
+
 Provider cost policy defaults:
 
 ```yaml

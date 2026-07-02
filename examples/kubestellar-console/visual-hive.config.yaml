@@ -343,6 +343,19 @@ providers:
         - ".visual-hive/report.json"
         - ".visual-hive/mutation-report.json"
 
+integrations:
+  hive:
+    enabled: false
+    mode: dry_run
+    labels:
+      - visual-hive
+      - hive/quality
+      - ai-ready
+      - kubestellar-console
+    beadApi:
+      tokenEnv: HIVE_DASHBOARD_TOKEN
+      agent: quality
+
 costPolicy:
   maxExternalScreenshotsPerRun: 40
   maxMonthlyExternalScreenshots: 5000

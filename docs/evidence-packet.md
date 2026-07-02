@@ -56,3 +56,20 @@ Current handoff readiness fields are intentionally conservative:
 - `suggestedLabels`
 
 The next product slice should derive a smaller Handoff Packet from this Evidence Packet rather than asking agents to scrape CI logs.
+
+## Handoff Dry Run
+
+Run:
+
+```bash
+visual-hive handoff --dry-run --config visual-hive.config.yaml
+```
+
+This consumes `.visual-hive/evidence-packet.json` and writes:
+
+- `.visual-hive/handoff.json`
+- `.visual-hive/hive-issue.md`
+- `.visual-hive/hive-bead-request.json`
+- `.visual-hive/hive-handoff-result.json`
+
+The dry run makes zero network calls. It does not create a GitHub issue, does not create a Hive Bead, and does not execute repository code. Trusted workflows can later consume these sanitized artifacts to create issues or agent work items without checking out or executing untrusted PR code.

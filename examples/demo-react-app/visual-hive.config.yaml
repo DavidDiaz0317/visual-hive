@@ -217,6 +217,18 @@ providers:
       includeTextArtifacts: false
       extraFiles: []
 
+integrations:
+  hive:
+    enabled: false
+    mode: dry_run
+    labels:
+      - visual-hive
+      - hive/quality
+      - ai-ready
+    beadApi:
+      tokenEnv: HIVE_DASHBOARD_TOKEN
+      agent: quality
+
 costPolicy:
   maxExternalScreenshotsPerRun: 0
   maxMonthlyExternalScreenshots: 5000

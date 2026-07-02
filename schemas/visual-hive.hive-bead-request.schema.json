@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-bead-request.schema.json",
+  "title": "Visual Hive Hive Bead Dry-Run Request",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "dryRun",
+    "externalCallsMade",
+    "project",
+    "agent",
+    "labels",
+    "objective",
+    "evidencePacketPath",
+    "handoffPacketPath",
+    "issueBodyPath",
+    "verdict",
+    "workItems",
+    "allowedActions",
+    "forbiddenActions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-bead-request.v1" },
+    "dryRun": { "const": true },
+    "externalCallsMade": { "const": 0 },
+    "project": { "type": "string" },
+    "agent": { "type": "string" },
+    "labels": { "type": "array", "items": { "type": "string" } },
+    "objective": { "type": "string" },
+    "evidencePacketPath": { "type": "string" },
+    "handoffPacketPath": { "type": "string" },
+    "issueBodyPath": { "type": "string" },
+    "verdict": { "type": "object" },
+    "workItems": { "type": "array", "items": { "type": "object" } },
+    "allowedActions": { "type": "array", "items": { "type": "string" } },
+    "forbiddenActions": { "type": "array", "items": { "type": "string" } }
+  }
+}

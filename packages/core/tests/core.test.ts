@@ -27,6 +27,7 @@ import { buildProviderHandoffManifest } from "../src/providers/handoff.js";
 import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
+import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -245,6 +246,18 @@ describe("config validation", () => {
         full: true,
         onFailureOnly: true,
         criticalContractsOnly: true
+      }
+    });
+  });
+
+  it("applies disabled Hive integration dry-run defaults", () => {
+    expect(sampleConfig().integrations.hive).toMatchObject({
+      enabled: false,
+      mode: "dry_run",
+      labels: ["visual-hive", "hive/quality", "ai-ready"],
+      beadApi: {
+        tokenEnv: "HIVE_DASHBOARD_TOKEN",
+        agent: "quality"
       }
     });
   });
@@ -942,6 +955,10 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.plans.schema.json");
     expect(schemaNames).toContain("visual-hive.setup-pr-plan.schema.json");
     expect(schemaNames).toContain("visual-hive.provider-handoff.schema.json");
+    expect(schemaNames).toContain("visual-hive.evidence-packet.schema.json");
+    expect(schemaNames).toContain("visual-hive.handoff.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
       properties: { decisions: { items: { $ref: string } } };
@@ -4631,6 +4648,81 @@ describe("evidence packets", () => {
     expect(packet.verdictSummary.visualHiveVerdict).toBe("inconclusive");
     expect(packet.verdictSummary.blockedBecause).toContain("playwright.deterministic_run");
     expect(packet.hiveReadiness.readyForHiveDryRun).toBe(false);
+  });
+});
+
+describe("handoff packets", () => {
+  it("derives a no-network Hive handoff from a failed Evidence Packet", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.results[0]?.errors.push("authorization: bearer-secret-value");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          failedAssertion: "token=secret-token-value",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    });
+    const evidence = await writeEvidencePacket({ rootDir, project: "baseline-fixture", now: new Date("2026-06-15T00:02:00.000Z") });
+    const handoff = await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      labels: ["visual-hive", "hive/quality", "ai-ready", "custom"],
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+
+    expect(handoff.handoff.schemaVersion).toBe("visual-hive.handoff.v1");
+    expect(handoff.handoff.status).toBe("ready");
+    expect(handoff.handoff.externalCallsMade).toBe(0);
+    expect(handoff.handoff.workItems.map((item) => item.kind)).toEqual(expect.arrayContaining(["repair", "test_creation"]));
+    expect(handoff.beadRequest.dryRun).toBe(true);
+    expect(handoff.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
+    expect(handoff.result.status).toBe("dry_run_written");
+    expect(handoff.issueBody).toContain("Visual Hive's deterministic Verdict Engine owns pass/fail.");
+    expect(JSON.stringify(handoff)).not.toContain("secret-token-value");
+    expect(JSON.stringify(handoff)).not.toContain("bearer-secret-value");
+    expect(JSON.stringify(handoff)).toContain("[REDACTED]");
+    expect(await readFile(handoff.handoffPath, "utf8")).toContain("visual-hive.handoff.v1");
+    expect(await readFile(handoff.issuePath, "utf8")).toContain("visual-hive-hive-handoff");
+    expect(await readFile(handoff.beadRequestPath, "utf8")).toContain("visual-hive.hive-bead-request.v1");
+    expect(await readFile(handoff.resultPath, "utf8")).toContain("visual-hive.hive-handoff-result.v1");
+  });
+
+  it("blocks non-dry-run modes while still writing local review artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-blocked-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "empty",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const artifacts = buildHandoffArtifacts({
+      evidencePacket: packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      mode: "bead_api",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    expect(artifacts.handoff.status).toBe("blocked");
+    expect(artifacts.handoff.blockedReasons.join(" ")).toContain("Only dry-run handoff is implemented locally");
+    expect(artifacts.result.externalCallsMade).toBe(0);
   });
 });
 

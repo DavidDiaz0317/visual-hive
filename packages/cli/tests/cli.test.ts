@@ -43,6 +43,8 @@ import { formatSchedulesAudit, runSchedulesCommand } from "../src/commands/sched
 import { formatWorkflowTemplateWrite, formatWorkflowsAudit, runWorkflowTemplatesWriteCommand, runWorkflowsCommand } from "../src/commands/workflows.js";
 import { formatHistorySummary, runHistoryCommand } from "../src/commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
+import { runEvidenceCommand } from "../src/commands/evidence.js";
+import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -304,6 +306,8 @@ mutation:
       "demo:history",
       "demo:connections",
       "demo:artifacts",
+      "demo:evidence",
+      "demo:handoff",
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
@@ -333,6 +337,9 @@ mutation:
     expect(packageJson.scripts["demo:connections"]).toContain("connections list --config");
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
+    expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
+    expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
+    expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--output .visual-hive/plan.canary.json");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
@@ -1231,6 +1238,119 @@ contracts:
     expect(summary).toContain("Artifact Index: cli-artifacts");
     expect(summary).toContain("schema=schemas/visual-hive.report.schema.json");
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes Hive handoff dry-run artifacts from an Evidence Packet", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-handoff-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-handoff
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+integrations:
+  hive:
+    enabled: false
+    mode: dry_run
+    labels:
+      - visual-hive
+      - hive/quality
+      - ai-ready
+      - cli-test
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-handoff",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173?token=secret-value", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 12,
+          errors: ["Missing selector; authorization: Bearer secret-value"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    const result = await runHandoffCommand({ cwd: tempRoot });
+    const summary = formatHandoffResult(result);
+    const handoff = await readJson<typeof result.handoff>(result.handoffPath);
+    const issue = await readFile(result.issuePath, "utf8");
+
+    expect(handoff.status).toBe("ready");
+    expect(handoff.externalCallsMade).toBe(0);
+    expect(handoff.labels).toContain("cli-test");
+    expect(handoff.workItems[0]?.kind).toBe("repair");
+    expect(result.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
+    expect(result.result.status).toBe("dry_run_written");
+    expect(summary).toContain("Hive Handoff Dry Run: cli-handoff");
+    expect(issue).toContain("Trusted workflows must consume uploaded sanitized artifacts");
+    expect(JSON.stringify(result)).not.toContain("secret-value");
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive-bead-request.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"))).resolves.toBeUndefined();
+  });
+
+  it("fails handoff clearly when the Evidence Packet is missing", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-handoff-missing-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: missing-handoff
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await expect(runHandoffCommand({ cwd: tempRoot })).rejects.toThrow(/Run "visual-hive evidence" before "visual-hive handoff --dry-run"/);
   });
 
   it("recommend writes setup recommendations and protects existing config files", async () => {

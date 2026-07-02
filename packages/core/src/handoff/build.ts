@@ -1,0 +1,340 @@
+import path from "node:path";
+import { sanitizeText } from "../utils/sanitize.js";
+import { readJson, writeJson, writeText } from "../utils/files.js";
+import type { EvidenceContribution, EvidencePacket } from "../evidence/types.js";
+import type { BuildHandoffOptions, HandoffArtifacts, HandoffPacket, HandoffPriority, HandoffWorkItem, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
+import { contributionKey } from "./types.js";
+
+const DEFAULT_LABELS = ["visual-hive", "hive/quality", "ai-ready"];
+const DEFAULT_AGENT = "quality";
+const HUMAN_APPROVAL = [
+  "github_issue_creation",
+  "hive_bead_creation",
+  "provider_upload_enablement",
+  "baseline_approval",
+  "protected_target_run"
+];
+
+export async function readEvidencePacket(filePath: string): Promise<EvidencePacket> {
+  const packet = await readJson<EvidencePacket>(filePath);
+  if (packet.schemaVersion !== "visual-hive.evidence-packet.v1") {
+    throw new Error(`Unsupported Evidence Packet schema at ${filePath}: ${String(packet.schemaVersion)}`);
+  }
+  return sanitizeValue(packet) as EvidencePacket;
+}
+
+export function buildHandoffArtifacts(options: BuildHandoffOptions): HandoffArtifacts {
+  const generatedAt = (options.now ?? new Date()).toISOString();
+  const mode = options.mode ?? "dry_run";
+  const labels = dedupe([...(options.labels?.length ? options.labels : options.evidencePacket.hiveReadiness.suggestedLabels), ...DEFAULT_LABELS]);
+  const handoffPacketPath = normalizeArtifactPath(options.handoffPacketPath ?? ".visual-hive/handoff.json");
+  const issueBodyPath = normalizeArtifactPath(options.issueBodyPath ?? ".visual-hive/hive-issue.md");
+  const beadRequestPath = normalizeArtifactPath(options.beadRequestPath ?? ".visual-hive/hive-bead-request.json");
+  const resultPath = normalizeArtifactPath(options.resultPath ?? ".visual-hive/hive-handoff-result.json");
+  const evidencePacketPath = normalizeArtifactPath(options.evidencePacketPath);
+  const blockedReasons = blockedReasonsFor(options.evidencePacket, mode);
+  const workItems = buildWorkItems(options.evidencePacket);
+  const status = blockedReasons.length ? "blocked" : "ready";
+  const issueTitle = issueTitleFor(options.evidencePacket);
+  const handoff: HandoffPacket = sanitizeValue({
+    schemaVersion: "visual-hive.handoff.v1",
+    generatedAt,
+    project: options.evidencePacket.project,
+    mode,
+    status,
+    externalCallsMade: 0,
+    sourceEvidencePacket: evidencePacketPath,
+    labels,
+    verdict: options.evidencePacket.verdictSummary,
+    governance: {
+      verdictAuthority: "visual_hive",
+      handoffAuthority: "advisory_repair_routing",
+      networkPolicy: "no_network_calls_in_dry_run",
+      secretPolicy: "redacted_values_names_only",
+      requiresHumanApprovalFor: HUMAN_APPROVAL
+    },
+    workItems,
+    githubIssue: {
+      title: issueTitle,
+      labels,
+      bodyPath: issueBodyPath,
+      dedupeSignature: dedupeSignature(options.evidencePacket),
+      trustedWorkflowRequired: true
+    },
+    hiveBeadRequest: {
+      dryRun: true,
+      requestPath: beadRequestPath,
+      agent: options.agent ?? DEFAULT_AGENT,
+      labels,
+      evidencePacketPath,
+      handoffPacketPath
+    },
+    blockedReasons
+  }) as HandoffPacket;
+
+  const issueBody = renderHiveIssueBody(handoff, options.evidencePacket);
+  const beadRequest: HiveBeadDryRunRequest = sanitizeValue({
+    schemaVersion: "visual-hive.hive-bead-request.v1",
+    dryRun: true,
+    externalCallsMade: 0,
+    project: handoff.project,
+    agent: handoff.hiveBeadRequest.agent,
+    labels: handoff.labels,
+    objective: objectiveFor(options.evidencePacket),
+    evidencePacketPath,
+    handoffPacketPath,
+    issueBodyPath,
+    verdict: handoff.verdict,
+    workItems: handoff.workItems,
+    allowedActions: [
+      "read_sanitized_evidence",
+      "inspect_artifact_paths",
+      "draft_repair_plan",
+      "suggest_tests",
+      "open_pull_request_after_human_approval"
+    ],
+    forbiddenActions: [
+      "decide_visual_hive_verdict",
+      "read_secret_values",
+      "approve_baselines_without_human_review",
+      "run_protected_targets_without_approval",
+      "upload_to_paid_providers_without_policy_authorization"
+    ]
+  }) as HiveBeadDryRunRequest;
+  const result: HiveHandoffResult = sanitizeValue({
+    schemaVersion: "visual-hive.hive-handoff-result.v1",
+    generatedAt,
+    project: handoff.project,
+    mode,
+    status: blockedReasons.length ? "blocked" : "dry_run_written",
+    externalCallsMade: 0,
+    artifacts: {
+      handoff: handoffPacketPath,
+      issue: issueBodyPath,
+      beadRequest: beadRequestPath,
+      result: resultPath,
+      evidencePacket: evidencePacketPath
+    },
+    blockedReasons,
+    message: blockedReasons.length
+      ? "Hive handoff dry-run artifacts were written, but handoff is blocked until evidence is sufficient."
+      : "Hive handoff dry-run artifacts were written with zero external calls."
+  }) as HiveHandoffResult;
+
+  return { handoff, issueBody, beadRequest, result };
+}
+
+export async function writeHandoffArtifacts(
+  options: BuildHandoffOptions & { rootDir: string }
+): Promise<HandoffArtifacts & { handoffPath: string; issuePath: string; beadRequestPath: string; resultPath: string }> {
+  const artifacts = buildHandoffArtifacts(options);
+  const handoffPath = resolve(options.rootDir, options.handoffPacketPath ?? ".visual-hive/handoff.json");
+  const issuePath = resolve(options.rootDir, options.issueBodyPath ?? ".visual-hive/hive-issue.md");
+  const beadRequestPath = resolve(options.rootDir, options.beadRequestPath ?? ".visual-hive/hive-bead-request.json");
+  const resultPath = resolve(options.rootDir, options.resultPath ?? ".visual-hive/hive-handoff-result.json");
+  await writeJson(handoffPath, artifacts.handoff);
+  await writeText(issuePath, artifacts.issueBody);
+  await writeJson(beadRequestPath, artifacts.beadRequest);
+  await writeJson(resultPath, artifacts.result);
+  return { ...artifacts, handoffPath, issuePath, beadRequestPath, resultPath };
+}
+
+export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePacket): string {
+  const gating = evidence.evidenceContributions.filter((contribution) => contribution.gating);
+  const advisory = evidence.evidenceContributions.filter((contribution) => !contribution.gating);
+  const reproduction = evidence.deterministicReport?.reproductionCommands ?? [];
+  const lines = [
+    `# ${handoff.githubIssue.title}`,
+    "",
+    "<!-- visual-hive-hive-handoff -->",
+    "",
+    "## Summary",
+    "",
+    `- Project: ${handoff.project}`,
+    `- Visual Hive verdict: ${handoff.verdict.visualHiveVerdict}`,
+    `- Handoff status: ${handoff.status}`,
+    `- External calls made: ${handoff.externalCallsMade}`,
+    `- Evidence packet: ${handoff.sourceEvidencePacket}`,
+    `- Labels: ${handoff.labels.join(", ")}`,
+    "",
+    "## Gating Evidence",
+    "",
+    ...listContributions(gating),
+    "",
+    "## Advisory Evidence",
+    "",
+    ...listContributions(advisory.slice(0, 12)),
+    "",
+    "## Work Items",
+    "",
+    ...(handoff.workItems.length
+      ? handoff.workItems.map((item) => `- [${item.priority}] ${item.kind}: ${item.title} (${item.evidenceKeys.join(", ") || "no evidence key"})`)
+      : ["- No work items generated."]),
+    "",
+    "## Reproduction Commands",
+    "",
+    ...(reproduction.length ? reproduction.map((command) => `- \`${command}\``) : ["- See Evidence Packet artifacts."]),
+    "",
+    "## Artifacts",
+    "",
+    `- Handoff packet: ${handoff.hiveBeadRequest.handoffPacketPath}`,
+    `- Bead request: ${handoff.hiveBeadRequest.requestPath}`,
+    `- Evidence packet: ${handoff.hiveBeadRequest.evidencePacketPath}`,
+    ...(evidence.deterministicReport?.generatedSpecPath ? [`- Generated spec: ${evidence.deterministicReport.generatedSpecPath}`] : []),
+    "",
+    "## Governance",
+    "",
+    "- Visual Hive's deterministic Verdict Engine owns pass/fail.",
+    "- Hive, LLMs, MCP tools, and agents may repair or route work, but they do not decide the verdict.",
+    "- This dry-run handoff made zero network calls and did not create a GitHub issue or Hive Bead.",
+    "- Trusted workflows must consume uploaded sanitized artifacts and must not execute untrusted PR code."
+  ];
+  if (handoff.blockedReasons.length) {
+    lines.splice(14, 0, `- Blocked reasons: ${handoff.blockedReasons.join("; ")}`);
+  }
+  return `${sanitizeText(lines.join("\n"))}\n`;
+}
+
+function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
+  const failed = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "failed");
+  const blocked = evidence.evidenceContributions.filter((contribution) => contribution.gating && contribution.status === "blocked");
+  const mutationSurvivors = evidence.evidenceContributions.filter((contribution) => contribution.source === "mutation" && contribution.kind === "mutation_survivor");
+  const workItems: HandoffWorkItem[] = [];
+
+  for (const contribution of [...failed, ...blocked].slice(0, 8)) {
+    workItems.push(workItemForContribution(contribution, evidence));
+  }
+  for (const contribution of mutationSurvivors.filter((item) => !failed.includes(item)).slice(0, 4)) {
+    workItems.push(workItemForContribution(contribution, evidence));
+  }
+  if (!workItems.length && evidence.verdictSummary.visualHiveVerdict === "passed") {
+    workItems.push({
+      id: "review-evidence",
+      kind: "review",
+      priority: "low",
+      title: "Review passing Visual Hive evidence for baseline and coverage health",
+      summary: "The latest Evidence Packet is passing; review advisory signals before expanding automation.",
+      evidenceKeys: evidence.verdictSummary.advisoryOnly.slice(0, 8),
+      artifacts: [".visual-hive/evidence-packet.json", ".visual-hive/evidence-summary.md"],
+      suggestedNextSteps: ["Review advisory-only evidence.", "Add missing contracts or mutation mappings before enabling stricter lanes."]
+    });
+  }
+  return dedupeWorkItems(workItems);
+}
+
+function workItemForContribution(contribution: EvidenceContribution, evidence: EvidencePacket): HandoffWorkItem {
+  const key = contributionKey(contribution);
+  const kind = contribution.source === "mutation" ? "test_creation" : contribution.status === "blocked" ? "setup" : "repair";
+  return {
+    id: safeId(key),
+    kind,
+    priority: priorityFor(contribution, evidence),
+    title: titleFor(contribution),
+    summary: contribution.reason,
+    evidenceKeys: [key],
+    artifacts: contribution.artifacts.length ? contribution.artifacts : [".visual-hive/evidence-packet.json"],
+    suggestedNextSteps: suggestedStepsFor(contribution)
+  };
+}
+
+function priorityFor(contribution: EvidenceContribution, evidence: EvidencePacket): HandoffPriority {
+  if (evidence.verdictSummary.visualHiveVerdict === "failed" && contribution.gating) return "high";
+  if (contribution.status === "blocked") return "critical";
+  if (contribution.source === "mutation") return "high";
+  if (contribution.status === "warning") return "medium";
+  return "low";
+}
+
+function titleFor(contribution: EvidenceContribution): string {
+  if (contribution.source === "mutation" && contribution.operator) return `Strengthen tests for survived mutation ${contribution.operator}`;
+  if (contribution.contractId) return `Repair ${contribution.contractId}: ${contribution.kind}`;
+  return `Review ${contribution.source}.${contribution.kind}`;
+}
+
+function suggestedStepsFor(contribution: EvidenceContribution): string[] {
+  if (contribution.source === "mutation") {
+    return ["Inspect the selected contracts.", "Add or strengthen assertions that kill this mutation.", "Rerun `visual-hive mutate`."];
+  }
+  if (contribution.status === "blocked") {
+    return ["Resolve blocked evidence collection.", "Rerun `visual-hive evidence`.", "Generate a fresh handoff dry-run."];
+  }
+  return ["Reproduce the deterministic failure.", "Inspect linked artifacts.", "Repair the app or update reviewed baselines intentionally.", "Rerun Visual Hive."];
+}
+
+function blockedReasonsFor(evidence: EvidencePacket, mode: string): string[] {
+  const reasons = [...evidence.hiveReadiness.blockedReasons];
+  if (mode !== "dry_run") {
+    reasons.push("Only dry-run handoff is implemented locally; trusted issue/API writes are deferred.");
+  }
+  if (!evidence.evidenceContributions.length) {
+    reasons.push("Evidence Packet has no evidence contributions.");
+  }
+  return dedupe(reasons);
+}
+
+function objectiveFor(evidence: EvidencePacket): string {
+  const verdict = evidence.verdictSummary.visualHiveVerdict;
+  if (verdict === "failed") return `Repair Visual Hive deterministic failures for ${evidence.project}.`;
+  if (verdict === "blocked") return `Unblock Visual Hive evidence collection for ${evidence.project}.`;
+  if (verdict === "warning") return `Review Visual Hive warnings and coverage guidance for ${evidence.project}.`;
+  if (verdict === "inconclusive") return `Collect sufficient Visual Hive evidence for ${evidence.project}.`;
+  return `Review passing Visual Hive evidence and improve coverage for ${evidence.project}.`;
+}
+
+function issueTitleFor(evidence: EvidencePacket): string {
+  return `[Visual Hive] ${evidence.project} ${evidence.verdictSummary.visualHiveVerdict} evidence handoff`;
+}
+
+function dedupeSignature(evidence: EvidencePacket): string {
+  const basis = [evidence.project, evidence.repo.repository ?? "local", evidence.verdictSummary.visualHiveVerdict, ...evidence.verdictSummary.failedBecause].join("|");
+  let hash = 0;
+  for (let index = 0; index < basis.length; index += 1) {
+    hash = (hash * 31 + basis.charCodeAt(index)) >>> 0;
+  }
+  return `visual-hive-${hash.toString(16)}`;
+}
+
+function listContributions(contributions: EvidenceContribution[]): string[] {
+  if (!contributions.length) return ["- None"];
+  return contributions.map((contribution) => `- [${contribution.status}] ${contributionKey(contribution)}: ${contribution.reason}`);
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean).map((value) => sanitizeText(value)))];
+}
+
+function dedupeWorkItems(items: HandoffWorkItem[]): HandoffWorkItem[] {
+  const seen = new Set<string>();
+  const result: HandoffWorkItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    result.push(item);
+  }
+  return result;
+}
+
+function safeId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function normalizeArtifactPath(value: string): string {
+  return value.replaceAll("\\", "/");
+}
+
+function resolve(rootDir: string, artifactPath: string): string {
+  return path.isAbsolute(artifactPath) ? artifactPath : path.resolve(rootDir, artifactPath);
+}
+
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(sanitizeValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)]));
+  }
+  return value;
+}
