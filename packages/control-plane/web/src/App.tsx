@@ -734,7 +734,7 @@ function ExpertDrawer({
               <ExternalArtifactLink href={artifactUrl(".visual-hive/mutation-report.json", "file", connection)} label="Open mutation report" />
             </div>
           </Card>
-          <EvidenceDisclosure className="span-12" title="Raw snapshot evidence" data={{ report: snapshot.report, plan: snapshot.plan, artifacts: snapshot.artifacts }} />
+          <EvidenceDisclosure className="span-12" title="Raw snapshot evidence" data={{ report: snapshot.report, plan: snapshot.plan, hiveExport: snapshot.hiveExport, artifacts: snapshot.artifacts }} />
         </div>
       )}
     </section>
@@ -803,8 +803,18 @@ function AgentForwardWorkflow({
     ".visual-hive/evidence-packet.json",
     ".visual-hive/verdict.json",
     ".visual-hive/handoff.json",
+    ".visual-hive/hive/hive-export.json",
     ".visual-hive/agent-packet.json",
     ".visual-hive/test-creation-plan.json"
+  ];
+  const hiveArtifacts = [
+    ".visual-hive/hive/hive-export.json",
+    ".visual-hive/hive/beads.json",
+    ".visual-hive/hive/knowledge-facts.json",
+    ".visual-hive/hive/knowledge-graph.json",
+    ".visual-hive/hive/issue-context.md",
+    ".visual-hive/hive/repair-work-orders.json",
+    ".visual-hive/hive/hive-agent-policy.json"
   ];
   return (
     <Card
@@ -840,11 +850,31 @@ function AgentForwardWorkflow({
               ["Evidence Packet", snapshot.evidencePacket ? "ready" : "missing"],
               ["Verdict Report", snapshot.verdictReport ? "ready" : "missing"],
               ["Handoff Packet", snapshot.handoffPacket ? `${snapshot.handoffPacket.status}; calls=${snapshot.handoffPacket.externalCallsMade}` : "missing"],
+              ["Hive native export", snapshot.hiveExport ? `${snapshot.hiveExport.mode}; calls=${snapshot.hiveExport.externalCallsMade}` : "missing"],
               ["Agent Packet", snapshot.agentPacket ? `${snapshot.agentPacket.profile}; network=${snapshot.agentPacket.budgets.allowExternalNetwork}` : "missing"],
               ["Advisory evidence", advisoryCount]
             ]}
           />
           <ArtifactList artifacts={packetArtifacts} connection={connection} />
+        </Card>
+        <Card className="span-6" title="Hive-native bundle">
+          <p className="card-subtext">
+            No-network Beads, knowledge facts, graph edges, wiki pages, issue context, agent policy, and guarded repair work orders for Hive or a trusted operator.
+          </p>
+          <KeyValueTable
+            rows={[
+              ["Status", <Badge key="status" tone={statusTone(snapshot.hiveExport?.status)}>{snapshot.hiveExport?.status ?? "missing"}</Badge>],
+              ["Mode", snapshot.hiveExport?.mode ?? "n/a"],
+              ["Configured mode", snapshot.hiveExport?.configuredMode ?? "n/a"],
+              ["External calls", snapshot.hiveExport?.externalCallsMade ?? 0],
+              ["Beads", snapshot.hiveExport?.summary.beads ?? 0],
+              ["Knowledge facts", snapshot.hiveExport?.summary.knowledgeFacts ?? 0],
+              ["Graph", snapshot.hiveExport ? `${snapshot.hiveExport.summary.graphNodes} nodes / ${snapshot.hiveExport.summary.graphEdges} edges` : "n/a"],
+              ["Repair work orders", snapshot.hiveExport?.summary.repairWorkOrders ?? 0]
+            ]}
+          />
+          {snapshot.hiveExport?.blockedReasons?.length ? <FindingList findings={snapshot.hiveExport.blockedReasons} tone="warning" /> : null}
+          <ArtifactList artifacts={hiveArtifacts} connection={connection} />
         </Card>
         <Card className="span-6" title="Next handoff work">
           {blockedReasons.length ? <FindingList findings={blockedReasons} tone="warning" /> : null}
@@ -865,6 +895,7 @@ function AgentForwardWorkflow({
               evidencePacket: snapshot.evidencePacket,
               verdictReport: snapshot.verdictReport,
               handoffPacket: snapshot.handoffPacket,
+              hiveExport: snapshot.hiveExport,
               agentPacket: snapshot.agentPacket,
               pipelineReport: snapshot.pipelineReport
             }}

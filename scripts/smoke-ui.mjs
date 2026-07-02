@@ -53,6 +53,9 @@ try {
   if (!snapshot.handoffPacket || snapshot.handoffPacket.externalCallsMade !== 0) {
     throw new Error("snapshot did not include no-network Hive handoff packet evidence");
   }
+  if (!snapshot.hiveExport || snapshot.hiveExport.externalCallsMade !== 0 || !snapshot.hiveExport.outputArtifacts?.export) {
+    throw new Error("snapshot did not include no-network Hive native export evidence");
+  }
   if (!snapshot.agentPacket?.budgets || snapshot.agentPacket.budgets.allowExternalNetwork !== false) {
     throw new Error("snapshot did not include bounded Agent Packet evidence");
   }
@@ -64,6 +67,11 @@ try {
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "agent-packet",
+    "runbook command ids"
+  );
+  assertArrayIncludes(
+    snapshot.runbook?.commands?.map((command) => command.id),
+    "hive-export",
     "runbook command ids"
   );
   assertArrayIncludes(
@@ -125,6 +133,7 @@ try {
     "Run PR-safe checks",
     "Review visual changes",
     "Evidence to agent handoff",
+    "Hive-native bundle",
     "Refresh handoff packet",
     "Visual Hive owns the verdict",
     "Test creation plan",

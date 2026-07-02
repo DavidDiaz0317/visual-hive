@@ -45,6 +45,33 @@ Also read the agent-forward v2 docs in `docs/agent-forward-v2/` when they are re
 - `visual-hive-agent-forward-integration-path.md`
 - `visual-hive-mcp-tool-efficiency-strategy.md`
 
+## Current implementation baseline
+
+Do not assume this repo is still an MVP scaffold. Before starting new work, verify what is already present and build on it.
+
+As of the latest agent-forward pass, Visual Hive already has substantial v0.2/v0.3 foundation:
+
+- strict TypeScript npm workspaces for core, CLI, Playwright adapter, GitHub adapter, LLM adapter, provider adapters, and Control Plane;
+- deterministic config validation, planning, running, mutation, triage, reporting, evidence, verdict, handoff, agent packet, testing-layer, tool-registry, context-ledger, and Hive export commands;
+- `url`, `command`, `commandGroup`, and `protected` target modeling;
+- tolerant screenshot comparison with baseline/artifact metadata;
+- contract-aware mutation mapping and mutation adequacy evidence;
+- optional provider upload surfaces that remain disabled by default;
+- no-network Hive handoff and Hive-native export artifacts;
+- a guided Control Plane UI over real local artifacts.
+
+Recent Control Plane work specifically wired Hive-native export into the visible product surface:
+
+- `createControlPlaneSnapshot` reads `.visual-hive/hive/hive-export.json`;
+- the snapshot includes `hiveExport` evidence;
+- navigation badges count missing Hive export alongside Evidence/Handoff/Agent packets;
+- the `agent-handoff-review` run profile includes `hive-export`;
+- the runbook exposes `visual-hive hive export --dry-run`;
+- the Control Plane shows a "Hive-native bundle" with beads, knowledge facts, graph nodes, repair work orders, blocked reasons, and artifact links;
+- `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence.
+
+If those changes are still uncommitted in the worktree, finish validating and commit them before starting a broader goal run. Do not reimplement this surface from scratch.
+
 ## Non-negotiable invariants
 
 - Visual Hive owns the final deterministic verdict layer.

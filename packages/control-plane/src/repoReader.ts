@@ -33,6 +33,7 @@ import {
   type EvidencePacket,
   type FlowAuditReport,
   type HandoffPacket,
+  type HiveExportBundle,
   type BaselineList,
   type LLMUsageReport,
   type MockProviderRunReport,
@@ -132,6 +133,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     evidencePacket,
     verdictReport,
     handoffPacket,
+    hiveExport,
     agentPacket,
     testCreationPlan,
     issueMarkdown,
@@ -169,6 +171,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<EvidencePacket>(path.join(hiveRoot, "evidence-packet.json")),
     readJsonIfExists<VerdictReport>(path.join(hiveRoot, "verdict.json")),
     readJsonIfExists<HandoffPacket>(path.join(hiveRoot, "handoff.json")),
+    readJsonIfExists<HiveExportBundle>(path.join(hiveRoot, "hive", "hive-export.json")),
     readJsonIfExists<AgentPacket>(path.join(hiveRoot, "agent-packet.json")),
     readJsonIfExists<TestCreationPlan>(path.join(hiveRoot, "test-creation-plan.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
@@ -280,6 +283,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     testCreationPlan,
     evidencePacket,
     handoffPacket,
+    hiveExport,
     agentPacket,
     artifacts
   });
@@ -308,6 +312,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     evidencePacket,
     verdictReport,
     handoffPacket,
+    hiveExport,
     agentPacket,
     mutationReport,
     providerRunReport,
@@ -582,6 +587,7 @@ function buildNavigationBadges(input: {
   testCreationPlan?: TestCreationPlan;
   evidencePacket?: EvidencePacket;
   handoffPacket?: HandoffPacket;
+  hiveExport?: HiveExportBundle;
   agentPacket?: AgentPacket;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
@@ -591,7 +597,7 @@ function buildNavigationBadges(input: {
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
-  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.agentPacket].filter((artifact) => !artifact).length;
+  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.hiveExport, input.agentPacket].filter((artifact) => !artifact).length;
   return {
     start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets, 99),
     run: 0,
@@ -647,8 +653,8 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
     {
       id: "agent-handoff-review",
       label: "Evidence to agent handoff",
-      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, advisory test plan, and bounded Agent Packet.",
-      commandIds: ["evidence", "verdict", "handoff", "test-creation-plan", "agent-packet"]
+      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, Hive-native export, advisory test plan, and bounded Agent Packet.",
+      commandIds: ["evidence", "verdict", "handoff", "hive-export", "test-creation-plan", "agent-packet"]
     },
     {
       id: "operational-pipeline",
@@ -965,6 +971,25 @@ function buildRunbook(
       expectedArtifacts: [".visual-hive/agent-packet.json"]
     },
     {
+      id: "hive-export",
+      label: "Write Hive native export",
+      lane: "local",
+      command: `visual-hive hive export ${configFlag} --dry-run`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Expand deterministic evidence into no-network Hive beads, knowledge facts, graph data, wiki pages, issue context, agent policy, and guarded repair work orders.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/beads.json",
+        ".visual-hive/hive/knowledge-facts.json",
+        ".visual-hive/hive/knowledge-graph.json",
+        ".visual-hive/hive/issue-context.md",
+        ".visual-hive/hive/repair-work-orders.json",
+        ".visual-hive/hive/hive-agent-policy.json"
+      ]
+    },
+    {
       id: "pipeline",
       label: "Run operational pipeline",
       lane: "pull_request",
@@ -972,7 +997,7 @@ function buildRunbook(
       cwd: resolved.repoRoot,
       safety: "pr_safe",
       description:
-        "Run the complete agent-forward artifact chain from repo intelligence through deterministic evidence, mutation adequacy, verdict, handoff, agent packet, tool registry, and context ledger.",
+        "Run the complete agent-forward artifact chain from repo intelligence through deterministic evidence, mutation adequacy, verdict, handoff, Hive-native export, agent packet, tool registry, and context ledger.",
       requiredSecrets: [],
       expectedArtifacts: [
         ".visual-hive/pipeline.json",
@@ -983,6 +1008,7 @@ function buildRunbook(
         ".visual-hive/evidence-packet.json",
         ".visual-hive/verdict.json",
         ".visual-hive/handoff.json",
+        ".visual-hive/hive/hive-export.json",
         ".visual-hive/agent-packet.json",
         ".visual-hive/tools/tool-registry.json",
         ".visual-hive/context-ledger.json"
