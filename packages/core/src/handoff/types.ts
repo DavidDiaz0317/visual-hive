@@ -54,6 +54,12 @@ export interface HandoffPacket {
     labels: string[];
     evidencePacketPath: string;
     handoffPacketPath: string;
+    integrationEnabled: boolean;
+    configuredMode: HandoffMode;
+    beadApiUrl?: string;
+    tokenEnv: string;
+    tokenPresent: boolean;
+    missingTokenEnv?: string;
   };
   blockedReasons: string[];
 }
@@ -69,6 +75,14 @@ export interface HiveBeadDryRunRequest {
   evidencePacketPath: string;
   handoffPacketPath: string;
   issueBodyPath: string;
+  target: {
+    integrationEnabled: boolean;
+    configuredMode: HandoffMode;
+    beadApiUrl?: string;
+    tokenEnv: string;
+    tokenPresent: boolean;
+    missingTokenEnv?: string;
+  };
   verdict: HandoffPacket["verdict"];
   workItems: HandoffWorkItem[];
   allowedActions: string[];
@@ -103,6 +117,16 @@ export interface BuildHandoffOptions {
   mode?: HandoffMode;
   labels?: string[];
   agent?: string;
+  hiveIntegration?: {
+    enabled?: boolean;
+    mode?: HandoffMode;
+    beadApi?: {
+      url?: string;
+      tokenEnv?: string;
+      agent?: string;
+      tokenPresent?: boolean;
+    };
+  };
   now?: Date;
 }
 

@@ -195,10 +195,10 @@ The handoff packet is written by `visual-hive handoff --dry-run` after an Eviden
 Related artifacts:
 
 - `.visual-hive/hive-issue.md`: sanitized GitHub/Hive issue body for trusted workflows.
-- `.visual-hive/hive-bead-request.json`: dry-run Hive Bead request object with allowed and forbidden agent actions.
+- `.visual-hive/hive-bead-request.json`: dry-run Hive Bead request object with allowed and forbidden agent actions plus safe target metadata: configured mode, optional redacted bead API URL, token environment variable name, token-present boolean, and missing token env name when applicable.
 - `.visual-hive/hive-handoff-result.json`: command result summary and artifact paths.
 
-The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default.
+The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default. Token values are never written; only environment variable names and presence/absence evidence may appear.
 
 ## Test Creation Plan
 

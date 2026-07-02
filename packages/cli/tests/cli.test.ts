@@ -1439,6 +1439,10 @@ integrations:
       - hive/quality
       - ai-ready
       - cli-test
+    beadApi:
+      url: "https://hive.example.invalid/api/beads?token=secret-value"
+      tokenEnv: VISUAL_HIVE_TEST_HIVE_TOKEN_MISSING
+      agent: quality
 `,
       "utf8"
     );
@@ -1498,6 +1502,22 @@ integrations:
     expect(handoff.externalCallsMade).toBe(0);
     expect(handoff.labels).toContain("cli-test");
     expect(handoff.workItems[0]?.kind).toBe("repair");
+    expect(handoff.hiveBeadRequest).toMatchObject({
+      integrationEnabled: false,
+      configuredMode: "dry_run",
+      beadApiUrl: "https://hive.example.invalid/api/beads?token=[REDACTED]",
+      tokenEnv: "VISUAL_HIVE_TEST_HIVE_TOKEN_MISSING",
+      tokenPresent: false,
+      missingTokenEnv: "VISUAL_HIVE_TEST_HIVE_TOKEN_MISSING"
+    });
+    expect(result.beadRequest.target).toMatchObject({
+      integrationEnabled: false,
+      configuredMode: "dry_run",
+      beadApiUrl: "https://hive.example.invalid/api/beads?token=[REDACTED]",
+      tokenEnv: "VISUAL_HIVE_TEST_HIVE_TOKEN_MISSING",
+      tokenPresent: false,
+      missingTokenEnv: "VISUAL_HIVE_TEST_HIVE_TOKEN_MISSING"
+    });
     expect(result.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(result.result.status).toBe("dry_run_written");
     expect(summary).toContain("Hive Handoff Dry Run: cli-handoff");

@@ -45,7 +45,17 @@ export async function runHandoffCommand(options: HandoffCommandOptions = {}): Pr
     evidencePacketPath: path.relative(loaded.rootDir, evidencePath).replaceAll(path.sep, "/"),
     mode,
     labels: options.label?.length ? options.label : hiveConfig.labels,
-    agent: options.agent ?? hiveConfig.beadApi.agent
+    agent: options.agent ?? hiveConfig.beadApi.agent,
+    hiveIntegration: {
+      enabled: hiveConfig.enabled,
+      mode: hiveConfig.mode,
+      beadApi: {
+        url: hiveConfig.beadApi.url,
+        tokenEnv: hiveConfig.beadApi.tokenEnv,
+        agent: hiveConfig.beadApi.agent,
+        tokenPresent: Boolean(process.env[hiveConfig.beadApi.tokenEnv])
+      }
+    }
   });
 }
 

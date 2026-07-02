@@ -5406,6 +5406,20 @@ describe("handoff packets", () => {
     expect(handoff.handoff.externalCallsMade).toBe(0);
     expect(handoff.handoff.workItems.map((item) => item.kind)).toEqual(expect.arrayContaining(["repair", "test_creation"]));
     expect(handoff.beadRequest.dryRun).toBe(true);
+    expect(handoff.beadRequest.target).toMatchObject({
+      integrationEnabled: false,
+      configuredMode: "dry_run",
+      tokenEnv: "HIVE_DASHBOARD_TOKEN",
+      tokenPresent: false,
+      missingTokenEnv: "HIVE_DASHBOARD_TOKEN"
+    });
+    expect(handoff.handoff.hiveBeadRequest).toMatchObject({
+      integrationEnabled: false,
+      configuredMode: "dry_run",
+      tokenEnv: "HIVE_DASHBOARD_TOKEN",
+      tokenPresent: false,
+      missingTokenEnv: "HIVE_DASHBOARD_TOKEN"
+    });
     expect(handoff.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(handoff.result.status).toBe("dry_run_written");
     expect(handoff.issueBody).toContain("Visual Hive's deterministic Verdict Engine owns pass/fail.");
@@ -5430,11 +5444,39 @@ describe("handoff packets", () => {
       evidencePacket: packet,
       evidencePacketPath: ".visual-hive/evidence-packet.json",
       mode: "bead_api",
+      hiveIntegration: {
+        enabled: true,
+        mode: "bead_api",
+        beadApi: {
+          url: "https://hive.example.invalid/api/beads?token=secret-value",
+          tokenEnv: "HIVE_DASHBOARD_TOKEN",
+          agent: "quality",
+          tokenPresent: false
+        }
+      },
       now: new Date("2026-06-15T00:03:00.000Z")
     });
     expect(artifacts.handoff.status).toBe("blocked");
     expect(artifacts.handoff.blockedReasons.join(" ")).toContain("Only dry-run handoff is implemented locally");
+    expect(artifacts.handoff.blockedReasons.join(" ")).toContain("Hive bead API token environment variable is missing: HIVE_DASHBOARD_TOKEN");
+    expect(artifacts.handoff.hiveBeadRequest).toMatchObject({
+      integrationEnabled: true,
+      configuredMode: "bead_api",
+      beadApiUrl: "https://hive.example.invalid/api/beads?token=[REDACTED]",
+      tokenEnv: "HIVE_DASHBOARD_TOKEN",
+      tokenPresent: false,
+      missingTokenEnv: "HIVE_DASHBOARD_TOKEN"
+    });
+    expect(artifacts.beadRequest.target).toMatchObject({
+      integrationEnabled: true,
+      configuredMode: "bead_api",
+      beadApiUrl: "https://hive.example.invalid/api/beads?token=[REDACTED]",
+      tokenEnv: "HIVE_DASHBOARD_TOKEN",
+      tokenPresent: false,
+      missingTokenEnv: "HIVE_DASHBOARD_TOKEN"
+    });
     expect(artifacts.result.externalCallsMade).toBe(0);
+    expect(JSON.stringify(artifacts)).not.toContain("secret-value");
   });
 
   it("turns testing-layer gaps into bounded handoff work items", async () => {

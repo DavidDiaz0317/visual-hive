@@ -53,8 +53,11 @@ integrations:
       - hive/quality
       - ai-ready
     beadApi:
+      url: https://hive.example.invalid/api/beads
       tokenEnv: HIVE_DASHBOARD_TOKEN
       agent: quality
 ```
+
+The bead request records only trusted-setup metadata: configured mode, optional bead API URL with secret-like query values redacted, token environment variable name, whether that environment variable was present, and the agent name. It never records the token value.
 
 Future `github_issue` and `bead_api` modes should remain trusted-lane only. They must consume the Evidence Packet or Handoff Packet and must not scrape raw CI logs as their source of truth.

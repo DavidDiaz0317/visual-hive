@@ -277,11 +277,12 @@ integrations:
       - hive/quality
       - ai-ready
     beadApi:
+      url: https://hive.example.invalid/api/beads
       tokenEnv: HIVE_DASHBOARD_TOKEN
       agent: quality
 ```
 
-`visual-hive handoff --dry-run` consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`. It makes zero network calls, does not create GitHub issues or Hive Beads, and reports credential names only if future trusted `bead_api` mode is configured.
+`visual-hive handoff --dry-run` consumes `.visual-hive/evidence-packet.json` and writes `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, and `.visual-hive/hive-handoff-result.json`. It makes zero network calls, does not create GitHub issues or Hive Beads, and records only safe connection metadata: configured mode, optional bead API URL with secret-like query values redacted, token environment variable name, and whether that environment variable was present. It never writes the token value. `bead_api` remains blocked locally until a trusted workflow/API adapter is explicitly implemented.
 
 Provider cost policy defaults:
 

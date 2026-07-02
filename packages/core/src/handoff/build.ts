@@ -2,7 +2,7 @@ import path from "node:path";
 import { sanitizeText } from "../utils/sanitize.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import type { EvidenceContribution, EvidencePacket } from "../evidence/types.js";
-import type { BuildHandoffOptions, HandoffArtifacts, HandoffPacket, HandoffPriority, HandoffWorkItem, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
+import type { BuildHandoffOptions, HandoffArtifacts, HandoffMode, HandoffPacket, HandoffPriority, HandoffWorkItem, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
 import { contributionKey } from "./types.js";
 
 const DEFAULT_LABELS = ["visual-hive", "hive/quality", "ai-ready"];
@@ -32,7 +32,8 @@ export function buildHandoffArtifacts(options: BuildHandoffOptions): HandoffArti
   const beadRequestPath = normalizeArtifactPath(options.beadRequestPath ?? ".visual-hive/hive-bead-request.json");
   const resultPath = normalizeArtifactPath(options.resultPath ?? ".visual-hive/hive-handoff-result.json");
   const evidencePacketPath = normalizeArtifactPath(options.evidencePacketPath);
-  const blockedReasons = blockedReasonsFor(options.evidencePacket, mode);
+  const beadTarget = beadTargetFor(options, mode);
+  const blockedReasons = blockedReasonsFor(options.evidencePacket, mode, beadTarget);
   const workItems = buildWorkItems(options.evidencePacket);
   const status = blockedReasons.length ? "blocked" : "ready";
   const issueTitle = issueTitleFor(options.evidencePacket);
@@ -64,10 +65,11 @@ export function buildHandoffArtifacts(options: BuildHandoffOptions): HandoffArti
     hiveBeadRequest: {
       dryRun: true,
       requestPath: beadRequestPath,
-      agent: options.agent ?? DEFAULT_AGENT,
+      agent: options.agent ?? options.hiveIntegration?.beadApi?.agent ?? DEFAULT_AGENT,
       labels,
       evidencePacketPath,
-      handoffPacketPath
+      handoffPacketPath,
+      ...beadTarget
     },
     blockedReasons
   }) as HandoffPacket;
@@ -84,6 +86,7 @@ export function buildHandoffArtifacts(options: BuildHandoffOptions): HandoffArti
     evidencePacketPath,
     handoffPacketPath,
     issueBodyPath,
+    target: beadTarget,
     verdict: handoff.verdict,
     workItems: handoff.workItems,
     allowedActions: [
@@ -337,15 +340,38 @@ function suggestedStepsFor(contribution: EvidenceContribution): string[] {
   return ["Reproduce the deterministic failure.", "Inspect linked artifacts.", "Repair the app or update reviewed baselines intentionally.", "Rerun Visual Hive."];
 }
 
-function blockedReasonsFor(evidence: EvidencePacket, mode: string): string[] {
+function blockedReasonsFor(evidence: EvidencePacket, mode: string, beadTarget: ReturnType<typeof beadTargetFor>): string[] {
   const reasons = [...evidence.hiveReadiness.blockedReasons];
   if (mode !== "dry_run") {
     reasons.push("Only dry-run handoff is implemented locally; trusted issue/API writes are deferred.");
+  }
+  if (mode === "bead_api" && !beadTarget.integrationEnabled) {
+    reasons.push("Hive integration is disabled; enable integrations.hive only in a trusted workflow before creating Hive Beads.");
+  }
+  if (mode === "bead_api" && !beadTarget.beadApiUrl) {
+    reasons.push("Hive bead API URL is not configured; set integrations.hive.beadApi.url in a trusted environment.");
+  }
+  if (mode === "bead_api" && !beadTarget.tokenPresent) {
+    reasons.push(`Hive bead API token environment variable is missing: ${beadTarget.tokenEnv}.`);
   }
   if (!evidence.evidenceContributions.length) {
     reasons.push("Evidence Packet has no evidence contributions.");
   }
   return dedupe(reasons);
+}
+
+function beadTargetFor(options: BuildHandoffOptions, mode: HandoffMode): HiveBeadDryRunRequest["target"] {
+  const tokenEnv = options.hiveIntegration?.beadApi?.tokenEnv ?? "HIVE_DASHBOARD_TOKEN";
+  const tokenPresent = Boolean(options.hiveIntegration?.beadApi?.tokenPresent);
+  const target = {
+    integrationEnabled: Boolean(options.hiveIntegration?.enabled),
+    configuredMode: options.hiveIntegration?.mode ?? mode,
+    beadApiUrl: options.hiveIntegration?.beadApi?.url,
+    tokenEnv,
+    tokenPresent,
+    missingTokenEnv: tokenPresent ? undefined : tokenEnv
+  };
+  return sanitizeValue(target) as HiveBeadDryRunRequest["target"];
 }
 
 function objectiveFor(evidence: EvidencePacket): string {
