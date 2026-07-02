@@ -73,3 +73,17 @@ This consumes `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive-handoff-result.json`
 
 The dry run makes zero network calls. It does not create a GitHub issue, does not create a Hive Bead, and does not execute repository code. Trusted workflows can later consume these sanitized artifacts to create issues or agent work items without checking out or executing untrusted PR code.
+
+## Agent Packet
+
+Run:
+
+```bash
+visual-hive agent-packet --config visual-hive.config.yaml --profile repair_agent
+```
+
+This consumes `.visual-hive/evidence-packet.json`, optionally consumes `.visual-hive/handoff.json`, and writes:
+
+- `.visual-hive/agent-packet.json`
+
+The Agent Packet is a bounded work envelope for `repair_agent`, `test_creator`, `review_agent`, and `handoff_agent` profiles. It includes the Visual Hive verdict, compact evidence, allowed tools, forbidden actions, budgets, reproduction commands, and artifact pointers. Agents may repair or recommend next tests, but Visual Hive remains the verdict authority.

@@ -43,6 +43,7 @@ import { formatHistorySummary, runHistoryCommand } from "./commands/history.js";
 import { formatArtifactsIndex, runArtifactsCommand } from "./commands/artifacts.js";
 import { formatEvidencePacket, runEvidenceCommand } from "./commands/evidence.js";
 import { formatHandoffResult, runHandoffCommand } from "./commands/handoff.js";
+import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -477,6 +478,31 @@ program
         agent: options.agent
       });
       console.log(formatHandoffResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("agent-packet")
+  .description("Write a role-specific agent packet from Evidence/Handoff artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--profile <profile>", "repair_agent, test_creator, review_agent, or handoff_agent", "repair_agent")
+  .option("--output <path>", "agent packet output path", ".visual-hive/agent-packet.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runAgentPacketCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        profile: options.profile,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatAgentPacketResult(result, options.format));
     } catch (error) {
       fail(error);
     }

@@ -227,6 +227,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("connections-portfolio.json")) labels.add("connections-portfolio");
   if (normalized.endsWith("evidence-packet.json")) labels.add("evidence-packet");
   if (normalized.endsWith("evidence-summary.md")) labels.add("evidence-summary");
+  if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
   if (normalized.endsWith("/handoff.json")) labels.add("handoff-packet");
   if (normalized.endsWith("hive-issue.md")) labels.add("hive-issue");
   if (normalized.endsWith("hive-bead-request.json")) labels.add("hive-bead-request");
@@ -264,6 +265,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "connections.json": "visual-hive.connections.schema.json",
     "connections-portfolio.json": "visual-hive.connections-portfolio.schema.json",
     "evidence-packet.json": "visual-hive.evidence-packet.schema.json",
+    "agent-packet.json": "visual-hive.agent-packet.schema.json",
     "handoff.json": "visual-hive.handoff.schema.json",
     "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
     "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",

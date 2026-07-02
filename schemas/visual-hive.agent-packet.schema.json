@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.agent-packet.schema.json",
+  "title": "Visual Hive Agent Packet",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "profile",
+    "objective",
+    "sourceArtifacts",
+    "verdict",
+    "evidenceSummary",
+    "allowedTools",
+    "forbiddenActions",
+    "budgets",
+    "reproductionCommands",
+    "artifactPointers",
+    "instructions",
+    "governance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.agent-packet.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "profile": { "enum": ["repair_agent", "test_creator", "review_agent", "handoff_agent"] },
+    "objective": { "type": "string" },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": ["evidencePacket"],
+      "additionalProperties": false,
+      "properties": {
+        "evidencePacket": { "type": "string" },
+        "handoffPacket": { "type": "string" }
+      }
+    },
+    "verdict": { "$ref": "#/$defs/verdict" },
+    "evidenceSummary": {
+      "type": "object",
+      "required": ["gatingContributions", "advisoryContributions", "workItems", "selectedContracts", "selectedTargets"],
+      "additionalProperties": false,
+      "properties": {
+        "gatingContributions": { "type": "array", "items": { "$ref": "#/$defs/evidenceContribution" } },
+        "advisoryContributions": { "type": "array", "items": { "$ref": "#/$defs/evidenceContribution" } },
+        "workItems": { "type": "array", "items": { "$ref": "#/$defs/workItem" } },
+        "selectedContracts": { "type": "array", "items": { "type": "string" } },
+        "selectedTargets": { "type": "array", "items": { "type": "string" } },
+        "mutationScore": { "type": "number" }
+      }
+    },
+    "allowedTools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "access", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "access": { "enum": ["read_only", "local_execution", "trusted_write"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "forbiddenActions": { "type": "array", "items": { "type": "string" } },
+    "budgets": {
+      "type": "object",
+      "required": ["maxToolCalls", "maxToolResultTokens", "maxExternalCostUsd", "allowExternalNetwork"],
+      "additionalProperties": false,
+      "properties": {
+        "maxToolCalls": { "type": "number" },
+        "maxToolResultTokens": { "type": "number" },
+        "maxExternalCostUsd": { "const": 0 },
+        "allowExternalNetwork": { "const": false }
+      }
+    },
+    "reproductionCommands": { "type": "array", "items": { "type": "string" } },
+    "artifactPointers": { "type": "array", "items": { "type": "string" } },
+    "instructions": { "type": "array", "items": { "type": "string" } },
+    "governance": {
+      "type": "object",
+      "required": ["verdictAuthority", "agentAuthority", "secretPolicy", "requireHumanApprovalFor"],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": { "const": "visual_hive" },
+        "agentAuthority": { "const": "advisory_repair_only" },
+        "secretPolicy": { "const": "redacted_values_names_only" },
+        "requireHumanApprovalFor": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "verdict": {
+      "type": "object",
+      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "additionalProperties": false,
+      "properties": {
+        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
+        "failedBecause": { "type": "array", "items": { "type": "string" } },
+        "warningBecause": { "type": "array", "items": { "type": "string" } },
+        "blockedBecause": { "type": "array", "items": { "type": "string" } },
+        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evidenceContribution": {
+      "type": "object",
+      "required": ["source", "kind", "status", "gating", "reason", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string" },
+        "kind": { "type": "string" },
+        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
+        "gating": { "type": "boolean" },
+        "mode": { "type": "string" },
+        "contractId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "operator": { "type": "string" },
+        "providerId": { "type": "string" },
+        "reason": { "type": "string" },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workItem": {
+      "type": "object",
+      "required": ["id", "kind", "priority", "title", "summary", "evidenceKeys", "artifacts", "suggestedNextSteps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["repair", "test_creation", "review", "setup"] },
+        "priority": { "enum": ["low", "medium", "high", "critical"] },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "evidenceKeys": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "suggestedNextSteps": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

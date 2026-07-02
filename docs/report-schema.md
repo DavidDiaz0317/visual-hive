@@ -1,6 +1,6 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v1"`; `handoff.json`, `agent-packet.json`, `hive-bead-request.json`, and `hive-handoff-result.json` use versioned string schema IDs. Markdown artifacts such as `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, and `hive-issue.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
 
@@ -165,6 +165,26 @@ Related artifacts:
 - `.visual-hive/hive-handoff-result.json`: command result summary and artifact paths.
 
 The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default.
+
+## Agent Packet
+
+Path: `.visual-hive/agent-packet.json`
+
+Schema: `schemas/visual-hive.agent-packet.schema.json`
+
+The Agent Packet is written by `visual-hive agent-packet` after an Evidence Packet exists. It optionally consumes `.visual-hive/handoff.json` and creates a profile-specific envelope for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent`.
+
+Key fields:
+
+- `objective`: a bounded task derived from the current evidence and profile.
+- `verdict`: Visual Hive's deterministic verdict summary.
+- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts/targets, and mutation score.
+- `allowedTools`: role-scoped read-only or local-only tool affordances.
+- `forbiddenActions`: actions that must remain human/trusted-workflow controlled.
+- `budgets`: tool-call/token budgets with `allowExternalNetwork: false` and `maxExternalCostUsd: 0`.
+- `artifactPointers`: exact artifacts the agent should read before broader context.
+
+The packet is advisory and repair-oriented. It does not grant agents pass/fail authority, secret access, provider upload authority, baseline approval authority, or protected target execution authority.
 
 ## Schedule Audit
 

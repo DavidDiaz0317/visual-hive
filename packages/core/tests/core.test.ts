@@ -28,6 +28,7 @@ import { uploadProviderArtifacts } from "../src/providers/upload.js";
 import { createRunHistoryEntry, createRunHistoryReport, recordRunHistory } from "../src/history/record.js";
 import { buildEvidencePacket, writeEvidencePacket } from "../src/evidence/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
+import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -957,6 +958,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.provider-handoff.schema.json");
     expect(schemaNames).toContain("visual-hive.evidence-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.handoff.schema.json");
+    expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
 
@@ -3636,6 +3638,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "provider-setup-plan.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-handoff.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "agent-packet.json"), '{"schemaVersion":"visual-hive.agent-packet.v1","objective":"token=abc123"}', "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
@@ -3655,7 +3658,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(23);
+    expect(index.summary.artifactCount).toBe(24);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3727,6 +3730,10 @@ describe("artifact index", () => {
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");
     expect(llmDecisions?.schemaPath).toBe("schemas/visual-hive.llm-decisions.schema.json");
+    const agentPacket = index.artifacts.find((artifact) => artifact.path.endsWith("agent-packet.json"));
+    expect(agentPacket?.preview).toContain("[REDACTED]");
+    expect(agentPacket?.labels).toContain("agent-packet");
+    expect(agentPacket?.schemaPath).toBe("schemas/visual-hive.agent-packet.schema.json");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");
@@ -4723,6 +4730,116 @@ describe("handoff packets", () => {
     expect(artifacts.handoff.status).toBe("blocked");
     expect(artifacts.handoff.blockedReasons.join(" ")).toContain("Only dry-run handoff is implemented locally");
     expect(artifacts.result.externalCallsMade).toBe(0);
+  });
+});
+
+describe("agent packets", () => {
+  it("builds a sanitized repair packet from Evidence and Handoff artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-packet-"));
+    tempDirs.push(rootDir);
+    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.results[0]?.errors.push("token=agent-secret-value");
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:00.000Z",
+      minScore: 0.75,
+      score: 0.5,
+      killed: 1,
+      total: 2,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["dashboard"],
+          applicable: true,
+          failedAssertion: "client_secret=agent-mutation-secret",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"]
+        }
+      ]
+    });
+
+    const evidence = await writeEvidencePacket({ rootDir, project: "baseline-fixture", now: new Date("2026-06-15T00:02:00.000Z") });
+    const handoff = await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    const result = await writeAgentPacket({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      profile: "repair_agent",
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+
+    expect(result.packet.schemaVersion).toBe("visual-hive.agent-packet.v1");
+    expect(result.packet.profile).toBe("repair_agent");
+    expect(result.packet.objective).toContain("Repair Visual Hive failure");
+    expect(result.packet.verdict.visualHiveVerdict).toBe("failed");
+    expect(result.packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_evidence_packet");
+    expect(result.packet.forbiddenActions).toContain("decide_visual_hive_verdict");
+    expect(result.packet.governance.verdictAuthority).toBe("visual_hive");
+    expect(result.packet.governance.agentAuthority).toBe("advisory_repair_only");
+    expect(result.packet.budgets.allowExternalNetwork).toBe(false);
+    expect(result.packet.budgets.maxExternalCostUsd).toBe(0);
+    expect(result.packet.artifactPointers).toEqual(expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/handoff.json", ".visual-hive/report.json"]));
+    expect(JSON.stringify(result.packet)).not.toContain("agent-secret-value");
+    expect(JSON.stringify(result.packet)).not.toContain("agent-mutation-secret");
+    expect(JSON.stringify(result.packet)).toContain("[REDACTED]");
+    expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.agent-packet.v1");
+  });
+
+  it("scopes test creator packets to mutation survivors", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-test-"));
+    tempDirs.push(rootDir);
+    const evidence = await buildEvidencePacket({
+      rootDir,
+      project: "empty",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const packet = buildAgentPacket({
+      evidencePacket: {
+        ...evidence,
+        mutation: {
+          schemaVersion: 2,
+          project: "empty",
+          generatedAt: "2026-06-15T00:01:00.000Z",
+          minScore: 0.75,
+          score: 0,
+          killed: 0,
+          total: 1,
+          survivedOperators: [
+            {
+              operator: "remove-demo-badge",
+              contractIds: ["card-demo-badge-contract"],
+              failedAssertion: "Mutation survived",
+              artifacts: [".visual-hive/mutation-report.json"]
+            }
+          ],
+          notApplicableOperators: []
+        }
+      },
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      profile: "test_creator",
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+
+    expect(packet.profile).toBe("test_creator");
+    expect(packet.objective).toContain("Improve Visual Hive test adequacy");
+    expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_mutation_report");
+    expect(packet.evidenceSummary.workItems[0]).toMatchObject({
+      kind: "test_creation",
+      title: "Add contract coverage for remove-demo-badge"
+    });
+    expect(packet.reproductionCommands).toEqual(expect.arrayContaining(["visual-hive mutate", "visual-hive improve-coverage"]));
   });
 });
 

@@ -45,6 +45,7 @@ import { formatHistorySummary, runHistoryCommand } from "../src/commands/history
 import { formatArtifactsIndex, runArtifactsCommand } from "../src/commands/artifacts.js";
 import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatHandoffResult, runHandoffCommand } from "../src/commands/handoff.js";
+import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "../src/commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "../src/commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "../src/commands/readiness.js";
@@ -308,6 +309,7 @@ mutation:
       "demo:artifacts",
       "demo:evidence",
       "demo:handoff",
+      "demo:agent-packet",
       "demo:kubestellar",
       "demo:plan:canary",
       "demo:plan:full",
@@ -340,6 +342,8 @@ mutation:
     expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("handoff --config");
     expect(packageJson.scripts["demo:handoff"]).toContain("--dry-run");
+    expect(packageJson.scripts["demo:agent-packet"]).toContain("agent-packet --config");
+    expect(packageJson.scripts["demo:agent-packet"]).toContain("--profile repair_agent");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--mode canary");
     expect(packageJson.scripts["demo:plan:canary"]).toContain("--output .visual-hive/plan.canary.json");
     expect(packageJson.scripts["demo:plan:full"]).toContain("--mode full");
@@ -1330,6 +1334,87 @@ integrations:
     expect(JSON.stringify(result)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-bead-request.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-result.json"))).resolves.toBeUndefined();
+  });
+
+  it("writes an Agent Packet from Evidence and Handoff artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-agent-packet-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: cli-agent-packet
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "cli-agent-packet",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      status: "failed",
+      changedFiles: ["src/App.tsx"],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173?token=secret-value", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 12,
+          errors: ["Missing selector; authorization: Bearer secret-value"],
+          artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/artifacts/screenshots/dashboard.png"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+
+    await runEvidenceCommand({ cwd: tempRoot });
+    await runHandoffCommand({ cwd: tempRoot });
+    const result = await runAgentPacketCommand({ cwd: tempRoot, profile: "test_creator" });
+    const summary = formatAgentPacketResult(result);
+    const packet = await readJson<typeof result.packet>(result.packetPath);
+
+    expect(packet.schemaVersion).toBe("visual-hive.agent-packet.v1");
+    expect(packet.profile).toBe("test_creator");
+    expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_mutation_report");
+    expect(packet.forbiddenActions).toContain("decide_visual_hive_verdict");
+    expect(packet.budgets.allowExternalNetwork).toBe(false);
+    expect(summary).toContain("Agent Packet: cli-agent-packet");
+    expect(summary).toContain("External network allowed: false");
+    expect(JSON.stringify(packet)).not.toContain("secret-value");
+    await expect(access(path.join(tempRoot, ".visual-hive", "agent-packet.json"))).resolves.toBeUndefined();
   });
 
   it("fails handoff clearly when the Evidence Packet is missing", async () => {
