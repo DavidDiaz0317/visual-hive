@@ -651,6 +651,12 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["evidence", "verdict", "handoff", "test-creation-plan", "agent-packet"]
     },
     {
+      id: "operational-pipeline",
+      label: "Operational pipeline",
+      description: "Run the full PR-safe Visual Hive pipeline and refresh repo intelligence, deterministic evidence, verdict, handoff, agent, tool, and context artifacts.",
+      commandIds: ["pipeline"]
+    },
+    {
       id: "security-audit",
       label: "Security posture audit",
       description: "Validate readiness, audit workflow/config/provider/LLM security posture, then refresh the markdown report.",
@@ -957,6 +963,30 @@ function buildRunbook(
       description: "Write a bounded advisory packet for repair/test/review agents using sanitized Evidence Packet and Handoff Packet context.",
       requiredSecrets: [],
       expectedArtifacts: [".visual-hive/agent-packet.json"]
+    },
+    {
+      id: "pipeline",
+      label: "Run operational pipeline",
+      lane: "pull_request",
+      command: `visual-hive pipeline ${configFlag} --mode pr --ci --skip-install --skip-build --enforce-mutation --continue-on-error`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Run the complete agent-forward artifact chain from repo intelligence through deterministic evidence, mutation adequacy, verdict, handoff, agent packet, tool registry, and context ledger.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/pipeline.json",
+        ".visual-hive/repo-map.json",
+        ".visual-hive/report.json",
+        ".visual-hive/mutation-report.json",
+        ".visual-hive/testing-layers.json",
+        ".visual-hive/evidence-packet.json",
+        ".visual-hive/verdict.json",
+        ".visual-hive/handoff.json",
+        ".visual-hive/agent-packet.json",
+        ".visual-hive/tools/tool-registry.json",
+        ".visual-hive/context-ledger.json"
+      ]
     },
     {
       id: "connections-portfolio",

@@ -1712,6 +1712,31 @@ describe("control plane", () => {
       safety: "pr_safe",
       expectedArtifacts: expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/verdict.json", ".visual-hive/handoff.json", ".visual-hive/agent-packet.json"])
     });
+    expect(snapshot.runProfiles.find((profile) => profile.id === "operational-pipeline")).toMatchObject({
+      enabled: true,
+      commandIds: ["pipeline"],
+      safety: "pr_safe",
+      expectedArtifacts: expect.arrayContaining([
+        ".visual-hive/pipeline.json",
+        ".visual-hive/repo-map.json",
+        ".visual-hive/report.json",
+        ".visual-hive/mutation-report.json",
+        ".visual-hive/testing-layers.json",
+        ".visual-hive/evidence-packet.json",
+        ".visual-hive/verdict.json",
+        ".visual-hive/handoff.json",
+        ".visual-hive/agent-packet.json",
+        ".visual-hive/tools/tool-registry.json",
+        ".visual-hive/context-ledger.json"
+      ])
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "pipeline")).toMatchObject({
+      lane: "pull_request",
+      safety: "pr_safe",
+      command: expect.stringContaining("pipeline"),
+      expectedArtifacts: expect.arrayContaining([".visual-hive/pipeline.json", ".visual-hive/evidence-packet.json", ".visual-hive/context-ledger.json"])
+    });
+    expect(snapshot.runbook.commands.find((command) => command.id === "pipeline")?.command).toContain("--continue-on-error");
     expect(snapshot.runbook.commands.find((command) => command.id === "security")?.expectedArtifacts).toContain(".visual-hive/security.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "costs")?.expectedArtifacts).toContain(".visual-hive/costs.json");
     expect(snapshot.runbook.commands.find((command) => command.id === "providers")).toMatchObject({
@@ -2431,6 +2456,51 @@ contracts:
     }
   });
 
+  it("executes the operational-pipeline profile as a bounded PR-safe artifact chain", async () => {
+    const fixture = await makeFixture();
+    const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
+    const server = await startControlPlaneServer({
+      repo: fixture.repoRoot,
+      config: fixture.configPath,
+      port: 0,
+      commandRunner: async (input) => {
+        calls.push({ commandId: input.commandId, stepId: input.stepId, args: input.args });
+        return { exitCode: 0, stdout: `${input.stepId} ok`, stderr: "" };
+      }
+    });
+    try {
+      const response = await fetch(`${server.url}/api/runbook/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "operational-pipeline" })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.execution.status).toBe("passed");
+      expect(payload.execution.commandExecutions.map((execution: { commandId: string }) => execution.commandId)).toEqual(["pipeline"]);
+      expect(calls.map((call) => `${call.commandId}:${call.stepId}`)).toEqual(["pipeline:pipeline"]);
+      expect(calls[0]?.args.slice(-10)).toEqual([
+        "pipeline",
+        "--config",
+        path.resolve(fixture.configPath),
+        "--mode",
+        "pr",
+        "--ci",
+        "--skip-install",
+        "--skip-build",
+        "--enforce-mutation",
+        "--continue-on-error"
+      ]);
+
+      const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath });
+      expect(snapshot.actionHistory?.summary.total).toBe(1);
+      expect(snapshot.actionHistory?.summary.latestCommandId).toBe("pipeline");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("executes the portfolio-refresh profile as an allowlisted governance workflow", async () => {
     const fixture = await makeFixture();
     const calls: Array<{ commandId: string; stepId: string; args: string[] }> = [];
@@ -2728,6 +2798,8 @@ contracts:
         "Run PR-safe checks",
         "Review visual changes",
         "Expert console",
+        "Operational pipeline",
+        "Packet chain",
         "Start",
         "Run",
         "Review",
