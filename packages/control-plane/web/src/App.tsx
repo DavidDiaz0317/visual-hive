@@ -818,6 +818,9 @@ function AgentForwardWorkflow({
   ];
   const hiveExport = snapshot.hiveExport;
   const hiveModeComparison = snapshot.hiveModeComparison;
+  const hiveReadiness = snapshot.evidencePacket?.hiveReadiness;
+  const hiveModeReadiness = hiveReadiness?.modeReadiness ?? [];
+  const hiveModeReadinessByMode = new Map(hiveModeReadiness.map((entry) => [entry.mode, entry]));
   const hivePreviewLimit = mode === "expert" ? 8 : 3;
   const hiveBeads = hiveExport?.beads ?? [];
   const hiveFacts = hiveExport?.knowledgeFacts ?? [];
@@ -907,32 +910,50 @@ function AgentForwardWorkflow({
           <p className="card-subtext">
             Pick how much structured work Visual Hive gives Hive. Every preview is local, dry-run, and keeps Visual Hive as the verdict authority.
           </p>
-          {hiveModeComparison ? (
-            <KeyValueTable
-              rows={[
-                ["Comparison artifact", hiveModeComparison.outputArtifacts.comparison],
-                ["Recommended mode", hiveModeComparison.recommendation.mode],
-                ["Why", hiveModeComparison.recommendation.reason],
-                ["External calls", hiveModeComparison.externalCallsMade]
-              ]}
-            />
-          ) : null}
+          <KeyValueTable
+            rows={[
+              ["Evidence Packet readiness", hiveReadiness ? "ready" : "missing"],
+              ["Pre-export recommendation", hiveReadiness?.recommendedMode ?? "missing"],
+              ["Recommended mode", hiveReadiness?.recommendedMode ?? hiveModeComparison?.recommendation.mode ?? "missing"],
+              ["Recommendation reason", hiveReadiness?.recommendationReason ?? hiveModeComparison?.recommendation.reason ?? "Run visual-hive evidence after deterministic artifacts exist."],
+              ["Comparison artifact", hiveModeComparison?.outputArtifacts.comparison ?? "missing"],
+              ["Comparison recommendation", hiveModeComparison?.recommendation.mode ?? "missing"],
+              ["External calls", hiveModeComparison?.externalCallsMade ?? 0]
+            ]}
+          />
           <SimpleTable
-            headers={["Mode", "Emits", "Control"]}
+            headers={["Mode", "Readiness", "Control"]}
             rows={
               hiveModeComparison
                 ? hiveModeComparison.modes.slice(0, mode === "expert" ? hiveModeComparison.modes.length : 3).map((entry) => [
                     entry.mode,
-                    `${entry.summary.beads} Beads, ${entry.summary.knowledgeFacts} facts, ${entry.summary.repairWorkOrders} repair orders`,
-                    entry.policy.trustedWorkflowRequired ? "trusted workflow required" : "local dry-run preview"
+                    hiveModeReadinessByMode.get(entry.mode)?.status ?? entry.status,
+                    `${entry.summary.beads} Beads, ${entry.summary.knowledgeFacts} facts, ${entry.summary.repairWorkOrders} repair orders; ${
+                      hiveModeReadinessByMode.get(entry.mode)?.trustedWorkflowRequired ?? entry.policy.trustedWorkflowRequired ? "trusted workflow required" : "local dry-run preview"
+                    }`
                   ])
+                : hiveModeReadiness.length
+                  ? hiveModeReadiness.slice(0, mode === "expert" ? hiveModeReadiness.length : 3).map((entry) => [
+                      entry.mode,
+                      entry.status,
+                      `${Object.entries(entry.emits)
+                        .filter(([, enabled]) => enabled)
+                        .map(([capability]) => capability)
+                        .join(", ")}; ${entry.nextCommand}`
+                    ])
                 : hiveModeCommands.slice(0, mode === "expert" ? hiveModeCommands.length : 3).map((entry) => [
                     entry.mode,
-                    entry.emits,
+                    "not generated",
                     entry.control
                   ])
             }
           />
+          {hiveModeReadiness.some((entry) => entry.blockedReasons.length) ? (
+            <FindingList
+              findings={hiveModeReadiness.flatMap((entry) => entry.blockedReasons.map((reason) => `${entry.mode}: ${reason}`)).slice(0, mode === "expert" ? 10 : 4)}
+              tone="warning"
+            />
+          ) : null}
           <ArtifactList artifacts={hiveModeComparison ? [hiveModeComparison.outputArtifacts.comparison, hiveModeComparison.outputArtifacts.markdown] : []} connection={connection} />
           {hiveModeCommands.map((entry) => {
             const command = entry.command;

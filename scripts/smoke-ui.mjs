@@ -50,6 +50,22 @@ try {
   if (!snapshot.evidencePacket?.verdictSummary?.visualHiveVerdict) {
     throw new Error("snapshot did not include Evidence Packet verdict summary");
   }
+  if (!snapshot.evidencePacket?.hiveReadiness?.recommendedMode || !snapshot.evidencePacket?.hiveReadiness?.recommendationReason) {
+    throw new Error("snapshot did not include Evidence Packet Hive mode recommendation");
+  }
+  for (const mode of ["advisory", "measured", "repair_request", "guarded_repair", "full"]) {
+    if (!snapshot.evidencePacket.hiveReadiness.modeReadiness?.some((entry) => entry.mode === mode)) {
+      throw new Error(`snapshot did not include Evidence Packet Hive readiness entry: ${mode}`);
+    }
+  }
+  const packetGuardedRepair = snapshot.evidencePacket.hiveReadiness.modeReadiness.find((entry) => entry.mode === "guarded_repair");
+  const packetFullAutomation = snapshot.evidencePacket.hiveReadiness.modeReadiness.find((entry) => entry.mode === "full");
+  if (!packetGuardedRepair?.trustedWorkflowRequired || !["blocked", "trusted_only"].includes(packetGuardedRepair.status)) {
+    throw new Error("snapshot did not show Evidence Packet guarded repair as trusted or blocked");
+  }
+  if (!packetFullAutomation?.trustedWorkflowRequired || packetFullAutomation.status !== "blocked") {
+    throw new Error("snapshot did not show Evidence Packet full automation as locally blocked");
+  }
   if (!snapshot.handoffPacket || snapshot.handoffPacket.externalCallsMade !== 0) {
     throw new Error("snapshot did not include no-network Hive handoff packet evidence");
   }
@@ -175,6 +191,8 @@ try {
     "Review visual changes",
     "Evidence to agent handoff",
     "Hive export mode policy",
+    "Evidence Packet readiness",
+    "Pre-export recommendation",
     "Comparison artifact",
     "Recommended mode",
     "Measured",
