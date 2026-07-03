@@ -31,7 +31,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_OUTPUT_DIR = ".visual-hive/hive";
-const DEFAULT_MODE_COMPARISON_MODES: HiveAutomationMode[] = ["advisory", "measured", "repair_request"];
+const DEFAULT_MODE_COMPARISON_MODES: HiveAutomationMode[] = ["advisory", "measured", "repair_request", "guarded_repair", "full"];
 const DEFAULT_LABELS = ["visual-hive", "hive/quality", "ai-ready"];
 const DEFAULT_CONFIG: HiveExportConfig = {
   enabled: false,
@@ -375,7 +375,7 @@ function renderHiveModeComparisonMarkdown(comparison: HiveModeComparison): strin
       "- Visual Hive owns the deterministic verdict.",
       "- Hive exports are no-network by default.",
       "- Advisory, measured, and repair-request previews are local dry-run artifacts.",
-      "- Guarded repair and full automation require explicit trusted policy before execution.",
+      "- Guarded repair and full automation are visible policy states, but remain blocked until explicit trusted policy permits execution.",
       "- Secret values must never be copied into Hive artifacts."
     ].join("\n")
   ) + "\n";
@@ -692,6 +692,11 @@ function wikiPageFor(fact: HiveKnowledgeFact, wikiVaultDir: string): { slug: str
 
 function blockedReasonsFor(context: HiveSourceContext): string[] {
   const reasons = [...context.evidence.hiveReadiness.blockedReasons];
+  if (context.mode === "guarded_repair") {
+    if (!context.config.enabled) reasons.push("Guarded Hive repair requires integrations.hive.enabled=true in a trusted workflow.");
+    if (!context.config.repair.enabled) reasons.push("Guarded Hive repair requires integrations.hive.repair.enabled=true.");
+    if (context.config.acmmLevel < 5) reasons.push("Guarded Hive repair requires ACMM level 5 or higher.");
+  }
   if (context.mode === "full") {
     reasons.push("Full Hive automation is reserved for a future ACMM L6-compatible workflow and is blocked locally.");
   }

@@ -229,12 +229,12 @@ The mode comparison is written by `visual-hive hive compare-modes` after an Evid
 
 Key fields:
 
-- `modes`: advisory, measured, and repair-request entries with status, artifact paths, blocked reasons, and `externalCallsMade: 0`.
+- `modes`: advisory, measured, repair-request, guarded-repair, and full entries with status, artifact paths, blocked reasons, and `externalCallsMade: 0`.
 - `recommendedMode`: the safest useful next export mode for the current evidence.
 - `recommendationReason`: plain-language rationale for the recommendation.
 - `externalCallsMade`: always `0` for the local comparison command.
 
-This artifact helps humans and agents choose between issue-only context, measured Hive Beads/knowledge graph output, and guarded repair work orders without creating Hive Beads or running a repair agent.
+This artifact helps humans and agents choose between issue-only context, measured Hive Beads/knowledge graph output, bounded repair-request work orders, and blocked future automation states without creating Hive Beads or running a repair agent.
 
 ## Test Creation Plan
 

@@ -30,7 +30,7 @@ Recent work has moved Visual Hive beyond a pure MVP scaffold. Future Codex runs 
 - Schema v2 deterministic reports and a Visual Hive Evidence Packet model.
 - Local-first Guided Cockpit Control Plane with beginner/expert access, runbook actions, artifact inspection, provider governance visibility, and Hive-native export visibility.
 - Optional Argos/provider upload path governed by policy, credentials, cost controls, and dry-run behavior.
-- No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, agent policy, and side-by-side advisory/measured/repair-request mode comparison.
+- No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, agent policy, and side-by-side advisory/measured/repair-request/guarded-repair/full mode comparison.
 - Demo acceptance scripts including `demo:all`, `demo:ci`, `smoke:cli`, and `smoke:ui`.
 - Console dogfooding direction through KubeStellar-style hosted demo, local preview, fake OAuth planning, and protected live-cluster modeling.
 
@@ -234,6 +234,8 @@ The safest first-class integration surface is a no-network Hive-native export bu
 .visual-hive/hive/modes/advisory/**
 .visual-hive/hive/modes/measured/**
 .visual-hive/hive/modes/repair_request/**
+.visual-hive/hive/modes/guarded_repair/**
+.visual-hive/hive/modes/full/**
 .visual-hive/hive/wiki/*.md
 ```
 

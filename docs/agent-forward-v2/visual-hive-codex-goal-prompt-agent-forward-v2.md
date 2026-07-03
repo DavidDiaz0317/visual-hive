@@ -70,7 +70,7 @@ Recent Control Plane work specifically wired Hive-native export and export mode 
 - the runbook exposes `visual-hive hive export --dry-run`;
 - the runbook exposes `visual-hive hive compare-modes`;
 - the Control Plane shows a "Hive-native bundle" with beads, knowledge facts, graph nodes, repair work orders, blocked reasons, and artifact links;
-- the Control Plane shows a Hive export mode policy comparison for advisory, measured, and repair-request paths;
+- the Control Plane shows a Hive export mode policy comparison for advisory, measured, repair-request, guarded-repair, and full paths;
 - `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence and mode comparison evidence.
 
 If those changes are still uncommitted in the worktree, finish validating and commit them before starting a broader goal run. Do not reimplement this surface from scratch.
@@ -188,7 +188,7 @@ Move the repo toward v0.3/v0.4 “Agent-Forward Operational Beta.” Do this in 
    - outputs `.visual-hive/hive/hive-export.json`, `.visual-hive/hive/beads.json`, `.visual-hive/hive/knowledge-facts.json`, `.visual-hive/hive/knowledge-graph.json`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/repair-work-orders.json`, and `.visual-hive/hive/wiki/*.md`;
    - command: `visual-hive hive export --dry-run`;
    - mode comparison command: `visual-hive hive compare-modes`;
-   - mode comparison outputs `.visual-hive/hive/mode-comparison.json`, `.visual-hive/hive/mode-comparison.md`, and `.visual-hive/hive/modes/{advisory,measured,repair_request}/**`;
+   - mode comparison outputs `.visual-hive/hive/mode-comparison.json`, `.visual-hive/hive/mode-comparison.md`, and `.visual-hive/hive/modes/{advisory,measured,repair_request,guarded_repair,full}/**`;
    - modes: `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full`;
    - include labels such as `visual-hive`, `hive/quality`, `ai-ready`;
    - require sanitized Evidence Packet.

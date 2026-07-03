@@ -82,6 +82,29 @@ describe("Hive native export", () => {
     expect(result.bundle.agentPolicy.finalValidation.passFailOwnedBy).toBe("visual_hive_verdict_engine");
   });
 
+  it("blocks guarded repair export unless explicit trusted repair policy is configured", () => {
+    const result = buildHiveExportArtifacts({
+      evidencePacket: sampleEvidencePacket(),
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      hiveConfig: {
+        enabled: false,
+        mode: "guarded_repair"
+      },
+      now: new Date("2026-07-02T00:00:00.000Z")
+    });
+
+    expect(result.bundle.mode).toBe("guarded_repair");
+    expect(result.bundle.status).toBe("blocked");
+    expect(result.bundle.externalCallsMade).toBe(0);
+    expect(result.bundle.blockedReasons).toEqual(
+      expect.arrayContaining([
+        "Guarded Hive repair requires integrations.hive.enabled=true in a trusted workflow.",
+        "Guarded Hive repair requires integrations.hive.repair.enabled=true.",
+        "Guarded Hive repair requires ACMM level 5 or higher."
+      ])
+    );
+  });
+
   it("matches the tracked Hive export JSON schema", async () => {
     const result = buildHiveExportArtifacts({
       evidencePacket: sampleEvidencePacket(),
@@ -108,10 +131,25 @@ describe("Hive native export", () => {
 
     expect(result.comparison.schemaVersion).toBe("visual-hive.hive-mode-comparison.v1");
     expect(result.comparison.externalCallsMade).toBe(0);
-    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request"]);
+    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request", "guarded_repair", "full"]);
     expect(result.comparison.modes.find((mode) => mode.mode === "advisory")?.summary.beads).toBe(0);
     expect(result.comparison.modes.find((mode) => mode.mode === "measured")?.summary.beads).toBeGreaterThan(0);
     expect(result.comparison.modes.find((mode) => mode.mode === "repair_request")?.summary.repairWorkOrders).toBeGreaterThan(0);
+    expect(result.comparison.modes.find((mode) => mode.mode === "guarded_repair")).toMatchObject({
+      status: "blocked",
+      policy: {
+        trustedWorkflowRequired: true
+      }
+    });
+    expect(result.comparison.modes.find((mode) => mode.mode === "guarded_repair")?.blockedReasons).toEqual(
+      expect.arrayContaining(["Guarded Hive repair requires integrations.hive.repair.enabled=true.", "Guarded Hive repair requires ACMM level 5 or higher."])
+    );
+    expect(result.comparison.modes.find((mode) => mode.mode === "full")).toMatchObject({
+      status: "blocked",
+      policy: {
+        trustedWorkflowRequired: true
+      }
+    });
     expect(result.comparison.recommendation.mode).toBe("repair_request");
     expect(result.markdown).toContain("Hive Export Mode Comparison");
     expect(JSON.stringify(result.comparison)).not.toContain("secret-value");

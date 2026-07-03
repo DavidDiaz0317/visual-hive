@@ -88,7 +88,7 @@ Agents should prefer compact resources and tools before loading broad files:
 4. Use `visual_hive_list_reproduction_commands` before asking for shell access.
 5. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.
 6. Read `visual-hive://agent-packet`, `visual-hive://tool-registry`, and `visual-hive://context-ledger` only when the task requires agent role policy or budget context.
-7. Read `visual-hive://hive-mode-comparison` before requesting Hive repair escalation; it shows the no-network advisory, measured, and repair-request policy choices.
+7. Read `visual-hive://hive-mode-comparison` before requesting Hive repair escalation; it shows the no-network advisory, measured, repair-request, guarded-repair, and full policy choices.
 8. Read raw report/artifact resources only when the compact evidence is insufficient.
 9. Do not load screenshots or large artifacts unless the task specifically needs visual evidence.
 

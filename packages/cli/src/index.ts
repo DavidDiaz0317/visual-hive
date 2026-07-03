@@ -628,7 +628,7 @@ hiveCommand
 
 hiveCommand
   .command("compare-modes")
-  .description("Write no-network Hive export previews for advisory, measured, and repair-request modes plus a comparison artifact")
+  .description("Write no-network Hive export previews for advisory, measured, repair-request, guarded-repair, and full modes plus a comparison artifact")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
   .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
@@ -644,7 +644,7 @@ hiveCommand
         format: options.format
       });
       console.log(formatHiveModeComparison(result, options.format));
-      if (result.comparison.modes.some((mode) => mode.status === "blocked")) {
+      if (!result.comparison.modes.some((mode) => mode.status === "ready")) {
         process.exitCode = 1;
       }
     } catch (error) {

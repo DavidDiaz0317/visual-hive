@@ -34,6 +34,8 @@ It requires `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive/modes/advisory/**`
 - `.visual-hive/hive/modes/measured/**`
 - `.visual-hive/hive/modes/repair_request/**`
+- `.visual-hive/hive/modes/guarded_repair/**`
+- `.visual-hive/hive/modes/full/**`
 - `.visual-hive/hive/wiki/*.md`
 
 Validate the dry-run package before trusted workflow consumption:
@@ -60,13 +62,15 @@ The Hive-native export expands that compact packet into artifacts that Hive can 
 - `knowledge-graph.json` links evidence, facts, beads, and repair work orders with `derived_from`, `depends_on`, and `related_to` edges;
 - `repair-work-orders.json` tells a trusted Hive repair lane what to fix, which artifacts to inspect, and how Visual Hive must re-verify the result.
 
-`visual-hive hive compare-modes` writes a no-network comparison bundle that previews the three practical Hive integration levels side by side:
+`visual-hive hive compare-modes` writes a no-network comparison bundle that previews all five Hive integration levels side by side:
 
 - `advisory`: sanitized issue context and policy only.
 - `measured`: advisory output plus Beads, knowledge facts, wiki pages, and graph edges.
 - `repair_request`: measured output plus bounded repair work orders for a trusted Hive lane.
+- `guarded_repair`: blocked unless Hive and repair policy are explicitly enabled in a trusted workflow with high maturity.
+- `full`: reserved for future ACMM L6-compatible automation and blocked locally.
 
-The comparison writes `.visual-hive/hive/mode-comparison.json` and `.visual-hive/hive/mode-comparison.md`, plus per-mode preview directories under `.visual-hive/hive/modes/`. It must keep `externalCallsMade: 0`. The purpose is to let humans and agents inspect the tradeoff between explanation, knowledge-graph enrichment, and guarded repair before any real Hive API call is introduced.
+The comparison writes `.visual-hive/hive/mode-comparison.json` and `.visual-hive/hive/mode-comparison.md`, plus per-mode preview directories under `.visual-hive/hive/modes/`. It must keep `externalCallsMade: 0`. The purpose is to let humans and agents inspect the tradeoff between explanation, knowledge-graph enrichment, bounded repair requests, and blocked future automation states before any real Hive API call is introduced.
 
 Policy:
 

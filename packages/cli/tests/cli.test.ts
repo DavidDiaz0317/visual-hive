@@ -1739,8 +1739,12 @@ integrations:
 
     expect(result.comparison.schemaVersion).toBe("visual-hive.hive-mode-comparison.v1");
     expect(result.comparison.externalCallsMade).toBe(0);
-    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request"]);
+    expect(result.comparison.modes.map((mode) => mode.mode)).toEqual(["advisory", "measured", "repair_request", "guarded_repair", "full"]);
     expect(result.comparison.recommendation.mode).toBe("repair_request");
+    expect(result.comparison.modes.find((mode) => mode.mode === "guarded_repair")?.status).toBe("blocked");
+    expect(result.comparison.modes.find((mode) => mode.mode === "full")?.blockedReasons).toEqual(
+      expect.arrayContaining(["Full Hive automation is reserved for a future ACMM L6-compatible workflow and is blocked locally."])
+    );
     expect(summary).toContain("Hive Export Mode Comparison: cli-hive-modes");
     expect(JSON.stringify(result.comparison)).not.toContain("secret-value");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "mode-comparison.json"))).resolves.toBeUndefined();
@@ -1748,6 +1752,8 @@ integrations:
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "advisory", "hive-export.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "measured", "knowledge-graph.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "repair_request", "repair-work-orders.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "guarded_repair", "hive-export.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "full", "hive-export.json"))).resolves.toBeUndefined();
   });
 
   it("writes a standalone verdict artifact from normalized evidence", async () => {

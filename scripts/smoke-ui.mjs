@@ -73,10 +73,18 @@ try {
   if (!snapshot.hiveModeComparison.outputArtifacts?.comparison || !snapshot.hiveModeComparison.outputArtifacts?.markdown) {
     throw new Error("snapshot did not include Hive mode comparison artifact paths");
   }
-  for (const mode of ["advisory", "measured", "repair_request"]) {
+  for (const mode of ["advisory", "measured", "repair_request", "guarded_repair", "full"]) {
     if (!snapshot.hiveModeComparison.modes?.some((entry) => entry.mode === mode)) {
       throw new Error(`snapshot did not include Hive mode comparison entry: ${mode}`);
     }
+  }
+  const guardedRepair = snapshot.hiveModeComparison.modes.find((entry) => entry.mode === "guarded_repair");
+  const fullAutomation = snapshot.hiveModeComparison.modes.find((entry) => entry.mode === "full");
+  if (guardedRepair?.status !== "blocked" || guardedRepair?.policy?.trustedWorkflowRequired !== true) {
+    throw new Error("snapshot did not show guarded repair as a trusted blocked policy state");
+  }
+  if (fullAutomation?.status !== "blocked" || fullAutomation?.policy?.trustedWorkflowRequired !== true) {
+    throw new Error("snapshot did not show full Hive automation as a trusted blocked policy state");
   }
   if (!snapshot.hiveModeComparison.recommendation?.mode) {
     throw new Error("snapshot did not include a Hive mode recommendation");
