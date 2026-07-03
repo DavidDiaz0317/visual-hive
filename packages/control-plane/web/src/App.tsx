@@ -821,6 +821,9 @@ function AgentForwardWorkflow({
   const hiveReadiness = snapshot.evidencePacket?.hiveReadiness;
   const hiveModeReadiness = hiveReadiness?.modeReadiness ?? [];
   const hiveModeReadinessByMode = new Map(hiveModeReadiness.map((entry) => [entry.mode, entry]));
+  const readyHiveModes = hiveModeReadiness.filter((entry) => entry.status === "ready").length;
+  const trustedHiveModes = hiveModeReadiness.filter((entry) => entry.status === "trusted_only").length;
+  const blockedHiveModes = hiveModeReadiness.filter((entry) => entry.status === "blocked").length;
   const hivePreviewLimit = mode === "expert" ? 8 : 3;
   const hiveBeads = hiveExport?.beads ?? [];
   const hiveFacts = hiveExport?.knowledgeFacts ?? [];
@@ -865,6 +868,14 @@ function AgentForwardWorkflow({
       command: undefined
     }
   ];
+  const recommendedHiveMode = hiveReadiness?.recommendedMode;
+  const recommendedHiveReadiness =
+    (recommendedHiveMode ? hiveModeReadinessByMode.get(recommendedHiveMode) : undefined) ??
+    hiveModeReadiness.find((entry) => entry.status === "ready") ??
+    hiveModeReadiness[0];
+  const recommendedHiveCommand = recommendedHiveReadiness
+    ? hiveModeCommands.find((entry) => entry.id === hiveCommandIdForMode(recommendedHiveReadiness.mode))?.command
+    : undefined;
   return (
     <Card
       title="Evidence to agent handoff"
@@ -892,6 +903,36 @@ function AgentForwardWorkflow({
         <MetricCard className="span-3" label="Gating evidence" tone={gatingCount > 0 ? "success" : "warning"} value={gatingCount} />
         <MetricCard className="span-3" label="Agent work items" tone={workItems.length > 0 ? "warning" : "success"} value={workItems.length} />
         <MetricCard className="span-3" label="Pipeline" tone={pipelineTone(snapshot.pipelineReport?.status)} value={pipelineStatus} />
+        <Card className="span-6" title="Hive readiness next step">
+          <p className="card-subtext">
+            Start with the safest ready Hive mode. Trusted repair lanes stay blocked until policy, branch isolation, human review, and a Visual Hive rerun are explicit.
+          </p>
+          <KeyValueTable
+            rows={[
+              ["Recommended mode", hiveReadiness?.recommendedMode ?? "missing"],
+              ["Status", recommendedHiveReadiness ? <Badge key="status" tone={hiveReadinessTone(recommendedHiveReadiness.status)}>{recommendedHiveReadiness.status}</Badge> : "missing"],
+              ["Why", hiveReadiness?.recommendationReason ?? recommendedHiveReadiness?.reason ?? "Run visual-hive evidence after deterministic artifacts exist."],
+              ["Next command", recommendedHiveReadiness?.nextCommand ?? "visual-hive evidence"],
+              ["Local preview allowed", recommendedHiveReadiness?.localPreviewAllowed ? "yes" : "no"],
+              ["Trusted workflow required", recommendedHiveReadiness?.trustedWorkflowRequired ? "yes" : "no"],
+              ["Ready / trusted / blocked", `${readyHiveModes} ready / ${trustedHiveModes} trusted-only / ${blockedHiveModes} blocked`]
+            ]}
+          />
+          {recommendedHiveReadiness?.blockedReasons.length ? <FindingList findings={recommendedHiveReadiness.blockedReasons} tone="warning" /> : null}
+          <div className="row">
+            <CopyButton label="Copy next command" value={recommendedHiveReadiness?.nextCommand ?? "visual-hive evidence"} />
+            {recommendedHiveCommand && recommendedHiveReadiness?.localPreviewAllowed ? (
+              <ConfirmButton
+                disabled={snapshot.readOnly || busyAction === recommendedHiveCommand.id}
+                message={`Run ${recommendedHiveReadiness.mode} Hive preview locally?`}
+                onConfirm={() => runAction(recommendedHiveCommand.id, () => postJson("/api/runbook/execute", { commandId: recommendedHiveCommand.id }, connection))}
+                variant="primary"
+              >
+                Run recommended preview
+              </ConfirmButton>
+            ) : null}
+          </div>
+        </Card>
         <Card className="span-6" title="Packet chain">
           <KeyValueTable
             rows={[
@@ -1743,6 +1784,18 @@ function pipelineTone(value?: string): Tone {
   if (value === "failed") return "danger";
   if (value === "blocked") return "warning";
   return "neutral";
+}
+
+function hiveReadinessTone(value?: string): Tone {
+  if (value === "ready") return "success";
+  if (value === "trusted_only") return "warning";
+  if (value === "blocked") return "danger";
+  return "neutral";
+}
+
+function hiveCommandIdForMode(mode: string): string {
+  if (mode === "repair_request") return "hive-export-repair-request";
+  return `hive-export-${mode}`;
 }
 
 function readHashWorkArea(): WorkAreaId {
