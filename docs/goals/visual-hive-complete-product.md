@@ -32,6 +32,7 @@ Recent work has moved Visual Hive beyond a pure MVP scaffold. Future Codex runs 
 - Optional Argos/provider upload path governed by policy, credentials, cost controls, and dry-run behavior.
 - No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, agent policy, and side-by-side advisory/measured/repair-request/guarded-repair/full mode comparison.
 - Evidence Packet Hive readiness fields that recommend the safest current Hive mode and show per-mode readiness for `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full` before any export or trusted workflow is enabled.
+- Trusted Hive handoff validation that consumes the Evidence Packet, verifies no-network/dry-run policy, checks Hive readiness mode policy, blocks unsafe full automation, and preserves sanitized evidence for trusted workflow consumers.
 - Demo acceptance scripts including `demo:all`, `demo:ci`, `smoke:cli`, and `smoke:ui`.
 - Console dogfooding direction through KubeStellar-style hosted demo, local preview, fake OAuth planning, and protected live-cluster modeling.
 
@@ -262,6 +263,8 @@ The Evidence Packet should also expose pre-export Hive readiness so users and ag
 - per-mode artifact capabilities
 
 This readiness layer is advisory/control-plane evidence only. It does not call Hive, does not create issues, does not request repair, and does not override the Visual Hive deterministic verdict.
+
+Trusted handoff workflows should validate this readiness layer before consuming Hive artifacts. A handoff validator should refuse missing readiness, refuse `full` as the recommended mode, require `guarded_repair` to remain blocked or trusted-only unless an explicit policy exists, and require `full` automation to stay blocked until governance is mature. Validation output should be written as a sanitized artifact such as `.visual-hive/hive-handoff-validation.json` so a trusted GitHub workflow or Hive operator can decide whether to create an issue, enqueue Beads, or request guarded repair without executing untrusted PR code.
 
 Hive-native export modes should be governed:
 
