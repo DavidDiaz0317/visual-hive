@@ -49,6 +49,28 @@ export interface EvidencePacketTestingLayer {
   gaps: string[];
 }
 
+export type EvidencePacketHiveMode = "advisory" | "measured" | "repair_request" | "guarded_repair" | "full";
+
+export interface EvidencePacketHiveModeReadiness {
+  mode: EvidencePacketHiveMode;
+  status: "ready" | "blocked" | "trusted_only";
+  reason: string;
+  nextCommand: string;
+  localPreviewAllowed: boolean;
+  trustedWorkflowRequired: boolean;
+  externalCallsMade: 0;
+  emits: {
+    issueContext: boolean;
+    beads: boolean;
+    knowledgeFacts: boolean;
+    knowledgeGraph: boolean;
+    wikiVault: boolean;
+    repairWorkOrders: boolean;
+    agentPolicy: boolean;
+  };
+  blockedReasons: string[];
+}
+
 export interface EvidencePacket {
   schemaVersion: "visual-hive.evidence-packet.v2";
   generatedAt: string;
@@ -142,5 +164,8 @@ export interface EvidencePacket {
     readyForHiveDryRun: boolean;
     blockedReasons: string[];
     suggestedLabels: string[];
+    recommendedMode: EvidencePacketHiveMode;
+    recommendationReason: string;
+    modeReadiness: EvidencePacketHiveModeReadiness[];
   };
 }

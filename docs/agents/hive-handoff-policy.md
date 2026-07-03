@@ -143,6 +143,8 @@ Hive modes:
 - `guarded_repair`: allows Hive to open a repair branch/PR when trusted policy permits; Visual Hive must pass afterward.
 - `full`: reserved for future ACMM L6-compatible automation and blocked locally for now.
 
+The Evidence Packet exposes this same mode policy before export through `hiveReadiness.recommendedMode`, `recommendationReason`, and `modeReadiness[]`. That lets the Control Plane, agents, and trusted workflows see whether each mode is `ready`, `blocked`, or `trusted_only` without enabling external Hive calls or giving Hive verdict authority.
+
 Legacy `dry_run`, `github_issue`, and `bead_api` config values remain accepted for existing repos and map back to safe no-network local behavior.
 
 The bead request records only trusted-setup metadata: configured mode, optional bead API URL with secret-like query values redacted, token environment variable name, whether that environment variable was present, and the agent name. It never records the token value.

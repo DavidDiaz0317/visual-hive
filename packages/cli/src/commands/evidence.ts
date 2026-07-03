@@ -18,7 +18,8 @@ export async function runEvidenceCommand(
     rootDir: loaded.rootDir,
     project: loaded.config.project.name,
     outputPath: options.output ?? path.join(".visual-hive", "evidence-packet.json"),
-    markdownPath: options.markdown ?? path.join(".visual-hive", "evidence-summary.md")
+    markdownPath: options.markdown ?? path.join(".visual-hive", "evidence-summary.md"),
+    hiveConfig: loaded.config.integrations.hive
   });
 }
 
@@ -38,6 +39,8 @@ export function formatEvidencePacket(result: { packet: EvidencePacket; packetPat
     `- Blocked reasons: ${result.packet.verdictSummary.blockedBecause.length}`,
     `- Advisory-only signals: ${result.packet.verdictSummary.advisoryOnly.length}`,
     `- Hive dry-run ready: ${result.packet.hiveReadiness.readyForHiveDryRun}`,
-    `- Issue handoff ready: ${result.packet.hiveReadiness.readyForIssueHandoff}`
+    `- Issue handoff ready: ${result.packet.hiveReadiness.readyForIssueHandoff}`,
+    `- Recommended Hive mode: ${result.packet.hiveReadiness.recommendedMode}`,
+    `- Hive modes: ${result.packet.hiveReadiness.modeReadiness.map((entry) => `${entry.mode}=${entry.status}`).join(", ")}`
   ].join("\n");
 }

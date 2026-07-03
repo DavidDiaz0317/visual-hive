@@ -3,11 +3,22 @@ import { access } from "node:fs/promises";
 import type { MutationReport, ProviderResult, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
 import type { RepoMapReport } from "../repo/types.js";
+import type { VisualHiveConfig } from "../config/schema.js";
+import { normalizeHiveExportConfig } from "../hive/build.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
-import type { EvidenceContribution, EvidencePacket, EvidencePacketTestingLayer, VerdictSummary, VisualHiveVerdict } from "./types.js";
+import type {
+  EvidenceContribution,
+  EvidencePacket,
+  EvidencePacketHiveMode,
+  EvidencePacketHiveModeReadiness,
+  EvidencePacketTestingLayer,
+  VerdictSummary,
+  VisualHiveVerdict
+} from "./types.js";
 
 type EvidenceContributionInput = Omit<EvidenceContribution, "key" | "authority">;
+const HIVE_MODES: EvidencePacketHiveMode[] = ["advisory", "measured", "repair_request", "guarded_repair", "full"];
 
 export interface BuildEvidencePacketOptions {
   rootDir: string;
@@ -22,6 +33,7 @@ export interface BuildEvidencePacketOptions {
   coveragePath?: string;
   repoMapPath?: string;
   artifactsIndexPath?: string;
+  hiveConfig?: Partial<VisualHiveConfig["integrations"]["hive"]>;
 }
 
 export interface WriteEvidencePacketOptions extends BuildEvidencePacketOptions {
@@ -68,6 +80,17 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
   const verdictSummary = aggregateVerdict(evidenceContributions);
   const testingLayers = buildTestingLayers({ plan, report, mutationReport, providerResults, coverage, triageReport, repoMap });
   const generatedAt = (options.now ?? new Date()).toISOString();
+  const readyForIssueHandoff = Boolean(report || triageReport) && verdictSummary.visualHiveVerdict !== "inconclusive";
+  const readyForHiveDryRun = Boolean(report || triageReport || mutationReport) && evidenceContributions.length > 0;
+  const hiveReadinessBlockedReasons = hiveBlockedReasons(verdictSummary, report, triageReport);
+  const modeReadiness = buildHiveModeReadiness({
+    readyForHiveDryRun,
+    baseBlockedReasons: hiveReadinessBlockedReasons,
+    evidenceContributions,
+    testingLayers,
+    hiveConfig: options.hiveConfig
+  });
+  const hiveRecommendation = recommendHiveMode(modeReadiness);
 
   const packet: EvidencePacket = {
     schemaVersion: "visual-hive.evidence-packet.v2",
@@ -217,10 +240,13 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     evidenceContributions,
     verdictSummary,
     hiveReadiness: {
-      readyForIssueHandoff: Boolean(report || triageReport) && verdictSummary.visualHiveVerdict !== "inconclusive",
-      readyForHiveDryRun: Boolean(report || triageReport || mutationReport) && evidenceContributions.length > 0,
-      blockedReasons: hiveBlockedReasons(verdictSummary, report, triageReport),
-      suggestedLabels: ["visual-hive", "hive/quality", "ai-ready"]
+      readyForIssueHandoff,
+      readyForHiveDryRun,
+      blockedReasons: hiveReadinessBlockedReasons,
+      suggestedLabels: ["visual-hive", "hive/quality", "ai-ready"],
+      recommendedMode: hiveRecommendation.mode,
+      recommendationReason: hiveRecommendation.reason,
+      modeReadiness
     }
   };
 
@@ -272,11 +298,20 @@ export function renderEvidenceSummary(packet: EvidencePacket): string {
     "## Handoff Readiness",
     `- Issue handoff ready: ${packet.hiveReadiness.readyForIssueHandoff}`,
     `- Hive dry-run ready: ${packet.hiveReadiness.readyForHiveDryRun}`,
+    `- Recommended Hive mode: ${packet.hiveReadiness.recommendedMode}`,
+    `- Recommendation: ${packet.hiveReadiness.recommendationReason}`,
     `- Labels: ${packet.hiveReadiness.suggestedLabels.join(", ")}`
   ];
   if (packet.hiveReadiness.blockedReasons.length) {
     lines.push(`- Blocked reasons: ${packet.hiveReadiness.blockedReasons.join("; ")}`);
   }
+  lines.push(
+    "",
+    "## Hive Mode Readiness",
+    ...packet.hiveReadiness.modeReadiness.map((entry) =>
+      `- ${entry.mode}: ${entry.status}; ${entry.reason}${entry.blockedReasons.length ? ` (${entry.blockedReasons.join("; ")})` : ""}`
+    )
+  );
   return `${sanitizeText(lines.join("\n"))}\n`;
 }
 
@@ -635,6 +670,116 @@ function hiveBlockedReasons(verdict: VerdictSummary, report?: Report, triage?: T
   return reasons;
 }
 
+function buildHiveModeReadiness(input: {
+  readyForHiveDryRun: boolean;
+  baseBlockedReasons: string[];
+  evidenceContributions: EvidenceContribution[];
+  testingLayers: EvidencePacketTestingLayer[];
+  hiveConfig?: Partial<VisualHiveConfig["integrations"]["hive"]>;
+}): EvidencePacketHiveModeReadiness[] {
+  const config = normalizeHiveExportConfig(input.hiveConfig);
+  const actionableEvidence = input.evidenceContributions.some(
+    (contribution) =>
+      contribution.status === "failed" ||
+      contribution.status === "blocked" ||
+      contribution.kind === "mutation_survivor" ||
+      contribution.kind === "coverage_gap"
+  );
+  const testingLayerGaps = input.testingLayers.some((layer) => layer.status === "missing" || layer.status === "partial" || layer.status === "unknown");
+  const hasRepairReadyEvidence = actionableEvidence || testingLayerGaps;
+  return HIVE_MODES.map((mode) => {
+    const blockedReasons = [...input.baseBlockedReasons];
+    if (!input.readyForHiveDryRun) blockedReasons.push("Hive dry-run requires deterministic, triage, or mutation evidence.");
+    if (mode === "repair_request" && !hasRepairReadyEvidence) {
+      blockedReasons.push("No failed, blocked, mutation, coverage, or testing-layer evidence is available for repair work orders.");
+    }
+    if (mode === "guarded_repair") {
+      if (!config.enabled) blockedReasons.push("Guarded Hive repair requires integrations.hive.enabled=true in a trusted workflow.");
+      if (!config.repair.enabled) blockedReasons.push("Guarded Hive repair requires integrations.hive.repair.enabled=true.");
+      if (config.acmmLevel < 5) blockedReasons.push("Guarded Hive repair requires ACMM level 5 or higher.");
+      if (!config.repair.prOnly) blockedReasons.push("Guarded Hive repair must remain PR-only.");
+      if (!config.repair.requireHumanReview) blockedReasons.push("Guarded Hive repair requires human review.");
+      if (!config.repair.rerunVisualHive) blockedReasons.push("Guarded Hive repair requires a Visual Hive rerun before completion.");
+      if (!hasRepairReadyEvidence) blockedReasons.push("No repair-ready evidence is available for guarded repair.");
+    }
+    if (mode === "full") {
+      blockedReasons.push("Full Hive automation is reserved for a future ACMM L6-compatible workflow and is blocked locally.");
+    }
+    const trustedWorkflowRequired = mode === "guarded_repair" || mode === "full";
+    const status: EvidencePacketHiveModeReadiness["status"] = blockedReasons.length
+      ? "blocked"
+      : trustedWorkflowRequired
+        ? "trusted_only"
+        : "ready";
+    return {
+      mode,
+      status,
+      reason: hiveModeReason(mode, status),
+      nextCommand: hiveModeNextCommand(mode, status),
+      localPreviewAllowed: !trustedWorkflowRequired && status === "ready",
+      trustedWorkflowRequired,
+      externalCallsMade: 0,
+      emits: hiveModeEmits(mode),
+      blockedReasons: dedupe(blockedReasons)
+    };
+  });
+}
+
+function recommendHiveMode(entries: EvidencePacketHiveModeReadiness[]): { mode: EvidencePacketHiveMode; reason: string } {
+  const repairRequest = entries.find((entry) => entry.mode === "repair_request" && entry.status === "ready");
+  if (repairRequest) {
+    return {
+      mode: "repair_request",
+      reason: "Repair-request mode can package deterministic evidence into bounded work orders without granting Hive verdict authority."
+    };
+  }
+  const measured = entries.find((entry) => entry.mode === "measured" && entry.status === "ready");
+  if (measured) {
+    return {
+      mode: "measured",
+      reason: "Measured mode can emit Beads, facts, graph context, and wiki pages without repair authority."
+    };
+  }
+  const advisory = entries.find((entry) => entry.mode === "advisory" && entry.status === "ready");
+  if (advisory) {
+    return {
+      mode: "advisory",
+      reason: "Advisory mode is the safest available Hive context export."
+    };
+  }
+  return {
+    mode: "advisory",
+    reason: "Hive export is blocked until an Evidence Packet includes deterministic, triage, or mutation evidence."
+  };
+}
+
+function hiveModeReason(mode: EvidencePacketHiveMode, status: EvidencePacketHiveModeReadiness["status"]): string {
+  if (status === "blocked") return `${mode} is blocked by missing evidence or governance policy.`;
+  if (mode === "advisory") return "Advisory mode can package sanitized issue context and policy only.";
+  if (mode === "measured") return "Measured mode can add Beads, knowledge facts, graph context, and wiki pages.";
+  if (mode === "repair_request") return "Repair-request mode can emit bounded repair work orders for a trusted lane.";
+  if (mode === "guarded_repair") return "Guarded repair is ready only for a trusted workflow, branch isolation, human review, and Visual Hive rerun.";
+  return "Full automation is reserved for future mature governance.";
+}
+
+function hiveModeNextCommand(mode: EvidencePacketHiveMode, status: EvidencePacketHiveModeReadiness["status"]): string {
+  if (status === "blocked") return "visual-hive hive compare-modes";
+  if (mode === "guarded_repair" || mode === "full") return "trusted workflow required";
+  return `visual-hive hive export --dry-run --mode ${mode}`;
+}
+
+function hiveModeEmits(mode: EvidencePacketHiveMode): EvidencePacketHiveModeReadiness["emits"] {
+  return {
+    issueContext: true,
+    beads: mode !== "advisory",
+    knowledgeFacts: mode !== "advisory",
+    knowledgeGraph: mode !== "advisory",
+    wikiVault: mode !== "advisory",
+    repairWorkOrders: mode === "repair_request" || mode === "guarded_repair" || mode === "full",
+    agentPolicy: true
+  };
+}
+
 function normalizeEvidenceContributions(contributions: EvidenceContributionInput[]): EvidenceContribution[] {
   return contributions.map((contribution) => ({
     ...contribution,
@@ -685,4 +830,8 @@ async function exists(filePath: string): Promise<boolean> {
 function reasonLines(label: string, reasons: string[]): string[] {
   if (!reasons.length) return [`- ${label}: none`];
   return [`- ${label}:`, ...reasons.map((reason) => `  - ${reason}`)];
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
 }

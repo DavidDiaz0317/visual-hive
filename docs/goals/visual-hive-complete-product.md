@@ -31,6 +31,7 @@ Recent work has moved Visual Hive beyond a pure MVP scaffold. Future Codex runs 
 - Local-first Guided Cockpit Control Plane with beginner/expert access, runbook actions, artifact inspection, provider governance visibility, and Hive-native export visibility.
 - Optional Argos/provider upload path governed by policy, credentials, cost controls, and dry-run behavior.
 - No-network Hive export artifacts for beads, knowledge facts, graph edges, wiki pages, issue context, repair work orders, agent policy, and side-by-side advisory/measured/repair-request/guarded-repair/full mode comparison.
+- Evidence Packet Hive readiness fields that recommend the safest current Hive mode and show per-mode readiness for `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full` before any export or trusted workflow is enabled.
 - Demo acceptance scripts including `demo:all`, `demo:ci`, `smoke:cli`, and `smoke:ui`.
 - Console dogfooding direction through KubeStellar-style hosted demo, local preview, fake OAuth planning, and protected live-cluster modeling.
 
@@ -249,6 +250,18 @@ visual-hive hive compare-modes
 ```
 
 `visual-hive hive compare-modes` should remain no-network and write a side-by-side preview of the safe Hive export levels. It lets a maintainer compare advisory issue context, measured Beads/knowledge graph/wiki output, and guarded repair-request work orders before enabling any trusted Hive workflow. The Control Plane should surface this comparison as a beginner-friendly policy explanation and as expert-accessible artifacts.
+
+The Evidence Packet should also expose pre-export Hive readiness so users and agents do not need to infer governance status from raw files. The packet should include:
+
+- `recommendedMode`
+- `recommendationReason`
+- `modeReadiness[]`
+- per-mode `status`
+- per-mode `blockedReasons`
+- per-mode `trustedWorkflowRequired`
+- per-mode artifact capabilities
+
+This readiness layer is advisory/control-plane evidence only. It does not call Hive, does not create issues, does not request repair, and does not override the Visual Hive deterministic verdict.
 
 Hive-native export modes should be governed:
 

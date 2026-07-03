@@ -169,7 +169,7 @@ visual-hive layers --config visual-hive.config.yaml
 visual-hive verdict --config visual-hive.config.yaml
 ```
 
-It writes `.visual-hive/evidence-packet.json`, `.visual-hive/evidence-summary.md`, `.visual-hive/testing-layers.json`, `.visual-hive/testing-layers.md`, `.visual-hive/verdict.json`, and `.visual-hive/verdict.md`. The packet records normalized evidence contributions, Visual Hive's final deterministic verdict, advisory-only signals, testing-layer coverage, and Hive handoff readiness. The layer report makes missing or partial test layers explicit. The standalone verdict artifact is the compact pass/fail contract for humans, CI summaries, and agents.
+It writes `.visual-hive/evidence-packet.json`, `.visual-hive/evidence-summary.md`, `.visual-hive/testing-layers.json`, `.visual-hive/testing-layers.md`, `.visual-hive/verdict.json`, and `.visual-hive/verdict.md`. The packet records normalized evidence contributions, Visual Hive's final deterministic verdict, advisory-only signals, testing-layer coverage, and Hive handoff readiness, including a recommended Hive mode plus per-mode readiness for advisory, measured, repair-request, guarded-repair, and full automation. The layer report makes missing or partial test layers explicit. The standalone verdict artifact is the compact pass/fail contract for humans, CI summaries, and agents.
 
 Role-specific Agent Packets are generated with:
 

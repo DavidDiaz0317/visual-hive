@@ -71,6 +71,7 @@ Recent Control Plane work specifically wired Hive-native export and export mode 
 - the runbook exposes `visual-hive hive compare-modes`;
 - the Control Plane shows a "Hive-native bundle" with beads, knowledge facts, graph nodes, repair work orders, blocked reasons, and artifact links;
 - the Control Plane shows a Hive export mode policy comparison for advisory, measured, repair-request, guarded-repair, and full paths;
+- the Evidence Packet includes `hiveReadiness.recommendedMode`, `recommendationReason`, and per-mode readiness for advisory, measured, repair-request, guarded-repair, and full paths before any Hive export or trusted workflow is enabled;
 - `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence and mode comparison evidence.
 
 If those changes are still uncommitted in the worktree, finish validating and commit them before starting a broader goal run. Do not reimplement this surface from scratch.

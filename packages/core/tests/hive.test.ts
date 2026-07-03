@@ -315,7 +315,70 @@ function sampleEvidencePacket(): EvidencePacket {
       readyForIssueHandoff: true,
       readyForHiveDryRun: true,
       blockedReasons: [],
-      suggestedLabels: ["visual-hive", "hive/quality", "ai-ready"]
+      suggestedLabels: ["visual-hive", "hive/quality", "ai-ready"],
+      recommendedMode: "repair_request",
+      recommendationReason: "Repair-request mode can package deterministic evidence into bounded work orders without granting Hive verdict authority.",
+      modeReadiness: sampleHiveModeReadiness()
     }
   };
+}
+
+function sampleHiveModeReadiness(): EvidencePacket["hiveReadiness"]["modeReadiness"] {
+  return [
+    {
+      mode: "advisory",
+      status: "ready",
+      reason: "Advisory mode can package sanitized issue context and policy only.",
+      nextCommand: "visual-hive hive export --dry-run --mode advisory",
+      localPreviewAllowed: true,
+      trustedWorkflowRequired: false,
+      externalCallsMade: 0,
+      emits: { issueContext: true, beads: false, knowledgeFacts: false, knowledgeGraph: false, wikiVault: false, repairWorkOrders: false, agentPolicy: true },
+      blockedReasons: []
+    },
+    {
+      mode: "measured",
+      status: "ready",
+      reason: "Measured mode can add Beads, knowledge facts, graph context, and wiki pages.",
+      nextCommand: "visual-hive hive export --dry-run --mode measured",
+      localPreviewAllowed: true,
+      trustedWorkflowRequired: false,
+      externalCallsMade: 0,
+      emits: { issueContext: true, beads: true, knowledgeFacts: true, knowledgeGraph: true, wikiVault: true, repairWorkOrders: false, agentPolicy: true },
+      blockedReasons: []
+    },
+    {
+      mode: "repair_request",
+      status: "ready",
+      reason: "Repair-request mode can emit bounded repair work orders for a trusted lane.",
+      nextCommand: "visual-hive hive export --dry-run --mode repair_request",
+      localPreviewAllowed: true,
+      trustedWorkflowRequired: false,
+      externalCallsMade: 0,
+      emits: { issueContext: true, beads: true, knowledgeFacts: true, knowledgeGraph: true, wikiVault: true, repairWorkOrders: true, agentPolicy: true },
+      blockedReasons: []
+    },
+    {
+      mode: "guarded_repair",
+      status: "blocked",
+      reason: "guarded_repair is blocked by missing evidence or governance policy.",
+      nextCommand: "visual-hive hive compare-modes",
+      localPreviewAllowed: false,
+      trustedWorkflowRequired: true,
+      externalCallsMade: 0,
+      emits: { issueContext: true, beads: true, knowledgeFacts: true, knowledgeGraph: true, wikiVault: true, repairWorkOrders: true, agentPolicy: true },
+      blockedReasons: ["Guarded Hive repair requires integrations.hive.repair.enabled=true."]
+    },
+    {
+      mode: "full",
+      status: "blocked",
+      reason: "full is blocked by missing evidence or governance policy.",
+      nextCommand: "visual-hive hive compare-modes",
+      localPreviewAllowed: false,
+      trustedWorkflowRequired: true,
+      externalCallsMade: 0,
+      emits: { issueContext: true, beads: true, knowledgeFacts: true, knowledgeGraph: true, wikiVault: true, repairWorkOrders: true, agentPolicy: true },
+      blockedReasons: ["Full Hive automation is reserved for a future ACMM L6-compatible workflow and is blocked locally."]
+    }
+  ];
 }

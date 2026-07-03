@@ -114,17 +114,72 @@
     },
     "hiveReadiness": {
       "type": "object",
-      "required": ["readyForIssueHandoff", "readyForHiveDryRun", "blockedReasons", "suggestedLabels"],
+      "required": [
+        "readyForIssueHandoff",
+        "readyForHiveDryRun",
+        "blockedReasons",
+        "suggestedLabels",
+        "recommendedMode",
+        "recommendationReason",
+        "modeReadiness"
+      ],
       "additionalProperties": false,
       "properties": {
         "readyForIssueHandoff": { "type": "boolean" },
         "readyForHiveDryRun": { "type": "boolean" },
         "blockedReasons": { "type": "array", "items": { "type": "string" } },
-        "suggestedLabels": { "type": "array", "items": { "type": "string" } }
+        "suggestedLabels": { "type": "array", "items": { "type": "string" } },
+        "recommendedMode": { "$ref": "#/$defs/hiveMode" },
+        "recommendationReason": { "type": "string" },
+        "modeReadiness": {
+          "type": "array",
+          "minItems": 5,
+          "items": { "$ref": "#/$defs/hiveModeReadiness" }
+        }
       }
     }
   },
   "$defs": {
+    "hiveMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+    "hiveModeReadiness": {
+      "type": "object",
+      "required": [
+        "mode",
+        "status",
+        "reason",
+        "nextCommand",
+        "localPreviewAllowed",
+        "trustedWorkflowRequired",
+        "externalCallsMade",
+        "emits",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "$ref": "#/$defs/hiveMode" },
+        "status": { "enum": ["ready", "blocked", "trusted_only"] },
+        "reason": { "type": "string" },
+        "nextCommand": { "type": "string" },
+        "localPreviewAllowed": { "type": "boolean" },
+        "trustedWorkflowRequired": { "type": "boolean" },
+        "externalCallsMade": { "const": 0 },
+        "emits": {
+          "type": "object",
+          "required": ["issueContext", "beads", "knowledgeFacts", "knowledgeGraph", "wikiVault", "repairWorkOrders", "agentPolicy"],
+          "additionalProperties": false,
+          "properties": {
+            "issueContext": { "type": "boolean" },
+            "beads": { "type": "boolean" },
+            "knowledgeFacts": { "type": "boolean" },
+            "knowledgeGraph": { "type": "boolean" },
+            "wikiVault": { "type": "boolean" },
+            "repairWorkOrders": { "type": "boolean" },
+            "agentPolicy": { "type": "boolean" }
+          }
+        },
+        "blockedReasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "evidenceContribution": {
       "type": "object",
       "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],

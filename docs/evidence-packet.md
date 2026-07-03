@@ -60,6 +60,11 @@ Current handoff readiness fields are intentionally conservative:
 - `readyForHiveDryRun`
 - `blockedReasons`
 - `suggestedLabels`
+- `recommendedMode`
+- `recommendationReason`
+- `modeReadiness`
+
+`modeReadiness` is a no-network governance preview for Hive-native handoff. It lists `advisory`, `measured`, `repair_request`, `guarded_repair`, and `full`, then records whether each mode is `ready`, `blocked`, or `trusted_only`, which artifacts the mode can emit, what command or workflow would be next, and why a mode is blocked. Guarded repair and full automation must remain trusted-workflow constrained; this readiness evidence never authorizes Hive, an LLM, or an agent to decide Visual Hive pass/fail.
 
 The next product slice should derive a smaller Handoff Packet from this Evidence Packet rather than asking agents to scrape CI logs.
 
