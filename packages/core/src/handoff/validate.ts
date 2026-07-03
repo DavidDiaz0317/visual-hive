@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
-import type { EvidencePacket, VerdictSummary } from "../evidence/types.js";
+import type { EvidencePacket, EvidencePacketHiveMode, EvidencePacketHiveModeReadiness, VerdictSummary } from "../evidence/types.js";
 import type { HandoffPacket, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
 
 export type HandoffValidationStatus = "passed" | "warning" | "blocked";
@@ -34,6 +34,16 @@ export interface HandoffValidationReport {
     externalCallsMade: number;
     workItems: number;
   };
+  hiveReadiness: {
+    recommendedMode: EvidencePacketHiveMode | "missing";
+    recommendedStatus: EvidencePacketHiveModeReadiness["status"] | "missing";
+    readyModes: EvidencePacketHiveMode[];
+    trustedOnlyModes: EvidencePacketHiveMode[];
+    blockedModes: EvidencePacketHiveMode[];
+    trustedWorkflowRequiredModes: EvidencePacketHiveMode[];
+    fullAutomationBlocked: boolean;
+    guardedRepairTrustedOnlyOrBlocked: boolean;
+  };
   checks: HandoffValidationCheck[];
   blockedReasons: string[];
   warnings: string[];
@@ -58,6 +68,7 @@ const DEFAULT_PATHS = {
   result: ".visual-hive/hive-handoff-result.json",
   output: ".visual-hive/hive-handoff-validation.json"
 };
+const REQUIRED_HIVE_MODES: EvidencePacketHiveMode[] = ["advisory", "measured", "repair_request", "guarded_repair", "full"];
 
 export async function validateHandoffArtifacts(
   options: ValidateHandoffArtifactsOptions
@@ -87,6 +98,46 @@ export async function validateHandoffArtifacts(
       evidence.schemaVersion === "visual-hive.evidence-packet.v2" ? "passed" : "blocked",
       [`schemaVersion=${String(evidence.schemaVersion)}`],
       "Evidence Packet must be schema version visual-hive.evidence-packet.v2."
+    );
+    const hiveReadiness = summarizeHiveReadiness(evidence);
+    const missingModes = REQUIRED_HIVE_MODES.filter((mode) => !evidence.hiveReadiness?.modeReadiness?.some((entry) => entry.mode === mode));
+    const recommendedEntry = evidence.hiveReadiness?.modeReadiness?.find((entry) => entry.mode === evidence.hiveReadiness.recommendedMode);
+    const hasReadinessEnvelope = Boolean(evidence.hiveReadiness?.recommendedMode && evidence.hiveReadiness?.recommendationReason);
+    addCheck(
+      checks,
+      "hive-readiness-schema",
+      "Evidence Packet Hive readiness",
+      missingModes.length === 0 && hasReadinessEnvelope ? "passed" : "blocked",
+      [
+        `recommendedMode=${String(evidence.hiveReadiness?.recommendedMode ?? "missing")}`,
+        `modes=${(evidence.hiveReadiness?.modeReadiness ?? []).map((entry) => `${entry.mode}:${entry.status}`).join(", ") || "missing"}`,
+        `missingModes=${missingModes.join(", ") || "none"}`
+      ],
+      "Evidence Packet must include pre-export Hive readiness for advisory, measured, repair_request, guarded_repair, and full modes."
+    );
+    addCheck(
+      checks,
+      "hive-recommendation-policy",
+      "Hive recommendation policy",
+      recommendedEntry !== undefined && recommendedEntry.mode !== "full" ? "passed" : "blocked",
+      [
+        `recommendedMode=${String(evidence.hiveReadiness?.recommendedMode ?? "missing")}`,
+        `recommendedStatus=${recommendedEntry?.status ?? "missing"}`,
+        `nextCommand=${recommendedEntry?.nextCommand ?? "missing"}`
+      ],
+      "Trusted handoff requires a concrete non-full Hive recommendation from the Evidence Packet."
+    );
+    addCheck(
+      checks,
+      "hive-guarded-policy",
+      "Hive guarded repair policy",
+      hiveReadiness.fullAutomationBlocked && hiveReadiness.guardedRepairTrustedOnlyOrBlocked ? "passed" : "blocked",
+      [
+        `fullAutomationBlocked=${String(hiveReadiness.fullAutomationBlocked)}`,
+        `guardedRepairTrustedOnlyOrBlocked=${String(hiveReadiness.guardedRepairTrustedOnlyOrBlocked)}`,
+        `trustedWorkflowRequiredModes=${hiveReadiness.trustedWorkflowRequiredModes.join(", ") || "none"}`
+      ],
+      "Full Hive automation must remain blocked locally and guarded repair must stay blocked or trusted-only."
     );
   }
   if (handoff) {
@@ -242,6 +293,7 @@ export async function validateHandoffArtifacts(
       externalCallsMade,
       workItems: handoff?.workItems.length ?? beadRequest?.workItems.length ?? 0
     },
+    hiveReadiness: summarizeHiveReadiness(evidence),
     checks,
     blockedReasons,
     warnings
@@ -249,6 +301,25 @@ export async function validateHandoffArtifacts(
   const reportPath = resolveArtifact(rootDir, outputPath);
   await writeJson(reportPath, report);
   return { report, reportPath };
+}
+
+function summarizeHiveReadiness(evidence?: EvidencePacket): HandoffValidationReport["hiveReadiness"] {
+  const entries = evidence?.hiveReadiness?.modeReadiness ?? [];
+  const recommendedMode = evidence?.hiveReadiness?.recommendedMode ?? "missing";
+  const recommendedStatus =
+    recommendedMode === "missing" ? "missing" : entries.find((entry) => entry.mode === recommendedMode)?.status ?? "missing";
+  return {
+    recommendedMode,
+    recommendedStatus,
+    readyModes: entries.filter((entry) => entry.status === "ready").map((entry) => entry.mode),
+    trustedOnlyModes: entries.filter((entry) => entry.status === "trusted_only").map((entry) => entry.mode),
+    blockedModes: entries.filter((entry) => entry.status === "blocked").map((entry) => entry.mode),
+    trustedWorkflowRequiredModes: entries.filter((entry) => entry.trustedWorkflowRequired).map((entry) => entry.mode),
+    fullAutomationBlocked: entries.some((entry) => entry.mode === "full" && entry.status === "blocked" && entry.trustedWorkflowRequired),
+    guardedRepairTrustedOnlyOrBlocked: entries.some(
+      (entry) => entry.mode === "guarded_repair" && (entry.status === "blocked" || entry.status === "trusted_only") && entry.trustedWorkflowRequired
+    )
+  };
 }
 
 async function readArtifact<T>(

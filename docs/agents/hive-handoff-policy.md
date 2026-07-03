@@ -44,7 +44,7 @@ Validate the dry-run package before trusted workflow consumption:
 visual-hive handoff-validate --config visual-hive.config.yaml
 ```
 
-This writes `.visual-hive/hive-handoff-validation.json`. The validator checks that the Evidence Packet, Handoff Packet, Hive bead request, Hive issue body, and handoff result are present, schema-versioned, internally consistent, sanitized, and still no-network (`externalCallsMade: 0`).
+This writes `.visual-hive/hive-handoff-validation.json`. The validator checks that the Evidence Packet, Handoff Packet, Hive bead request, Hive issue body, and handoff result are present, schema-versioned, internally consistent, sanitized, and still no-network (`externalCallsMade: 0`). It also checks the Evidence Packet's Hive readiness policy before a trusted workflow consumes artifacts: all governed modes must be represented, `full` must not be the recommended mode, `full` automation must remain blocked, and `guarded_repair` must remain blocked or trusted-only until explicit trusted policy exists.
 
 The Handoff Packet converts evidence into bounded work items:
 
@@ -97,6 +97,7 @@ The Hive handoff workflow is intentionally artifact-only:
 - it downloads the `visual-hive` artifact produced by a prior run;
 - it re-redacts secret-like values before writing the step summary;
 - it expects dry-run artifacts with `externalCallsMade: 0`;
+- it refuses artifacts with missing Hive readiness policy, recommended `full` automation, unblocked `full` automation, or unrestricted `guarded_repair`;
 - it runs issue creation only for failed upstream Visual Hive workflows by default;
 - it refuses issue creation when `hive-handoff-validation.json` is blocked or missing;
 - it creates or updates a deduped GitHub issue from sanitized `hive-issue.md` only after validation is not blocked;

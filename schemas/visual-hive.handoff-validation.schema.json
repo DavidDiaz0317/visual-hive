@@ -10,6 +10,7 @@
     "status",
     "sourceArtifacts",
     "summary",
+    "hiveReadiness",
     "checks",
     "blockedReasons",
     "warnings"
@@ -44,6 +45,30 @@
         "workItems": { "type": "integer", "minimum": 0 }
       }
     },
+    "hiveReadiness": {
+      "type": "object",
+      "required": [
+        "recommendedMode",
+        "recommendedStatus",
+        "readyModes",
+        "trustedOnlyModes",
+        "blockedModes",
+        "trustedWorkflowRequiredModes",
+        "fullAutomationBlocked",
+        "guardedRepairTrustedOnlyOrBlocked"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "recommendedMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "missing"] },
+        "recommendedStatus": { "enum": ["ready", "blocked", "trusted_only", "missing"] },
+        "readyModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
+        "trustedOnlyModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
+        "blockedModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
+        "trustedWorkflowRequiredModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
+        "fullAutomationBlocked": { "type": "boolean" },
+        "guardedRepairTrustedOnlyOrBlocked": { "type": "boolean" }
+      }
+    },
     "checks": {
       "type": "array",
       "items": { "$ref": "#/$defs/check" }
@@ -52,6 +77,7 @@
     "warnings": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {
+    "hiveMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
     "check": {
       "type": "object",
       "required": ["id", "label", "status", "evidence", "message"],

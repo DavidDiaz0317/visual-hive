@@ -5564,10 +5564,71 @@ describe("handoff packets", () => {
     expect(validation.report.schemaVersion).toBe("visual-hive.handoff-validation.v1");
     expect(validation.report.status).toBe("passed");
     expect(validation.report.summary.externalCallsMade).toBe(0);
+    expect(validation.report.hiveReadiness.fullAutomationBlocked).toBe(true);
+    expect(validation.report.hiveReadiness.guardedRepairTrustedOnlyOrBlocked).toBe(true);
+    expect(validation.report.hiveReadiness.blockedModes).toContain("full");
     expect(validation.report.checks.map((check) => check.id)).toEqual(
-      expect.arrayContaining(["no-external-calls", "dry-run-policy", "verdict-consistency", "issue-body-sanitized"])
+      expect.arrayContaining([
+        "no-external-calls",
+        "dry-run-policy",
+        "verdict-consistency",
+        "issue-body-sanitized",
+        "hive-readiness-schema",
+        "hive-recommendation-policy",
+        "hive-guarded-policy"
+      ])
     );
     expect(await readFile(validation.reportPath, "utf8")).toContain("visual-hive.handoff-validation.v1");
+  });
+
+  it("blocks Hive handoff validation when Evidence Packet Hive readiness violates guarded repair policy", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-validation-readiness-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "validation-readiness",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), packet);
+    await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), {
+      ...packet,
+      hiveReadiness: {
+        ...packet.hiveReadiness,
+        recommendedMode: "full",
+        recommendationReason: "Unsafe test fixture that should be rejected.",
+        modeReadiness: packet.hiveReadiness.modeReadiness
+          .filter((entry) => entry.mode !== "guarded_repair")
+          .map((entry) =>
+            entry.mode === "full"
+              ? {
+                  ...entry,
+                  status: "ready",
+                  trustedWorkflowRequired: false,
+                  blockedReasons: [],
+                  nextCommand: "visual-hive hive export --mode full"
+                }
+              : entry
+          )
+      }
+    });
+
+    const validation = await validateHandoffArtifacts({
+      rootDir,
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+    expect(validation.report.status).toBe("blocked");
+    expect(validation.report.hiveReadiness.recommendedMode).toBe("full");
+    expect(validation.report.hiveReadiness.fullAutomationBlocked).toBe(false);
+    expect(validation.report.hiveReadiness.guardedRepairTrustedOnlyOrBlocked).toBe(false);
+    expect(validation.report.blockedReasons.join(" ")).toContain("hive-readiness-schema");
+    expect(validation.report.blockedReasons.join(" ")).toContain("hive-recommendation-policy");
+    expect(validation.report.blockedReasons.join(" ")).toContain("hive-guarded-policy");
   });
 
   it("blocks Hive handoff validation when artifacts claim external calls", async () => {

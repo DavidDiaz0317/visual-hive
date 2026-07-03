@@ -107,6 +107,19 @@ jobs:
             if (handoffValidation?.status === "blocked") {
               blocking.push("Hive handoff validation is blocked; refusing trusted issue creation.");
             }
+            const readiness = handoffValidation?.hiveReadiness;
+            if (!readiness) {
+              blocking.push("Missing Hive readiness summary in hive-handoff-validation.json.");
+            }
+            if (readiness?.recommendedMode === "full") {
+              blocking.push("Evidence Packet recommended full Hive automation; trusted issue workflow refuses full automation.");
+            }
+            if (readiness?.fullAutomationBlocked !== true) {
+              blocking.push("Full Hive automation is not blocked in the validation artifact.");
+            }
+            if (readiness?.guardedRepairTrustedOnlyOrBlocked !== true) {
+              blocking.push("Guarded Hive repair is not blocked or trusted-only in the validation artifact.");
+            }
 
             await core.summary
               .addHeading("Visual Hive Hive Handoff")
@@ -116,6 +129,8 @@ jobs:
                 "Handoff packet: " + (handoff ? "found" : "missing"),
                 "Hive bead request: " + (beadRequest ? "found" : "missing"),
                 "Handoff validation: " + (handoffValidation?.status ?? "missing"),
+                "Recommended Hive mode: " + redactSecretValues(readiness?.recommendedMode ?? "missing") + " (" + redactSecretValues(readiness?.recommendedStatus ?? "missing") + ")",
+                "Hive readiness: " + String(readiness?.readyModes?.length ?? 0) + " ready / " + String(readiness?.trustedOnlyModes?.length ?? 0) + " trusted-only / " + String(readiness?.blockedModes?.length ?? 0) + " blocked",
                 "Hive issue body: " + (issueBody ? "found" : "missing"),
                 "Handoff mode: " + redactSecretValues(mode),
                 "External calls made: " + externalCalls
@@ -143,6 +158,8 @@ jobs:
               "- Handoff validation: " + handoffValidation.status,
               "- Visual Hive verdict: " + verdict,
               "- External calls made: " + externalCalls,
+              "- Recommended Hive mode: " + redactSecretValues(handoffValidation.hiveReadiness?.recommendedMode ?? "missing"),
+              "- Full automation blocked: " + String(handoffValidation.hiveReadiness?.fullAutomationBlocked ?? false),
               "- Trusted workflow: workflow_run artifact consumer",
               "- PR code checkout: false",
               "- Hive API call: false"

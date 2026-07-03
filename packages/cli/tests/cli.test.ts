@@ -1551,8 +1551,13 @@ integrations:
     expect(validation.exitCode).toBe(0);
     expect(validation.report.status).toBe("passed");
     expect(validation.report.summary.externalCallsMade).toBe(0);
+    expect(validation.report.hiveReadiness.recommendedMode).toBeTruthy();
+    expect(validation.report.hiveReadiness.fullAutomationBlocked).toBe(true);
     expect(validation.report.checks.map((check) => check.id)).toContain("verdict-consistency");
+    expect(validation.report.checks.map((check) => check.id)).toContain("hive-readiness-schema");
     expect(validationSummary).toContain("Hive Handoff Validation: cli-handoff");
+    expect(validationSummary).toContain("Recommended Hive mode:");
+    expect(validationSummary).toContain("Full automation blocked: true");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-handoff-validation.json"))).resolves.toBeUndefined();
   });
 
