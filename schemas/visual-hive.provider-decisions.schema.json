@@ -7,6 +7,7 @@
   "required": [
     "schemaVersion",
     "generatedAt",
+    "outputResource",
     "decisions"
   ],
   "properties": {
@@ -17,6 +18,9 @@
       "type": "string",
       "format": "date-time"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "decisions": {
       "type": "array",
       "items": {
@@ -25,6 +29,38 @@
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/provider-decisions.json"
+        },
+        "evidenceResourceId": {
+          "const": "provider-decisions"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://provider-decisions"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_provider_decisions"
+        }
+      }
+    },
     "decision": {
       "type": "object",
       "additionalProperties": false,

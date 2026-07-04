@@ -3079,6 +3079,28 @@ contracts:
         }
       ]
     });
+    await writeJson(path.join(tempRoot, ".visual-hive", "provider-decisions.json"), {
+      schemaVersion: 1,
+      generatedAt: "2026-07-03T00:00:00.000Z",
+      outputResource: {
+        artifactPath: ".visual-hive/provider-decisions.json",
+        evidenceResourceId: "provider-decisions",
+        evidenceResourceUri: "visual-hive://provider-decisions",
+        evidenceResourceTitle: "Provider Decisions",
+        evidenceResourceDescription: "Local optional provider governance decisions.",
+        evidenceReadToolName: "visual_hive_read_provider_decisions"
+      },
+      decisions: [
+        {
+          providerId: "argos",
+          decision: "review_later",
+          reason: "Review later with token=secret-value",
+          decidedAt: "2026-07-03T00:00:00.000Z",
+          source: "cli",
+          externalCallsMade: 0
+        }
+      ]
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "provider-upload", "argos", "manifest.json"), {
       schemaVersion: 1,
       providerId: "argos",
@@ -3120,6 +3142,7 @@ contracts:
     const hiveRepairWorkOrdersResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/repair-work-orders");
     const hiveAgentPolicyResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/agent-policy");
     const contextLedgerResource = manifest.resources.find((resource) => resource.uri === "visual-hive://context-ledger");
+    const providerDecisionsResource = manifest.resources.find((resource) => resource.uri === "visual-hive://provider-decisions");
     const providerResultsResource = manifest.resources.find((resource) => resource.uri === "visual-hive://provider-results");
     const providerUploadResource = manifest.resources.find((resource) => resource.uri === "visual-hive://provider-upload/argos/manifest");
     const pipelineResource = manifest.resources.find((resource) => resource.uri === "visual-hive://pipeline-status");
@@ -3165,6 +3188,7 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_agent_packet");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_tool_registry");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_context_ledger");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_provider_decisions");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_provider_results");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_provider_upload_manifest");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
@@ -3206,6 +3230,7 @@ contracts:
     expect(hiveTrustedRepairConsumerSummaryResource).toBeDefined();
     expect(hiveTrustedRepairWorkflowDryRunResource).toBeDefined();
     expect(hiveModeComparisonResource).toBeDefined();
+    expect(providerDecisionsResource).toBeDefined();
     expect(hiveBeadsResource).toBeDefined();
     expect(hiveKnowledgeFactsResource).toBeDefined();
     expect(hiveKnowledgeGraphResource).toBeDefined();
@@ -3279,6 +3304,7 @@ contracts:
     const agentPacket = await callReadOnlyTool(loaded, "visual_hive_read_agent_packet");
     const toolRegistry = await callReadOnlyTool(loaded, "visual_hive_read_tool_registry");
     const contextLedger = await callReadOnlyTool(loaded, "visual_hive_read_context_ledger");
+    const providerDecisions = await callReadOnlyTool(loaded, "visual_hive_read_provider_decisions");
     const providerResults = await callReadOnlyTool(loaded, "visual_hive_read_provider_results");
     const providerUploadManifest = await callReadOnlyTool(loaded, "visual_hive_read_provider_upload_manifest");
     const pipeline = await callReadOnlyTool(loaded, "visual_hive_read_pipeline_status");
@@ -3326,6 +3352,8 @@ contracts:
     expect(contextLedger).toContain("visual_hive_read_issue_body");
     expect(contextLedger).toContain("visual_hive_read_missing_tests");
     expect(contextLedger).not.toContain("secret-value");
+    expect(providerDecisions).toContain("provider-decisions");
+    expect(providerDecisions).not.toContain("secret-value");
     expect(providerResults).toContain("argos");
     expect(providerResults).not.toContain("secret-value");
     expect(providerUploadManifest).toContain("\"dryRun\": true");
@@ -4717,7 +4745,15 @@ providers:
       reason: "No hosted review yet; token=secret-value"
     });
     const summary = formatProviderDecision(result);
-    const written = await readJson<{ decisions: Array<{ providerId: string; reason: string; externalCallsMade: number }> }>(
+    const written = await readJson<{
+      outputResource?: {
+        artifactPath: string;
+        evidenceResourceId: string;
+        evidenceResourceUri: string;
+        evidenceReadToolName?: string;
+      };
+      decisions: Array<{ providerId: string; reason: string; externalCallsMade: number }>;
+    }>(
       path.join(tempRoot, ".visual-hive", "provider-decisions.json")
     );
 
@@ -4725,6 +4761,12 @@ providers:
     expect(result.decision.externalCallsMade).toBe(0);
     expect(result.decision.reason).toContain("[REDACTED]");
     expect(result.decision.reason).not.toContain("secret-value");
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/provider-decisions.json",
+      evidenceResourceId: "provider-decisions",
+      evidenceResourceUri: "visual-hive://provider-decisions",
+      evidenceReadToolName: "visual_hive_read_provider_decisions"
+    });
     expect(written.decisions[0]).toMatchObject({ providerId: "argos", externalCallsMade: 0 });
     expect(written.decisions[0]?.reason).not.toContain("secret-value");
     expect(summary).toContain("Provider Decision");

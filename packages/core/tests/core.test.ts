@@ -823,6 +823,12 @@ describe("config validation", () => {
     expect(result.decision.reason).toContain("[REDACTED]");
     expect(JSON.stringify(log)).not.toContain("abc123");
     expect(JSON.stringify(log)).not.toContain("hidden");
+    expect(log?.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/provider-decisions.json",
+      evidenceResourceId: "provider-decisions",
+      evidenceResourceUri: "visual-hive://provider-decisions",
+      evidenceReadToolName: "visual_hive_read_provider_decisions"
+    });
     expect(log?.decisions[0].externalCallsMade).toBe(0);
   });
 
@@ -6828,12 +6834,21 @@ describe("agent packets", () => {
     expect(providerPacket.objective).toContain("Review optional provider evidence");
     expect(providerPacket.allowedTools.map((tool) => tool.id)).toEqual(
       expect.arrayContaining([
+        "visual_hive_read_provider_decisions",
+        "visual_hive_read_provider_setup_plan",
+        "visual_hive_read_provider_handoff",
         "visual_hive_read_provider_results",
         "visual_hive_read_provider_upload_manifest",
         "visual_hive_read_provider_agent_packet",
         "visual_hive_provider_handoff_dry_run"
       ])
     );
+    expect(providerPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_provider_decisions")).toMatchObject({
+      evidenceResourceId: "provider-decisions",
+      evidenceResourceUri: "visual-hive://provider-decisions",
+      evidenceReadToolName: "visual_hive_read_provider_decisions",
+      artifactPath: ".visual-hive/provider-decisions.json"
+    });
     expect(providerPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_provider_agent_packet")).toMatchObject({
       evidenceResourceId: "provider-agent-packet",
       evidenceResourceUri: "visual-hive://provider-agent-packet",
@@ -6999,6 +7014,7 @@ describe("tool registry", () => {
   it("builds conservative tool policy and role-scoped cards", async () => {
     const registry = buildToolRegistry({ project: "tool-fixture", now: new Date("2026-06-15T00:00:00.000Z") });
     const providerUpload = registry.tools.find((tool) => tool.id === "visual_hive_provider_upload");
+    const providerDecisions = registry.tools.find((tool) => tool.id === "visual_hive_read_provider_decisions");
     const providerResults = registry.tools.find((tool) => tool.id === "visual_hive_read_provider_results");
     const providerUploadManifest = registry.tools.find((tool) => tool.id === "visual_hive_read_provider_upload_manifest");
     const providerHandoff = registry.tools.find((tool) => tool.id === "visual_hive_provider_handoff_dry_run");
@@ -7028,6 +7044,13 @@ describe("tool registry", () => {
     });
     expect(providerUpload?.requiresHumanApproval).toEqual(expect.arrayContaining(["provider_upload_enablement", "external_network_access"]));
     expect(providerResults).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      writes: []
+    });
+    expect(providerDecisions).toMatchObject({
       defaultAccess: "read_only",
       externalNetwork: false,
       trustedOnly: false,
@@ -7193,14 +7216,14 @@ describe("tool registry", () => {
     });
     expect(providerProfile?.trustedOnly).toBe(true);
     expect(providerProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_provider_decisions",
       "visual_hive_read_provider_results",
       "visual_hive_read_provider_upload_manifest",
       "visual_hive_read_provider_agent_packet",
       "visual_hive_provider_handoff_dry_run",
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
-      "visual_hive_read_verdict",
-      "visual_hive_read_context_ledger"
+      "visual_hive_read_verdict"
     ]);
     expect(providerProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
   });

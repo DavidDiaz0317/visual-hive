@@ -223,6 +223,7 @@ function allowedToolsFor(profile: AgentPacketProfile): AgentToolPermission[] {
       evidenceTool("visual_hive_read_hive_trusted_repair_consumer_summary", "Inspect the no-network trusted repair consumer dry run."),
       evidenceTool("visual_hive_read_hive_trusted_repair_workflow_dry_run", "Inspect the no-network future workflow dry run."),
       evidenceTool("visual_hive_read_hive_mode_comparison", "Compare Hive advisory, measured, repair-request, guarded-repair, and full modes."),
+      evidenceTool("visual_hive_read_provider_decisions", "Inspect local provider governance decisions without enabling upload."),
       evidenceTool("visual_hive_read_provider_results", "Inspect sanitized provider status without enabling upload."),
       evidenceTool("visual_hive_read_provider_upload_manifest", "Inspect staged upload metadata without making external calls.")
     ];
@@ -230,6 +231,9 @@ function allowedToolsFor(profile: AgentPacketProfile): AgentToolPermission[] {
   if (profile === "provider_specialist") {
     return [
       ...common,
+      evidenceTool("visual_hive_read_provider_decisions", "Inspect local provider governance decisions without enabling credentials or uploads."),
+      evidenceTool("visual_hive_read_provider_setup_plan", "Inspect provider setup planning without enabling credentials or billing."),
+      evidenceTool("visual_hive_read_provider_handoff", "Inspect provider handoff eligibility without uploading artifacts."),
       evidenceTool("visual_hive_read_provider_results", "Inspect normalized provider evidence without enabling upload."),
       evidenceTool("visual_hive_read_provider_upload_manifest", "Inspect staged upload metadata without making external calls."),
       evidenceTool("visual_hive_read_provider_agent_packet", "Inspect the bounded provider-specialist packet itself."),

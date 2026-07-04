@@ -58,6 +58,7 @@ const latestReport = await readOptionalJson(".visual-hive/report.json");
 const planLanes = await readOptionalJson(".visual-hive/plans.json");
 const coverageMap = await readOptionalJson(".visual-hive/coverage.json");
 const mutationReport = await readOptionalJson(".visual-hive/mutation-report.json");
+const providerDecisions = await readOptionalJson(".visual-hive/provider-decisions.json");
 const providerSetupPlan = await readOptionalJson(".visual-hive/provider-setup-plan.json");
 const providerHandoff = await readOptionalJson(".visual-hive/provider-handoff.json");
 const providerResults = await readOptionalJson(".visual-hive/provider-results.json");
@@ -80,6 +81,7 @@ if (latestReport?.outputResource) checkOutputResource(latestReport.outputResourc
 if (planLanes?.outputResource) checkOutputResource(planLanes.outputResource, "Plan lane summary outputResource", artifactIndex);
 if (coverageMap?.outputResource) checkOutputResource(coverageMap.outputResource, "Coverage map outputResource", artifactIndex);
 if (mutationReport?.outputResource) checkOutputResource(mutationReport.outputResource, "Mutation report outputResource", artifactIndex);
+if (providerDecisions?.outputResource) checkOutputResource(providerDecisions.outputResource, "Provider decisions outputResource", artifactIndex);
 if (providerSetupPlan?.outputResource) checkOutputResource(providerSetupPlan.outputResource, "Provider setup plan outputResource", artifactIndex);
 if (providerHandoff?.outputResource) checkOutputResource(providerHandoff.outputResource, "Provider handoff outputResource", artifactIndex);
 if (providerResults?.outputResource) checkOutputResource(providerResults.outputResource, "Provider results outputResource", artifactIndex);

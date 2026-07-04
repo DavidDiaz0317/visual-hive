@@ -70,6 +70,7 @@ const ROLE_TOOL_PRIORITY: Record<ToolRole, string[]> = {
     "visual_hive_validate_handoff"
   ],
   provider_specialist: [
+    "visual_hive_read_provider_decisions",
     "visual_hive_read_provider_results",
     "visual_hive_read_provider_upload_manifest",
     "visual_hive_read_provider_agent_packet",
@@ -259,6 +260,9 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("artifacts-index", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     cli("visual_hive_agent_packet", "Generate Agent Packet", "Write a bounded role-specific packet for an agent.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], "visual-hive agent-packet", [".visual-hive/agent-packet.json"]),
     evidenceCli("provider-results", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("provider-decisions", ["setup_agent", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], {
       writes: []
     }),
     evidenceCli("provider-setup-plan", ["setup_agent", "review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], {

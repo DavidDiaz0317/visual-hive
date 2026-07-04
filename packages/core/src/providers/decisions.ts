@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { writeJson } from "../utils/files.js";
 
@@ -14,9 +15,19 @@ export interface ProviderDecisionEntry {
   externalCallsMade: 0;
 }
 
+export interface ProviderDecisionLogOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface ProviderDecisionLog {
   schemaVersion: 1;
   generatedAt: string;
+  outputResource?: ProviderDecisionLogOutputResource;
   decisions: ProviderDecisionEntry[];
 }
 
@@ -44,6 +55,7 @@ export async function readProviderDecisionLog(filePath: string): Promise<Provide
     return {
       schemaVersion: 1,
       generatedAt: sanitizeText(parsed.generatedAt || new Date(0).toISOString()),
+      outputResource: parsed.outputResource ? sanitizeOutputResource(parsed.outputResource) : catalogedProviderDecisionLogOutputResource(),
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions.map(sanitizeEntry).filter(isProviderDecisionEntry) : []
     };
   } catch (error) {
@@ -64,6 +76,7 @@ export async function recordProviderDecision(
   const existing = (await readProviderDecisionLog(filePath)) ?? {
     schemaVersion: 1 as const,
     generatedAt: now.toISOString(),
+    outputResource: catalogedProviderDecisionLogOutputResource(),
     decisions: []
   };
   const entry: ProviderDecisionEntry = {
@@ -79,10 +92,23 @@ export async function recordProviderDecision(
   const log: ProviderDecisionLog = {
     schemaVersion: 1,
     generatedAt: now.toISOString(),
+    outputResource: catalogedProviderDecisionLogOutputResource(),
     decisions
   };
   await writeJson(filePath, log);
   return { ok: true, decision: entry, decisionPath: PROVIDER_DECISION_PATH, summary: decisions };
+}
+
+export function catalogedProviderDecisionLogOutputResource(): NonNullable<ProviderDecisionLog["outputResource"]> {
+  const resource = getEvidenceResourceById("provider-decisions");
+  return {
+    artifactPath: PROVIDER_DECISION_PATH,
+    evidenceResourceId: resource?.id ?? "provider-decisions",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://provider-decisions",
+    evidenceResourceTitle: resource?.title ?? "Provider Decisions",
+    evidenceResourceDescription: resource?.description ?? "Local optional provider governance decisions. Read-only; does not enable credentials, uploads, or provider gating.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_provider_decisions"
+  };
 }
 
 function sanitizeProviderId(providerId: string): string {
@@ -103,6 +129,18 @@ function sanitizeEntry(entry: ProviderDecisionEntry): ProviderDecisionEntry | un
     decidedAt: sanitizeText(entry.decidedAt || new Date(0).toISOString()),
     source: entry.source === "control-plane" ? "control-plane" : "cli",
     externalCallsMade: 0
+  };
+}
+
+function sanitizeOutputResource(outputResource: ProviderDecisionLogOutputResource): ProviderDecisionLogOutputResource {
+  const fallback = catalogedProviderDecisionLogOutputResource();
+  return {
+    artifactPath: sanitizeText(outputResource.artifactPath || fallback.artifactPath),
+    evidenceResourceId: sanitizeText(outputResource.evidenceResourceId || fallback.evidenceResourceId),
+    evidenceResourceUri: sanitizeText(outputResource.evidenceResourceUri || fallback.evidenceResourceUri),
+    evidenceResourceTitle: sanitizeText(outputResource.evidenceResourceTitle || fallback.evidenceResourceTitle),
+    evidenceResourceDescription: sanitizeText(outputResource.evidenceResourceDescription || fallback.evidenceResourceDescription),
+    evidenceReadToolName: outputResource.evidenceReadToolName ? sanitizeText(outputResource.evidenceReadToolName) : fallback.evidenceReadToolName
   };
 }
 

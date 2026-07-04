@@ -602,6 +602,22 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "provider-decisions",
+    "visual-hive://provider-decisions",
+    "provider-decisions",
+    "Provider Decisions",
+    "Local optional provider governance decisions. Read-only; does not enable credentials, uploads, billing, provider API calls, or provider gating.",
+    ".visual-hive/provider-decisions.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_provider_decisions",
+      "Read Provider Decisions",
+      "Read local optional provider governance decisions without enabling credentials, billing, uploads, or provider gating.",
+      "visual-hive providers decision",
+      ["Read provider decision evidence only. Do not enable credentials, billing, provider upload, provider API calls, provider gating, or verdict overrides."]
+    )
+  ),
+  resource(
     "provider-setup-plan",
     "visual-hive://provider-setup-plan",
     "provider-setup-plan",

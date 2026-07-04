@@ -5251,6 +5251,12 @@ contracts:
       expect(payload.decision.reason).toContain("[REDACTED]");
 
       const log = JSON.parse(await readFile(path.join(fixture.repoRoot, ".visual-hive", "provider-decisions.json"), "utf8"));
+      expect(log.outputResource).toMatchObject({
+        artifactPath: ".visual-hive/provider-decisions.json",
+        evidenceResourceId: "provider-decisions",
+        evidenceResourceUri: "visual-hive://provider-decisions",
+        evidenceReadToolName: "visual_hive_read_provider_decisions"
+      });
       expect(log.decisions[0]).toMatchObject({ providerId: "argos", decision: "skip", externalCallsMade: 0 });
       expect(log.decisions[0].reason).not.toContain("secret-value");
 
