@@ -1,39 +1,35 @@
 #!/usr/bin/env node
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const targetRoot = path.resolve(repoRoot, args.root ?? path.join("examples", "demo-react-app"));
 const profile = args.profile ?? (targetRoot.endsWith(path.join("examples", "demo-react-app")) ? "demo" : "general");
+const evidenceCatalog = await loadEvidenceResourceCatalog();
 
 const coreTriageResources = [
-  resource("triage-report", "visual-hive://triage-report", ".visual-hive/triage.json", "visual_hive_read_triage_report"),
-  resource("issue-body", "visual-hive://issue-body", ".visual-hive/issue.md", "visual_hive_read_issue_body"),
-  resource("pr-comment", "visual-hive://pr-comment", ".visual-hive/pr-comment.md", "visual_hive_read_pr_comment"),
-  resource("triage-prompt", "visual-hive://triage-prompt", ".visual-hive/triage-prompt.md", "visual_hive_read_triage_prompt"),
-  resource("missing-tests", "visual-hive://missing-tests", ".visual-hive/missing-tests.md", "visual_hive_read_missing_tests")
+  resourceFromCatalog("triage-report"),
+  resourceFromCatalog("issue-body"),
+  resourceFromCatalog("pr-comment"),
+  resourceFromCatalog("triage-prompt"),
+  resourceFromCatalog("missing-tests")
 ];
 
 const optionalTriageResources = [
-  resource("repair-prompt", "visual-hive://repair-prompt", ".visual-hive/repair-prompt.md", "visual_hive_generate_repair_prompt")
+  resourceFromCatalog("repair-prompt")
 ];
 
 const supportResources = [
-  resource("context-ledger", "visual-hive://context-ledger", ".visual-hive/context-ledger.json", "visual_hive_read_context_ledger"),
-  resource("control-plane-snapshot", "visual-hive://control-plane-snapshot", ".visual-hive/control-plane-snapshot.json", "visual_hive_read_control_plane_snapshot"),
-  resource("artifacts-index", "visual-hive://artifacts/index", ".visual-hive/artifacts-index.json", "visual_hive_read_artifacts_index"),
-  resource("agent-packet", "visual-hive://agent-packet", ".visual-hive/agent-packet.json", "visual_hive_read_agent_packet"),
-  resource("handoff-agent-packet", "visual-hive://handoff-agent-packet", ".visual-hive/handoff-agent-packet.json", "visual_hive_read_handoff_agent_packet"),
-  resource("provider-agent-packet", "visual-hive://provider-agent-packet", ".visual-hive/provider-agent-packet.json", "visual_hive_read_provider_agent_packet"),
-  resource("provider-results", "visual-hive://provider-results", ".visual-hive/provider-results.json", "visual_hive_read_provider_results"),
-  resource(
-    "provider-upload-argos-manifest",
-    "visual-hive://provider-upload/argos/manifest",
-    ".visual-hive/provider-upload/argos/manifest.json",
-    "visual_hive_read_provider_upload_manifest"
-  )
+  resourceFromCatalog("context-ledger"),
+  resourceFromCatalog("control-plane-snapshot"),
+  resourceFromCatalog("artifacts-index"),
+  resourceFromCatalog("agent-packet"),
+  resourceFromCatalog("handoff-agent-packet"),
+  resourceFromCatalog("provider-agent-packet"),
+  resourceFromCatalog("provider-results"),
+  resourceFromCatalog("provider-upload-argos-manifest")
 ];
 
 const triageResources = [
@@ -270,8 +266,16 @@ function byId(id) {
   return [...triageResources, ...supportResources].find((entry) => entry.id === id);
 }
 
-function resource(id, uri, artifactPath, readToolName) {
-  return { id, uri, artifactPath, readToolName };
+function resourceFromCatalog(id) {
+  const definition = evidenceCatalog.find((entry) => entry.id === id);
+  assert(definition, `Core evidence-resource catalog contains ${id}`);
+  assert(definition.readTool?.name, `Core evidence-resource catalog ${id} has a read tool`);
+  return {
+    id: definition.id,
+    uri: definition.uri,
+    artifactPath: definition.relativePath,
+    readToolName: definition.readTool.name
+  };
 }
 
 function catalogBackedArtifacts(index) {
@@ -348,5 +352,21 @@ function isVisualHiveReadTool(input) {
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+async function loadEvidenceResourceCatalog() {
+  const catalogPath = path.join(repoRoot, "packages", "core", "dist", "tools", "evidenceResources.js");
+  try {
+    const module = await import(pathToFileURL(catalogPath).href);
+    const resources = module.VISUAL_HIVE_EVIDENCE_RESOURCES;
+    assert(Array.isArray(resources), "Built core evidence-resource catalog exports VISUAL_HIVE_EVIDENCE_RESOURCES");
+    return resources;
+  } catch (error) {
+    throw new Error(
+      `Failed to load built evidence-resource catalog from ${path.relative(repoRoot, catalogPath)}. Run "npm run build" before evidence-resource consistency checks. ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
