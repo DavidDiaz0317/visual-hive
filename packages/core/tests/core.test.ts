@@ -6705,11 +6705,12 @@ describe("agent packets", () => {
     });
     expect(reviewPacket.profile).toBe("review_agent");
     expect(reviewPacket.sourceArtifacts.runHistory).toBe(".visual-hive/history.json");
+    const runHistoryResource = VISUAL_HIVE_EVIDENCE_RESOURCES.find((resource) => resource.id === "run-history");
     expect(reviewPacket.evidenceSummary.runHistory).toMatchObject({
-      artifactPath: ".visual-hive/history.json",
-      evidenceResourceId: "run-history",
-      evidenceResourceUri: "visual-hive://run-history",
-      evidenceReadToolName: "visual_hive_read_run_history",
+      artifactPath: runHistoryResource?.relativePath,
+      evidenceResourceId: runHistoryResource?.id,
+      evidenceResourceUri: runHistoryResource?.uri,
+      evidenceReadToolName: runHistoryResource?.readTool?.name,
       authority: "trend_evidence_only",
       runCount: 1,
       latestStatus: "failed",

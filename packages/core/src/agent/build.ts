@@ -3,7 +3,7 @@ import { sanitizeText } from "../utils/sanitize.js";
 import { readJson, writeJson } from "../utils/files.js";
 import type { EvidencePacket } from "../evidence/types.js";
 import type { HandoffPacket, HandoffWorkItem } from "../handoff/types.js";
-import { getEvidenceResourceByReadToolName } from "../tools/evidenceResources.js";
+import { getEvidenceResourceById, getEvidenceResourceByReadToolName } from "../tools/evidenceResources.js";
 import type { AgentPacket, AgentPacketProfile, AgentToolPermission, BuildAgentPacketOptions } from "./types.js";
 
 const HUMAN_APPROVAL = [
@@ -319,12 +319,15 @@ function providerEvidenceFor(evidence: EvidencePacket): AgentPacket["evidenceSum
 
 function runHistoryFor(options: BuildAgentPacketOptions): AgentPacket["evidenceSummary"]["runHistory"] {
   if (!options.runHistory) return undefined;
-  const resource = getEvidenceResourceByReadToolName("visual_hive_read_run_history");
+  const resource = getEvidenceResourceById("run-history");
+  if (!resource?.readTool) {
+    throw new Error("Agent Packet run-history evidence resource is not registered in the shared evidence-resource catalog.");
+  }
   return {
-    artifactPath: normalize(options.runHistoryPath ?? resource?.relativePath ?? ".visual-hive/history.json"),
-    evidenceResourceId: "run-history",
-    evidenceResourceUri: "visual-hive://run-history",
-    evidenceReadToolName: "visual_hive_read_run_history",
+    artifactPath: normalize(options.runHistoryPath ?? resource.relativePath),
+    evidenceResourceId: resource.id as "run-history",
+    evidenceResourceUri: resource.uri as "visual-hive://run-history",
+    evidenceReadToolName: resource.readTool.name as "visual_hive_read_run_history",
     authority: "trend_evidence_only",
     runCount: options.runHistory.summary.runCount,
     latestStatus: options.runHistory.summary.latestStatus,
