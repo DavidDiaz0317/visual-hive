@@ -1103,33 +1103,33 @@ function AgentForwardWorkflow({
   const workItems = snapshot.handoffPacket?.workItems ?? snapshot.agentPacket?.evidenceSummary?.workItems ?? [];
   const blockedReasons = snapshot.handoffPacket?.blockedReasons ?? snapshot.evidencePacket?.hiveReadiness?.blockedReasons ?? [];
   const packetArtifacts = [
-    evidenceArtifactPath(snapshot, "latest-evidence", ".visual-hive/evidence-packet.json"),
-    evidenceArtifactPath(snapshot, "latest-verdict", ".visual-hive/verdict.json"),
-    evidenceArtifactPath(snapshot, "latest-handoff", ".visual-hive/handoff.json"),
-    evidenceArtifactPath(snapshot, "hive-export", ".visual-hive/hive/hive-export.json"),
-    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview", ".visual-hive/hive/guarded-repair-preview.json"),
-    evidenceArtifactPath(snapshot, "hive-repair-request-envelope", ".visual-hive/hive/repair-request-envelope.json"),
-    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary", ".visual-hive/hive/trusted-repair-consumer-summary.json"),
-    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run", ".visual-hive/hive/trusted-repair-workflow-dry-run.json"),
-    evidenceArtifactPath(snapshot, "agent-packet", ".visual-hive/agent-packet.json"),
-    evidenceArtifactPath(snapshot, "test-creation-plan", ".visual-hive/test-creation-plan.json")
+    evidenceArtifactPath(snapshot, "latest-evidence"),
+    evidenceArtifactPath(snapshot, "latest-verdict"),
+    evidenceArtifactPath(snapshot, "latest-handoff"),
+    evidenceArtifactPath(snapshot, "hive-export"),
+    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview"),
+    evidenceArtifactPath(snapshot, "hive-repair-request-envelope"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run"),
+    evidenceArtifactPath(snapshot, "agent-packet"),
+    evidenceArtifactPath(snapshot, "test-creation-plan")
   ];
   const hiveArtifacts = [
-    evidenceArtifactPath(snapshot, "hive-export", ".visual-hive/hive/hive-export.json"),
-    evidenceArtifactPath(snapshot, "hive-beads", ".visual-hive/hive/beads.json"),
-    evidenceArtifactPath(snapshot, "hive-knowledge-facts", ".visual-hive/hive/knowledge-facts.json"),
-    evidenceArtifactPath(snapshot, "hive-knowledge-graph", ".visual-hive/hive/knowledge-graph.json"),
-    evidenceArtifactPath(snapshot, "hive-wiki-index", ".visual-hive/hive/wiki-index.json"),
+    evidenceArtifactPath(snapshot, "hive-export"),
+    evidenceArtifactPath(snapshot, "hive-beads"),
+    evidenceArtifactPath(snapshot, "hive-knowledge-facts"),
+    evidenceArtifactPath(snapshot, "hive-knowledge-graph"),
+    evidenceArtifactPath(snapshot, "hive-wiki-index"),
     ".visual-hive/hive/issue-context.md",
-    evidenceArtifactPath(snapshot, "hive-repair-work-orders", ".visual-hive/hive/repair-work-orders.json"),
-    evidenceArtifactPath(snapshot, "hive-agent-policy", ".visual-hive/hive/hive-agent-policy.json"),
-    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview", ".visual-hive/hive/guarded-repair-preview.json"),
+    evidenceArtifactPath(snapshot, "hive-repair-work-orders"),
+    evidenceArtifactPath(snapshot, "hive-agent-policy"),
+    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview"),
     ".visual-hive/hive/guarded-repair-preview.md",
-    evidenceArtifactPath(snapshot, "hive-repair-request-envelope", ".visual-hive/hive/repair-request-envelope.json"),
+    evidenceArtifactPath(snapshot, "hive-repair-request-envelope"),
     ".visual-hive/hive/repair-request-envelope.md",
-    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary", ".visual-hive/hive/trusted-repair-consumer-summary.json"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary"),
     ".visual-hive/hive/trusted-repair-consumer-summary.md",
-    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run", ".visual-hive/hive/trusted-repair-workflow-dry-run.json"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run"),
     ".visual-hive/hive/trusted-repair-workflow-dry-run.md"
   ];
   const hiveExport = snapshot.hiveExport;
@@ -1661,9 +1661,9 @@ function FailureInbox({ snapshot, connection }: { snapshot: Snapshot; connection
         <div className="stack">
           <ArtifactList
             artifacts={[
-              evidenceArtifactPath(snapshot, "triage-report", ".visual-hive/triage.json"),
-              evidenceArtifactPath(snapshot, "issue-body", ".visual-hive/issue.md"),
-              evidenceArtifactPath(snapshot, "pr-comment", ".visual-hive/pr-comment.md")
+              evidenceArtifactPath(snapshot, "triage-report"),
+              evidenceArtifactPath(snapshot, "issue-body"),
+              evidenceArtifactPath(snapshot, "pr-comment")
             ]}
             connection={connection}
           />
@@ -2007,9 +2007,9 @@ function Providers({ snapshot, runAction, connection }: { snapshot: Snapshot; ru
             <AgentToolList tools={snapshot.providerAgentPacket.allowedTools} connection={connection} />
             <ArtifactList
               artifacts={[
-                evidenceArtifactPath(snapshot, "provider-results", ".visual-hive/provider-results.json"),
-                evidenceArtifactPath(snapshot, "provider-upload-argos-manifest", ".visual-hive/provider-upload/argos/manifest.json"),
-                evidenceArtifactPath(snapshot, "provider-agent-packet", ".visual-hive/provider-agent-packet.json")
+                evidenceArtifactPath(snapshot, "provider-results"),
+                evidenceArtifactPath(snapshot, "provider-upload-argos-manifest"),
+                evidenceArtifactPath(snapshot, "provider-agent-packet")
               ]}
               connection={connection}
             />
@@ -2039,9 +2039,9 @@ function LLM({ snapshot, runAction, connection }: { snapshot: Snapshot; runActio
       <Card className="span-6" title="Prompt artifacts">
         <ArtifactList
           artifacts={[
-            evidenceArtifactPath(snapshot, "triage-prompt", ".visual-hive/triage-prompt.md"),
-            evidenceArtifactPath(snapshot, "repair-prompt", ".visual-hive/repair-prompt.md"),
-            evidenceArtifactPath(snapshot, "missing-tests", ".visual-hive/missing-tests.md")
+            evidenceArtifactPath(snapshot, "triage-prompt"),
+            evidenceArtifactPath(snapshot, "repair-prompt"),
+            evidenceArtifactPath(snapshot, "missing-tests")
           ]}
           connection={connection}
         />
@@ -2276,8 +2276,8 @@ function GitHubView({ snapshot, runAction, connection }: { snapshot: Snapshot; r
   );
 }
 
-function ArtifactList({ artifacts, connection }: { artifacts: string[]; connection?: string }) {
-  const unique = Array.from(new Set((artifacts ?? []).filter(Boolean)));
+function ArtifactList({ artifacts, connection }: { artifacts: Array<string | undefined>; connection?: string }) {
+  const unique = Array.from(new Set((artifacts ?? []).filter((artifact): artifact is string => Boolean(artifact))));
   if (!unique.length) return <EmptyState title="No artifacts listed" />;
   return (
     <div className="stack">
@@ -2296,7 +2296,9 @@ function evidenceArtifact(snapshot: Snapshot, resourceId: string, fallbackPath?:
   });
 }
 
-function evidenceArtifactPath(snapshot: Snapshot, resourceId: string, fallbackPath: string) {
+function evidenceArtifactPath(snapshot: Snapshot, resourceId: string): string | undefined;
+function evidenceArtifactPath(snapshot: Snapshot, resourceId: string, fallbackPath: string): string;
+function evidenceArtifactPath(snapshot: Snapshot, resourceId: string, fallbackPath?: string) {
   return evidenceArtifact(snapshot, resourceId, fallbackPath)?.path ?? fallbackPath;
 }
 

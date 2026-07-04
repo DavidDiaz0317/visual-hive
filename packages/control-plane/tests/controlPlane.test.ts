@@ -4268,6 +4268,9 @@ contracts:
       expect(appSource).toContain("Provider output is advisory by default");
       expect(appSource).toContain("Default oracle");
       expect(appSource).toContain("Review before upload");
+      expect(appSource).toContain('evidenceArtifactPath(snapshot, "hive-wiki-index")');
+      expect(appSource).toContain('evidenceArtifactPath(snapshot, "provider-agent-packet")');
+      expect(appSource).not.toContain('evidenceArtifactPath(snapshot, "hive-wiki-index", ".visual-hive/hive/wiki-index.json")');
 
       const css = await fetch(`${server.url}${cssAsset}`).then((response) => response.text());
       expect(css).toContain("--vh-amber");
