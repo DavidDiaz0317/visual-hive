@@ -55,6 +55,7 @@ const providerAgentPacket = await readOptionalJson(".visual-hive/provider-agent-
 const hiveExport = await readOptionalJson(".visual-hive/hive/hive-export.json");
 const planLanes = await readOptionalJson(".visual-hive/plans.json");
 const runHistory = await readOptionalJson(".visual-hive/history.json");
+const testingLayers = await readOptionalJson(".visual-hive/testing-layers.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
@@ -63,6 +64,7 @@ if (mcpManifest) checkGenericMcpManifest(mcpManifest, artifactIndex);
 if (hiveExport) checkGenericHiveExport(hiveExport, artifactIndex);
 if (planLanes?.outputResource) checkOutputResource(planLanes.outputResource, "Plan lane summary outputResource", artifactIndex);
 if (runHistory?.outputResource) checkOutputResource(runHistory.outputResource, "Run history outputResource", artifactIndex);
+if (testingLayers?.outputResource) checkOutputResource(testingLayers.outputResource, "Testing layers outputResource", artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }

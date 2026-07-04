@@ -24,6 +24,9 @@
     "project": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
@@ -181,6 +184,39 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/testing-layers.json"
+        },
+        "evidenceResourceId": {
+          "const": "testing-layers"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://testing-layers"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_testing_layers"
+        }
       }
     }
   }

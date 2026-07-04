@@ -4,6 +4,7 @@ export interface TestingLayerReport {
   schemaVersion: 1;
   generatedAt: string;
   project: string;
+  outputResource?: TestingLayerOutputResource;
   sourceArtifacts: {
     evidencePacket?: string;
     plan?: string;
@@ -38,4 +39,13 @@ export interface TestingLayerReport {
     }
   >;
   recommendations: string[];
+}
+
+export interface TestingLayerOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }

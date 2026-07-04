@@ -2,9 +2,10 @@ import path from "node:path";
 import { access } from "node:fs/promises";
 import { buildEvidencePacket } from "../evidence/build.js";
 import type { EvidencePacket, EvidencePacketTestingLayer } from "../evidence/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
-import type { TestingLayerReport } from "./types.js";
+import type { TestingLayerOutputResource, TestingLayerReport } from "./types.js";
 
 export interface BuildTestingLayerReportOptions {
   rootDir: string;
@@ -52,6 +53,7 @@ export async function buildTestingLayerReport(options: BuildTestingLayerReportOp
     schemaVersion: 1,
     generatedAt: (options.now ?? new Date()).toISOString(),
     project: evidencePacket.project,
+    outputResource: catalogedTestingLayerOutputResource(),
     sourceArtifacts: sanitizeValue({
       evidencePacket: evidencePacketExists ? relative(options.rootDir, evidencePacketPath) : undefined,
       ...evidencePacket.sourceArtifacts
@@ -66,6 +68,19 @@ export async function buildTestingLayerReport(options: BuildTestingLayerReportOp
     recommendations: sanitizeValue(recommendationsFor(layers)) as string[]
   };
   return report;
+}
+
+function catalogedTestingLayerOutputResource(): TestingLayerOutputResource {
+  const resource = getEvidenceResourceById("testing-layers");
+  return {
+    artifactPath: ".visual-hive/testing-layers.json",
+    evidenceResourceId: resource?.id ?? "testing-layers",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://testing-layers",
+    evidenceResourceTitle: resource?.title ?? "Testing Layers",
+    evidenceResourceDescription:
+      resource?.description ?? "Testing-layer coverage lattice, missing-layer evidence, and advisory next steps.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_testing_layers"
+  };
 }
 
 export async function writeTestingLayerReport(options: WriteTestingLayerReportOptions): Promise<{ report: TestingLayerReport; reportPath: string; markdownPath: string }> {

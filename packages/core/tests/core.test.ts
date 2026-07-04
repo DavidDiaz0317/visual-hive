@@ -5836,6 +5836,12 @@ describe("evidence packets", () => {
       evidence: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"]
     });
     expect(layers.sourceArtifacts.repoMap).toBe(".visual-hive/repo-map.json");
+    expect(layers.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/testing-layers.json",
+      evidenceResourceId: "testing-layers",
+      evidenceResourceUri: "visual-hive://testing-layers",
+      evidenceReadToolName: "visual_hive_read_testing_layers"
+    });
     expect(layers.layers.find((layer) => layer.id === 0)?.status).toBe("covered");
     expect(handoff.handoff.workItems.map((item) => item.evidenceKeys).flat()).toEqual(
       expect.arrayContaining(["repo_coverage_gap.repo-intelligence-config", "repo_coverage_gap.workflow-safety"])
@@ -6013,6 +6019,12 @@ describe("testing layer reports", () => {
     });
 
     expect(result.report.schemaVersion).toBe(1);
+    expect(result.report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/testing-layers.json",
+      evidenceResourceId: "testing-layers",
+      evidenceResourceUri: "visual-hive://testing-layers",
+      evidenceReadToolName: "visual_hive_read_testing_layers"
+    });
     expect(result.report.summary.totalLayers).toBe(12);
     expect(result.report.summary.covered).toBeGreaterThan(0);
     expect(result.report.summary.gapCount).toBeGreaterThan(0);
@@ -6024,6 +6036,7 @@ describe("testing layer reports", () => {
     expect(JSON.stringify(result.report)).not.toContain("secret-value");
     expect(JSON.stringify(result.report)).toContain("[REDACTED]");
     expect(await readFile(result.reportPath, "utf8")).toContain('"schemaVersion": 1');
+    expect(await readFile(result.reportPath, "utf8")).toContain('"evidenceResourceId": "testing-layers"');
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Testing Layers: baseline-fixture");
   });
 
@@ -6037,6 +6050,12 @@ describe("testing layer reports", () => {
     });
 
     expect(report.summary.status).toBe("missing_evidence");
+    expect(report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/testing-layers.json",
+      evidenceResourceId: "testing-layers",
+      evidenceResourceUri: "visual-hive://testing-layers",
+      evidenceReadToolName: "visual_hive_read_testing_layers"
+    });
     expect(report.layers.find((layer) => layer.id === 0)?.status).toBe("unknown");
     expect(report.layers.find((layer) => layer.id === 6)?.status).toBe("missing");
     expect(report.sourceArtifacts.evidencePacket).toBeUndefined();

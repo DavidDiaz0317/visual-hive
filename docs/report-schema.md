@@ -182,7 +182,7 @@ Path: `.visual-hive/testing-layers.json`
 
 Schema: `schemas/visual-hive.testing-layers.schema.json`
 
-The testing-layer report is written by `visual-hive layers`. It summarizes the 0-11 layer lattice from repo intelligence through agent/Hive feedback, including covered, partial, missing, unknown, and not-applicable states. Each layer includes evidence artifacts, gaps, skipped reasons, and a recommended next step. This artifact is guidance for humans and agents; it does not decide pass/fail.
+The testing-layer report is written by `visual-hive layers`. It summarizes the 0-11 layer lattice from repo intelligence through agent/Hive feedback, including covered, partial, missing, unknown, and not-applicable states. Each layer includes evidence artifacts, gaps, skipped reasons, and a recommended next step. New reports include `outputResource`, the same catalog-backed identity used by MCP, Agent Packets, the artifact index, Tool Registry, and the Control Plane: `.visual-hive/testing-layers.json`, `visual-hive://testing-layers`, and `visual_hive_read_testing_layers`. This artifact is guidance for humans and agents; it does not decide pass/fail.
 
 The companion `.visual-hive/testing-layers.md` is a sanitized Markdown summary suitable for reviewers and agent context.
 
