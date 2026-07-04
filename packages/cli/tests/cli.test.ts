@@ -2584,6 +2584,52 @@ contracts:
     expect(summary).toContain(`Evidence resources: ${VISUAL_HIVE_EVIDENCE_RESOURCES.length}`);
   });
 
+  it("describes setup-only MCP resources before a config exists", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-mcp-setup-"));
+    tempDirs.push(tempRoot);
+    await writeJson(path.join(tempRoot, ".visual-hive", "recommendations.json"), {
+      schemaVersion: 1,
+      project: "setup-only",
+      outputResource: {
+        evidenceResourceId: "setup-recommendations",
+        evidenceResourceUri: "visual-hive://setup-recommendations",
+        artifactPath: ".visual-hive/recommendations.json",
+        evidenceReadToolName: "visual_hive_read_setup_recommendations"
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "setup-pr-plan.json"), {
+      schemaVersion: 1,
+      project: "setup-only",
+      summary: { externalCallsMade: 0 },
+      outputResource: {
+        evidenceResourceId: "setup-pr-plan",
+        evidenceResourceUri: "visual-hive://setup-pr-plan",
+        artifactPath: ".visual-hive/setup-pr-plan.json",
+        evidenceReadToolName: "visual_hive_read_setup_pr_plan"
+      }
+    });
+
+    const artifactIndex = await runArtifactsCommand({ cwd: repoRoot, repo: tempRoot, project: "setup-only" });
+    const manifest = await runMcpCommand({ cwd: repoRoot, repo: tempRoot, project: "setup-only", output: ".visual-hive/mcp-manifest.json" });
+    const writtenManifest = await readJson<typeof manifest>(path.join(tempRoot, ".visual-hive", "mcp-manifest.json"));
+    const summary = formatMcpManifest(manifest);
+
+    await expectMatchesSchema("visual-hive.mcp.schema.json", writtenManifest);
+    expect(manifest.project).toBe("setup-only");
+    expect(manifest.server.externalCallsMade).toBe(0);
+    expect(manifest.resources.map((resource) => resource.id)).toEqual(["setup-recommendations", "setup-pr-plan", "artifacts-index"]);
+    expect(manifest.tools.map((tool) => tool.name)).toEqual([
+      "visual_hive_recommend_setup",
+      "visual_hive_read_setup_recommendations",
+      "visual_hive_read_setup_pr_plan",
+      "visual_hive_read_artifacts_index"
+    ]);
+    expect(summary).toContain("Visual Hive MCP: setup-only");
+    expect(summary).toContain("setup-recommendations: visual-hive://setup-recommendations -> .visual-hive/recommendations.json");
+    expect(artifactIndex.index.artifacts.find((artifact) => artifact.evidenceResourceId === "setup-pr-plan")).toBeTruthy();
+    await expect(runMcpCommand({ cwd: repoRoot, repo: tempRoot, stdio: true })).rejects.toThrow("manifest-only");
+  });
+
   it("describes a read-only MCP surface over existing Visual Hive artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-mcp-"));
     tempDirs.push(tempRoot);

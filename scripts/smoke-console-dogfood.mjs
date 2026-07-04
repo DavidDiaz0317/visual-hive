@@ -33,6 +33,7 @@ await requireFile(path.join(fixturesDir, "docs-only-changed-files.txt"), "docs-o
 const commands = [
   step("recommend-setup", ["recommend", "--repo", ".", "--profile", "complex-app"], consoleRoot),
   step("artifacts-setup-root", ["artifacts", "--repo", ".", "--project", "console"], consoleRoot),
+  step("mcp-setup-root", ["mcp", "--repo", ".", "--project", "console", "--describe", "--output", path.join(".visual-hive", "mcp-manifest.json")], consoleRoot),
   {
     label: "setup-evidence-resource-check",
     executable: process.execPath,
@@ -215,6 +216,7 @@ async function assertAgentPacketPolicy(filePath) {
 async function assertSetupArtifacts(hiveRoot) {
   const recommendations = await readJson(path.join(hiveRoot, "recommendations.json"));
   const setupPrPlan = await readJson(path.join(hiveRoot, "setup-pr-plan.json"));
+  const mcpManifest = await readJson(path.join(hiveRoot, "mcp-manifest.json"));
   assertOutputResource(recommendations.outputResource, {
     id: "setup-recommendations",
     uri: "visual-hive://setup-recommendations",
@@ -236,6 +238,18 @@ async function assertSetupArtifacts(hiveRoot) {
   if (setupPrPlan.security?.generatedPrWorkflowUsesSecrets) {
     throw new Error("setup-pr-plan.json generated PR workflow preview references secrets.");
   }
+  assertMcpResource(mcpManifest, {
+    id: "setup-recommendations",
+    uri: "visual-hive://setup-recommendations",
+    path: ".visual-hive/recommendations.json",
+    tool: "visual_hive_read_setup_recommendations"
+  });
+  assertMcpResource(mcpManifest, {
+    id: "setup-pr-plan",
+    uri: "visual-hive://setup-pr-plan",
+    path: ".visual-hive/setup-pr-plan.json",
+    tool: "visual_hive_read_setup_pr_plan"
+  });
 }
 
 function assertOutputResource(actual, expected) {
@@ -253,6 +267,22 @@ function assertOutputResource(actual, expected) {
   }
   if (actual.evidenceReadToolName !== expected.tool) {
     throw new Error(`Expected ${expected.id} read tool ${expected.tool}, got ${actual.evidenceReadToolName}`);
+  }
+}
+
+function assertMcpResource(manifest, expected) {
+  const actual = manifest.resources?.find((resource) => resource.id === expected.id);
+  if (!actual) {
+    throw new Error(`MCP manifest is missing ${expected.id}.`);
+  }
+  if (actual.uri !== expected.uri) {
+    throw new Error(`Expected MCP ${expected.id} URI ${expected.uri}, got ${actual.uri}`);
+  }
+  if (normalizePath(actual.relativePath) !== normalizePath(expected.path)) {
+    throw new Error(`Expected MCP ${expected.id} path ${expected.path}, got ${actual.relativePath}`);
+  }
+  if (actual.readToolName !== expected.tool) {
+    throw new Error(`Expected MCP ${expected.id} read tool ${expected.tool}, got ${actual.readToolName}`);
   }
 }
 

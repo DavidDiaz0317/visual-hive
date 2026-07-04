@@ -371,7 +371,7 @@ Path: `.visual-hive/mcp-manifest.json`
 
 Schema: `schemas/visual-hive.mcp.schema.json`
 
-The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive/mcp-manifest.json`. It records the first-party read-only MCP resources and tools that expose existing Visual Hive artifacts to agents without changing verdict authority or starting execution tools.
+The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive/mcp-manifest.json`. It records the first-party read-only MCP resources and tools that expose existing Visual Hive artifacts to agents without changing verdict authority or starting execution tools. During first-time onboarding, `visual-hive mcp --repo <path> --describe --output .visual-hive/mcp-manifest.json` can write a setup-only manifest before `visual-hive.config.yaml` exists; that manifest intentionally exposes only `.visual-hive/recommendations.json`, `.visual-hive/setup-pr-plan.json`, and `.visual-hive/artifacts-index.json` plus their read-only tools.
 
 Key fields:
 

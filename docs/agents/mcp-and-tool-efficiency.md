@@ -8,10 +8,13 @@ Run:
 visual-hive mcp --config visual-hive.config.yaml --describe
 visual-hive mcp --config visual-hive.config.yaml --describe --output .visual-hive/mcp-manifest.json
 visual-hive mcp --config visual-hive.config.yaml --stdio
+visual-hive mcp --repo . --describe --output .visual-hive/mcp-manifest.json
 visual-hive schemas verify
 ```
 
 The `--describe` form exits immediately and prints the read-only resource/tool manifest. Add `--output .visual-hive/mcp-manifest.json` to persist the manifest for CI, agents, or schema validation.
+
+Use the `--repo` form during first-time setup when `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` exist but `visual-hive.config.yaml` has not been committed yet. It is manifest-only and exposes setup recommendations, setup PR plan, and artifact-index resources; it does not start `--stdio`, run targets, write config, create PRs, call Hive, call providers, or authorize setup writes.
 
 Schema: `schemas/visual-hive.mcp.schema.json`
 

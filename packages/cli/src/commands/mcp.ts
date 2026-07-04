@@ -19,6 +19,8 @@ export interface McpCommandOptions {
   stdio?: boolean;
   describe?: boolean;
   output?: string;
+  project?: string;
+  repo?: string;
 }
 
 export interface McpResourceDefinition {
@@ -126,6 +128,9 @@ const MCP_RESOURCE_READ_TOOLS: McpToolDefinition[] = VISUAL_HIVE_EVIDENCE_RESOUR
 
 export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [...MCP_STATIC_READ_ONLY_TOOLS, ...MCP_RESOURCE_READ_TOOLS];
 
+const SETUP_ONLY_RESOURCE_IDS = new Set(["setup-recommendations", "setup-pr-plan", "artifacts-index"]);
+const SETUP_ONLY_STATIC_TOOLS = new Set(["visual_hive_recommend_setup"]);
+
 export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
   "visual_hive_run",
   "visual_hive_mutate",
@@ -142,6 +147,18 @@ export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
 }));
 
 export async function runMcpCommand(options: McpCommandOptions = {}): Promise<McpManifest> {
+  if (options.repo) {
+    if (options.stdio) {
+      throw new Error("visual-hive mcp --repo is manifest-only. Generate setup artifacts with visual-hive recommend, then run visual-hive mcp --repo <path> --describe or --output <path>.");
+    }
+    const cwd = options.cwd ?? process.cwd();
+    const repoRoot = path.resolve(cwd, options.repo);
+    const manifest = buildSetupOnlyMcpManifest(options.project ?? path.basename(repoRoot));
+    if (options.output) {
+      await writeJson(path.resolve(repoRoot, options.output), manifest);
+    }
+    return manifest;
+  }
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
   const manifest = buildMcpManifest(loaded);
   if (options.output) {
@@ -265,6 +282,32 @@ export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = build
 export async function readMcpResourceText(loaded: LoadedConfig, resource: McpResourceDefinition): Promise<string> {
   const filePath = resource.uri === "visual-hive://config" ? loaded.configPath : path.join(loaded.rootDir, resource.relativePath);
   return readArtifactText(filePath, resource.relativePath);
+}
+
+export function buildSetupOnlyMcpManifest(project: string): McpManifest {
+  const resources = MCP_RESOURCES.filter((resource) => SETUP_ONLY_RESOURCE_IDS.has(resource.id));
+  const resourceToolNames = new Set(resources.map((resource) => resource.readToolName).filter((name): name is string => Boolean(name)));
+  return sanitizeObject({
+    schemaVersion: "visual-hive.mcp.v1",
+    project,
+    server: {
+      name: "visual-hive",
+      transport: "stdio",
+      defaultAccess: "read_only",
+      externalCallsMade: 0
+    },
+    resources,
+    tools: MCP_READ_ONLY_TOOLS.filter((tool) => SETUP_ONLY_STATIC_TOOLS.has(tool.name) || resourceToolNames.has(tool.name)),
+    disabledExecutionTools: MCP_DISABLED_EXECUTION_TOOLS,
+    policy: {
+      thirdPartyMcpDefault: "disabled",
+      executionToolsDefault: "disabled",
+      githubWritesFromPr: false,
+      externalUploadsFromPr: false,
+      baselineApprovalByAgent: false,
+      llmSoleOracle: false
+    }
+  }) as McpManifest;
 }
 
 export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): Promise<string> {

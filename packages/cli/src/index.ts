@@ -1515,9 +1515,11 @@ program
   .command("mcp")
   .description("Expose Visual Hive read-only artifacts and advisory tools over MCP stdio")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--repo <path>", "repository root for setup-only MCP manifest when a Visual Hive config is not available")
+  .option("--project <name>", "project name to use with --repo; defaults to the repository directory name")
   .option("--stdio", "start the MCP stdio server")
   .option("--describe", "print the MCP manifest and exit")
-  .option("--output <path>", "write the MCP manifest JSON relative to the config root")
+  .option("--output <path>", "write the MCP manifest JSON relative to the config root, or repo root when --repo is used")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -1526,6 +1528,8 @@ program
       }
       const manifest = await runMcpCommand({
         config: options.config,
+        repo: options.repo,
+        project: options.project,
         stdio: options.stdio,
         output: options.output
       });
