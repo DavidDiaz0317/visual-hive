@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises";
 import path from "node:path";
 import {
   getEvidenceResourceById,
@@ -47,6 +48,8 @@ import { runWorkflowsCommand } from "./workflows.js";
 import { runDeterministicCommand } from "./run.js";
 import { runContextCommand } from "./context.js";
 import { runEvidenceCommand } from "./evidence.js";
+import { runSchemasVerifyCommand } from "./schemas.js";
+import { runSnapshotCommand } from "./snapshot.js";
 
 export interface PipelineCommandOptions {
   config?: string;
@@ -392,6 +395,19 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
     await runContextCommand({ config: options.config, cwd });
     return { artifacts: [catalogArtifact("context-ledger")] };
   });
+  if (await pathExists(path.join(cwd, "schemas"))) {
+    await runStep(context, "schemas", "Schema Catalog Verification", async () => {
+      const output = path.relative(cwd, path.join(context.rootDir, catalogArtifact("schema-catalog")));
+      const result = await runSchemasVerifyCommand({ cwd, output });
+      return { exitCode: result.report.status === "passed" ? 0 : 1, artifacts: [catalogArtifact("schema-catalog")] };
+    });
+  } else {
+    context.steps.push(skippedStep("schemas", "Schema Catalog Verification", "Skipped because no schemas directory was found in the pipeline working directory."));
+  }
+  await runStep(context, "snapshot", "Control Plane Snapshot", async () => {
+    await runSnapshotCommand({ config: options.config, cwd, readOnly: true });
+    return { artifacts: [catalogArtifact("control-plane-snapshot")] };
+  });
   await runStep(context, "artifacts-final", "Artifact Index Refresh", async () => {
     await runArtifactsCommand({ config: options.config, cwd });
     return { artifacts: [catalogArtifact("artifacts-index")] };
@@ -497,6 +513,15 @@ function catalogArtifact(resourceId: EvidenceResourceId): string {
     throw new Error(`Pipeline artifact resource ${resourceId} is not registered in the shared evidence-resource catalog.`);
   }
   return resource.relativePath;
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function updateNoContractIntent(context: PipelineContext): Promise<void> {

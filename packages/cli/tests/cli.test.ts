@@ -3869,9 +3869,13 @@ selection:
         "handoff-agent-packet",
         "tools",
         "context",
+        "schemas",
+        "snapshot",
         "artifacts-final"
       ])
     );
+    expect(pipeline.steps.find((step) => step.id === "schemas")?.status).toBe("skipped");
+    expect(pipeline.steps.find((step) => step.id === "snapshot")?.status).toBe("passed");
     expect(pipeline.artifacts).toContain(catalogPath("pipeline-status"));
     expect(pipeline.artifacts).toEqual(
       expect.arrayContaining([
@@ -3900,7 +3904,8 @@ selection:
         catalogPath("handoff-agent-packet"),
         catalogPath("provider-agent-packet"),
         catalogPath("tool-registry"),
-        catalogPath("context-ledger")
+        catalogPath("context-ledger"),
+        catalogPath("control-plane-snapshot")
       ])
     );
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
