@@ -2620,6 +2620,8 @@ contracts:
     expect(manifest.resources.map((resource) => resource.id)).toEqual([
       "setup-recommendations",
       "setup-pr-plan",
+      "repo-map",
+      "repo-context",
       "artifacts-index",
       "mcp-manifest"
     ]);
@@ -2627,6 +2629,8 @@ contracts:
       "visual_hive_recommend_setup",
       "visual_hive_read_setup_recommendations",
       "visual_hive_read_setup_pr_plan",
+      "visual_hive_read_repo_map",
+      "visual_hive_read_repo_context",
       "visual_hive_read_artifacts_index",
       "visual_hive_read_mcp_manifest"
     ]);

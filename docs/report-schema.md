@@ -38,11 +38,11 @@ Path: `.visual-hive/repo-map.json`
 
 Schema: `schemas/visual-hive.repo-map.schema.json`
 
-The repo map is written by `visual-hive analyze`. It is read-only repository intelligence for setup, planning, and agent context minimization.
+The repo map is written by `visual-hive analyze`. It is read-only repository intelligence for setup, planning, and agent context minimization. It is catalog-backed as `visual-hive://repo-map` / `visual_hive_read_repo_map`.
 
 It records package manager and workspace hints, package scripts, dependency-derived frameworks, source file summary, stable `data-testid` selectors, route hints, GitHub workflow safety hints, detected test tools, target hints, risk signals, coverage gaps, and recommendations.
 
-The companion `.visual-hive/repo-context.md` is the compact Markdown view for humans and agents. The repo map does not decide pass/fail and does not grant agents permission to execute tools.
+The companion `.visual-hive/repo-context.md` is the compact Markdown view for humans and agents, catalog-backed as `visual-hive://repo-context` / `visual_hive_read_repo_context`. The repo map and context summary do not decide pass/fail and do not grant agents permission to execute tools.
 
 ## Setup Recommendations
 
@@ -371,13 +371,13 @@ Path: `.visual-hive/mcp-manifest.json`
 
 Schema: `schemas/visual-hive.mcp.schema.json`
 
-The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive/mcp-manifest.json`. It records the first-party read-only MCP resources and tools that expose existing Visual Hive artifacts to agents without changing verdict authority or starting execution tools. During first-time onboarding, `visual-hive mcp --repo <path> --describe --output .visual-hive/mcp-manifest.json` can write a setup-only manifest before `visual-hive.config.yaml` exists; that manifest intentionally exposes only `.visual-hive/recommendations.json`, `.visual-hive/setup-pr-plan.json`, `.visual-hive/artifacts-index.json`, `.visual-hive/mcp-manifest.json`, and their read-only tools.
+The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive/mcp-manifest.json`. It records the first-party read-only MCP resources and tools that expose existing Visual Hive artifacts to agents without changing verdict authority or starting execution tools. During first-time onboarding, `visual-hive mcp --repo <path> --describe --output .visual-hive/mcp-manifest.json` can write a setup-only manifest before `visual-hive.config.yaml` exists; that manifest intentionally exposes only `.visual-hive/recommendations.json`, `.visual-hive/setup-pr-plan.json`, `.visual-hive/repo-map.json`, `.visual-hive/repo-context.md`, `.visual-hive/artifacts-index.json`, `.visual-hive/mcp-manifest.json`, and their read-only tools.
 
 Key fields:
 
 - `server`: identifies Visual Hive's `stdio` MCP server, read-only default access, and `externalCallsMade: 0`.
-- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://control-plane-snapshot`, `visual-hive://latest-verdict`, `visual-hive://agent-packet`, `visual-hive://tool-registry`, `visual-hive://context-ledger`, `visual-hive://provider-results`, `visual-hive://provider-upload/argos/manifest`, `visual-hive://pipeline-status`, `visual-hive://schema-catalog`, `visual-hive://mcp-manifest`, and `visual-hive://artifacts/index`.
-- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_read_control_plane_snapshot`, `visual_hive_read_verdict`, `visual_hive_read_agent_packet`, `visual_hive_read_context_ledger`, `visual_hive_read_mutation_report`, `visual_hive_read_provider_results`, `visual_hive_read_provider_upload_manifest`, `visual_hive_read_artifacts_index`, `visual_hive_read_mcp_manifest`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`; artifact, mutation, provider, and snapshot reads expose existing sanitized artifacts and do not enable provider upload, workflow writes, or UI actions.
+- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://control-plane-snapshot`, `visual-hive://latest-verdict`, `visual-hive://agent-packet`, `visual-hive://tool-registry`, `visual-hive://context-ledger`, `visual-hive://provider-results`, `visual-hive://provider-upload/argos/manifest`, `visual-hive://pipeline-status`, `visual-hive://schema-catalog`, `visual-hive://repo-map`, `visual-hive://repo-context`, `visual-hive://mcp-manifest`, and `visual-hive://artifacts/index`.
+- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_read_control_plane_snapshot`, `visual_hive_read_verdict`, `visual_hive_read_agent_packet`, `visual_hive_read_context_ledger`, `visual_hive_read_mutation_report`, `visual_hive_read_provider_results`, `visual_hive_read_provider_upload_manifest`, `visual_hive_read_repo_map`, `visual_hive_read_repo_context`, `visual_hive_read_artifacts_index`, `visual_hive_read_mcp_manifest`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`; artifact, mutation, provider, repo-intelligence, and snapshot reads expose existing sanitized artifacts and do not enable provider upload, workflow writes, or UI actions.
 - `disabledExecutionTools`: write-capable or execution-capable tools that are intentionally not registered by default.
 - `policy`: enterprise defaults that keep third-party MCPs, PR writes, external uploads, baseline approval, and LLM verdict authority disabled.
 
@@ -514,7 +514,7 @@ Path: `.visual-hive/artifacts-index.json`
 
 Schema: `schemas/visual-hive.artifacts.schema.json`
 
-The artifact index inventories files under `.visual-hive`, classifies renderable artifacts, and stores sanitized previews for text-like files. Image files are linked for rendering through the Control Plane image endpoint, while JSON, Markdown, logs, YAML, text, and generated specs receive redacted previews. `visual-hive artifacts --repo <path>` can index setup artifacts before a `visual-hive.config.yaml` exists, which keeps `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` catalog-backed during first-time onboarding.
+The artifact index inventories files under `.visual-hive`, classifies renderable artifacts, and stores sanitized previews for text-like files. Image files are linked for rendering through the Control Plane image endpoint, while JSON, Markdown, logs, YAML, text, and generated specs receive redacted previews. `visual-hive artifacts --repo <path>` can index setup artifacts before a `visual-hive.config.yaml` exists, which keeps `.visual-hive/repo-map.json`, `.visual-hive/repo-context.md`, `.visual-hive/recommendations.json`, and `.visual-hive/setup-pr-plan.json` catalog-backed during first-time onboarding.
 
 Known evidence artifacts also carry shared resource metadata from the core evidence-resource catalog: `evidenceResourceId`, `evidenceResourceUri`, `evidenceResourceTitle`, `evidenceResourceDescription`, and `evidenceReadToolName`. These entries include the labels `evidence-resource` and the catalog resource ID, such as `latest-evidence`, `provider-results`, or `provider-upload-argos-manifest`, while preserving existing path-derived labels for compatibility. These fields keep the artifact index, Control Plane artifact browser, MCP manifest, MCP read tools, Agent Packet, and Tool Registry aligned around the same resource identity instead of duplicating path and tool names in each package.
 

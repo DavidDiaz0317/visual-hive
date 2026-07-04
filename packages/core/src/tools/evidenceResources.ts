@@ -75,6 +75,38 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "repo-map",
+    "visual-hive://repo-map",
+    "repo-map",
+    "Repository Intelligence Map",
+    "Sanitized deterministic repository scan with package manager, frameworks, scripts, selectors, route hints, workflow hints, risk signals, and coverage gaps.",
+    ".visual-hive/repo-map.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_repo_map",
+      "Read Repository Map",
+      "Read deterministic repository intelligence without scanning additional source files or changing setup.",
+      "visual-hive analyze --repo .",
+      ["Read repo intelligence evidence only. Do not infer verdict status, run targets, or authorize setup writes from repo-map evidence alone."]
+    )
+  ),
+  resource(
+    "repo-context",
+    "visual-hive://repo-context",
+    "repo-context",
+    "Repository Context Summary",
+    "Sanitized Markdown summary of deterministic repository intelligence for humans and agents.",
+    ".visual-hive/repo-context.md",
+    "text/markdown",
+    readTool(
+      "visual_hive_read_repo_context",
+      "Read Repository Context",
+      "Read the generated repository context summary without scanning additional source files or changing setup.",
+      "visual-hive analyze --repo .",
+      ["Read repo context evidence only. Do not infer verdict status, run targets, or authorize setup writes from repo-context evidence alone."]
+    )
+  ),
+  resource(
     "latest-report",
     "visual-hive://latest-report",
     "latest-report",

@@ -360,7 +360,7 @@
     "mcpManifest": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Optional first-party MCP manifest evidence from .visual-hive/mcp-manifest.json. Setup-only manifests may expose setup recommendations, setup PR plan, artifact index, and MCP manifest resources before a config exists."
+      "description": "Optional first-party MCP manifest evidence from .visual-hive/mcp-manifest.json. Setup-only manifests may expose setup recommendations, setup PR plan, repo map, repo context, artifact index, and MCP manifest resources before a config exists."
     },
     "contextLedger": {
       "type": "object",
@@ -449,6 +449,8 @@
             "plan-lanes",
             "setup-recommendations",
             "setup-pr-plan",
+            "repo-map",
+            "repo-context",
             "latest-report",
             "latest-evidence",
             "control-plane-snapshot",
@@ -505,6 +507,8 @@
             "visual-hive://plan-lanes",
             "visual-hive://setup-recommendations",
             "visual-hive://setup-pr-plan",
+            "visual-hive://repo-map",
+            "visual-hive://repo-context",
             "visual-hive://latest-report",
             "visual-hive://latest-evidence",
             "visual-hive://control-plane-snapshot",
@@ -565,6 +569,8 @@
             "visual_hive_read_plan_lanes",
             "visual_hive_read_setup_recommendations",
             "visual_hive_read_setup_pr_plan",
+            "visual_hive_read_repo_map",
+            "visual_hive_read_repo_context",
             "visual_hive_read_latest_report",
             "visual_hive_read_evidence_packet",
             "visual_hive_read_control_plane_snapshot",

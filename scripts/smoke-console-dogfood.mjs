@@ -31,6 +31,7 @@ await requireFile(path.join(fixturesDir, "ui-changed-files.txt"), "UI changed-fi
 await requireFile(path.join(fixturesDir, "docs-only-changed-files.txt"), "docs-only changed-files fixture");
 
 const commands = [
+  step("analyze-setup", ["analyze", "--repo", "."], consoleRoot),
   step("recommend-setup", ["recommend", "--repo", ".", "--profile", "complex-app"], consoleRoot),
   step("artifacts-setup-root", ["artifacts", "--repo", ".", "--project", "console"], consoleRoot),
   step("mcp-setup-root", ["mcp", "--repo", ".", "--project", "console", "--describe", "--output", path.join(".visual-hive", "mcp-manifest.json")], consoleRoot),
@@ -229,6 +230,8 @@ async function assertSetupArtifacts(hiveRoot) {
     path: ".visual-hive/setup-pr-plan.json",
     tool: "visual_hive_read_setup_pr_plan"
   });
+  await readJson(path.join(hiveRoot, "repo-map.json"));
+  await readFile(path.join(hiveRoot, "repo-context.md"), "utf8");
   if (setupPrPlan.summary?.externalCallsMade !== 0) {
     throw new Error(`setup-pr-plan.json made external calls: ${setupPrPlan.summary?.externalCallsMade}`);
   }
@@ -249,6 +252,18 @@ async function assertSetupArtifacts(hiveRoot) {
     uri: "visual-hive://setup-pr-plan",
     path: ".visual-hive/setup-pr-plan.json",
     tool: "visual_hive_read_setup_pr_plan"
+  });
+  assertMcpResource(mcpManifest, {
+    id: "repo-map",
+    uri: "visual-hive://repo-map",
+    path: ".visual-hive/repo-map.json",
+    tool: "visual_hive_read_repo_map"
+  });
+  assertMcpResource(mcpManifest, {
+    id: "repo-context",
+    uri: "visual-hive://repo-context",
+    path: ".visual-hive/repo-context.md",
+    tool: "visual_hive_read_repo_context"
   });
 }
 

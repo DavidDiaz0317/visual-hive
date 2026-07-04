@@ -91,6 +91,8 @@ try {
     throw new Error("snapshot did not expose protected-schedule-preview as a blocked run profile with a primary reason");
   }
   assertCatalogArtifact(snapshot, ".visual-hive/history.json", "run-history", "visual-hive://run-history", "visual_hive_read_run_history");
+  assertCatalogArtifact(snapshot, ".visual-hive/repo-map.json", "repo-map", "visual-hive://repo-map", "visual_hive_read_repo_map");
+  assertCatalogArtifact(snapshot, ".visual-hive/repo-context.md", "repo-context", "visual-hive://repo-context", "visual_hive_read_repo_context");
   assertCatalogArtifact(snapshot, ".visual-hive/evidence-packet.json", "latest-evidence", "visual-hive://latest-evidence", "visual_hive_read_evidence_packet");
   assertCatalogArtifact(snapshot, ".visual-hive/handoff.json", "latest-handoff", "visual-hive://latest-handoff", "visual_hive_generate_handoff_dry_run");
   assertCatalogArtifact(snapshot, ".visual-hive/hive/hive-export.json", "hive-export", "visual-hive://hive-export", "visual_hive_read_hive_export");

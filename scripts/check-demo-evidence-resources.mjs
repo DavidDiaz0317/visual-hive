@@ -25,6 +25,8 @@ const supportResources = [
   resourceFromCatalog("context-ledger"),
   resourceFromCatalog("control-plane-snapshot"),
   resourceFromCatalog("artifacts-index"),
+  resourceFromCatalog("repo-map"),
+  resourceFromCatalog("repo-context"),
   resourceFromCatalog("pipeline-status"),
   resourceFromCatalog("schema-catalog"),
   resourceFromCatalog("mcp-manifest"),

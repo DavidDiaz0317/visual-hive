@@ -14,7 +14,7 @@ visual-hive schemas verify
 
 The `--describe` form exits immediately and prints the read-only resource/tool manifest. Add `--output .visual-hive/mcp-manifest.json` to persist the manifest for CI, agents, or schema validation.
 
-Use the `--repo` form during first-time setup when `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` exist but `visual-hive.config.yaml` has not been committed yet. It is manifest-only and exposes setup recommendations, setup PR plan, artifact-index, and MCP-manifest resources; it does not start `--stdio`, run targets, write config, create PRs, call Hive, call providers, or authorize setup writes.
+Use the `--repo` form during first-time setup when `.visual-hive/repo-map.json`, `.visual-hive/repo-context.md`, `.visual-hive/recommendations.json`, and `.visual-hive/setup-pr-plan.json` exist but `visual-hive.config.yaml` has not been committed yet. It is manifest-only and exposes setup recommendations, setup PR plan, repo map, repo context, artifact-index, and MCP-manifest resources; it does not start `--stdio`, run targets, write config, create PRs, call Hive, call providers, or authorize setup writes.
 
 Schema: `schemas/visual-hive.mcp.schema.json`
 
@@ -43,6 +43,8 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://plan-lanes`
 - `visual-hive://setup-recommendations`
 - `visual-hive://setup-pr-plan`
+- `visual-hive://repo-map`
+- `visual-hive://repo-context`
 - `visual-hive://latest-report`
 - `visual-hive://latest-evidence`
 - `visual-hive://control-plane-snapshot`
@@ -103,6 +105,8 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_plan_lanes`
 - `visual_hive_read_setup_recommendations`
 - `visual_hive_read_setup_pr_plan`
+- `visual_hive_read_repo_map`
+- `visual_hive_read_repo_context`
 - `visual_hive_read_latest_report`
 - `visual_hive_read_evidence_packet`
 - `visual_hive_read_control_plane_snapshot`
@@ -174,7 +178,7 @@ Agents should prefer compact resources and tools before loading broad files:
 5. Read `visual-hive://run-history` when the task is about flake trends, baseline stability, mutation adequacy trends, runtime/cost history, or repeated failures. Reading it does not rerun checks, approve baselines, infer a new verdict, or change policy.
 6. Read `visual-hive://workflow-audit` when the task is about PR workflow safety, `pull_request_target`, secret exposure, artifact upload, or trusted `workflow_run` issue/handoff posture.
 7. Read `visual-hive://baseline-review`, `visual-hive://baseline-approvals`, and `visual-hive://baseline-rejections` when the task is about created/missing baselines, visual diff review, or approval history. Reading them does not authorize approving, rejecting, copying, or updating baselines.
-8. Read `visual-hive://setup-recommendations` and `visual-hive://setup-pr-plan` when the task is initial adoption, config generation review, setup bundle review, or safe workflow enablement.
+8. Read `visual-hive://repo-map`, `visual-hive://repo-context`, `visual-hive://setup-recommendations`, and `visual-hive://setup-pr-plan` when the task is initial adoption, repository orientation, config generation review, setup bundle review, or safe workflow enablement. Repo intelligence resources reduce broad source scanning, but reading them does not authorize setup writes or verdict changes.
 9. Read `visual-hive://testing-layers` when the task is about missing coverage, test creation, mutation survivor follow-up, or whether a layer is only partially measured.
 10. Read `visual-hive://coverage-recommendations` when the task is to review deterministic missing-coverage or config-improvement suggestions before creating tests.
 11. Read `visual-hive://test-creation-plan` when the task is to draft missing tests or config changes from existing no-write recommendations.

@@ -4075,9 +4075,21 @@ describe("artifact index", () => {
     expect(repoMap?.preview).toContain("[REDACTED]");
     expect(repoMap?.labels).toContain("repo-map");
     expect(repoMap?.schemaPath).toBe("schemas/visual-hive.repo-map.schema.json");
+    expect(repoMap).toMatchObject({
+      evidenceResourceId: "repo-map",
+      evidenceResourceUri: "visual-hive://repo-map",
+      evidenceResourceTitle: "Repository Intelligence Map",
+      evidenceReadToolName: "visual_hive_read_repo_map"
+    });
     const repoContext = index.artifacts.find((artifact) => artifact.path.endsWith("repo-context.md"));
     expect(repoContext?.preview).toContain("[REDACTED]");
     expect(repoContext?.labels).toContain("repo-context");
+    expect(repoContext).toMatchObject({
+      evidenceResourceId: "repo-context",
+      evidenceResourceUri: "visual-hive://repo-context",
+      evidenceResourceTitle: "Repository Context Summary",
+      evidenceReadToolName: "visual_hive_read_repo_context"
+    });
     const testingLayers = index.artifacts.find((artifact) => artifact.path.endsWith("testing-layers.json"));
     expect(testingLayers?.preview).toContain("[REDACTED]");
     expect(testingLayers?.labels).toContain("testing-layers");

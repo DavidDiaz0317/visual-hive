@@ -8,8 +8,8 @@ visual-hive analyze --repo . --out .visual-hive/repo-map.json --markdown .visual
 
 Outputs:
 
-- `.visual-hive/repo-map.json`
-- `.visual-hive/repo-context.md`
+- `.visual-hive/repo-map.json` (`visual-hive://repo-map` / `visual_hive_read_repo_map`)
+- `.visual-hive/repo-context.md` (`visual-hive://repo-context` / `visual_hive_read_repo_context`)
 
 Schema:
 
@@ -32,9 +32,11 @@ It detects:
 
 ## Agent Policy
 
-Agents should read `.visual-hive/repo-context.md` and `.visual-hive/repo-map.json` before loading large source folders. The map is an efficiency layer, not an oracle.
+Agents should read `.visual-hive/repo-context.md` and `.visual-hive/repo-map.json` before loading large source folders. Both artifacts are catalog-backed read-only evidence resources, so MCP clients, Agent Packets, the artifact index, and the Control Plane can refer to the same repo intelligence without path guessing. The map is an efficiency layer, not an oracle.
 
 Visual Hive's deterministic Verdict Engine still owns pass/fail. Repo intelligence only informs setup, planning, contract authoring, and handoff context.
+
+Reading repo-map or repo-context evidence must not authorize setup writes, workflow edits, baseline changes, target execution, provider uploads, LLM calls, Hive calls, or verdict changes.
 
 ## Recommended Flow
 

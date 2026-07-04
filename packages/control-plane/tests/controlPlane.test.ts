@@ -984,6 +984,22 @@ viewports:
             readToolName: "visual_hive_read_artifacts_index"
           },
           {
+            id: "repo-map",
+            uri: "visual-hive://repo-map",
+            title: "Repository Intelligence Map",
+            description: "Sanitized deterministic repository scan with setup and risk signals.",
+            relativePath: ".visual-hive/repo-map.json",
+            readToolName: "visual_hive_read_repo_map"
+          },
+          {
+            id: "repo-context",
+            uri: "visual-hive://repo-context",
+            title: "Repository Context Summary",
+            description: "Sanitized Markdown summary of deterministic repository intelligence.",
+            relativePath: ".visual-hive/repo-context.md",
+            readToolName: "visual_hive_read_repo_context"
+          },
+          {
             id: "mcp-manifest",
             uri: "visual-hive://mcp-manifest",
             title: "MCP Manifest",
@@ -1015,6 +1031,18 @@ viewports:
             name: "visual_hive_read_artifacts_index",
             title: "Read Artifact Index",
             description: "Read sanitized artifact inventory and evidence-resource metadata.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_repo_map",
+            title: "Read Repository Map",
+            description: "Read deterministic repository intelligence without scanning additional source files or changing setup.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_repo_context",
+            title: "Read Repository Context",
+            description: "Read the generated repository context summary without scanning additional source files or changing setup.",
             mode: "read_only"
           },
           {
@@ -2608,6 +2636,18 @@ describe("control plane", () => {
               readToolName: "visual_hive_read_setup_pr_plan"
             },
             {
+              id: "repo-map",
+              uri: "visual-hive://repo-map",
+              relativePath: ".visual-hive/repo-map.json",
+              readToolName: "visual_hive_read_repo_map"
+            },
+            {
+              id: "repo-context",
+              uri: "visual-hive://repo-context",
+              relativePath: ".visual-hive/repo-context.md",
+              readToolName: "visual_hive_read_repo_context"
+            },
+            {
               id: "artifacts-index",
               uri: "visual-hive://artifacts/index",
               relativePath: ".visual-hive/artifacts-index.json",
@@ -2623,6 +2663,8 @@ describe("control plane", () => {
           tools: [
             { name: "visual_hive_read_setup_recommendations", mode: "read_only" },
             { name: "visual_hive_read_setup_pr_plan", mode: "read_only" },
+            { name: "visual_hive_read_repo_map", mode: "read_only" },
+            { name: "visual_hive_read_repo_context", mode: "read_only" },
             { name: "visual_hive_read_artifacts_index", mode: "read_only" },
             { name: "visual_hive_read_mcp_manifest", mode: "read_only" }
           ],
@@ -2650,7 +2692,7 @@ describe("control plane", () => {
     expect(snapshot.setupPullRequestPlan?.summary.externalCallsMade).toBe(0);
     expect(snapshot.mcpManifest?.server.externalCallsMade).toBe(0);
     expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
-      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index", "mcp-manifest"])
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "repo-map", "repo-context", "artifacts-index", "mcp-manifest"])
     );
     expect(snapshot.mcpManifest?.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(snapshot.artifacts.map((artifact) => artifact.path)).toEqual(
@@ -3037,12 +3079,14 @@ describe("control plane", () => {
       }
     });
     expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
-      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index", "mcp-manifest"])
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "repo-map", "repo-context", "artifacts-index", "mcp-manifest"])
     );
     expect(snapshot.mcpManifest?.tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining([
         "visual_hive_read_setup_recommendations",
         "visual_hive_read_setup_pr_plan",
+        "visual_hive_read_repo_map",
+        "visual_hive_read_repo_context",
         "visual_hive_read_artifacts_index",
         "visual_hive_read_mcp_manifest"
       ])

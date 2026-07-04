@@ -196,6 +196,8 @@ function allTools(): ToolRegistryEntry[] {
     cli("visual_hive_recommend_setup", "Recommend setup", "Inspect repository hints and generate no-network setup recommendations.", "read_only", "local", ["setup_agent", "review_agent"], ["local", "pr"], "visual-hive recommend", [".visual-hive/recommendations.json", ".visual-hive/setup-pr-plan.json"]),
     evidenceCli("setup-recommendations", ["setup_agent", "review_agent"], ["local", "pr", "manual"], { writes: [] }),
     evidenceCli("setup-pr-plan", ["setup_agent", "review_agent"], ["local", "pr", "manual"], { writes: [] }),
+    evidenceCli("repo-map", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("repo-context", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     cli("visual_hive_plan", "Plan checks", "Plan contracts from changed files, risk, target safety, and cost.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent"], ["local", "pr", "schedule", "manual"], "visual-hive plan", [".visual-hive/plan.json"]),
     evidenceCli("plan-lanes", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     evidenceCli("latest-report", ["repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"]),
