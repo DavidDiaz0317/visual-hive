@@ -54,6 +54,7 @@ const handoffAgentPacket = await readOptionalJson(".visual-hive/handoff-agent-pa
 const providerAgentPacket = await readOptionalJson(".visual-hive/provider-agent-packet.json");
 const hiveExport = await readOptionalJson(".visual-hive/hive/hive-export.json");
 const planLanes = await readOptionalJson(".visual-hive/plans.json");
+const coverageMap = await readOptionalJson(".visual-hive/coverage.json");
 const runHistory = await readOptionalJson(".visual-hive/history.json");
 const testingLayers = await readOptionalJson(".visual-hive/testing-layers.json");
 const workflowAudit = await readOptionalJson(".visual-hive/workflows.json");
@@ -69,6 +70,7 @@ if (snapshot) checkGenericSnapshot(snapshot, artifactIndex);
 if (mcpManifest) checkGenericMcpManifest(mcpManifest, artifactIndex);
 if (hiveExport) checkGenericHiveExport(hiveExport, artifactIndex);
 if (planLanes?.outputResource) checkOutputResource(planLanes.outputResource, "Plan lane summary outputResource", artifactIndex);
+if (coverageMap?.outputResource) checkOutputResource(coverageMap.outputResource, "Coverage map outputResource", artifactIndex);
 if (runHistory?.outputResource) checkOutputResource(runHistory.outputResource, "Run history outputResource", artifactIndex);
 if (testingLayers?.outputResource) checkOutputResource(testingLayers.outputResource, "Testing layers outputResource", artifactIndex);
 if (workflowAudit?.outputResource) checkOutputResource(workflowAudit.outputResource, "Workflow audit outputResource", artifactIndex);

@@ -1,12 +1,14 @@
 import { minimatch } from "minimatch";
 import type { ContractConfig, TargetConfig, VisualHiveConfig } from "../config/schema.js";
 import type { Plan } from "../planner/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 
 export interface CoverageReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
   mode?: Plan["mode"];
+  outputResource?: CoverageOutputResource;
   summary: CoverageSummary;
   targets: CoverageTarget[];
   contracts: CoverageContract[];
@@ -15,6 +17,15 @@ export interface CoverageReport {
   changedFileCoverage: ChangedFileCoverageRule[];
   unmatchedChangedFiles: string[];
   uncoveredAreas: CoverageGap[];
+}
+
+export interface CoverageOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface CoverageSummary {
@@ -224,6 +235,7 @@ export function analyzeCoverage(config: VisualHiveConfig, options: AnalyzeCovera
     project: config.project.name,
     generatedAt: (options.now ?? new Date()).toISOString(),
     mode: options.plan?.mode,
+    outputResource: catalogedCoverageOutputResource(),
     summary: {
       targetCount: targets.length,
       contractCount: contracts.length,
@@ -247,6 +259,18 @@ export function analyzeCoverage(config: VisualHiveConfig, options: AnalyzeCovera
     changedFileCoverage,
     unmatchedChangedFiles,
     uncoveredAreas
+  };
+}
+
+function catalogedCoverageOutputResource(): CoverageOutputResource {
+  const resource = getEvidenceResourceById("coverage-map");
+  return {
+    artifactPath: ".visual-hive/coverage.json",
+    evidenceResourceId: resource?.id ?? "coverage-map",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://coverage-map",
+    evidenceResourceTitle: resource?.title ?? "Coverage Map",
+    evidenceResourceDescription: resource?.description ?? "Visual coverage and missing-test guidance.",
+    ...(resource?.readTool?.name ? { evidenceReadToolName: resource.readTool.name } : {})
   };
 }
 

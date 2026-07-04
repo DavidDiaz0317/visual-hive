@@ -2,6 +2,8 @@
 
 `visual-hive coverage` writes `.visual-hive/coverage.json`. The first version is config/report based, so it does not require static route discovery or a backend service.
 
+The generated JSON includes an `outputResource` row that identifies it as the catalog-backed read-only coverage resource `visual-hive://coverage-map`. This lets the Control Plane, artifact index, MCP manifest, Agent Packets, and external consumers recognize coverage-map evidence without guessing from file paths. Reading the artifact does not authorize config edits, test edits, target execution, or verdict changes.
+
 It records:
 
 - targets and their configured contracts

@@ -1434,6 +1434,12 @@ describe("coverage analysis", () => {
 
     expect(coverage.schemaVersion).toBe(1);
     expect(coverage.project).toBe("sample");
+    expect(coverage.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/coverage.json",
+      evidenceResourceId: "coverage-map",
+      evidenceResourceUri: "visual-hive://coverage-map",
+      evidenceResourceTitle: "Coverage Map"
+    });
     expect(coverage.summary).toMatchObject({
       targetCount: 2,
       contractCount: 3,

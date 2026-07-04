@@ -752,6 +752,11 @@ contracts:
     const summary = formatCoverageSummary(written, result.reportPath);
 
     expect(written.schemaVersion).toBe(1);
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/coverage.json",
+      evidenceResourceId: "coverage-map",
+      evidenceResourceUri: "visual-hive://coverage-map"
+    });
     expect(written.summary.contractCount).toBeGreaterThan(0);
     expect(written.summary.selectedContracts).toBeGreaterThan(0);
     expect(written.routes.map((route) => route.route)).toContain("/");

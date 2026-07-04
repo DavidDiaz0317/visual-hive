@@ -78,6 +78,14 @@ Schema: `schemas/visual-hive.runbook.schema.json`
 
 The runbook artifact is written by `visual-hive runbook`. It exports the same curated command list and run profiles shown in the local Control Plane, including safety class, lane, required secret names, expected artifacts, `runnable`, primary `blockedReason`, full blocked reasons, and optional execution evidence. Execution remains allowlisted by command/profile ID; protected or secret-bearing lanes are guidance-only outside trusted scheduled/manual automation. The provider-governance profile runs only no-network provider readiness, setup-plan, handoff, cost, and readiness commands so optional provider adoption remains reviewable before any trusted upload lane exists.
 
+## Coverage Map
+
+Path: `.visual-hive/coverage.json`
+
+Schema: `schemas/visual-hive.coverage.schema.json`
+
+The coverage map is written by `visual-hive coverage`. It records target, contract, route, viewport, changed-file, and uncovered-area evidence from the active plan or an in-memory plan. New reports include `outputResource` with `.visual-hive/coverage.json` and `visual-hive://coverage-map`, so agents, MCP clients, the artifact index, and the Control Plane can identify coverage-map evidence without path guessing. This is read-only coverage evidence; it does not authorize applying coverage recommendations, editing config, changing tests, running targets, or changing the Visual Hive verdict.
+
 ## Coverage Recommendations
 
 Path: `.visual-hive/coverage-recommendations.json`

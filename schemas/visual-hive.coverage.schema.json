@@ -37,6 +37,9 @@
         "full"
       ]
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -219,6 +222,36 @@
           "message": {
             "type": "string"
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/coverage.json"
+        },
+        "evidenceResourceId": {
+          "const": "coverage-map"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://coverage-map"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
         }
       }
     }
