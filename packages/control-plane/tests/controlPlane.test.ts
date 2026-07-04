@@ -982,6 +982,14 @@ viewports:
             description: "Catalog-backed inventory of local Visual Hive evidence artifacts.",
             relativePath: ".visual-hive/artifacts-index.json",
             readToolName: "visual_hive_read_artifacts_index"
+          },
+          {
+            id: "mcp-manifest",
+            uri: "visual-hive://mcp-manifest",
+            title: "MCP Manifest",
+            description: "First-party Visual Hive MCP manifest describing read-only evidence resources.",
+            relativePath: ".visual-hive/mcp-manifest.json",
+            readToolName: "visual_hive_read_mcp_manifest"
           }
         ],
         tools: [
@@ -1007,6 +1015,12 @@ viewports:
             name: "visual_hive_read_artifacts_index",
             title: "Read Artifact Index",
             description: "Read sanitized artifact inventory and evidence-resource metadata.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_mcp_manifest",
+            title: "Read MCP Manifest",
+            description: "Read the latest first-party MCP manifest without enabling execution tools.",
             mode: "read_only"
           }
         ],
@@ -2598,12 +2612,19 @@ describe("control plane", () => {
               uri: "visual-hive://artifacts/index",
               relativePath: ".visual-hive/artifacts-index.json",
               readToolName: "visual_hive_read_artifacts_index"
+            },
+            {
+              id: "mcp-manifest",
+              uri: "visual-hive://mcp-manifest",
+              relativePath: ".visual-hive/mcp-manifest.json",
+              readToolName: "visual_hive_read_mcp_manifest"
             }
           ],
           tools: [
             { name: "visual_hive_read_setup_recommendations", mode: "read_only" },
             { name: "visual_hive_read_setup_pr_plan", mode: "read_only" },
-            { name: "visual_hive_read_artifacts_index", mode: "read_only" }
+            { name: "visual_hive_read_artifacts_index", mode: "read_only" },
+            { name: "visual_hive_read_mcp_manifest", mode: "read_only" }
           ],
           disabledExecutionTools: [{ name: "visual_hive_run", mode: "execution_disabled" }],
           policy: {
@@ -2629,7 +2650,7 @@ describe("control plane", () => {
     expect(snapshot.setupPullRequestPlan?.summary.externalCallsMade).toBe(0);
     expect(snapshot.mcpManifest?.server.externalCallsMade).toBe(0);
     expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
-      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index"])
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index", "mcp-manifest"])
     );
     expect(snapshot.mcpManifest?.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(snapshot.artifacts.map((artifact) => artifact.path)).toEqual(
@@ -2639,6 +2660,11 @@ describe("control plane", () => {
         ".visual-hive/mcp-manifest.json"
       ])
     );
+    expect(snapshot.artifacts.find((artifact) => artifact.path === ".visual-hive/mcp-manifest.json")).toMatchObject({
+      evidenceResourceId: "mcp-manifest",
+      evidenceResourceUri: "visual-hive://mcp-manifest",
+      evidenceReadToolName: "visual_hive_read_mcp_manifest"
+    });
   });
 
   it("builds a snapshot from config and report artifacts", async () => {
@@ -3011,10 +3037,15 @@ describe("control plane", () => {
       }
     });
     expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
-      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index"])
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index", "mcp-manifest"])
     );
     expect(snapshot.mcpManifest?.tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(["visual_hive_read_setup_recommendations", "visual_hive_read_setup_pr_plan", "visual_hive_read_artifacts_index"])
+      expect.arrayContaining([
+        "visual_hive_read_setup_recommendations",
+        "visual_hive_read_setup_pr_plan",
+        "visual_hive_read_artifacts_index",
+        "visual_hive_read_mcp_manifest"
+      ])
     );
     expect(snapshot.mcpManifest?.disabledExecutionTools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining(["visual_hive_run", "visual_hive_provider_upload"])
@@ -3412,6 +3443,13 @@ describe("control plane", () => {
       evidenceResourceId: "schema-catalog",
       evidenceResourceUri: "visual-hive://schema-catalog",
       evidenceReadToolName: "visual_hive_read_schema_catalog"
+    });
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("mcp-manifest.json"))).toMatchObject({
+      labels: expect.arrayContaining(["mcp-manifest", "evidence-resource"]),
+      schemaPath: "schemas/visual-hive.mcp.schema.json",
+      evidenceResourceId: "mcp-manifest",
+      evidenceResourceUri: "visual-hive://mcp-manifest",
+      evidenceReadToolName: "visual_hive_read_mcp_manifest"
     });
   });
 

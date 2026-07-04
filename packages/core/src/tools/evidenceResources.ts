@@ -698,6 +698,22 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
       "visual-hive schemas verify --output .visual-hive/schema-catalog.json",
       ["Read schema/catalog evidence only. Do not rewrite schemas or infer verdict status from maintenance metadata."]
     )
+  ),
+  resource(
+    "mcp-manifest",
+    "visual-hive://mcp-manifest",
+    "mcp-manifest",
+    "MCP Manifest",
+    "First-party Visual Hive MCP manifest describing read-only evidence resources, read-only tools, disabled execution tools, and local/no-network policy.",
+    ".visual-hive/mcp-manifest.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_mcp_manifest",
+      "Read MCP Manifest",
+      "Read the latest first-party MCP manifest without starting an MCP server, enabling execution tools, or making external calls.",
+      "visual-hive mcp --describe --output .visual-hive/mcp-manifest.json",
+      ["Read MCP manifest evidence only. Do not enable execution tools, provider uploads, third-party MCPs, or verdict overrides from the manifest."]
+    )
   )
 ] as const satisfies readonly EvidenceResourceDefinition[];
 

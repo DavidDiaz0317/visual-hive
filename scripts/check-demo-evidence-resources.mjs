@@ -27,6 +27,7 @@ const supportResources = [
   resourceFromCatalog("artifacts-index"),
   resourceFromCatalog("pipeline-status"),
   resourceFromCatalog("schema-catalog"),
+  resourceFromCatalog("mcp-manifest"),
   resourceFromCatalog("agent-packet"),
   resourceFromCatalog("handoff-agent-packet"),
   resourceFromCatalog("provider-agent-packet"),

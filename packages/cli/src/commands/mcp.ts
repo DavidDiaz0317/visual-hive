@@ -128,7 +128,7 @@ const MCP_RESOURCE_READ_TOOLS: McpToolDefinition[] = VISUAL_HIVE_EVIDENCE_RESOUR
 
 export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [...MCP_STATIC_READ_ONLY_TOOLS, ...MCP_RESOURCE_READ_TOOLS];
 
-const SETUP_ONLY_RESOURCE_IDS = new Set(["setup-recommendations", "setup-pr-plan", "artifacts-index"]);
+const SETUP_ONLY_RESOURCE_IDS = new Set(["setup-recommendations", "setup-pr-plan", "artifacts-index", "mcp-manifest"]);
 const SETUP_ONLY_STATIC_TOOLS = new Set(["visual_hive_recommend_setup"]);
 
 export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [

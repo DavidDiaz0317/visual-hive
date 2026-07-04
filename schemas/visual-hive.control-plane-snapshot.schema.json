@@ -360,7 +360,7 @@
     "mcpManifest": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Optional first-party MCP manifest evidence from .visual-hive/mcp-manifest.json. Setup-only manifests may expose setup recommendations, setup PR plan, and artifact index resources before a config exists."
+      "description": "Optional first-party MCP manifest evidence from .visual-hive/mcp-manifest.json. Setup-only manifests may expose setup recommendations, setup PR plan, artifact index, and MCP manifest resources before a config exists."
     },
     "contextLedger": {
       "type": "object",
@@ -493,7 +493,8 @@
             "tool-registry",
             "context-ledger",
             "pipeline-status",
-            "schema-catalog"
+            "schema-catalog",
+            "mcp-manifest"
           ]
         },
         "evidenceResourceUri": {
@@ -548,7 +549,8 @@
             "visual-hive://tool-registry",
             "visual-hive://context-ledger",
             "visual-hive://pipeline-status",
-            "visual-hive://schema-catalog"
+            "visual-hive://schema-catalog",
+            "visual-hive://mcp-manifest"
           ]
         },
         "evidenceResourceTitle": {
@@ -606,7 +608,8 @@
             "visual_hive_read_tool_registry",
             "visual_hive_read_context_ledger",
             "visual_hive_read_pipeline_status",
-            "visual_hive_read_schema_catalog"
+            "visual_hive_read_schema_catalog",
+            "visual_hive_read_mcp_manifest"
           ]
         }
       }

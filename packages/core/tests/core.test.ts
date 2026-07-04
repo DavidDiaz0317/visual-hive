@@ -4298,6 +4298,12 @@ describe("artifact index", () => {
     expect(mcpManifest?.preview).toContain("[REDACTED]");
     expect(mcpManifest?.labels).toContain("mcp-manifest");
     expect(mcpManifest?.schemaPath).toBe("schemas/visual-hive.mcp.schema.json");
+    expect(mcpManifest).toMatchObject({
+      evidenceResourceId: "mcp-manifest",
+      evidenceResourceUri: "visual-hive://mcp-manifest",
+      evidenceResourceTitle: "MCP Manifest",
+      evidenceReadToolName: "visual_hive_read_mcp_manifest"
+    });
     const contextLedger = index.artifacts.find((artifact) => artifact.path.endsWith("context-ledger.json"));
     expect(contextLedger?.preview).toContain("[REDACTED]");
     expect(contextLedger?.preview).toContain("evidenceResources");

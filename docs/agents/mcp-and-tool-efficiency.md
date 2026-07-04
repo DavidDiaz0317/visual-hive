@@ -14,7 +14,7 @@ visual-hive schemas verify
 
 The `--describe` form exits immediately and prints the read-only resource/tool manifest. Add `--output .visual-hive/mcp-manifest.json` to persist the manifest for CI, agents, or schema validation.
 
-Use the `--repo` form during first-time setup when `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` exist but `visual-hive.config.yaml` has not been committed yet. It is manifest-only and exposes setup recommendations, setup PR plan, and artifact-index resources; it does not start `--stdio`, run targets, write config, create PRs, call Hive, call providers, or authorize setup writes.
+Use the `--repo` form during first-time setup when `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` exist but `visual-hive.config.yaml` has not been committed yet. It is manifest-only and exposes setup recommendations, setup PR plan, artifact-index, and MCP-manifest resources; it does not start `--stdio`, run targets, write config, create PRs, call Hive, call providers, or authorize setup writes.
 
 Schema: `schemas/visual-hive.mcp.schema.json`
 
@@ -88,6 +88,7 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://context-ledger`
 - `visual-hive://pipeline-status`
 - `visual-hive://schema-catalog`
+- `visual-hive://mcp-manifest`
 
 These resources are sanitized before being returned. Missing artifacts are reported as missing evidence, not as pass/fail decisions.
 
@@ -146,6 +147,7 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_context_ledger`
 - `visual_hive_read_pipeline_status`
 - `visual_hive_read_schema_catalog`
+- `visual_hive_read_mcp_manifest`
 
 ## Disabled By Default
 

@@ -312,6 +312,7 @@ try {
     "run profile ids"
   );
   assertCatalogArtifact(snapshot, ".visual-hive/schema-catalog.json", "schema-catalog", "visual-hive://schema-catalog", "visual_hive_read_schema_catalog");
+  assertCatalogArtifact(snapshot, ".visual-hive/mcp-manifest.json", "mcp-manifest", "visual-hive://mcp-manifest", "visual_hive_read_mcp_manifest");
   assertArrayIncludes(
     snapshot.runbook?.commands?.map((command) => command.id),
     "control-plane",

@@ -192,17 +192,14 @@ for (const [index, step] of steps.entries()) {
 console.log(`\n[demo:${suiteName}] completed successfully`);
 
 function script(name) {
-  return command(name, npmCommand(), ["run", name], TIMEOUTS_BY_SCRIPT[name] ?? DEFAULT_TIMEOUT_MS, {
-    shell: process.platform === "win32"
-  });
+  if (process.platform === "win32") {
+    return command(name, process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm", "run", name], TIMEOUTS_BY_SCRIPT[name] ?? DEFAULT_TIMEOUT_MS);
+  }
+  return command(name, "npm", ["run", name], TIMEOUTS_BY_SCRIPT[name] ?? DEFAULT_TIMEOUT_MS);
 }
 
 function command(label, executable, args, timeoutMs = DEFAULT_TIMEOUT_MS, options = {}) {
   return { label, executable, args, timeoutMs, shell: options.shell ?? false };
-}
-
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function formatCommand(step) {

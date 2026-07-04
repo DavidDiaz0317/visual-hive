@@ -264,6 +264,7 @@ function allTools(): ToolRegistryEntry[] {
     }),
     evidenceCli("pipeline-status", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     evidenceCli("schema-catalog", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("mcp-manifest", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     cli("visual_hive_provider_handoff_dry_run", "Provider handoff dry run", "Review provider upload eligibility, blocked reasons, required credential names, and trusted workflow steps without making external calls.", "read_only", "local", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], "visual-hive providers handoff --provider argos", [".visual-hive/provider-handoff.json"], {
       writeRestrictions: ["Writes local provider handoff evidence only. Does not upload screenshots or enable provider gating."]
     }),

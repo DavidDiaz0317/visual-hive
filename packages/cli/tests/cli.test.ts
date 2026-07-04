@@ -2617,12 +2617,18 @@ contracts:
     await expectMatchesSchema("visual-hive.mcp.schema.json", writtenManifest);
     expect(manifest.project).toBe("setup-only");
     expect(manifest.server.externalCallsMade).toBe(0);
-    expect(manifest.resources.map((resource) => resource.id)).toEqual(["setup-recommendations", "setup-pr-plan", "artifacts-index"]);
+    expect(manifest.resources.map((resource) => resource.id)).toEqual([
+      "setup-recommendations",
+      "setup-pr-plan",
+      "artifacts-index",
+      "mcp-manifest"
+    ]);
     expect(manifest.tools.map((tool) => tool.name)).toEqual([
       "visual_hive_recommend_setup",
       "visual_hive_read_setup_recommendations",
       "visual_hive_read_setup_pr_plan",
-      "visual_hive_read_artifacts_index"
+      "visual_hive_read_artifacts_index",
+      "visual_hive_read_mcp_manifest"
     ]);
     expect(summary).toContain("Visual Hive MCP: setup-only");
     expect(summary).toContain("setup-recommendations: visual-hive://setup-recommendations -> .visual-hive/recommendations.json");

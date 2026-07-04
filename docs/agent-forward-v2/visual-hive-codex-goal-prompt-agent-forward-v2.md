@@ -94,7 +94,7 @@ Recent Control Plane work specifically wired Hive-native export, guarded repair,
 - `smoke:ui` checks that the snapshot and built UI include no-network Hive-native export evidence, guarded repair preview evidence, trusted repair request envelope evidence, trusted repair consumer summary evidence, trusted repair workflow dry-run evidence, and mode comparison evidence.
 - Context Ledger CLI flows support explicit budget overrides for tool calls, tool-result tokens, external cost, and provider screenshots; demo context generation uses bounded budgets.
 - Schema catalog tests enforce stable `https://visual-hive.dev/schemas/<filename>` `$id` values and verify that artifact index schema paths point to checked-in schema files.
-- `visual-hive schemas verify` exposes schema/catalog drift detection as a normal maintenance command over checked-in JSON Schema `$id` values and evidence-resource enum parity. The root `npm run schema:verify` script writes `.visual-hive/schema-catalog.json` as catalog-backed read-only evidence through `visual-hive://schema-catalog` / `visual_hive_read_schema_catalog`.
+- `visual-hive schemas verify` exposes schema/catalog drift detection as a normal maintenance command over checked-in JSON Schema `$id` values and evidence-resource enum parity. The root `npm run schema:verify` script writes `.visual-hive/schema-catalog.json` as catalog-backed read-only evidence through `visual-hive://schema-catalog` / `visual_hive_read_schema_catalog`. Generated MCP manifests are also catalog-backed read-only evidence through `.visual-hive/mcp-manifest.json`, `visual-hive://mcp-manifest`, and `visual_hive_read_mcp_manifest`, including setup-only manifests before a config exists.
 - The Control Plane treats schema/catalog health as visible evidence: `/api/snapshot` includes `schemaCatalog`, the Configure area shows schema counts, failed drift checks, artifact links, and a guarded `schemas-verify` action, the Expert evidence view includes the raw catalog, and failed schema/catalog checks raise Start/Configure/Expert badges.
 - Provider upload artifacts are first-class indexed evidence: Argos upload manifests are labeled as `provider-upload` and mapped to `schemas/visual-hive.provider-upload.schema.json`.
 - Provider upload evidence is visible across CLI reports, issue bodies, offline triage, and the Control Plane, including upload status, external-call count, staged/uploaded artifact counts, sanitized command metadata, stdout/stderr excerpts, provider URLs, and manifest/artifact links without making provider output a verdict authority by default.
@@ -354,6 +354,7 @@ visual-hive://tool-registry
 visual-hive://context-ledger
 visual-hive://pipeline-status
 visual-hive://schema-catalog
+visual-hive://mcp-manifest
 ```
 
 Read-only/default tools should also stay catalog/schema/docs aligned:
@@ -411,6 +412,7 @@ visual_hive_read_tool_registry
 visual_hive_read_context_ledger
 visual_hive_read_pipeline_status
 visual_hive_read_schema_catalog
+visual_hive_read_mcp_manifest
 ```
 
 The setup recommendation artifact `.visual-hive/recommendations.json` is catalog-backed as `visual-hive://setup-recommendations` / `visual_hive_read_setup_recommendations`, and the setup PR plan artifact `.visual-hive/setup-pr-plan.json` is catalog-backed as `visual-hive://setup-pr-plan` / `visual_hive_read_setup_pr_plan`. Preserve those metadata paths through `packages/core/src/tools/evidenceResources.ts`, schemas, MCP output, Tool Registry cards, Agent Packet metadata, Context Ledger metadata, artifact indexing, Control Plane links, docs, and tests. Treat them as setup review evidence; reading them must not authorize writes.

@@ -165,7 +165,8 @@
             "tool-registry",
             "context-ledger",
             "pipeline-status",
-            "schema-catalog"
+            "schema-catalog",
+            "mcp-manifest"
           ]
         },
         "uri": {
@@ -220,7 +221,8 @@
             "visual-hive://tool-registry",
             "visual-hive://context-ledger",
             "visual-hive://pipeline-status",
-            "visual-hive://schema-catalog"
+            "visual-hive://schema-catalog",
+            "visual-hive://mcp-manifest"
           ]
         },
         "name": {
@@ -296,7 +298,8 @@
             "visual_hive_read_tool_registry",
             "visual_hive_read_context_ledger",
             "visual_hive_read_pipeline_status",
-            "visual_hive_read_schema_catalog"
+            "visual_hive_read_schema_catalog",
+            "visual_hive_read_mcp_manifest"
           ]
         }
       }
@@ -366,7 +369,8 @@
             "visual_hive_read_tool_registry",
             "visual_hive_read_context_ledger",
             "visual_hive_read_pipeline_status",
-            "visual_hive_read_schema_catalog"
+            "visual_hive_read_schema_catalog",
+            "visual_hive_read_mcp_manifest"
           ]
         },
         "title": {
