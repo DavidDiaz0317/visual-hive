@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { Report, ScreenshotAssertionResult } from "../reports/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { ensureDir, readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -39,6 +40,7 @@ export interface BaselineApproval {
 
 export interface BaselineApprovalLog {
   schemaVersion: 1;
+  outputResource?: BaselineOutputResource;
   approvals: BaselineApproval[];
 }
 
@@ -58,6 +60,7 @@ export interface BaselineRejection {
 
 export interface BaselineRejectionLog {
   schemaVersion: 1;
+  outputResource?: BaselineOutputResource;
   rejections: BaselineRejection[];
 }
 
@@ -65,12 +68,22 @@ export interface BaselineList {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: BaselineOutputResource;
   reportGeneratedAt: string;
   reportPath: string;
   approvalLogPath: string;
   rejectionLogPath: string;
   summary: BaselineSummary;
   entries: BaselineCandidate[];
+}
+
+export interface BaselineOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface BaselineSummary {
@@ -146,6 +159,7 @@ export async function listBaselines(options: BaselineManageOptions = {}): Promis
     schemaVersion: 1,
     project: sanitizeText(report.project),
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedBaselineOutputResource("baseline-review", ".visual-hive/baselines.json"),
     reportGeneratedAt: sanitizeText(report.generatedAt),
     reportPath: resolved.reportPath,
     approvalLogPath: resolved.approvalLogPath,
@@ -282,9 +296,17 @@ async function readApprovalLog(logPath: string): Promise<BaselineApprovalLog> {
   try {
     const raw = await readFile(logPath, "utf8");
     const parsed = JSON.parse(raw) as Partial<BaselineApprovalLog>;
-    return { schemaVersion: 1, approvals: Array.isArray(parsed.approvals) ? parsed.approvals : [] };
+    return {
+      schemaVersion: 1,
+      outputResource: catalogedBaselineOutputResource("baseline-approvals", ".visual-hive/baseline-approvals.json"),
+      approvals: Array.isArray(parsed.approvals) ? parsed.approvals : []
+    };
   } catch {
-    return { schemaVersion: 1, approvals: [] };
+    return {
+      schemaVersion: 1,
+      outputResource: catalogedBaselineOutputResource("baseline-approvals", ".visual-hive/baseline-approvals.json"),
+      approvals: []
+    };
   }
 }
 
@@ -292,10 +314,30 @@ async function readRejectionLog(logPath: string): Promise<BaselineRejectionLog> 
   try {
     const raw = await readFile(logPath, "utf8");
     const parsed = JSON.parse(raw) as Partial<BaselineRejectionLog>;
-    return { schemaVersion: 1, rejections: Array.isArray(parsed.rejections) ? parsed.rejections : [] };
+    return {
+      schemaVersion: 1,
+      outputResource: catalogedBaselineOutputResource("baseline-rejections", ".visual-hive/baseline-rejections.json"),
+      rejections: Array.isArray(parsed.rejections) ? parsed.rejections : []
+    };
   } catch {
-    return { schemaVersion: 1, rejections: [] };
+    return {
+      schemaVersion: 1,
+      outputResource: catalogedBaselineOutputResource("baseline-rejections", ".visual-hive/baseline-rejections.json"),
+      rejections: []
+    };
   }
+}
+
+function catalogedBaselineOutputResource(resourceId: string, artifactPath: string): BaselineOutputResource {
+  const resource = getEvidenceResourceById(resourceId);
+  return {
+    artifactPath,
+    evidenceResourceId: resource?.id ?? resourceId,
+    evidenceResourceUri: resource?.uri ?? `visual-hive://${resourceId}`,
+    evidenceResourceTitle: resource?.title ?? resourceId,
+    evidenceResourceDescription: resource?.description ?? "Visual Hive baseline governance evidence.",
+    evidenceReadToolName: resource?.readTool?.name
+  };
 }
 
 function resolveReportPath(repoRoot: string, value: string, label: string): string {

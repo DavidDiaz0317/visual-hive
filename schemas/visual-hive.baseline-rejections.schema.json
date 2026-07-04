@@ -12,6 +12,9 @@
     "schemaVersion": {
       "const": 1
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "rejections": {
       "type": "array",
       "items": {
@@ -72,6 +75,39 @@
           "reason": {
             "type": "string"
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/baseline-rejections.json"
+        },
+        "evidenceResourceId": {
+          "const": "baseline-rejections"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://baseline-rejections"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_baseline_rejections"
         }
       }
     }

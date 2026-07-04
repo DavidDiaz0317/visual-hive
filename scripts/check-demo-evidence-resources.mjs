@@ -59,6 +59,9 @@ const testingLayers = await readOptionalJson(".visual-hive/testing-layers.json")
 const workflowAudit = await readOptionalJson(".visual-hive/workflows.json");
 const readinessGate = await readOptionalJson(".visual-hive/readiness.json");
 const triageReport = await readOptionalJson(".visual-hive/triage.json");
+const baselineReview = await readOptionalJson(".visual-hive/baselines.json");
+const baselineApprovals = await readOptionalJson(".visual-hive/baseline-approvals.json");
+const baselineRejections = await readOptionalJson(".visual-hive/baseline-rejections.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
@@ -71,6 +74,9 @@ if (testingLayers?.outputResource) checkOutputResource(testingLayers.outputResou
 if (workflowAudit?.outputResource) checkOutputResource(workflowAudit.outputResource, "Workflow audit outputResource", artifactIndex);
 if (readinessGate?.outputResource) checkOutputResource(readinessGate.outputResource, "Readiness gate outputResource", artifactIndex);
 if (triageReport?.outputResource) checkOutputResource(triageReport.outputResource, "Triage report outputResource", artifactIndex);
+if (baselineReview?.outputResource) checkOutputResource(baselineReview.outputResource, "Baseline review outputResource", artifactIndex);
+if (baselineApprovals?.outputResource) checkOutputResource(baselineApprovals.outputResource, "Baseline approvals outputResource", artifactIndex);
+if (baselineRejections?.outputResource) checkOutputResource(baselineRejections.outputResource, "Baseline rejections outputResource", artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }

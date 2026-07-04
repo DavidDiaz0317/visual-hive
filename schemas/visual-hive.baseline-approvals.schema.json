@@ -12,6 +12,9 @@
     "schemaVersion": {
       "const": 1
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "approvals": {
       "type": "array",
       "items": {
@@ -74,6 +77,39 @@
             "type": "number",
             "minimum": 0
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/baseline-approvals.json"
+        },
+        "evidenceResourceId": {
+          "const": "baseline-approvals"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://baseline-approvals"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_baseline_approvals"
         }
       }
     }

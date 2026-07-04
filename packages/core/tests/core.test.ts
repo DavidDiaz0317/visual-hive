@@ -3614,6 +3614,12 @@ describe("baseline management", () => {
       status: "failed",
       canApprove: true
     });
+    expect(list.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/baselines.json",
+      evidenceResourceId: "baseline-review",
+      evidenceResourceUri: "visual-hive://baseline-review",
+      evidenceReadToolName: "visual_hive_read_baseline_review"
+    });
 
     const approval = await approveBaseline({
       repoRoot: tempRoot,
@@ -3625,11 +3631,26 @@ describe("baseline management", () => {
 
     expect(approval.bytes).toBe("approved-image".length);
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("approved-image");
-    const approvalLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-approvals.json"), "utf8")) as { approvals: unknown[] };
+    const approvalLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-approvals.json"), "utf8")) as {
+      outputResource?: Record<string, unknown>;
+      approvals: unknown[];
+    };
     expect(approvalLog.approvals).toHaveLength(1);
+    expect(approvalLog.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/baseline-approvals.json",
+      evidenceResourceId: "baseline-approvals",
+      evidenceResourceUri: "visual-hive://baseline-approvals",
+      evidenceReadToolName: "visual_hive_read_baseline_approvals"
+    });
 
     const written = await writeBaselineReview({ repoRoot: tempRoot, reportPath, now: new Date("2026-06-16T00:00:00.000Z") });
     expect(written.baselineReportPath).toBe(path.join(hiveRoot, "baselines.json"));
+    expect(written.list.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/baselines.json",
+      evidenceResourceId: "baseline-review",
+      evidenceResourceUri: "visual-hive://baseline-review",
+      evidenceReadToolName: "visual_hive_read_baseline_review"
+    });
     expect(written.list.summary.approved).toBe(1);
     expect(written.list.summary.pendingReview).toBe(0);
     await expect(readFile(written.baselineReportPath, "utf8")).resolves.toContain('"approved": 1');
@@ -3658,8 +3679,17 @@ describe("baseline management", () => {
 
     expect(rejection.reason).toBe("Not an intentional visual change");
     await expect(readFile(baselinePath, "utf8")).resolves.toBe("approved-image");
-    const rejectionLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-rejections.json"), "utf8")) as { rejections: unknown[] };
+    const rejectionLog = JSON.parse(await readFile(path.join(hiveRoot, "baseline-rejections.json"), "utf8")) as {
+      outputResource?: Record<string, unknown>;
+      rejections: unknown[];
+    };
     expect(rejectionLog.rejections).toHaveLength(1);
+    expect(rejectionLog.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/baseline-rejections.json",
+      evidenceResourceId: "baseline-rejections",
+      evidenceResourceUri: "visual-hive://baseline-rejections",
+      evidenceReadToolName: "visual_hive_read_baseline_rejections"
+    });
     const list = await listBaselines({ repoRoot: tempRoot, reportPath });
     expect(list.entries[0]?.rejectedAt).toBeTruthy();
     expect(list.entries[0]?.rejectionReason).toBe("Not an intentional visual change");

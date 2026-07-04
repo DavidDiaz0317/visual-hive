@@ -25,6 +25,9 @@
     "generatedAt": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "reportGeneratedAt": {
       "type": "string"
     },
@@ -164,6 +167,39 @@
           "rejectionReason": {
             "type": "string"
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/baselines.json"
+        },
+        "evidenceResourceId": {
+          "const": "baseline-review"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://baseline-review"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_baseline_review"
         }
       }
     }
