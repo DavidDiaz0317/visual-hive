@@ -4131,15 +4131,20 @@ contracts:
           {
             operator: "hide-critical-button",
             status: "killed",
-          killed: true,
-          applicable: true,
-          contractIds: ["dashboard"],
-          expectedFailureKinds: ["missing_element"],
-          durationMs: 10,
-          errors: [],
-          artifacts: []
-        }
-      ]
+            killed: true,
+            applicable: true,
+            contractIds: ["dashboard"],
+            affected: [{ contractId: "dashboard", targetId: "local", route: "/", component: "critical-action", viewport: "desktop" }],
+            expectedFailureKinds: ["missing_element"],
+            durationMs: 10,
+            errors: [],
+            artifacts: [],
+            suggestedMissingTest: "Keep mutation hide-critical-button mapped to dashboard.",
+            validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+            mutationMode: "runtime",
+            sourceMutation: false
+          }
+        ]
       },
       ".visual-hive/mutation-report.json"
     );
@@ -4147,6 +4152,8 @@ contracts:
     expect(summary).toContain("Mutation score: 50% (1/2)");
     expect(summary).toContain("hide-critical-button: killed");
     expect(summary).toContain("(dashboard)");
+    expect(summary).toContain("affected=dashboard@/");
+    expect(summary).toContain("Keep mutation hide-critical-button mapped");
   });
 
   it("init --force creates installable workflow and config files", async () => {
@@ -5946,6 +5953,21 @@ contracts:
     expect(mutationReport.score).toBe(1);
     expect(mutationReport.killed).toBe(1);
     expect(mutationReport.total).toBe(1);
+    expect(mutationReport.results[0]).toMatchObject({
+      affected: [
+        {
+          contractId: "hosted-demo-never-login",
+          targetId: "localPreview",
+          route: "/",
+          component: "auth-boundary",
+          viewport: "desktop"
+        }
+      ],
+      mutationMode: "runtime",
+      sourceMutation: false,
+      validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+      suggestedMissingTest: expect.stringContaining("hide-critical-button")
+    });
   });
 
   it("restores the deterministic report after mutation runs", async () => {

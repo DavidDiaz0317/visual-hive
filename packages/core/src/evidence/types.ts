@@ -165,7 +165,16 @@ export interface EvidencePacket {
     networkErrors: number;
   };
   mutation?: Pick<MutationReport, "schemaVersion" | "project" | "generatedAt" | "minScore" | "score" | "killed" | "total"> & {
-    survivedOperators: Array<{ operator: string; contractIds: string[]; failedAssertion?: string; artifacts: string[] }>;
+    killedOperators: Array<{ operator: string; contractIds: string[]; affected?: MutationReport["results"][number]["affected"]; artifacts: string[]; suggestedMissingTest?: string }>;
+    survivedOperators: Array<{
+      operator: string;
+      contractIds: string[];
+      failedAssertion?: string;
+      affected?: MutationReport["results"][number]["affected"];
+      artifacts: string[];
+      suggestedMissingTest?: string;
+      validationCommand?: string;
+    }>;
     notApplicableOperators: string[];
   };
   providers: EvidencePacketProviderEvidence[];

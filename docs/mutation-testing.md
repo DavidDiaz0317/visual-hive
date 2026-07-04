@@ -34,6 +34,17 @@ Mutation score is:
 killed / total
 ```
 
+Default mutation runs are non-invasive. Visual Hive uses Playwright-side DOM/CSS injection, route interception, local storage/auth state, and fixture/env-driven defect states. Normal demo and PR mutation runs do not patch real source files. Generated report rows include `mutationMode: runtime` and `sourceMutation: false` for this default path.
+
 Generated `.visual-hive/mutation-report.json` files include an `outputResource` row for the catalog-backed read-only resource `visual-hive://mutation-report` / `visual_hive_read_mutation_report`. Agents, MCP clients, Hive exports, and the Control Plane may read this adequacy evidence, but reading it does not authorize editing tests, changing mutation thresholds, running targets, executing repair, or overriding the Visual Hive verdict.
+
+Each mutation result includes or derives:
+
+- selected contract IDs and affected route/component/viewport/target surfaces when known;
+- `killed`, `survived`, `not_applicable`, or `error` status;
+- expected failure kinds and concise assertion/error evidence;
+- artifact paths and duration;
+- a validation command for rerunning after a fix;
+- suggested missing-test guidance for survived or not-applicable mutations.
 
 `visual-hive mutate --enforce-min-score` exits nonzero when the score is lower than `mutation.minScore`.

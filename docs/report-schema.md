@@ -572,6 +572,8 @@ Path: `.visual-hive/mutation-report.json`
 
 Schema: `schemas/visual-hive.mutation-report.schema.json`
 
+The mutation report is written by `visual-hive mutate`. Results include operator ID, killed/survived/not-applicable/error status, selected contracts, expected failure kinds, concise failure evidence, artifacts, duration, affected route/component/viewport/target surfaces when known, validation command, suggested missing-test text, and mutation mode. Default mutation execution is non-invasive (`mutationMode: runtime`, `sourceMutation: false`): Visual Hive uses Playwright-side DOM/CSS/route/API hooks and demo fixture states rather than patching real source files in normal PR/demo paths.
+
 The mutation report records one row per operator. `score` is killed applicable mutations divided by total applicable mutations. A mutation is killed when deterministic contracts fail under the injected mutation. Non-applicable mutations have status `not_applicable` and are excluded from the score denominator.
 
 Generated mutation reports include `outputResource` pointing at `.visual-hive/mutation-report.json`, `visual-hive://mutation-report`, and `visual_hive_read_mutation_report`. This makes mutation adequacy and survivor evidence a catalog-backed read-only resource for MCP clients, Agent Packets, the artifact index, the Control Plane, and Hive handoff. Reading the report does not authorize test edits, config edits, target execution, repair execution, or a verdict override.

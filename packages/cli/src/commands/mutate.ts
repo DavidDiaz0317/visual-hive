@@ -103,9 +103,14 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
           killed: false,
           applicable: false,
           contractIds: [],
+          affected: [],
           expectedFailureKinds: metadata.expectedFailureKinds,
           durationMs: 0,
           artifacts: [],
+          validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+          suggestedMissingTest: `Map mutation ${mapping.operatorId} to a relevant contract or document why it is not applicable.`,
+          mutationMode: "runtime",
+          sourceMutation: false,
           errors: [`Mutation ${mapping.operatorId} was not applicable: ${mapping.reason}`]
         });
         continue;
@@ -144,6 +149,7 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
         killed,
         applicable: true,
         contractIds: selectedItems.map((item) => item.contractId),
+        ...mutationResultContext(loaded.config, selectedItems, mapping.operatorId, killed),
         expectedFailureKinds: metadata.expectedFailureKinds,
         failureKind: killed ? inferFailureKind(errors) : undefined,
         failedAssertion: killed ? errors[0] : undefined,
@@ -325,9 +331,14 @@ async function runDefaultMutationBatch(input: {
         killed: false,
         applicable: false,
         contractIds: [],
+        affected: [],
         expectedFailureKinds: metadata.expectedFailureKinds,
         durationMs: 0,
         artifacts: [],
+        validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+        suggestedMissingTest: `Map mutation ${mapping.operatorId} to a relevant contract or document why it is not applicable.`,
+        mutationMode: "runtime",
+        sourceMutation: false,
         errors: [`Mutation ${mapping.operatorId} was not applicable: ${mapping.reason}`]
       });
       continue;
@@ -385,6 +396,7 @@ async function runDefaultMutationBatch(input: {
           killed,
           applicable: true,
           contractIds: mapping.selectedItems.map((item) => item.contractId),
+          ...mutationResultContext(input.config, mapping.selectedItems, mapping.operatorId, killed),
           expectedFailureKinds: mapping.expectedFailureKinds,
           failureKind: killed ? inferFailureKind(errors) : undefined,
           failedAssertion: killed ? errors[0] : undefined,
@@ -431,6 +443,43 @@ function inferFailureKind(errors: string[]): string | undefined {
   return undefined;
 }
 
+function mutationResultContext(config: VisualHiveConfig, items: Plan["items"], operatorId: string, killed: boolean): Pick<
+  MutationResult,
+  "affected" | "validationCommand" | "suggestedMissingTest" | "mutationMode" | "sourceMutation"
+> {
+  return {
+    affected: items.map((item) => {
+      const contract = config.contracts.find((candidate) => candidate.id === item.contractId);
+      const route = contract?.screenshots[0]?.route ?? contract?.steps.find((step) => step.action === "goto")?.route;
+      const viewport = contract?.screenshots[0]?.viewport;
+      return {
+        contractId: item.contractId,
+        targetId: item.targetId,
+        route,
+        viewport,
+        component: inferAffectedComponent(operatorId, contract?.id, contract?.description)
+      };
+    }),
+    validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+    suggestedMissingTest: killed
+      ? `Keep mutation ${operatorId} mapped to contracts that protect this user-visible surface.`
+      : `Add or strengthen deterministic assertions so mutation ${operatorId} fails at least one mapped contract.`,
+    mutationMode: "runtime",
+    sourceMutation: false
+  };
+}
+
+function inferAffectedComponent(operatorId: string, contractId = "", description = ""): string {
+  const text = `${operatorId} ${contractId} ${description}`.toLowerCase();
+  if (text.includes("login") || text.includes("oauth") || text.includes("auth") || text.includes("route-guard")) return "auth-boundary";
+  if (text.includes("api") || text.includes("data") || text.includes("empty")) return "api-backed-data-area";
+  if (text.includes("mobile") || text.includes("overflow")) return "responsive-layout";
+  if (text.includes("badge") || text.includes("card")) return "dashboard-card";
+  if (text.includes("image") || text.includes("theme") || text.includes("visual")) return "visual-layout";
+  if (text.includes("critical") || text.includes("button")) return "critical-action";
+  return "contract-surface";
+}
+
 export function formatMutationSummary(report: MutationReport, reportPath: string): string {
   return [
     `Wrote ${reportPath}`,
@@ -438,7 +487,9 @@ export function formatMutationSummary(report: MutationReport, reportPath: string
     `Minimum score: ${Math.round(report.minScore * 100)}%`,
     ...report.results.map((result) => {
       const selected = result.contractIds.length ? ` (${result.contractIds.join(", ")})` : "";
-      return `- ${result.operator}: ${result.status}${selected}`;
+      const affected = result.affected?.length ? ` affected=${result.affected.map((surface) => `${surface.contractId}${surface.route ? `@${surface.route}` : ""}`).join(",")}` : "";
+      const action = result.suggestedMissingTest ? ` next="${result.suggestedMissingTest}"` : "";
+      return `- ${result.operator}: ${result.status}${selected}${affected}${action}`;
     })
   ].join("\n");
 }

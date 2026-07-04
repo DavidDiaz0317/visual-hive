@@ -199,13 +199,23 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
 
   const survived = input.mutationReport?.results.filter((result) => result.status === "survived") ?? [];
   for (const result of survived) {
+    const affected = result.affected ?? [];
     findings.push({
       classification: "mutation_survivor",
       severity: "high",
       title: `Mutation survived: ${result.operator}`,
-      evidence: result.errors.length ? result.errors : [`Operator ${result.operator} did not fail any selected contract.`],
+      evidence: [
+        ...(result.errors.length ? result.errors : [`Operator ${result.operator} did not fail any selected contract.`]),
+        ...affected.map((surface) =>
+          `Affected: ${surface.contractId}${surface.targetId ? ` target=${surface.targetId}` : ""}${surface.route ? ` route=${surface.route}` : ""}${surface.component ? ` component=${surface.component}` : ""}${surface.viewport ? ` viewport=${surface.viewport}` : ""}`
+        ),
+        result.validationCommand ? `Validation: ${result.validationCommand}` : ""
+      ].filter(Boolean),
       contractIds: result.contractIds,
-      suggestedNextTests: [`Add an assertion that detects ${result.operator}.`, "Review whether the selected contracts cover the changed UI state."]
+      suggestedNextTests: [
+        result.suggestedMissingTest ?? `Add an assertion that detects ${result.operator}.`,
+        "Review whether the selected contracts cover the changed UI state."
+      ]
     });
   }
 

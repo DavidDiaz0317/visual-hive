@@ -128,10 +128,16 @@ export function buildIssueBody(input: IssueBodyInput): string {
     lines.push("- No mutation report available.");
   } else {
     for (const result of mutationReport.results) {
+      const affected = result.affected?.length
+        ? `, affected=${result.affected
+            .map((surface) => `${surface.contractId}${surface.route ? `@${surface.route}` : ""}${surface.viewport ? `/${surface.viewport}` : ""}`)
+            .join(";")}`
+        : "";
+      const next = result.suggestedMissingTest ? `, next=${result.suggestedMissingTest}` : "";
       lines.push(
         `- ${result.operator}: ${result.status}, applicable=${result.applicable}, contracts=${result.contractIds.join(",") || "none"}${
           result.failureKind ? `, failureKind=${result.failureKind}` : ""
-        }`
+        }${affected}${next}`
       );
     }
   }

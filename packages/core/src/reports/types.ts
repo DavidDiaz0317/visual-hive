@@ -204,12 +204,25 @@ export interface MutationResult {
   killed: boolean;
   contractIds: string[];
   applicable: boolean;
+  affected?: MutationAffectedSurface[];
   expectedFailureKinds?: string[];
   failureKind?: string;
   failedAssertion?: string;
   durationMs: number;
   errors: string[];
   artifacts?: string[];
+  validationCommand?: string;
+  suggestedMissingTest?: string;
+  mutationMode?: "runtime" | "fixture" | "source";
+  sourceMutation?: boolean;
+}
+
+export interface MutationAffectedSurface {
+  contractId: string;
+  targetId?: string;
+  route?: string;
+  component?: string;
+  viewport?: string;
 }
 
 export interface MutationReportOutputResource {

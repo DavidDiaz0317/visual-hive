@@ -83,6 +83,12 @@
               "type": "string"
             }
           },
+          "affected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/affectedSurface"
+            }
+          },
           "expectedFailureKinds": {
             "type": "array",
             "items": {
@@ -110,12 +116,52 @@
             "items": {
               "type": "string"
             }
+          },
+          "validationCommand": {
+            "type": "string"
+          },
+          "suggestedMissingTest": {
+            "type": "string"
+          },
+          "mutationMode": {
+            "enum": [
+              "runtime",
+              "fixture",
+              "source"
+            ]
+          },
+          "sourceMutation": {
+            "type": "boolean"
           }
         }
       }
     }
   },
   "$defs": {
+    "affectedSurface": {
+      "type": "object",
+      "required": [
+        "contractId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        }
+      }
+    },
     "outputResource": {
       "type": "object",
       "additionalProperties": true,

@@ -3633,6 +3633,13 @@ describe("mutation score", () => {
       evidenceReadToolName: "visual_hive_read_mutation_report"
     });
     expect(report.score).toBe(1);
+    expect(report.results[0]).toMatchObject({
+      affected: [{ contractId: "safe-contract" }],
+      validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+      mutationMode: "runtime",
+      sourceMutation: false,
+      suggestedMissingTest: expect.stringContaining("hide-critical-button")
+    });
   });
 
   it("maps mutation operators to contracts explicitly and heuristically", () => {
@@ -5674,10 +5681,26 @@ describe("evidence packets", () => {
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
       minScore: 0.75,
-      score: 0.5,
+      score: 1 / 3,
       killed: 1,
-      total: 2,
+      total: 3,
       results: [
+        {
+          operator: "hide-critical-button",
+          status: "killed",
+          killed: true,
+          contractIds: ["dashboard"],
+          applicable: true,
+          expectedFailureKinds: ["missing_element"],
+          durationMs: 8,
+          errors: ["Critical button hidden"],
+          artifacts: [".visual-hive/mutation-report.json"],
+          affected: [{ contractId: "dashboard", targetId: "local", route: "/", component: "critical-action", viewport: "desktop" }],
+          suggestedMissingTest: "Keep mutation hide-critical-button mapped to dashboard.",
+          validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+          mutationMode: "runtime",
+          sourceMutation: false
+        },
         {
           operator: "force-login-on-demo",
           status: "survived",
@@ -5720,6 +5743,11 @@ describe("evidence packets", () => {
     expect(result.packet.evidenceContributions.every((contribution) => contribution.key.length > 0)).toBe(true);
     expect(result.packet.evidenceContributions.find((contribution) => contribution.key === "mutation.mutation_survivor.force-login-on-demo")?.authority).toBe("gating");
     expect(result.packet.evidenceContributions.find((contribution) => contribution.key === "mutation.not_applicable.mobile-overflow")?.authority).toBe("advisory");
+    expect(result.packet.mutation?.killedOperators[0]).toMatchObject({
+      operator: "hide-critical-button",
+      contractIds: ["dashboard"],
+      affected: [{ contractId: "dashboard", targetId: "local", route: "/", component: "critical-action", viewport: "desktop" }]
+    });
     expect(result.packet.mutation?.survivedOperators[0]?.operator).toBe("force-login-on-demo");
     expect(result.packet.testingLayers.find((layer) => layer.id === 9)?.status).toBe("covered");
     expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.evidence-packet.v2");

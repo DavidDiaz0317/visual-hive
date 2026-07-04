@@ -22,16 +22,41 @@ export function buildMutationReport(input: {
   results: MutationResult[];
   now?: Date;
 }): MutationReport {
-  const score = calculateMutationScore(input.results);
+  const results = input.results.map(enrichMutationResult);
+  const score = calculateMutationScore(results);
   return {
     schemaVersion: 2,
     project: input.project,
     generatedAt: (input.now ?? new Date()).toISOString(),
     outputResource: catalogedMutationOutputResource(),
     minScore: input.minScore,
-    results: input.results,
+    results,
     ...score
   };
+}
+
+function enrichMutationResult(result: MutationResult): MutationResult {
+  return {
+    ...result,
+    affected: result.affected ?? result.contractIds.map((contractId) => ({ contractId })),
+    validationCommand: result.validationCommand ?? "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+    suggestedMissingTest: result.suggestedMissingTest ?? suggestedMissingTest(result),
+    mutationMode: result.mutationMode ?? "runtime",
+    sourceMutation: result.sourceMutation ?? false
+  };
+}
+
+function suggestedMissingTest(result: MutationResult): string {
+  if (result.status === "survived") {
+    return `Add or strengthen deterministic assertions so mutation "${result.operator}" fails at least one mapped contract.`;
+  }
+  if (result.status === "not_applicable") {
+    return `Map mutation "${result.operator}" to a relevant contract or document why it is not applicable.`;
+  }
+  if (result.status === "error") {
+    return `Repair mutation execution for "${result.operator}" before using the score as a gate.`;
+  }
+  return `Keep mutation "${result.operator}" mapped to contracts that protect the affected user-visible surface.`;
 }
 
 function catalogedMutationOutputResource(): NonNullable<MutationReport["outputResource"]> {

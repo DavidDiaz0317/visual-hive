@@ -196,13 +196,25 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
           score: mutationReport.score,
           killed: mutationReport.killed,
           total: mutationReport.total,
+          killedOperators: mutationReport.results
+            .filter((result) => result.status === "killed")
+            .map((result) => ({
+              operator: result.operator,
+              contractIds: result.contractIds,
+              affected: result.affected,
+              artifacts: result.artifacts ?? [],
+              suggestedMissingTest: result.suggestedMissingTest
+            })),
           survivedOperators: mutationReport.results
             .filter((result) => result.status === "survived")
             .map((result) => ({
               operator: result.operator,
               contractIds: result.contractIds,
               failedAssertion: result.failedAssertion,
-              artifacts: result.artifacts ?? []
+              affected: result.affected,
+              artifacts: result.artifacts ?? [],
+              suggestedMissingTest: result.suggestedMissingTest,
+              validationCommand: result.validationCommand
             })),
           notApplicableOperators: mutationReport.results.filter((result) => result.status === "not_applicable").map((result) => result.operator)
         }) as EvidencePacket["mutation"]
