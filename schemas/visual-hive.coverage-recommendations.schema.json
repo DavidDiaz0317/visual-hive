@@ -8,6 +8,7 @@
     "project",
     "generatedAt",
     "summary",
+    "maintenanceFindings",
     "recommendations"
   ],
   "properties": {
@@ -32,7 +33,8 @@
         "low",
         "fromCoverageGaps",
         "fromMutationSurvivors",
-        "fromFlowGaps"
+        "fromFlowGaps",
+        "fromMaintenanceFindings"
       ],
       "properties": {
         "total": {
@@ -62,9 +64,19 @@
         "fromFlowGaps": {
           "type": "integer",
           "minimum": 0
+        },
+        "fromMaintenanceFindings": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "additionalProperties": false
+    },
+    "maintenanceFindings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/maintenanceFinding"
+      }
     },
     "recommendations": {
       "type": "array",
@@ -89,7 +101,8 @@
               "add_selector_assertion",
               "add_flow_steps",
               "add_changed_file_rule",
-              "map_mutation_operator"
+              "map_mutation_operator",
+              "maintain_visual_test"
             ]
           },
           "severity": {
@@ -126,6 +139,9 @@
           "mutationOperator": {
             "type": "string"
           },
+          "maintenanceFindingId": {
+            "type": "string"
+          },
           "lane": {
             "enum": [
               "pull_request",
@@ -153,6 +169,90 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "maintenanceFinding": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "severity",
+        "contractId",
+        "targetId",
+        "message",
+        "evidence",
+        "recommendedAction",
+        "hiveOwner",
+        "validationCommand"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "stale_baseline",
+            "baseline_churn",
+            "mutation_survivor",
+            "screenshot_without_assertion",
+            "generic_selector",
+            "duplicate_screenshot",
+            "overbroad_full_page",
+            "missing_mobile_viewport",
+            "weak_threshold"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        },
+        "screenshotName": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendedAction": {
+          "enum": [
+            "remove",
+            "fix",
+            "expand",
+            "shrink",
+            "split",
+            "add_assertion"
+          ]
+        },
+        "hiveOwner": {
+          "enum": [
+            "quality",
+            "ci-maintainer"
+          ]
+        },
+        "validationCommand": {
+          "type": "string"
+        }
+      }
+    },
     "outputResource": {
       "type": "object",
       "required": [

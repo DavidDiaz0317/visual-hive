@@ -2271,9 +2271,31 @@ function TestCreationPlanView({
 
 function Coverage({ snapshot, runAction, connection }: { snapshot: Snapshot; runAction: (label: string, action: () => Promise<unknown>) => Promise<void>; connection?: string }) {
   const recommendations = snapshot.coverageImprovementReport?.recommendations ?? [];
+  const maintenanceFindings = snapshot.coverageImprovementReport?.maintenanceFindings ?? [];
   return (
     <div className="view-grid">
       <HumanEvidencePanel className="span-12" title="Coverage report" emptyTitle="No coverage report" findings={coverageFindings(snapshot)} data={snapshot.coverage} />
+      <Card className="span-12" title="Visual test maintenance">
+        {maintenanceFindings.length ? (
+          <div className="stack">
+            {maintenanceFindings.slice(0, 10).map((finding: any) => (
+              <div className="compact-item" key={finding.id}>
+                <div className="row">
+                  <strong>{finding.contractId}: {finding.kind}</strong>
+                  <Badge tone={statusTone(finding.severity)}>{finding.recommendedAction}</Badge>
+                </div>
+                <p className="card-subtext">{finding.message}</p>
+                <SimpleTable
+                  headers={["Owner", "Route", "Viewport", "Validation"]}
+                  rows={[[finding.hiveOwner, finding.route ?? "-", finding.viewport ?? "-", finding.validationCommand]]}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No visual test maintenance findings">Run visual-hive improve-coverage to check for weak, stale, duplicate, or overbroad visual tests.</EmptyState>
+        )}
+      </Card>
       <Card className="span-12" title="Coverage improvement plan">
         {recommendations.length ? (
           <div className="stack">

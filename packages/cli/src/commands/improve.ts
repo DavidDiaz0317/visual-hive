@@ -66,7 +66,8 @@ export function formatCoverageImprovementReport(
     `- Low: ${report.summary.low}`,
     `- From coverage gaps: ${report.summary.fromCoverageGaps}`,
     `- From mutation survivors: ${report.summary.fromMutationSurvivors}`,
-    `- From flow gaps: ${report.summary.fromFlowGaps}`
+    `- From flow gaps: ${report.summary.fromFlowGaps}`,
+    `- From visual test maintenance: ${report.summary.fromMaintenanceFindings}`
   ];
   if (report.recommendations.length === 0) {
     lines.push("", "No deterministic coverage improvement recommendations were produced from the current artifacts.");
@@ -84,6 +85,20 @@ export function formatCoverageImprovementReport(
       applyResult.diff,
       "```"
     );
+  }
+  if (report.maintenanceFindings.length) {
+    lines.push("", "## Visual Test Maintenance Findings");
+    for (const finding of report.maintenanceFindings.slice(0, 8)) {
+      lines.push(
+        `- [${finding.severity}] ${finding.contractId}: ${finding.kind}`,
+        `  Action: ${finding.recommendedAction}; Hive owner: ${finding.hiveOwner}`,
+        `  ${finding.message}`,
+        `  Validation: \`${finding.validationCommand}\``
+      );
+    }
+    if (report.maintenanceFindings.length > 8) {
+      lines.push(`- ... ${report.maintenanceFindings.length - 8} more maintenance finding(s)`);
+    }
   }
   lines.push("", "## Recommendations");
   for (const recommendation of report.recommendations.slice(0, 12)) {

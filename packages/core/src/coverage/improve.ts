@@ -14,6 +14,7 @@ export interface CoverageImprovementReport {
   generatedAt: string;
   outputResource?: CoverageImprovementOutputResource;
   summary: CoverageImprovementSummary;
+  maintenanceFindings: VisualTestMaintenanceFinding[];
   recommendations: CoverageImprovementRecommendation[];
 }
 
@@ -34,6 +35,7 @@ export interface CoverageImprovementSummary {
   fromCoverageGaps: number;
   fromMutationSurvivors: number;
   fromFlowGaps: number;
+  fromMaintenanceFindings: number;
 }
 
 export type CoverageImprovementKind =
@@ -42,7 +44,37 @@ export type CoverageImprovementKind =
   | "add_selector_assertion"
   | "add_flow_steps"
   | "add_changed_file_rule"
-  | "map_mutation_operator";
+  | "map_mutation_operator"
+  | "maintain_visual_test";
+
+export type VisualTestMaintenanceKind =
+  | "stale_baseline"
+  | "baseline_churn"
+  | "mutation_survivor"
+  | "screenshot_without_assertion"
+  | "generic_selector"
+  | "duplicate_screenshot"
+  | "overbroad_full_page"
+  | "missing_mobile_viewport"
+  | "weak_threshold";
+
+export type VisualTestMaintenanceAction = "remove" | "fix" | "expand" | "shrink" | "split" | "add_assertion";
+
+export interface VisualTestMaintenanceFinding {
+  id: string;
+  kind: VisualTestMaintenanceKind;
+  severity: "low" | "medium" | "high";
+  contractId: string;
+  targetId: string;
+  route?: string;
+  viewport?: string;
+  screenshotName?: string;
+  message: string;
+  evidence: string[];
+  recommendedAction: VisualTestMaintenanceAction;
+  hiveOwner: "quality" | "ci-maintainer";
+  validationCommand: string;
+}
 
 export interface CoverageImprovementRecommendation {
   id: string;
@@ -56,6 +88,7 @@ export interface CoverageImprovementRecommendation {
   viewport?: string;
   changedFile?: string;
   mutationOperator?: string;
+  maintenanceFindingId?: string;
   lane?: "pull_request" | "scheduled" | "protected" | "manual";
   trustedOnly?: boolean;
   suggestedConfigYaml?: string;
@@ -82,10 +115,12 @@ export function buildCoverageImprovementReport(
   mutationReport?: MutationReport,
   options: BuildCoverageImprovementOptions = {}
 ): CoverageImprovementReport {
+  const maintenanceFindings = buildVisualTestMaintenanceFindings(config, coverage, mutationReport);
   const recommendations = [
     ...coverage.uncoveredAreas.flatMap((gap) => recommendationForGap(config, gap)),
     ...recommendationsForMutationSurvivors(config, mutationReport),
-    ...recommendationsForFlowGaps(config, options.flowAudit)
+    ...recommendationsForFlowGaps(config, options.flowAudit),
+    ...recommendationsForMaintenanceFindings(config, maintenanceFindings)
   ];
   const deduped = dedupeRecommendations(recommendations).slice(0, options.maxRecommendations ?? 30);
   return {
@@ -94,6 +129,7 @@ export function buildCoverageImprovementReport(
     generatedAt: (options.now ?? new Date()).toISOString(),
     outputResource: catalogedOutputResource("coverage-recommendations", ".visual-hive/coverage-recommendations.json"),
     summary: summarize(deduped),
+    maintenanceFindings,
     recommendations: deduped
   };
 }
@@ -137,6 +173,8 @@ function applyRecommendation(config: VisualHiveConfig, recommendation: CoverageI
       return applyChangedFileRule(config, recommendation);
     case "map_mutation_operator":
       return applyMutationMapping(config, recommendation);
+    case "maintain_visual_test":
+      return false;
     default:
       return false;
   }
@@ -552,6 +590,280 @@ function flowSuggestedTests(contractId: string, trustedOnly: boolean): string[] 
   ];
 }
 
+function buildVisualTestMaintenanceFindings(
+  config: VisualHiveConfig,
+  coverage: CoverageReport,
+  mutationReport?: MutationReport
+): VisualTestMaintenanceFinding[] {
+  const findings: VisualTestMaintenanceFinding[] = [];
+  const screenshotKeys = new Map<string, Array<{ contractId: string; targetId: string; screenshotName: string; route: string; viewport: string }>>();
+
+  for (const contract of config.contracts) {
+    const coverageContract = coverage.contracts.find((candidate) => candidate.id === contract.id);
+    const selectorList = [
+      ...contract.selectors.mustExist,
+      ...contract.selectors.mustNotExist,
+      ...contract.selectors.textMustExist,
+      ...contract.selectors.textMustNotExist
+    ];
+    const target = config.targets[contract.target];
+    const trustedOnly = target?.kind === "protected" || !target?.prSafe;
+
+    if (selectorList.length > 0 && selectorList.every(isGenericSelector)) {
+      findings.push(
+        maintenanceFinding({
+          kind: "generic_selector",
+          severity: contract.severity === "critical" ? "high" : "medium",
+          contract,
+          message: `Contract "${contract.id}" relies only on generic selectors, so it may pass while user-visible ownership changes.`,
+          evidence: selectorList.map((selector) => `selector=${selector}`),
+          recommendedAction: "add_assertion",
+          hiveOwner: "quality",
+          trustedOnly
+        })
+      );
+    }
+
+    if (contract.screenshots.length > 0 && (coverageContract?.flowStepCount ?? contract.steps.length) === 0) {
+      findings.push(
+        maintenanceFinding({
+          kind: "screenshot_without_assertion",
+          severity: contract.severity === "critical" ? "high" : "medium",
+          contract,
+          route: contract.screenshots[0]?.route,
+          viewport: contract.screenshots[0]?.viewport,
+          screenshotName: contract.screenshots[0]?.name,
+          message: `Contract "${contract.id}" captures screenshots but has no user-flow steps.`,
+          evidence: [`screenshots=${contract.screenshots.length}`, "flowStepCount=0"],
+          recommendedAction: "add_assertion",
+          hiveOwner: "quality",
+          trustedOnly
+        })
+      );
+    }
+
+    const screenshotViewports = new Set(contract.screenshots.map((screenshot) => screenshot.viewport));
+    if (contract.screenshots.length > 0 && config.viewports.mobile && !screenshotViewports.has("mobile")) {
+      findings.push(
+        maintenanceFinding({
+          kind: "missing_mobile_viewport",
+          severity: "medium",
+          contract,
+          route: contract.screenshots[0]?.route,
+          viewport: "mobile",
+          screenshotName: contract.screenshots[0]?.name,
+          message: `Contract "${contract.id}" has screenshot coverage but no mobile viewport screenshot.`,
+          evidence: [`viewports=${Array.from(screenshotViewports).sort().join(",") || "none"}`, "configuredViewport=mobile"],
+          recommendedAction: "expand",
+          hiveOwner: "quality",
+          trustedOnly
+        })
+      );
+    }
+
+    for (const screenshot of contract.screenshots) {
+      const key = `${contract.target}|${screenshot.route}|${screenshot.viewport}`;
+      const existing = screenshotKeys.get(key) ?? [];
+      existing.push({ contractId: contract.id, targetId: contract.target, screenshotName: screenshot.name, route: screenshot.route, viewport: screenshot.viewport });
+      screenshotKeys.set(key, existing);
+
+      if (screenshot.fullPage && screenshot.mask.length === 0) {
+        findings.push(
+          maintenanceFinding({
+            kind: "overbroad_full_page",
+            severity: "low",
+            contract,
+            route: screenshot.route,
+            viewport: screenshot.viewport,
+            screenshotName: screenshot.name,
+            message: `Screenshot "${screenshot.name}" is full-page with no masks; consider shrinking or masking dynamic regions.`,
+            evidence: ["fullPage=true", "maskCount=0"],
+            recommendedAction: "shrink",
+            hiveOwner: "quality",
+            trustedOnly
+          })
+        );
+      }
+    }
+  }
+
+  for (const matches of screenshotKeys.values()) {
+    if (matches.length <= 1) continue;
+    const [first] = matches;
+    if (!first) continue;
+    findings.push(
+      maintenanceFinding({
+        kind: "duplicate_screenshot",
+        severity: "low",
+        contract: config.contracts.find((contract) => contract.id === first.contractId) ?? config.contracts[0]!,
+        route: first.route,
+        viewport: first.viewport,
+        screenshotName: first.screenshotName,
+        message: `Multiple contracts capture ${first.route} at ${first.viewport} on target ${first.targetId}.`,
+        evidence: matches.map((match) => `${match.contractId}:${match.screenshotName}`),
+        recommendedAction: "split",
+        hiveOwner: "quality",
+        trustedOnly: false
+      })
+    );
+  }
+
+  for (const result of mutationReport?.results ?? []) {
+    if (result.status !== "survived") continue;
+    const contractId = result.contractIds[0] ?? "unmapped";
+    const contract = config.contracts.find((candidate) => candidate.id === contractId) ?? config.contracts[0];
+    if (!contract) continue;
+    findings.push(
+      maintenanceFinding({
+        kind: "mutation_survivor",
+        severity: "high",
+        contract,
+        message: `Mutation "${result.operator}" survived, indicating the related visual test is underpowered.`,
+        evidence: [`operator=${result.operator}`, `status=${result.status}`, ...(result.errors ?? []).slice(0, 2).map(sanitizeText)],
+        recommendedAction: "fix",
+        hiveOwner: "quality",
+        trustedOnly: false
+      })
+    );
+  }
+
+  if (config.visual.maxDiffPixelRatio > 0.05 || (config.visual.maxDiffPixels ?? 0) > 5000) {
+    for (const contract of config.contracts.filter((candidate) => candidate.screenshots.length > 0).slice(0, 3)) {
+      findings.push(
+        maintenanceFinding({
+          kind: "weak_threshold",
+          severity: "medium",
+          contract,
+          route: contract.screenshots[0]?.route,
+          viewport: contract.screenshots[0]?.viewport,
+          screenshotName: contract.screenshots[0]?.name,
+          message: `Visual tolerance is broad enough that meaningful diffs may be hidden.`,
+          evidence: [`maxDiffPixelRatio=${config.visual.maxDiffPixelRatio}`, `maxDiffPixels=${config.visual.maxDiffPixels ?? "unset"}`],
+          recommendedAction: "fix",
+          hiveOwner: "ci-maintainer",
+          trustedOnly: false
+        })
+      );
+    }
+  }
+
+  return dedupeMaintenanceFindings(findings).slice(0, 20);
+}
+
+function recommendationsForMaintenanceFindings(
+  config: VisualHiveConfig,
+  findings: VisualTestMaintenanceFinding[]
+): CoverageImprovementRecommendation[] {
+  return findings.map((finding) => {
+    const contract = config.contracts.find((candidate) => candidate.id === finding.contractId);
+    return {
+      id: `maintenance:${finding.id}`,
+      kind: "maintain_visual_test",
+      severity: finding.severity,
+      title: `Maintain visual test "${finding.contractId}": ${finding.kind}`,
+      rationale: [finding.message, ...finding.evidence],
+      targetId: finding.targetId,
+      contractId: finding.contractId,
+      route: finding.route,
+      viewport: finding.viewport,
+      maintenanceFindingId: finding.id,
+      lane: contract ? recommendationLane(contract, config.targets[contract.target], contract.runOn.pullRequest) : "manual",
+      trustedOnly: config.targets[finding.targetId]?.kind === "protected" || !config.targets[finding.targetId]?.prSafe,
+      suggestedTests: suggestedTestsForMaintenanceFinding(finding),
+      suggestedConfigYaml: suggestedConfigForMaintenanceFinding(finding)
+    };
+  });
+}
+
+function maintenanceFinding(options: {
+  kind: VisualTestMaintenanceKind;
+  severity: VisualTestMaintenanceFinding["severity"];
+  contract: VisualHiveConfig["contracts"][number];
+  route?: string;
+  viewport?: string;
+  screenshotName?: string;
+  message: string;
+  evidence: string[];
+  recommendedAction: VisualTestMaintenanceAction;
+  hiveOwner: VisualTestMaintenanceFinding["hiveOwner"];
+  trustedOnly: boolean;
+}): VisualTestMaintenanceFinding {
+  return {
+    id: slug(
+      [options.kind, options.contract.id, options.screenshotName, options.route, options.viewport]
+        .filter(Boolean)
+        .join("-")
+    ),
+    kind: options.kind,
+    severity: options.severity,
+    contractId: options.contract.id,
+    targetId: options.contract.target,
+    route: options.route,
+    viewport: options.viewport,
+    screenshotName: options.screenshotName,
+    message: options.message,
+    evidence: options.evidence,
+    recommendedAction: options.recommendedAction,
+    hiveOwner: options.hiveOwner,
+    validationCommand: options.trustedOnly
+      ? "visual-hive plan --config visual-hive.config.yaml --mode schedule && visual-hive run --config visual-hive.config.yaml --ci"
+      : "visual-hive plan --config visual-hive.config.yaml --mode pr && visual-hive run --config visual-hive.config.yaml --ci"
+  };
+}
+
+function suggestedTestsForMaintenanceFinding(finding: VisualTestMaintenanceFinding): string[] {
+  if (finding.kind === "generic_selector") return ["Replace generic selectors with project-owned data-testid assertions.", "Keep the generic selector only as a fallback, not the main oracle."];
+  if (finding.kind === "screenshot_without_assertion") return ["Add goto/assertVisible/assertText flow steps around the screenshot state.", "Use the same stable selectors that the screenshot is meant to protect."];
+  if (finding.kind === "missing_mobile_viewport") return [`Add a ${finding.viewport ?? "mobile"} screenshot for ${finding.contractId}.`];
+  if (finding.kind === "overbroad_full_page") return ["Shrink the screenshot to the stable region or add masks for dynamic areas.", "Keep full-page screenshots only when the full layout is the intended contract."];
+  if (finding.kind === "duplicate_screenshot") return ["Split the duplicated screenshots by route/state or remove one after replacing it with a targeted assertion."];
+  if (finding.kind === "mutation_survivor") return ["Strengthen selectors, flow steps, or screenshots until the related mutation is killed."];
+  if (finding.kind === "weak_threshold") return ["Review visual.maxDiffPixelRatio/maxDiffPixels before making this lane gating."];
+  return ["Review and maintain this visual test before relying on it as a gating contract."];
+}
+
+function suggestedConfigForMaintenanceFinding(finding: VisualTestMaintenanceFinding): string | undefined {
+  if (finding.kind === "generic_selector" || finding.kind === "screenshot_without_assertion") {
+    return yamlSnippet({
+      selectors: { mustExist: ["[data-testid='replace-with-stable-user-visible-selector']"] },
+      steps: [
+        {
+          action: "assertVisible",
+          selector: "[data-testid='replace-with-stable-user-visible-selector']",
+          description: "Assert stable user-visible ownership for this visual contract."
+        }
+      ]
+    });
+  }
+  if (finding.kind === "missing_mobile_viewport") {
+    return yamlSnippet({
+      screenshots: [{ name: `${slug(finding.contractId)}-mobile`, route: finding.route ?? "/", viewport: finding.viewport ?? "mobile" }]
+    });
+  }
+  if (finding.kind === "overbroad_full_page") {
+    return yamlSnippet({
+      screenshots: [{ name: finding.screenshotName ?? "stable-region", route: finding.route ?? "/", viewport: finding.viewport ?? "desktop", fullPage: false }]
+    });
+  }
+  if (finding.kind === "weak_threshold") {
+    return yamlSnippet({ visual: { maxDiffPixelRatio: 0.01, failOnMissingBaselineInCI: true } });
+  }
+  return undefined;
+}
+
+function isGenericSelector(selector: string): boolean {
+  return ["body", "main", "#root", "html", "[role='main']"].includes(selector.trim().toLowerCase());
+}
+
+function dedupeMaintenanceFindings(findings: VisualTestMaintenanceFinding[]): VisualTestMaintenanceFinding[] {
+  const seen = new Set<string>();
+  return findings.filter((finding) => {
+    if (seen.has(finding.id)) return false;
+    seen.add(finding.id);
+    return true;
+  });
+}
+
 function selectorsForOperator(operator: string): Record<string, string[]> {
   if (operator === "force-login-on-demo") return { mustNotExist: ["[data-testid='login-page']", "[data-testid='github-login-button']"] };
   if (operator === "hide-critical-button") return { mustExist: ["[data-testid='critical-action-button']"] };
@@ -579,10 +891,12 @@ function summarize(recommendations: CoverageImprovementRecommendation[]): Covera
     medium: recommendations.filter((recommendation) => recommendation.severity === "medium").length,
     low: recommendations.filter((recommendation) => recommendation.severity === "low").length,
     fromCoverageGaps: recommendations.filter(
-      (recommendation) => !recommendation.id.startsWith("mutation-survivor:") && recommendation.kind !== "add_flow_steps"
+      (recommendation) =>
+        !recommendation.id.startsWith("mutation-survivor:") && !recommendation.id.startsWith("maintenance:") && recommendation.kind !== "add_flow_steps"
     ).length,
     fromMutationSurvivors: recommendations.filter((recommendation) => recommendation.id.startsWith("mutation-survivor:")).length,
-    fromFlowGaps: recommendations.filter((recommendation) => recommendation.kind === "add_flow_steps").length
+    fromFlowGaps: recommendations.filter((recommendation) => recommendation.kind === "add_flow_steps").length,
+    fromMaintenanceFindings: recommendations.filter((recommendation) => recommendation.id.startsWith("maintenance:")).length
   };
 }
 

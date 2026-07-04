@@ -1593,14 +1593,42 @@ describe("coverage analysis", () => {
     });
     expect(report.summary.total).toBeGreaterThan(0);
     expect(report.summary.fromMutationSurvivors).toBe(1);
+    expect(report.summary.fromMaintenanceFindings).toBeGreaterThan(0);
+    expect(report.maintenanceFindings.map((finding) => finding.kind)).toEqual(
+      expect.arrayContaining(["generic_selector", "screenshot_without_assertion", "overbroad_full_page", "mutation_survivor"])
+    );
+    expect(report.maintenanceFindings.find((finding) => finding.kind === "generic_selector")).toMatchObject({
+      contractId: "safe-contract",
+      recommendedAction: "add_assertion",
+      hiveOwner: "quality"
+    });
+    expect(report.maintenanceFindings.every((finding) => finding.validationCommand.startsWith("visual-hive "))).toBe(true);
     expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("map_mutation_operator");
     expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
+    expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("maintain_visual_test");
     expect(report.recommendations.find((recommendation) => recommendation.kind === "map_mutation_operator")?.suggestedConfigYaml).toContain(
       "hide-critical-button"
     );
+    const maintenanceRecommendation = report.recommendations.find((recommendation) => recommendation.kind === "maintain_visual_test");
+    expect(maintenanceRecommendation).toMatchObject({
+      maintenanceFindingId: expect.any(String),
+      contractId: expect.any(String)
+    });
     expect(report.recommendations.find((recommendation) => recommendation.id === "changed-file-rule:scripts/build.js")?.suggestedConfigYaml).toContain(
       "scripts/**"
     );
+  });
+
+  it("does not apply visual test maintenance recommendations automatically", () => {
+    const config = sampleConfig();
+    const coverage = analyzeCoverage(config, { changedFiles: [], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(config, coverage, undefined, { now: new Date("2026-06-15T00:02:00.000Z") });
+    const recommendation = report.recommendations.find((candidate) => candidate.kind === "maintain_visual_test");
+
+    expect(recommendation).toBeDefined();
+    const result = applyCoverageImprovementRecommendation(config, report, recommendation!.id);
+    expect(result.applied).toBe(false);
+    expect(result.diff).toBe("No config changes.");
   });
 
   it("applies a selected coverage improvement recommendation as a validated config diff", () => {
