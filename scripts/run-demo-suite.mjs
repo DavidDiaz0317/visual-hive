@@ -11,7 +11,9 @@ const TIMEOUTS_BY_SCRIPT = {
   "demo:build": 180_000,
   "demo:run": 180_000,
   "demo:run:seed": 180_000,
+  "demo:run:ci": 180_000,
   "demo:mutate": 240_000,
+  "demo:e2e:defect": 300_000,
   "demo:pipeline": 420_000,
   "demo:ui": 120_000,
   "demo:kubestellar": 180_000
@@ -134,6 +136,18 @@ const acceptanceSteps = [
 
 const ciSteps = acceptanceSteps;
 
+const e2eCleanSteps = [
+  script("demo:build"),
+  script("demo:plan"),
+  script("demo:run:seed"),
+  script("demo:run:ci"),
+  script("demo:triage"),
+  script("demo:evidence"),
+  script("demo:artifacts")
+];
+
+const e2eSteps = [...e2eCleanSteps, script("demo:e2e:defect")];
+
 const suites = {
   core: coreSteps,
   governance: governanceSteps,
@@ -141,7 +155,9 @@ const suites = {
   portfolio: portfolioSteps,
   all: acceptanceSteps,
   exhaustive: [...coreSteps, ...governanceSteps, ...agentSteps, ...portfolioSteps],
-  ci: ciSteps
+  ci: ciSteps,
+  "e2e-clean": e2eCleanSteps,
+  e2e: e2eSteps
 };
 
 const args = process.argv.slice(2);

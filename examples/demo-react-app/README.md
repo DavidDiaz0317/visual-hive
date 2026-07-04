@@ -18,9 +18,19 @@ http://127.0.0.1:4173/?issue=empty-data
 http://127.0.0.1:4173/?issue=mobile-overflow
 http://127.0.0.1:4173/?issue=broken-image
 http://127.0.0.1:4173/?issue=route-guard-bypass
+http://127.0.0.1:4173/?issue=force-login-on-demo
 ```
 
 The Visual Hive config also exercises `/?issue=api-500` in the `dashboard-visual-stability` contract so hidden alert mutations can be detected without requiring a paid visual provider.
+
+Phase 0 end-to-end proof from the repo root:
+
+```bash
+npm run demo:e2e:clean
+npm run demo:e2e:defect
+```
+
+`demo:e2e:clean` builds the fixture, plans PR-safe checks, seeds local baselines when needed, reruns strict deterministic checks, and writes triage/evidence/artifact output. `demo:e2e:defect` intentionally routes the public-demo contract through `/?issue=force-login-on-demo`; the underlying deterministic run must fail, then the wrapper verifies that report, triage, Evidence Packet, Hive issue, test-creation, and artifact-index outputs were produced.
 
 From the repo root:
 

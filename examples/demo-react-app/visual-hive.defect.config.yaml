@@ -1,0 +1,93 @@
+project:
+  name: demo-react-app
+  type: react-vite
+  defaultBranch: main
+  setupProfile: free-local
+
+targets:
+  localPreview:
+    kind: command
+    install: "npm ci"
+    build: "npm run build"
+    serve: "npm run preview -- --port 4173 --strictPort"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+
+contracts:
+  - id: seeded-force-login-public-demo
+    description: "Seeded defect proof: public demo must fail when login controls are exposed."
+    target: localPreview
+    severity: critical
+    runOn:
+      pullRequest: true
+      schedule: false
+    waitFor:
+      - selector: "[data-testid='login-page']"
+        state: visible
+        timeoutMs: 5000
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+      textMustNotExist:
+        - "Continue with GitHub"
+    screenshots:
+      - name: seeded-force-login
+        route: "/?issue=force-login-on-demo"
+        viewport: desktop
+
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+  mobile:
+    width: 390
+    height: 844
+
+visual:
+  maxDiffPixelRatio: 0.01
+  updateSnapshots: false
+  failOnMissingBaselineInCI: true
+  snapshotDir: ".visual-hive/snapshots"
+  artifactDir: ".visual-hive/artifacts"
+
+selection:
+  changedFiles:
+    - pattern: "src/**"
+      contracts:
+        - seeded-force-login-public-demo
+      risk: critical
+
+mutation:
+  enabled: false
+  minScore: 0.7
+  operators: []
+
+ai:
+  enabled: false
+  provider: none
+  neverSoleOracle: true
+  createIssuePrompt: true
+
+providers:
+  argos:
+    enabled: false
+
+integrations:
+  hive:
+    enabled: false
+    mode: advisory
+    labels:
+      - visual-hive
+      - hive/quality
+      - ai-ready
+
+github:
+  enabled: true
+  issueLabels:
+    - visual-hive
+    - seeded-defect
+  commentMarker: "<!-- visual-hive-report -->"
