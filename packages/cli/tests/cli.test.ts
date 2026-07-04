@@ -3892,6 +3892,12 @@ selection:
     expect(summary).toContain("ignoredChangedFiles");
     expect(exitCode).toBe(0);
     expect(report.status).toBe("passed");
+    expect(report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/report.json",
+      evidenceResourceId: "latest-report",
+      evidenceResourceUri: "visual-hive://latest-report",
+      evidenceReadToolName: "visual_hive_read_latest_report"
+    });
     expect(report.results).toEqual([]);
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
   });

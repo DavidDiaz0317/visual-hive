@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   collectRepositoryMetadata,
+  catalogedReportOutputResource,
   loadConfig,
   normalizeProviderResults,
   readJson,
@@ -56,6 +57,7 @@ async function createIgnoredFilesReport(config: VisualHiveConfig, plan: Plan, ro
   return {
     schemaVersion: 2,
     project: config.project.name,
+    outputResource: catalogedReportOutputResource(),
     repository,
     mode: plan.mode,
     generatedAt: new Date().toISOString(),

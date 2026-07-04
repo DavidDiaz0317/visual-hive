@@ -9,6 +9,7 @@ export * from "./planner/createPlan.js";
 export * from "./planner/types.js";
 export * from "./planner/laneSummary.js";
 export * from "./reports/types.js";
+export * from "./reports/outputResource.js";
 export * from "./reports/triageReport.js";
 export * from "./reports/repositoryMetadata.js";
 export * from "./evidence/types.js";

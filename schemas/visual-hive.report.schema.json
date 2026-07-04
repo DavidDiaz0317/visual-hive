@@ -31,6 +31,9 @@
     "project": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "repository": {
       "$ref": "#/$defs/repositoryMetadata"
     },
@@ -139,6 +142,38 @@
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/report.json"
+        },
+        "evidenceResourceId": {
+          "const": "latest-report"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://latest-report"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_latest_report"
+        }
+      }
+    },
     "verdictSummary": {
       "type": "object",
       "required": [

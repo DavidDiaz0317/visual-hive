@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   collectRepositoryMetadata,
   buildReportVerdict,
+  catalogedReportOutputResource,
   sanitizeText,
   normalizeProviderResults,
   type EvidenceContribution,
@@ -225,6 +226,7 @@ async function buildReportFromPlaywrightOutput(input: {
   const reportWithoutVerdict: Report = {
     schemaVersion: 2,
     project: input.config.project.name,
+    outputResource: catalogedReportOutputResource(),
     repository,
     mode: input.plan.mode,
     generatedAt: new Date().toISOString(),

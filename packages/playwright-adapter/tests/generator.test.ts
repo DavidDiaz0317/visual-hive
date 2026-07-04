@@ -481,6 +481,12 @@ describe("buildSpecContent", () => {
 
     expect(exitCode).toBe(1);
     expect(report.status).toBe("failed");
+    expect(report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/report.json",
+      evidenceResourceId: "latest-report",
+      evidenceResourceUri: "visual-hive://latest-report",
+      evidenceReadToolName: "visual_hive_read_latest_report"
+    });
     expect(report.verdictSummary?.visualHiveVerdict).toBe("blocked");
     expect(report.verdictSummary?.blockedBecause).toContain("playwright.deterministic_run");
     expect(report.verdictSummary?.blockedBecause).toContain("visual_hive.target_lifecycle_failure");

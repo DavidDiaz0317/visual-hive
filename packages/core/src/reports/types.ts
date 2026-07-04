@@ -146,6 +146,15 @@ export interface ReportSummary {
   flowStepsFailed?: number;
 }
 
+export interface ReportOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface ContractResult {
   contractId: string;
   mutationOperator?: string;
@@ -166,6 +175,7 @@ export interface ContractResult {
 export interface Report {
   schemaVersion: 2;
   project: string;
+  outputResource?: ReportOutputResource;
   repository: RepositoryMetadata;
   mode: PlanMode;
   generatedAt: string;
