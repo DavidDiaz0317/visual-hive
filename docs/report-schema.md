@@ -561,3 +561,5 @@ Path: `.visual-hive/mutation-report.json`
 Schema: `schemas/visual-hive.mutation-report.schema.json`
 
 The mutation report records one row per operator. `score` is killed applicable mutations divided by total applicable mutations. A mutation is killed when deterministic contracts fail under the injected mutation. Non-applicable mutations have status `not_applicable` and are excluded from the score denominator.
+
+Generated mutation reports include `outputResource` pointing at `.visual-hive/mutation-report.json`, `visual-hive://mutation-report`, and `visual_hive_read_mutation_report`. This makes mutation adequacy and survivor evidence a catalog-backed read-only resource for MCP clients, Agent Packets, the artifact index, the Control Plane, and Hive handoff. Reading the report does not authorize test edits, config edits, target execution, repair execution, or a verdict override.

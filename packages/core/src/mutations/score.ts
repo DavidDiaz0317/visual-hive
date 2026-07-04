@@ -1,4 +1,5 @@
 import type { MutationReport, MutationResult } from "../reports/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 
 export function calculateMutationScore(results: Array<Pick<MutationResult, "killed"> & Partial<Pick<MutationResult, "applicable">>>): {
   killed: number;
@@ -26,8 +27,21 @@ export function buildMutationReport(input: {
     schemaVersion: 2,
     project: input.project,
     generatedAt: (input.now ?? new Date()).toISOString(),
+    outputResource: catalogedMutationOutputResource(),
     minScore: input.minScore,
     results: input.results,
     ...score
+  };
+}
+
+function catalogedMutationOutputResource(): NonNullable<MutationReport["outputResource"]> {
+  const resource = getEvidenceResourceById("mutation-report");
+  return {
+    artifactPath: ".visual-hive/mutation-report.json",
+    evidenceResourceId: resource?.id ?? "mutation-report",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://mutation-report",
+    evidenceResourceTitle: resource?.title ?? "Mutation Report",
+    evidenceResourceDescription: resource?.description ?? "Mutation adequacy report and survivor evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_mutation_report"
   };
 }

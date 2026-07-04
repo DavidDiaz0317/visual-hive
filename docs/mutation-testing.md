@@ -34,4 +34,6 @@ Mutation score is:
 killed / total
 ```
 
+Generated `.visual-hive/mutation-report.json` files include an `outputResource` row for the catalog-backed read-only resource `visual-hive://mutation-report` / `visual_hive_read_mutation_report`. Agents, MCP clients, Hive exports, and the Control Plane may read this adequacy evidence, but reading it does not authorize editing tests, changing mutation thresholds, running targets, executing repair, or overriding the Visual Hive verdict.
+
 `visual-hive mutate --enforce-min-score` exits nonzero when the score is lower than `mutation.minScore`.

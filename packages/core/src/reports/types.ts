@@ -202,10 +202,20 @@ export interface MutationResult {
   artifacts?: string[];
 }
 
+export interface MutationReportOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface MutationReport {
   schemaVersion: 2;
   project: string;
   generatedAt: string;
+  outputResource?: MutationReportOutputResource;
   minScore: number;
   score: number;
   killed: number;

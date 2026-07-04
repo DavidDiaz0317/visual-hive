@@ -5864,6 +5864,12 @@ contracts:
     });
 
     const mutationReport = await readJson<typeof result.report>(result.reportPath);
+    expect(mutationReport.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/mutation-report.json",
+      evidenceResourceId: "mutation-report",
+      evidenceResourceUri: "visual-hive://mutation-report",
+      evidenceReadToolName: "visual_hive_read_mutation_report"
+    });
     expect(mutationReport.score).toBe(1);
     expect(mutationReport.killed).toBe(1);
     expect(mutationReport.total).toBe(1);

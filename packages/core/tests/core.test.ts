@@ -15,7 +15,7 @@ import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
 import { createPlan } from "../src/planner/createPlan.js";
 import { buildPlanLaneSummary } from "../src/planner/laneSummary.js";
-import { calculateMutationScore } from "../src/mutations/score.js";
+import { buildMutationReport, calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig, parseConfigText } from "../src/config/load.js";
 import { MUTATION_OPERATOR_METADATA, selectContractsForMutation } from "../src/mutations/operators.js";
 import { approveBaseline, listBaselines, rejectBaseline, writeBaselineReview } from "../src/baselines/manage.js";
@@ -3488,6 +3488,36 @@ describe("mutation score", () => {
       total: 1,
       score: 1
     });
+  });
+
+  it("builds mutation reports with catalog-backed output resource metadata", () => {
+    const report = buildMutationReport({
+      project: "sample",
+      minScore: 0.7,
+      now: new Date("2026-06-15T00:00:00.000Z"),
+      results: [
+        {
+          operator: "hide-critical-button",
+          status: "killed",
+          killed: true,
+          applicable: true,
+          contractIds: ["safe-contract"],
+          expectedFailureKinds: ["missing_element"],
+          durationMs: 10,
+          errors: ["Missing critical button"]
+        }
+      ]
+    });
+
+    expect(report.outputResource).toEqual({
+      artifactPath: ".visual-hive/mutation-report.json",
+      evidenceResourceId: "mutation-report",
+      evidenceResourceUri: "visual-hive://mutation-report",
+      evidenceResourceTitle: "Mutation Report",
+      evidenceResourceDescription: "Mutation adequacy report and survivor evidence.",
+      evidenceReadToolName: "visual_hive_read_mutation_report"
+    });
+    expect(report.score).toBe(1);
   });
 
   it("maps mutation operators to contracts explicitly and heuristically", () => {

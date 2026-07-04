@@ -24,6 +24,9 @@
     "generatedAt": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "minScore": {
       "type": "number",
       "minimum": 0,
@@ -108,6 +111,40 @@
               "type": "string"
             }
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/mutation-report.json"
+        },
+        "evidenceResourceId": {
+          "const": "mutation-report"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://mutation-report"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_mutation_report"
         }
       }
     }
