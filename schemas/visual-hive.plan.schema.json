@@ -25,6 +25,9 @@
     "project": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "mode": {
       "enum": [
         "pr",
@@ -124,6 +127,34 @@
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/plan.json"
+        },
+        "evidenceResourceId": {
+          "const": "latest-plan"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://latest-plan"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        }
+      }
+    },
     "ignoredChangedFile": {
       "type": "object",
       "required": [

@@ -289,6 +289,11 @@ contracts:
     const planPath = path.join(repoRoot, "examples/demo-react-app", ".visual-hive", "plan.json");
     const written = await readJson<Plan>(planPath);
 
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/plan.json",
+      evidenceResourceId: "latest-plan",
+      evidenceResourceUri: "visual-hive://latest-plan"
+    });
     expect(written.items.map((item) => item.contractId)).toContain("dashboard-visual-stability");
     expect(written.excluded.map((item) => item.contractId)).toContain("live-cluster-protected-lane");
     expect(written.providerPolicy.find((provider) => provider.providerId === "playwright")).toMatchObject({
@@ -335,7 +340,9 @@ viewports:
 
     await expect(access(sidecarPath)).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "plan.json"))).rejects.toThrow();
-    expect((await readJson<Plan>(sidecarPath)).items.map((item) => item.contractId)).toEqual(["shell"]);
+    const sidecarPlan = await readJson<Plan>(sidecarPath);
+    expect(sidecarPlan.outputResource).toBeUndefined();
+    expect(sidecarPlan.items.map((item) => item.contractId)).toEqual(["shell"]);
     expect(plan.items.map((item) => item.contractId)).toEqual(["shell"]);
   });
 

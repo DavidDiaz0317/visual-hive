@@ -7,6 +7,7 @@ export * from "./coverage/improve.js";
 export * from "./flows/audit.js";
 export * from "./planner/createPlan.js";
 export * from "./planner/types.js";
+export * from "./planner/outputResource.js";
 export * from "./planner/laneSummary.js";
 export * from "./reports/types.js";
 export * from "./reports/outputResource.js";

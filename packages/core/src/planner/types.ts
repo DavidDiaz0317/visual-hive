@@ -60,9 +60,19 @@ export interface IgnoredChangedFile {
   reason: string;
 }
 
+export interface PlanOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface Plan {
   schemaVersion: 1;
   project: string;
+  outputResource?: PlanOutputResource;
   mode: PlanMode;
   generatedAt: string;
   changedFiles: string[];

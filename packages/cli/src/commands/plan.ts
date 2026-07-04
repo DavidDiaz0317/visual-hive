@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createPlan, loadConfig, mutationOperatorId, PLAN_MODES, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
+import { catalogedPlanOutputResource, createPlan, loadConfig, mutationOperatorId, PLAN_MODES, writeJson, type Plan, type PlanMode } from "@visual-hive/core";
 import { readFile } from "node:fs/promises";
 import { gitChangedFiles } from "./gitChangedFiles.js";
 
@@ -38,8 +38,12 @@ export async function runPlanCommand(options: PlanCommandOptions = {}): Promise<
       `No contracts selected for mode "${plan.mode}". Check runOn settings, changed-file rules, target prSafe settings, or pass --allow-unsafe-targets for trusted runs.${excluded}`
     );
   }
-  await writeJson(resolvePlanOutputPath(loaded.rootDir, options.output), plan);
-  return plan;
+  const outputPath = resolvePlanOutputPath(loaded.rootDir, options.output);
+  const planToWrite = shouldCatalogAsLatestPlan(loaded.rootDir, outputPath)
+    ? { ...plan, outputResource: catalogedPlanOutputResource() }
+    : plan;
+  await writeJson(outputPath, planToWrite);
+  return planToWrite;
 }
 
 function resolvePlanOutputPath(rootDir: string, output: string | undefined): string {
@@ -119,4 +123,12 @@ async function resolveChangedFiles(options: PlanCommandOptions, cwd: string, def
     return gitChangedFiles(cwd, options.base);
   }
   return gitChangedFiles(cwd, defaultBranch).catch(() => []);
+}
+
+function shouldCatalogAsLatestPlan(rootDir: string, outputPath: string): boolean {
+  return normalizePath(path.relative(rootDir, outputPath)) === ".visual-hive/plan.json";
+}
+
+function normalizePath(value: string): string {
+  return value.replaceAll("\\", "/");
 }
