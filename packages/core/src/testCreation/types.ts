@@ -4,6 +4,7 @@ import type { HandoffWorkItem } from "../handoff/types.js";
 
 export type TestCreationPriority = "low" | "medium" | "high";
 export type TestCreationSource = "testing_layer" | "coverage_recommendation" | "mutation_survivor" | "handoff_work_item";
+export type TestCreationHiveOwner = "quality" | "tester" | "ci-maintainer";
 export type TestCreationKind =
   | "unit_test"
   | "accessibility_check"
@@ -58,11 +59,18 @@ export interface TestCreationPlanOutputResource {
 
 export interface TestCreationRecommendation {
   id: string;
+  gapId: string;
   source: TestCreationSource;
   kind: TestCreationKind;
   priority: TestCreationPriority;
   title: string;
   rationale: string[];
+  affected: TestCreationAffected;
+  currentEvidence: string[];
+  suggestedContract: TestCreationSuggestedContract;
+  suggestedMutation: string;
+  validationCommand: string;
+  hiveOwner: TestCreationHiveOwner;
   layer?: Pick<EvidencePacketTestingLayer, "id" | "name" | "status">;
   targetId?: string;
   contractId?: string;
@@ -75,6 +83,27 @@ export interface TestCreationRecommendation {
   trustedOnly: boolean;
   applyMode: "advisory_no_write";
 }
+
+export interface TestCreationAffected {
+  route?: string;
+  component?: string;
+  viewport?: string;
+  state?: string;
+}
+
+export interface TestCreationSuggestedContract {
+  id: string;
+  description: string;
+  targetId?: string;
+  route: string;
+  viewport?: string;
+  selectors: string[];
+}
+
+export type TestCreationRecommendationDraft = Omit<
+  TestCreationRecommendation,
+  "gapId" | "affected" | "currentEvidence" | "suggestedContract" | "suggestedMutation" | "validationCommand" | "hiveOwner"
+>;
 
 export interface BuildTestCreationPlanOptions {
   project: string;

@@ -346,7 +346,7 @@ Key fields:
 - `outputResource`: catalog-backed identity for this artifact, including `.visual-hive/test-creation-plan.json`, `visual-hive://test-creation-plan`, and `visual_hive_read_test_creation_plan`.
 - `governance`: declares Visual Hive as verdict authority, agents as advisory test-generation helpers, and `writePolicy: no_config_or_test_files_written`.
 - `summary`: counts recommendations by priority and source.
-- `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`.
+- `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`. Each recommendation also carries `gapId`, `affected` route/component/viewport/state context, `currentEvidence`, a bounded `suggestedContract`, `suggestedMutation`, `validationCommand`, and suggested `hiveOwner` so Hive Quality/Tester/CI-maintainer agents can consume the artifact without scraping Markdown.
 
 The companion `.visual-hive/test-creation-plan.md` is a sanitized summary for human review. Neither artifact edits config, writes tests, approves baselines, enables providers, or changes the Visual Hive verdict.
 

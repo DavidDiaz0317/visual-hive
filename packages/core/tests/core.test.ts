@@ -6316,6 +6316,38 @@ describe("test creation plans", () => {
       expect.arrayContaining(["accessibility_check", "mutation_mapping", "selector_assertion"])
     );
     expect(plan.recommendations.every((recommendation) => recommendation.applyMode === "advisory_no_write")).toBe(true);
+    expect(
+      plan.recommendations.every(
+        (recommendation) =>
+          recommendation.gapId &&
+          Object.keys(recommendation.affected).length > 0 &&
+          recommendation.currentEvidence.length > 0 &&
+          recommendation.suggestedContract.route &&
+          recommendation.suggestedContract.selectors.length > 0 &&
+          recommendation.suggestedMutation &&
+          recommendation.validationCommand.startsWith("visual-hive ") &&
+          ["quality", "tester", "ci-maintainer"].includes(recommendation.hiveOwner)
+      )
+    ).toBe(true);
+    const mutationRecommendation = plan.recommendations.find((recommendation) => recommendation.source === "mutation_survivor");
+    expect(mutationRecommendation).toMatchObject({
+      gapId: "mutation:force-login-on-demo",
+      affected: {
+        route: "/",
+        component: "auth-boundary",
+        state: "public-demo"
+      },
+      suggestedMutation: "force-login-on-demo",
+      validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
+      hiveOwner: "quality"
+    });
+    expect(mutationRecommendation?.suggestedContract.selectors).toEqual(
+      expect.arrayContaining(["[data-testid='dashboard-page']", "not:[data-testid='login-page']"])
+    );
+    const coverageRecommendation = plan.recommendations.find((recommendation) => recommendation.source === "coverage_recommendation");
+    expect(coverageRecommendation?.gapId).toBe("assertions:dashboard");
+    expect(coverageRecommendation?.affected.component).toBe("dashboard-shell");
+    expect(coverageRecommendation?.hiveOwner).toBe("tester");
     const serialized = JSON.stringify(plan);
     expect(serialized).toContain("[REDACTED]");
     expect(serialized).not.toContain("layer-secret");

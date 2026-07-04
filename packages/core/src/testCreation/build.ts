@@ -11,7 +11,8 @@ import type {
   TestCreationPlan,
   TestCreationPlanOutputResource,
   TestCreationPriority,
-  TestCreationRecommendation
+  TestCreationRecommendation,
+  TestCreationRecommendationDraft
 } from "./types.js";
 
 export interface WriteTestCreationPlanOptions extends BuildTestCreationPlanOptions {
@@ -31,7 +32,7 @@ export async function buildTestCreationPlan(options: BuildTestCreationPlanOption
     ...recommendationsFromCoverage(coverage?.recommendations ?? []),
     ...recommendationsFromMutationSurvivors(evidence?.mutation?.survivedOperators ?? []),
     ...recommendationsFromHandoff(handoff?.workItems ?? [])
-  ]);
+  ]).map(enrichRecommendation);
 
   const plan: TestCreationPlan = {
     schemaVersion: "visual-hive.test-creation-plan.v1",
@@ -100,6 +101,11 @@ export function renderTestCreationPlanMarkdown(plan: TestCreationPlan): string {
             `- [${recommendation.priority}] ${recommendation.title}`,
             `  - Source: ${recommendation.source}`,
             `  - Kind: ${recommendation.kind}`,
+            `  - Gap: ${recommendation.gapId}`,
+            `  - Affected: ${formatAffected(recommendation.affected)}`,
+            `  - Hive owner: ${recommendation.hiveOwner}`,
+            `  - Suggested mutation: ${recommendation.suggestedMutation}`,
+            `  - Validation: \`${recommendation.validationCommand}\``,
             `  - Suggested tests: ${recommendation.suggestedTests.join(" ")}`
           ])
       : ["- No test-creation recommendations were generated from current evidence."])
@@ -107,14 +113,14 @@ export function renderTestCreationPlanMarkdown(plan: TestCreationPlan): string {
   return `${sanitizeText(lines.join("\n"))}\n`;
 }
 
-function recommendationsFromTestingLayers(layers: EvidencePacketTestingLayer[]): TestCreationRecommendation[] {
+function recommendationsFromTestingLayers(layers: EvidencePacketTestingLayer[]): TestCreationRecommendationDraft[] {
   return layers
     .filter((layer) => layer.status === "missing" || layer.status === "unknown" || layer.status === "partial")
     .filter((layer) => [2, 3, 4, 5, 6, 9].includes(layer.id))
     .map((layer) => recommendationForLayer(layer));
 }
 
-function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreationRecommendation {
+function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreationRecommendationDraft {
   const kind = kindForLayer(layer.id);
   const priority = layer.status === "missing" ? "high" : layer.status === "unknown" ? "medium" : "low";
   return {
@@ -133,7 +139,7 @@ function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreation
   };
 }
 
-function recommendationsFromCoverage(recommendations: CoverageImprovementRecommendation[]): TestCreationRecommendation[] {
+function recommendationsFromCoverage(recommendations: CoverageImprovementRecommendation[]): TestCreationRecommendationDraft[] {
   return recommendations.slice(0, 20).map((recommendation) => ({
     id: safeId(`coverage-${recommendation.id}`),
     source: "coverage_recommendation",
@@ -155,7 +161,7 @@ function recommendationsFromCoverage(recommendations: CoverageImprovementRecomme
 
 function recommendationsFromMutationSurvivors(
   survivors: Array<{ operator: string; contractIds: string[]; failedAssertion?: string; artifacts: string[] }>
-): TestCreationRecommendation[] {
+): TestCreationRecommendationDraft[] {
   return survivors.map((survivor) => ({
     id: safeId(`mutation-${survivor.operator}-${survivor.contractIds[0] ?? "unmapped"}`),
     source: "mutation_survivor",
@@ -176,7 +182,7 @@ function recommendationsFromMutationSurvivors(
   }));
 }
 
-function recommendationsFromHandoff(items: HandoffWorkItem[]): TestCreationRecommendation[] {
+function recommendationsFromHandoff(items: HandoffWorkItem[]): TestCreationRecommendationDraft[] {
   return items
     .filter((item) => item.kind === "test_creation")
     .map((item) => ({
@@ -266,6 +272,185 @@ function testsForMutationOperator(operator: string): string[] {
   return [`Add selector, screenshot, or flow assertions that fail when ${operator} is injected.`];
 }
 
+function enrichRecommendation(recommendation: TestCreationRecommendationDraft): TestCreationRecommendation {
+  const affected = affectedForRecommendation(recommendation);
+  return {
+    ...recommendation,
+    gapId: gapIdForRecommendation(recommendation),
+    affected,
+    currentEvidence: currentEvidenceForRecommendation(recommendation),
+    suggestedContract: suggestedContractForRecommendation(recommendation, affected),
+    suggestedMutation: suggestedMutationForRecommendation(recommendation),
+    validationCommand: validationCommandForRecommendation(recommendation),
+    hiveOwner: hiveOwnerForRecommendation(recommendation)
+  };
+}
+
+function gapIdForRecommendation(recommendation: TestCreationRecommendationDraft): string {
+  if (recommendation.coverageRecommendationId) return recommendation.coverageRecommendationId;
+  if (recommendation.handoffWorkItemId) return recommendation.handoffWorkItemId;
+  if (recommendation.mutationOperator) return `mutation:${recommendation.mutationOperator}`;
+  if (recommendation.layer) return `testing-layer:${recommendation.layer.id}:${recommendation.layer.status}`;
+  return recommendation.id;
+}
+
+function affectedForRecommendation(recommendation: TestCreationRecommendationDraft): TestCreationRecommendation["affected"] {
+  const text = [recommendation.id, recommendation.title, recommendation.contractId, recommendation.mutationOperator, recommendation.kind]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const affected: TestCreationRecommendation["affected"] = {};
+
+  if (text.includes("mobile")) affected.viewport = "mobile";
+  else if (recommendation.kind === "screenshot") affected.viewport = "desktop";
+
+  if (text.includes("login") || text.includes("oauth") || text.includes("auth")) {
+    affected.route = "/";
+    affected.component = "auth-boundary";
+    affected.state = "public-demo";
+  } else if (text.includes("api") || text.includes("data") || recommendation.kind === "api_contract") {
+    affected.route = "/";
+    affected.component = "api-backed-data-area";
+    affected.state = "success-error-empty";
+  } else if (text.includes("cluster")) {
+    affected.route = "/clusters";
+    affected.component = "clusters-page";
+  } else if (text.includes("settings")) {
+    affected.route = "/settings";
+    affected.component = "settings-page";
+  } else if (text.includes("dashboard") || recommendation.contractId === "dashboard") {
+    affected.route = "/";
+    affected.component = "dashboard-shell";
+  } else if (recommendation.layer?.id === 9 || recommendation.kind === "mutation_mapping") {
+    affected.route = "/";
+    affected.component = "contract-under-mutation";
+    affected.state = "mutated";
+  } else {
+    affected.route = "/";
+    affected.component = "critical-route-shell";
+  }
+
+  return affected;
+}
+
+function currentEvidenceForRecommendation(recommendation: TestCreationRecommendationDraft): string[] {
+  return [
+    ...recommendation.rationale,
+    ...(recommendation.artifacts.length
+      ? recommendation.artifacts.map((artifact) => `Artifact: ${artifact}`)
+      : ["Artifact: .visual-hive/evidence-packet.json"])
+  ];
+}
+
+function suggestedContractForRecommendation(
+  recommendation: TestCreationRecommendationDraft,
+  affected: TestCreationRecommendation["affected"]
+): TestCreationRecommendation["suggestedContract"] {
+  const mutation = recommendation.mutationOperator;
+  if (mutation === "force-login-on-demo") {
+    return {
+      id: recommendation.contractId ?? "public-demo-never-login",
+      description: "Public/demo target should render the dashboard and never expose login controls.",
+      targetId: recommendation.targetId,
+      route: affected.route ?? "/",
+      selectors: ["[data-testid='dashboard-page']", "not:[data-testid='login-page']", "not:[data-testid='github-login-button']"]
+    };
+  }
+  if (mutation === "hide-critical-button") {
+    return {
+      id: recommendation.contractId ?? "critical-action-visible",
+      description: "Critical user action remains visible and actionable.",
+      targetId: recommendation.targetId,
+      route: affected.route ?? "/",
+      selectors: ["[data-testid='critical-action-button']"]
+    };
+  }
+  if (mutation === "remove-demo-badge") {
+    return {
+      id: recommendation.contractId ?? "demo-badges-render",
+      description: "Demo cards keep visible demo badges.",
+      targetId: recommendation.targetId,
+      route: affected.route ?? "/",
+      selectors: ["[data-testid='demo-badge']"]
+    };
+  }
+  if (mutation === "api-500" || mutation === "empty-data" || recommendation.kind === "api_contract") {
+    return {
+      id: recommendation.contractId ?? "api-backed-data-contract",
+      description: "API-backed data area renders expected success/error/empty state evidence.",
+      targetId: recommendation.targetId,
+      route: affected.route ?? "/",
+      selectors: ["[data-testid='api-data-area']", "[data-testid='dashboard-page']"]
+    };
+  }
+  if (mutation === "mobile-overflow" || affected.viewport === "mobile") {
+    return {
+      id: recommendation.contractId ?? "mobile-layout-stability",
+      description: "Mobile viewport should not regress layout or overflow critical content.",
+      targetId: recommendation.targetId,
+      route: affected.route ?? "/",
+      viewport: "mobile",
+      selectors: ["[data-testid='dashboard-page']"]
+    };
+  }
+
+  return {
+    id: recommendation.contractId ?? safeId(`suggested-${recommendation.kind}-${affected.component ?? "route"}`),
+    description: recommendation.title,
+    targetId: recommendation.targetId,
+    route: affected.route ?? "/",
+    viewport: affected.viewport,
+    selectors: selectorsForKind(recommendation.kind)
+  };
+}
+
+function selectorsForKind(kind: TestCreationKind): string[] {
+  if (kind === "accessibility_check") return ["[data-testid='dashboard-page']", "[role='main']"];
+  if (kind === "api_contract") return ["[data-testid='api-data-area']"];
+  if (kind === "flow") return ["[data-testid='dashboard-page']", "[data-testid='critical-action-button']"];
+  return ["[data-testid='dashboard-page']"];
+}
+
+function suggestedMutationForRecommendation(recommendation: TestCreationRecommendationDraft): string {
+  if (recommendation.mutationOperator) return recommendation.mutationOperator;
+  if (recommendation.kind === "api_contract") return "api-500";
+  if (recommendation.kind === "flow") return "hide-critical-button";
+  if (recommendation.kind === "screenshot") return "mobile-overflow";
+  if (recommendation.kind === "mutation_mapping") return "force-login-on-demo";
+  const title = recommendation.title.toLowerCase();
+  if (title.includes("login") || title.includes("auth")) return "force-login-on-demo";
+  return "not_applicable";
+}
+
+function validationCommandForRecommendation(recommendation: TestCreationRecommendationDraft): string {
+  if (recommendation.kind === "mutation_mapping" || recommendation.mutationOperator) {
+    return "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score";
+  }
+  if (recommendation.kind === "workflow_setup") {
+    return "visual-hive doctor --config visual-hive.config.yaml && visual-hive plan --config visual-hive.config.yaml --mode pr";
+  }
+  if (recommendation.trustedOnly) {
+    return "visual-hive plan --config visual-hive.config.yaml --mode schedule && visual-hive run --config visual-hive.config.yaml --ci";
+  }
+  return "visual-hive plan --config visual-hive.config.yaml --mode pr && visual-hive run --config visual-hive.config.yaml --ci";
+}
+
+function hiveOwnerForRecommendation(recommendation: TestCreationRecommendationDraft): TestCreationRecommendation["hiveOwner"] {
+  if (recommendation.kind === "workflow_setup" || recommendation.kind === "history_review" || recommendation.kind === "provider_review") return "ci-maintainer";
+  if (recommendation.kind === "mutation_mapping" || recommendation.source === "mutation_survivor") return "quality";
+  return "tester";
+}
+
+function formatAffected(affected: TestCreationRecommendation["affected"]): string {
+  const parts = [
+    affected.route ? `route=${affected.route}` : undefined,
+    affected.component ? `component=${affected.component}` : undefined,
+    affected.viewport ? `viewport=${affected.viewport}` : undefined,
+    affected.state ? `state=${affected.state}` : undefined
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "route/component to be determined";
+}
+
 function summarize(recommendations: TestCreationRecommendation[]): TestCreationPlan["summary"] {
   const count = (priority: TestCreationPriority) => recommendations.filter((recommendation) => recommendation.priority === priority).length;
   const sourceCount = (source: TestCreationRecommendation["source"]) => recommendations.filter((recommendation) => recommendation.source === source).length;
@@ -281,7 +466,7 @@ function summarize(recommendations: TestCreationRecommendation[]): TestCreationP
   };
 }
 
-function dedupeRecommendations(recommendations: TestCreationRecommendation[]): TestCreationRecommendation[] {
+function dedupeRecommendations(recommendations: TestCreationRecommendationDraft[]): TestCreationRecommendationDraft[] {
   const seen = new Set<string>();
   return recommendations
     .sort((left, right) => priorityRank(right.priority) - priorityRank(left.priority) || left.id.localeCompare(right.id))

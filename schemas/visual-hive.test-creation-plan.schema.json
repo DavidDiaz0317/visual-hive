@@ -148,11 +148,18 @@
       "type": "object",
       "required": [
         "id",
+        "gapId",
         "source",
         "kind",
         "priority",
         "title",
         "rationale",
+        "affected",
+        "currentEvidence",
+        "suggestedContract",
+        "suggestedMutation",
+        "validationCommand",
+        "hiveOwner",
         "suggestedTests",
         "artifacts",
         "trustedOnly",
@@ -161,6 +168,9 @@
       "additionalProperties": false,
       "properties": {
         "id": {
+          "type": "string"
+        },
+        "gapId": {
           "type": "string"
         },
         "source": {
@@ -202,6 +212,31 @@
           "items": {
             "type": "string"
           }
+        },
+        "affected": {
+          "$ref": "#/$defs/affected"
+        },
+        "currentEvidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedContract": {
+          "$ref": "#/$defs/suggestedContract"
+        },
+        "suggestedMutation": {
+          "type": "string"
+        },
+        "validationCommand": {
+          "type": "string"
+        },
+        "hiveOwner": {
+          "enum": [
+            "quality",
+            "tester",
+            "ci-maintainer"
+          ]
         },
         "layer": {
           "type": "object",
@@ -264,6 +299,57 @@
         },
         "applyMode": {
           "const": "advisory_no_write"
+        }
+      }
+    },
+    "affected": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      }
+    },
+    "suggestedContract": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "route",
+        "selectors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        },
+        "selectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

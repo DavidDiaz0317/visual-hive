@@ -62,6 +62,18 @@ Recommendations can come from:
 
 Each recommendation includes a source, kind, priority, rationale, suggested tests, optional YAML snippet, artifact pointers, trusted-only flag, and `applyMode: advisory_no_write`.
 
+Recommendations also include agent-forward context so Hive Quality/Tester agents can act without scraping prose:
+
+- `gapId`: stable identifier for the missing layer, coverage gap, mutation survivor, or handoff work item.
+- `affected`: route/component/viewport/state context inferred from deterministic evidence.
+- `currentEvidence`: sanitized evidence lines and artifact pointers that explain why the recommendation exists.
+- `suggestedContract`: a bounded contract shape with route, selectors, optional target/viewport, and description.
+- `suggestedMutation`: the mutation operator that should validate the new test, or `not_applicable` when the recommendation is setup-oriented.
+- `validationCommand`: the Visual Hive command path that should prove the added test or config.
+- `hiveOwner`: suggested Hive ownership: `quality`, `tester`, or `ci-maintainer`.
+
+These fields are advisory. They do not authorize autonomous writes, baseline approval, provider enablement, threshold changes, or verdict-policy changes.
+
 ## Agent Use
 
 `visual-hive agent-packet --profile test_creator` automatically includes recommendations from `.visual-hive/test-creation-plan.json` when it exists. The receiving agent may draft tests or config patches, but a human or trusted workflow must still review and apply changes.
