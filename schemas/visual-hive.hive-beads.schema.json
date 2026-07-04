@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-beads.schema.json",
+  "title": "Visual Hive Hive Beads",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "title",
+      "type",
+      "status",
+      "priority",
+      "actor",
+      "external_ref",
+      "metadata",
+      "notes",
+      "created_at",
+      "updated_at",
+      "depends_on"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "enum": [
+          "bug",
+          "feature",
+          "task",
+          "epic",
+          "chore",
+          "decision",
+          "advisory"
+        ]
+      },
+      "status": {
+        "enum": [
+          "open",
+          "in_progress",
+          "blocked",
+          "done",
+          "closed"
+        ]
+      },
+      "priority": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "actor": {
+        "type": "string"
+      },
+      "external_ref": {
+        "type": "string"
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "notes": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "closed_at": {
+        "type": "string"
+      },
+      "depends_on": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

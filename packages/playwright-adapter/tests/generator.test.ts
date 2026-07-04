@@ -8,7 +8,7 @@ import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
-import { runPlaywrightContracts } from "../src/runner.js";
+import { normalizeStructuredContractResult, runPlaywrightContracts } from "../src/runner.js";
 import { PNG } from "pngjs";
 
 const tempDirs: string[] = [];
@@ -68,6 +68,9 @@ describe("buildSpecContent", () => {
     expect(content).toContain("\"route\": \"/\"");
     expect(content).toContain("\"width\": 1440");
     expect(content).toContain("VISUAL_HIVE_MUTATION_OPERATOR");
+    expect(content).toContain("VISUAL_HIVE_MUTATION_OPERATORS");
+    expect(content).toContain("VISUAL_HIVE_MUTATION_MATRIX");
+    expect(content).toContain("mutationAppliesToContract");
     expect(content).toContain("hide-critical-button");
     expect(content).toContain("route-guard-bypass");
     expect(content).toContain("hidden-error-banner");
@@ -106,6 +109,35 @@ describe("buildSpecContent", () => {
     const artifacts = await collectArtifacts(tempRoot);
 
     expect(artifacts.some((artifact) => artifact.endsWith("visual-hive.generated.spec.ts"))).toBe(true);
+  });
+
+  it("keeps mutation batch contract artifacts scoped to the operator result", () => {
+    const structured = {
+      contractId: "dashboard",
+      mutationOperator: "force-login-on-demo",
+      targetId: "localPreview",
+      status: "failed" as const,
+      durationMs: 100,
+      errors: ["token=secret-value"],
+      artifacts: [
+        ".visual-hive/artifacts/results/force-login-on-demo__dashboard.json",
+        ".visual-hive/artifacts/screenshots/force-login-on-demo__dashboard.png"
+      ]
+    };
+    const runArtifacts = [
+      ".visual-hive/generated/visual-hive.generated.spec.ts",
+      ".visual-hive/artifacts/results/other-operator__dashboard.json",
+      ".visual-hive/artifacts/screenshots/other-operator__dashboard.png"
+    ];
+
+    const mutationResult = normalizeStructuredContractResult(structured, runArtifacts, "visual-hive mutate", "contract-only");
+    const deterministicResult = normalizeStructuredContractResult(structured, runArtifacts, "visual-hive run --ci", "include-run-artifacts");
+
+    expect(mutationResult.artifacts).toEqual(structured.artifacts);
+    expect(mutationResult.artifacts).not.toContain(".visual-hive/artifacts/results/other-operator__dashboard.json");
+    expect(mutationResult.reproductionCommand).toBe("visual-hive mutate");
+    expect(mutationResult.errors).toEqual(["token=[REDACTED]"]);
+    expect(deterministicResult.artifacts).toContain(".visual-hive/generated/visual-hive.generated.spec.ts");
   });
 
   it("serializes resolved deploy preview URLs into generated specs", async () => {

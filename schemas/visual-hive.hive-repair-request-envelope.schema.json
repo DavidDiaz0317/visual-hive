@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-repair-request-envelope.schema.json",
+  "title": "Visual Hive Hive Repair Request Envelope",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "outputResource",
+    "policy",
+    "github",
+    "readiness",
+    "summary",
+    "requests"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "visual-hive.hive-repair-request-envelope.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": [
+        "guardedRepairPreview",
+        "hiveExport",
+        "repairWorkOrders",
+        "agentPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "guardedRepairPreview": {
+          "type": "string"
+        },
+        "hiveExport": {
+          "type": "string"
+        },
+        "repairWorkOrders": {
+          "type": "string"
+        },
+        "agentPolicy": {
+          "type": "string"
+        },
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": [
+        "envelope",
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "envelope": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      }
+    },
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactKey",
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactKey": {
+          "const": "envelope"
+        },
+        "artifactPath": {
+          "const": ".visual-hive/hive/repair-request-envelope.json"
+        },
+        "evidenceResourceId": {
+          "const": "hive-repair-request-envelope"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://hive-repair-request-envelope"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_hive_repair_request_envelope"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "verdictAuthority",
+        "requestExecution",
+        "repairExecution",
+        "requiresTrustedWorkflow",
+        "branchIsolationRequired",
+        "pullRequestOnly",
+        "humanReviewRequired",
+        "visualHiveRerunRequired",
+        "externalNetworkCalls",
+        "protectedTargetsFromPr",
+        "secretsPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "requestExecution": {
+          "const": "trusted_workflow_request_only"
+        },
+        "repairExecution": {
+          "const": "not_executed_by_visual_hive"
+        },
+        "requiresTrustedWorkflow": {
+          "const": true
+        },
+        "branchIsolationRequired": {
+          "const": true
+        },
+        "pullRequestOnly": {
+          "type": "boolean"
+        },
+        "humanReviewRequired": {
+          "type": "boolean"
+        },
+        "visualHiveRerunRequired": {
+          "type": "boolean"
+        },
+        "externalNetworkCalls": {
+          "const": false
+        },
+        "protectedTargetsFromPr": {
+          "const": false
+        },
+        "secretsPolicy": {
+          "const": "names_only_values_redacted"
+        }
+      }
+    },
+    "github": {
+      "type": "object",
+      "required": [
+        "branchPrefix",
+        "pullRequestTitlePrefix",
+        "labels",
+        "dedupeKey"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "branchPrefix": {
+          "type": "string"
+        },
+        "pullRequestTitlePrefix": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dedupeKey": {
+          "type": "string"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "canOpenTrustedRepairRequest",
+        "blockedReasons",
+        "requiredApprovals",
+        "requiredCommands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canOpenTrustedRepairRequest": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredApprovals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "repairRequests",
+        "readyRequests",
+        "blockedRequests"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repairRequests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readyRequests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedRequests": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/request"
+      }
+    }
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "actor",
+        "objective",
+        "branchName",
+        "allowedFiles",
+        "artifacts",
+        "reproductionCommands",
+        "acceptanceCriteria",
+        "allowedActions",
+        "forbiddenActions",
+        "maxAttempts",
+        "requireHumanReview",
+        "finalValidationCommand",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "branchName": {
+          "type": "string"
+        },
+        "allowedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requireHumanReview": {
+          "type": "boolean"
+        },
+        "finalValidationCommand": {
+          "type": "string"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

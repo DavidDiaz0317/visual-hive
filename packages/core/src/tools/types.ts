@@ -48,6 +48,11 @@ export interface ToolRegistryEntry {
   writes: string[];
   writeRestrictions: string[];
   evidenceArtifacts: string[];
+  evidenceResourceId?: string;
+  evidenceResourceUri?: string;
+  evidenceResourceTitle?: string;
+  evidenceResourceDescription?: string;
+  evidenceReadToolName?: string;
   notes: string[];
 }
 

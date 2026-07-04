@@ -24,6 +24,8 @@ export interface RunPlaywrightOptions {
   rootDir: string;
   ci?: boolean;
   mutationOperator?: string;
+  mutationOperators?: string[];
+  mutationMatrix?: Record<string, string[]>;
   runTargetCommands?: boolean;
   skipInstall?: boolean;
   skipBuild?: boolean;
@@ -91,7 +93,9 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
       options.rootDir,
       {
         VISUAL_HIVE_CI: options.ci ? "true" : "false",
-        VISUAL_HIVE_MUTATION_OPERATOR: options.mutationOperator ?? ""
+        VISUAL_HIVE_MUTATION_OPERATOR: options.mutationOperator ?? "",
+        VISUAL_HIVE_MUTATION_OPERATORS: options.mutationOperators?.length ? JSON.stringify(options.mutationOperators) : "",
+        VISUAL_HIVE_MUTATION_MATRIX: options.mutationMatrix ? JSON.stringify(options.mutationMatrix) : ""
       },
       true
     );
@@ -126,7 +130,8 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     durationMs: Date.now() - startedAt,
     targetLifecycle,
     generatedSpecPath: spec.path,
-    executionError
+    executionError,
+    mutationBatch: Boolean(options.mutationOperators?.length)
   });
   return { report, exitCode: playwrightResult?.exitCode ?? (executionError ? 1 : 0) };
 }
@@ -159,9 +164,14 @@ async function buildReportFromPlaywrightOutput(input: {
   targetLifecycle: TargetLifecycleEvent[];
   generatedSpecPath: string;
   executionError?: unknown;
+  mutationBatch?: boolean;
 }): Promise<Report> {
   const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
-  const structuredResults = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
+  const structuredResultList = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
+  const structuredResults = new Map<string, ContractResult>();
+  for (const structured of structuredResultList) {
+    if (!structured.mutationOperator) structuredResults.set(structured.contractId, structured);
+  }
   const repository = await collectRepositoryMetadata({ repoRoot: input.rootDir });
   const parsed = parsePlaywrightJson(input.stdout);
   const resultByContract = new Map<string, { status: "passed" | "failed"; errors: string[]; durationMs: number }>();
@@ -180,33 +190,30 @@ async function buildReportFromPlaywrightOutput(input: {
     }
   }
 
-  const results: ContractResult[] = input.plan.items.map((item) => {
-    const structured = structuredResults.get(item.contractId);
-    if (structured) {
-      return {
-        ...structured,
-        errors: structured.errors.map((error) => sanitizeText(error)),
-        artifacts: [...new Set([...(structured.artifacts ?? []), ...artifacts])],
-        reproductionCommand: structured.reproductionCommand ?? `visual-hive run --ci`
-      };
-    }
-    const parsedResult = resultByContract.get(item.contractId);
-    const failed = input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed");
-    const executionErrorMessage = input.executionError instanceof Error ? input.executionError.message : input.executionError ? String(input.executionError) : "";
-    return {
-      contractId: item.contractId,
-      targetId: item.targetId,
-      status: parsedResult?.status ?? (failed ? "failed" : "passed"),
-      durationMs: parsedResult?.durationMs ?? input.durationMs,
-      errors: parsedResult?.errors.length
-        ? parsedResult.errors.map((error) => sanitizeText(error))
-        : failed
-          ? [sanitizeText(executionErrorMessage || input.stderr || "Playwright reported a failure without structured error details.")]
-          : [],
-      artifacts,
-      reproductionCommand: "visual-hive run --ci"
-    };
-  });
+  const results: ContractResult[] = input.mutationBatch && structuredResultList.length
+    ? structuredResultList.map((structured) => normalizeStructuredContractResult(structured, artifacts, "visual-hive mutate", "contract-only"))
+    : input.plan.items.map((item) => {
+        const structured = structuredResults.get(item.contractId);
+        if (structured) {
+          return normalizeStructuredContractResult(structured, artifacts, "visual-hive run --ci", "include-run-artifacts");
+        }
+        const parsedResult = resultByContract.get(item.contractId);
+        const failed = input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed");
+        const executionErrorMessage = input.executionError instanceof Error ? input.executionError.message : input.executionError ? String(input.executionError) : "";
+        return {
+          contractId: item.contractId,
+          targetId: item.targetId,
+          status: parsedResult?.status ?? (failed ? "failed" : "passed"),
+          durationMs: parsedResult?.durationMs ?? input.durationMs,
+          errors: parsedResult?.errors.length
+            ? parsedResult.errors.map((error) => sanitizeText(error))
+            : failed
+              ? [sanitizeText(executionErrorMessage || input.stderr || "Playwright reported a failure without structured error details.")]
+              : [],
+          artifacts,
+          reproductionCommand: "visual-hive run --ci"
+        };
+      });
   const summary = buildSummary(results);
 
   const status = results.some((result) => result.status === "failed") ? "failed" : "passed";
@@ -252,9 +259,26 @@ async function buildReportFromPlaywrightOutput(input: {
   });
 }
 
-async function readStructuredContractResults(rootDir: string, artifactDir: string): Promise<Map<string, ContractResult>> {
+export function normalizeStructuredContractResult(
+  structured: ContractResult,
+  runArtifacts: string[],
+  fallbackReproductionCommand: string,
+  artifactScope: "contract-only" | "include-run-artifacts"
+): ContractResult {
+  return {
+    ...structured,
+    errors: structured.errors.map((error) => sanitizeText(error)),
+    artifacts:
+      artifactScope === "contract-only"
+        ? [...new Set(structured.artifacts ?? [])]
+        : [...new Set([...(structured.artifacts ?? []), ...runArtifacts])],
+    reproductionCommand: structured.reproductionCommand ?? fallbackReproductionCommand
+  };
+}
+
+async function readStructuredContractResults(rootDir: string, artifactDir: string): Promise<ContractResult[]> {
   const resultDir = path.join(rootDir, artifactDir, "results");
-  const results = new Map<string, ContractResult>();
+  const results: ContractResult[] = [];
   try {
     const entries = await readdir(resultDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -263,12 +287,12 @@ async function readStructuredContractResults(rootDir: string, artifactDir: strin
       }
       const raw = await readFile(path.join(resultDir, entry.name), "utf8");
       const parsed = JSON.parse(raw) as ContractResult;
-      results.set(parsed.contractId, parsed);
+      results.push(parsed);
     }
   } catch {
     return results;
   }
-  return results;
+  return results.sort((a, b) => `${a.mutationOperator ?? ""}:${a.contractId}`.localeCompare(`${b.mutationOperator ?? ""}:${b.contractId}`));
 }
 
 function parsePlaywrightJson(stdout: string): unknown | undefined {
@@ -421,6 +445,7 @@ function sanitizeEvidenceContribution(contribution: EvidenceContribution): Evide
 function sanitizeContractResult(result: ContractResult): ContractResult {
   return {
     ...result,
+    mutationOperator: result.mutationOperator ? sanitizeText(result.mutationOperator) : undefined,
     errors: result.errors.map((error) => sanitizeText(error)),
     artifacts: result.artifacts.map((artifact) => sanitizeText(artifact)),
     reproductionCommand: result.reproductionCommand ? sanitizeText(result.reproductionCommand) : undefined,

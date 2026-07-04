@@ -3,8 +3,10 @@ import type { ReactElement } from "react";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   ChevronRight,
   Clock,
+  ClipboardList,
   Eye,
   FileJson,
   FlaskConical,
@@ -14,6 +16,7 @@ import {
   RefreshCw,
   Settings,
   Shield,
+  ShieldCheck,
   SlidersHorizontal,
   Terminal,
   XCircle
@@ -39,6 +42,7 @@ import type { Failure, RunProfile, Screenshot, Snapshot, Tone } from "./types/co
 
 type WorkAreaId = "start" | "run" | "review" | "configure";
 type UserMode = "beginner" | "expert";
+type AgentTool = NonNullable<Snapshot["providerAgentPacket"]>["allowedTools"][number];
 
 const workAreas: Array<{ id: WorkAreaId; label: string; icon: typeof Activity; description: string }> = [
   { id: "start", label: "Start", icon: Home, description: "Quality cockpit" },
@@ -217,7 +221,7 @@ function renderWorkspace(
 ) {
   switch (area) {
     case "start":
-      return <StartWorkspace snapshot={snapshot} connection={actions.connection} mode={actions.mode} selectArea={actions.selectArea} />;
+      return <StartWorkspace snapshot={snapshot} connection={actions.connection} busyAction={actions.busyAction} mode={actions.mode} selectArea={actions.selectArea} runAction={actions.runAction} />;
     case "run":
       return <RunWorkspace snapshot={snapshot} runAction={actions.runAction} busyAction={actions.busyAction} connection={actions.connection} mode={actions.mode} />;
     case "review":
@@ -236,13 +240,17 @@ function renderWorkspace(
 function StartWorkspace({
   snapshot,
   connection,
+  busyAction,
   mode,
-  selectArea
+  selectArea,
+  runAction
 }: {
   snapshot: Snapshot;
   connection?: string;
+  busyAction?: string;
   mode: UserMode;
   selectArea: (area: WorkAreaId) => void;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
 }) {
   const overview = snapshot.overview;
   const report = snapshot.report;
@@ -251,6 +259,7 @@ function StartWorkspace({
   return (
     <div className="view-grid">
       <GuidedActionPanel className="span-12" snapshot={snapshot} selectArea={selectArea} />
+      <AdoptionChecklist className="span-12" snapshot={snapshot} busyAction={busyAction} connection={connection} runAction={runAction} selectArea={selectArea} />
       <SignalCard className="span-3" icon={<Shield size={17} />} label="Visual Hive verdict" tone={verdictTone(overview.visualHiveVerdict)} value={overview.visualHiveVerdict ?? "missing"} detail={`${overview.gatingContributions} gating signals`} />
       <SignalCard className="span-3" icon={<Activity size={17} />} label="Project health" tone="amber" value={overview.healthGrade ?? "unknown"} detail={snapshot.config?.project?.name ?? "No config loaded"} />
       <SignalCard className="span-3" icon={<Shield size={17} />} label="Browser run" tone={statusTone(overview.deterministicStatus)} value={overview.deterministicStatus} detail={`${report?.selectedContracts?.length ?? 0} selected contracts`} />
@@ -317,6 +326,87 @@ function GuidedActionPanel({ className = "", snapshot, selectArea }: { className
         ))}
       </div>
     </section>
+  );
+}
+
+function AdoptionChecklist({
+  className = "",
+  snapshot,
+  selectArea,
+  runAction,
+  busyAction,
+  connection
+}: {
+  className?: string;
+  snapshot: Snapshot;
+  selectArea: (area: WorkAreaId) => void;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+}) {
+  const checklist = snapshot.guidanceState.adoptionChecklist;
+  return (
+    <Card className={className} title="Setup/adoption checklist" action={<Button onClick={() => selectArea("configure")} variant="ghost">Open setup</Button>}>
+      <p className="card-subtext">From first run to trusted automation: each step explains what is ready, why it matters, and where to go next.</p>
+      <SimpleTable
+        headers={["Step", "Status", "Why it matters", "Action"]}
+        rows={checklist.map((item) => [
+          item.step,
+          <Badge key="status" tone={statusTone(item.status)}>{item.status}</Badge>,
+          item.why,
+          <ChecklistActionCell
+            busyAction={busyAction}
+            connection={connection}
+            item={item}
+            key="action"
+            runAction={runAction}
+            selectArea={selectArea}
+            snapshot={snapshot}
+          />
+        ])}
+      />
+    </Card>
+  );
+}
+
+function ChecklistActionCell({
+  item,
+  snapshot,
+  selectArea,
+  runAction,
+  busyAction,
+  connection
+}: {
+  item: Snapshot["guidanceState"]["adoptionChecklist"][number];
+  snapshot: Snapshot;
+  selectArea: (area: WorkAreaId) => void;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  busyAction?: string;
+  connection?: string;
+}) {
+  return (
+    <div className="checklist-action">
+      <button className="link-button" onClick={() => selectArea(item.area)} type="button">{item.nextAction}</button>
+      {item.commandId ? (
+        <>
+          <small>{item.commandLabel ?? item.commandId}</small>
+          <div className="row compact">
+            {item.command && <CopyButton label="Copy" value={item.command} />}
+            <ConfirmButton
+              disabled={!item.commandRunnable || snapshot.readOnly || busyAction === item.commandId}
+              message={`Run allowlisted checklist command "${item.commandId}" locally?`}
+              onConfirm={() => runAction(item.commandId!, () => postJson("/api/runbook/execute", { commandId: item.commandId }, connection))}
+              variant="primary"
+            >
+              Run
+            </ConfirmButton>
+          </div>
+          {item.commandBlockedReason ? <small className="muted-text">{item.commandBlockedReason}</small> : null}
+        </>
+      ) : item.commandBlockedReason ? (
+        <small className="muted-text">{item.commandBlockedReason}</small>
+      ) : null}
+    </div>
   );
 }
 
@@ -565,13 +655,91 @@ function ReviewWorkspace({
         <Mutation snapshot={snapshot} connection={connection} />
       </div>
       <div className="span-12">
+        <RunHistoryPanel snapshot={snapshot} connection={connection} mode={mode} />
+      </div>
+      <div className="span-12">
         <TestCreationPlanView snapshot={snapshot} runAction={runAction} busyAction={busyAction} connection={connection} mode={mode} />
       </div>
       <div className="span-12">
         <Runs snapshot={snapshot} connection={connection} />
       </div>
-      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, evidencePacket: snapshot.evidencePacket, verdictReport: snapshot.verdictReport, handoffPacket: snapshot.handoffPacket, agentPacket: snapshot.agentPacket, testCreationPlan: snapshot.testCreationPlan }} />}
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, runHistory: snapshot.runHistory, evidencePacket: snapshot.evidencePacket, verdictReport: snapshot.verdictReport, handoffPacket: snapshot.handoffPacket, agentPacket: snapshot.agentPacket, handoffAgentPacket: snapshot.handoffAgentPacket, providerAgentPacket: snapshot.providerAgentPacket, testCreationPlan: snapshot.testCreationPlan }} />}
     </div>
+  );
+}
+
+function RunHistoryPanel({ snapshot, connection, mode }: { snapshot: Snapshot; connection?: string; mode: UserMode }) {
+  const history = snapshot.runHistory;
+  const historyArtifact = evidenceArtifact(snapshot, "run-history", ".visual-hive/history.json");
+  const historyPath = historyArtifact?.path ?? ".visual-hive/history.json";
+  if (!history) {
+    return (
+      <Card title="Run history trends" action={<Badge tone="neutral">missing</Badge>}>
+        <EmptyState title="No run history yet">
+          Run `visual-hive history --record` after a deterministic run to track trend evidence across executions.
+        </EmptyState>
+      </Card>
+    );
+  }
+
+  const summary = history.summary;
+  const trend = history.trend;
+  const latest = history.entries?.[0];
+  const trendTone: Tone = trend.direction === "improved" ? "success" : trend.direction === "regressed" ? "danger" : trend.direction === "unchanged" ? "info" : "neutral";
+  const artifactPaths = Array.from(
+    new Set(
+      [
+        historyPath,
+        latest?.files?.report,
+        latest?.files?.mutationReport,
+        latest?.files?.triageReport,
+        latest?.files?.baselineReview,
+        ...(latest?.artifacts ?? [])
+      ].filter((item): item is string => Boolean(item))
+    )
+  );
+
+  const trendFindings = trend.reasons.length
+    ? trend.reasons
+    : ["No previous comparable run is available yet. The current run history is trend evidence only."];
+
+  return (
+    <Card
+      title="Run history trends"
+      action={
+        <div className="row">
+          <Badge tone={trendTone}>{trend.direction}</Badge>
+          <ExternalArtifactLink href={artifactUrl(historyPath, "file", connection)} label={historyArtifact?.evidenceResourceTitle ? `Open ${historyArtifact.evidenceResourceTitle}` : "Open history"} />
+        </div>
+      }
+    >
+      <p className="card-subtext">
+        Longitudinal evidence for flake, baseline stability, mutation adequacy, runtime, and cost review. History helps explain patterns; it does not override the current Visual Hive verdict.
+      </p>
+      <div className="verdict-grid">
+        <MetricCard label="Runs tracked" tone="info" value={summary.runCount} />
+        <MetricCard label="Latest status" tone={statusTone(summary.latestStatus)} value={summary.latestStatus ?? "unknown"} />
+        <MetricCard label="Mutation trend" tone={typeof summary.latestMutationScore === "number" && summary.latestMutationScore >= 0.7 ? "success" : "warning"} value={formatPercent(summary.latestMutationScore)} />
+        <MetricCard label="Visual diffs" tone={summary.totalVisualDiffs > 0 ? "warning" : "success"} value={summary.totalVisualDiffs} />
+      </div>
+      <KeyValueTable
+        rows={[
+          ["Latest recorded", formatDate(summary.latestRecordedAt)],
+          ["Passed / failed runs", `${summary.passedRuns} / ${summary.failedRuns}`],
+          ["Missing baselines", summary.totalMissingBaselines],
+          ["Created baselines", summary.totalCreatedBaselines],
+          ["Average mutation score", formatPercent(summary.averageMutationScore)],
+          ["Evidence resource", historyArtifact?.evidenceResourceUri ?? "catalog metadata pending"]
+        ]}
+      />
+      <FindingList findings={mode === "expert" ? trendFindings : trendFindings.slice(0, 3)} tone={trendTone === "danger" ? "danger" : trendTone === "neutral" ? "info" : trendTone} />
+      {mode === "expert" && (
+        <>
+          <ArtifactList artifacts={artifactPaths.slice(0, 10)} connection={connection} />
+          <EvidenceDisclosure title="View raw run history evidence" data={history} compact />
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -598,7 +766,18 @@ function ConfigureWorkspace({
       <div className="span-6">
         <Contracts snapshot={snapshot} />
       </div>
-      <HumanEvidencePanel className="span-6" title="Readiness" emptyTitle="No readiness report" findings={readinessFindings(snapshot)} data={snapshot.readinessReport} />
+      <SchemaCatalogPanel className="span-12" snapshot={snapshot} runAction={runAction} connection={connection} />
+      <HumanEvidencePanel
+        className="span-6"
+        title="Readiness"
+        emptyTitle="No readiness report"
+        findings={readinessFindings(snapshot)}
+        data={snapshot.readinessReport}
+        snapshot={snapshot}
+        connection={connection}
+        artifactResourceId="readiness-gate"
+        artifactPath=".visual-hive/readiness.json"
+      />
       <HumanEvidencePanel className="span-6" title="Risk" emptyTitle="No risk register" findings={riskFindings(snapshot)} data={snapshot.riskReport} />
       <HumanEvidencePanel className="span-6" title="Security" emptyTitle="No security audit" findings={securityFindings(snapshot)} data={snapshot.securityAudit} />
       <HumanEvidencePanel className="span-6" title="Costs" emptyTitle="No cost audit" findings={costFindings(snapshot)} data={snapshot.costAudit} />
@@ -650,18 +829,84 @@ function HumanEvidencePanel({
   title,
   emptyTitle,
   findings,
-  data
+  data,
+  snapshot,
+  connection,
+  artifactResourceId,
+  artifactPath
 }: {
   className?: string;
   title: string;
   emptyTitle: string;
   findings: string[];
   data: unknown;
+  snapshot?: Snapshot;
+  connection?: string;
+  artifactResourceId?: string;
+  artifactPath?: string;
 }) {
+  const linkedArtifactPath = snapshot && artifactResourceId && artifactPath ? evidenceArtifactPath(snapshot, artifactResourceId, artifactPath) : artifactPath;
   return (
     <Card className={className} title={title}>
       {findings.length ? <FindingList findings={findings} /> : <EmptyState title={emptyTitle}>Run the matching Visual Hive command to generate guidance.</EmptyState>}
+      {linkedArtifactPath ? <ExternalArtifactLink href={artifactUrl(linkedArtifactPath, "file", connection)} label={`Open ${title.toLowerCase()} artifact`} /> : null}
       <EvidenceDisclosure title={`View raw ${title.toLowerCase()} evidence`} data={data} compact />
+    </Card>
+  );
+}
+
+function SchemaCatalogPanel({
+  className = "",
+  snapshot,
+  runAction,
+  connection
+}: {
+  className?: string;
+  snapshot: Snapshot;
+  runAction: (label: string, action: () => Promise<unknown>) => Promise<void>;
+  connection?: string;
+}) {
+  const catalog = snapshot.schemaCatalog;
+  const command = snapshot.runbook?.commands?.find((candidate) => candidate.id === "schemas-verify");
+  const schemaCatalogArtifact = evidenceArtifact(snapshot, "schema-catalog", ".visual-hive/schema-catalog.json");
+  const schemaCatalogPath = schemaCatalogArtifact?.path ?? ".visual-hive/schema-catalog.json";
+  const status = catalog?.status ?? "missing";
+  const findings = schemaCatalogFindings(snapshot);
+  return (
+    <Card
+      className={className}
+      title="Schema/catalog health"
+      action={
+        <div className="row">
+          <Badge tone={statusTone(status)}>{status}</Badge>
+          {command && <CopyButton label="Copy command" value={command.command} />}
+          {command && (
+            <ConfirmButton
+              disabled={snapshot.readOnly}
+              message="Verify schema/catalog drift and refresh the local evidence artifact?"
+              onConfirm={() => runAction(command.id, () => postJson("/api/runbook/execute", { commandId: command.id }, connection))}
+              variant="primary"
+            >
+              Verify
+            </ConfirmButton>
+          )}
+        </div>
+      }
+    >
+      <p className="card-subtext">
+        This checks that JSON Schemas, MCP resources, Tool Registry cards, Agent Packets, Context Ledger metadata, and artifact evidence-resource IDs still describe the same system.
+      </p>
+      <div className="verdict-grid">
+        <MetricCard label="Schemas checked" tone="info" value={catalog?.summary.schemasChecked ?? 0} />
+        <MetricCard label="Checks" tone="info" value={catalog?.summary.checks ?? 0} />
+        <MetricCard label="Failed" tone={(catalog?.summary.failed ?? 0) > 0 ? "danger" : "success"} value={catalog?.summary.failed ?? 0} />
+        <MetricCard label="Read tools" tone="neutral" value={catalog?.summary.evidenceReadTools ?? 0} />
+      </div>
+      <FindingList findings={findings} tone={status === "failed" ? "danger" : status === "missing" ? "warning" : "info"} />
+      <div className="row">
+        <ExternalArtifactLink href={artifactUrl(schemaCatalogPath, "file", connection)} label={schemaCatalogArtifact?.evidenceResourceTitle ? `Open ${schemaCatalogArtifact.evidenceResourceTitle} artifact` : "Open schema catalog artifact"} />
+      </div>
+      <EvidenceDisclosure title="View raw schema catalog evidence" data={catalog} compact />
     </Card>
   );
 }
@@ -720,6 +965,9 @@ function ExpertDrawer({
           <Card title="Artifacts" action={<Badge>{artifacts.length}</Badge>}>
             <ArtifactPreview artifacts={artifacts.slice(0, 8)} connection={connection} />
           </Card>
+          <Card title="Linked evidence resources" action={<Badge>{snapshot.contextLedger?.toolCalls?.length ?? 0}</Badge>}>
+            <ContextLedgerEvidenceLinks snapshot={snapshot} connection={connection} />
+          </Card>
           <Card title="Run details">
             <KeyValueTable
               rows={[
@@ -730,11 +978,16 @@ function ExpertDrawer({
               ]}
             />
             <div className="stack">
-              <ExternalArtifactLink href={artifactUrl(".visual-hive/report.json", "file", connection)} label="Open report" />
-              <ExternalArtifactLink href={artifactUrl(".visual-hive/mutation-report.json", "file", connection)} label="Open mutation report" />
+              <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "latest-report", ".visual-hive/report.json"), "file", connection)} label="Open report" />
+              <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "mutation-report", ".visual-hive/mutation-report.json"), "file", connection)} label="Open mutation report" />
+              <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "context-ledger", ".visual-hive/context-ledger.json"), "file", connection)} label="Open context ledger" />
             </div>
           </Card>
-          <EvidenceDisclosure className="span-12" title="Raw snapshot evidence" data={{ report: snapshot.report, plan: snapshot.plan, hiveExport: snapshot.hiveExport, artifacts: snapshot.artifacts }} />
+          <EvidenceDisclosure
+            className="span-12"
+            title="Raw snapshot evidence"
+            data={{ report: snapshot.report, plan: snapshot.plan, schemaCatalog: snapshot.schemaCatalog, hiveExport: snapshot.hiveExport, artifacts: snapshot.artifacts }}
+          />
         </div>
       )}
     </section>
@@ -745,8 +998,58 @@ function ArtifactPreview({ artifacts, connection }: { artifacts: Snapshot["artif
   if (!artifacts.length) return <EmptyState title="No artifacts indexed" />;
   return (
     <div className="artifact-preview">
-      {artifacts.map((artifact) => (
-        <ExternalArtifactLink href={artifactUrl(artifact.path, artifact.kind === "image" ? "image" : "file", connection)} key={artifact.path} label={`${artifact.path} · ${artifact.bytes} B`} />
+      {artifacts.map((artifact) => {
+        const label = artifact.evidenceResourceTitle ? `${artifact.evidenceResourceTitle} · ${artifact.path} · ${artifact.bytes} B` : `${artifact.path} · ${artifact.bytes} B`;
+        return <ExternalArtifactLink href={artifactUrl(artifact.path, artifact.kind === "image" ? "image" : "file", connection)} key={artifact.path} label={label} />;
+      })}
+    </div>
+  );
+}
+
+function ContextLedgerEvidenceLinks({ snapshot, connection }: { snapshot: Snapshot; connection?: string }) {
+  const linkedToolCalls = (snapshot.contextLedger?.toolCalls ?? [])
+    .map((call) => ({
+      ...call,
+      linkedResources:
+        call.evidenceResources?.length
+          ? call.evidenceResources
+          : call.evidenceResourceId && call.evidenceResourceUri
+            ? [
+                {
+                  evidenceResourceId: call.evidenceResourceId,
+                  evidenceResourceUri: call.evidenceResourceUri,
+                  evidenceResourceTitle: call.evidenceResourceTitle ?? call.evidenceResourceId,
+                  evidenceResourceDescription: call.evidenceResourceDescription ?? "",
+                  evidenceReadToolName: call.evidenceReadToolName,
+                  artifactPath: call.artifacts?.[0] ?? ""
+                }
+              ]
+            : []
+    }))
+    .filter((call) => call.linkedResources.length);
+  if (!linkedToolCalls.length) {
+    return <EmptyState title="No linked evidence resources">Run visual-hive context after pipeline artifacts exist.</EmptyState>;
+  }
+  return (
+    <div className="linked-evidence-list">
+      {linkedToolCalls.slice(0, 4).map((call) => (
+        <div className="linked-evidence-row" key={call.id}>
+          <div>
+            <strong>{call.label}</strong>
+            <small>
+              {call.toolId} - {call.status}
+            </small>
+          </div>
+          <div className="linked-evidence-links">
+            {call.linkedResources.slice(0, 6).map((resource) => (
+              <ExternalArtifactLink
+                href={artifactUrl(resource.artifactPath, "file", connection)}
+                key={`${call.id}:${resource.evidenceResourceId}:${resource.artifactPath}`}
+                label={`${resource.evidenceResourceTitle} - ${resource.evidenceReadToolName ?? resource.evidenceResourceUri}`}
+              />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -800,23 +1103,39 @@ function AgentForwardWorkflow({
   const workItems = snapshot.handoffPacket?.workItems ?? snapshot.agentPacket?.evidenceSummary?.workItems ?? [];
   const blockedReasons = snapshot.handoffPacket?.blockedReasons ?? snapshot.evidencePacket?.hiveReadiness?.blockedReasons ?? [];
   const packetArtifacts = [
-    ".visual-hive/evidence-packet.json",
-    ".visual-hive/verdict.json",
-    ".visual-hive/handoff.json",
-    ".visual-hive/hive/hive-export.json",
-    ".visual-hive/agent-packet.json",
-    ".visual-hive/test-creation-plan.json"
+    evidenceArtifactPath(snapshot, "latest-evidence", ".visual-hive/evidence-packet.json"),
+    evidenceArtifactPath(snapshot, "latest-verdict", ".visual-hive/verdict.json"),
+    evidenceArtifactPath(snapshot, "latest-handoff", ".visual-hive/handoff.json"),
+    evidenceArtifactPath(snapshot, "hive-export", ".visual-hive/hive/hive-export.json"),
+    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview", ".visual-hive/hive/guarded-repair-preview.json"),
+    evidenceArtifactPath(snapshot, "hive-repair-request-envelope", ".visual-hive/hive/repair-request-envelope.json"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary", ".visual-hive/hive/trusted-repair-consumer-summary.json"),
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run", ".visual-hive/hive/trusted-repair-workflow-dry-run.json"),
+    evidenceArtifactPath(snapshot, "agent-packet", ".visual-hive/agent-packet.json"),
+    evidenceArtifactPath(snapshot, "test-creation-plan", ".visual-hive/test-creation-plan.json")
   ];
   const hiveArtifacts = [
-    ".visual-hive/hive/hive-export.json",
-    ".visual-hive/hive/beads.json",
-    ".visual-hive/hive/knowledge-facts.json",
-    ".visual-hive/hive/knowledge-graph.json",
+    evidenceArtifactPath(snapshot, "hive-export", ".visual-hive/hive/hive-export.json"),
+    evidenceArtifactPath(snapshot, "hive-beads", ".visual-hive/hive/beads.json"),
+    evidenceArtifactPath(snapshot, "hive-knowledge-facts", ".visual-hive/hive/knowledge-facts.json"),
+    evidenceArtifactPath(snapshot, "hive-knowledge-graph", ".visual-hive/hive/knowledge-graph.json"),
     ".visual-hive/hive/issue-context.md",
-    ".visual-hive/hive/repair-work-orders.json",
-    ".visual-hive/hive/hive-agent-policy.json"
+    evidenceArtifactPath(snapshot, "hive-repair-work-orders", ".visual-hive/hive/repair-work-orders.json"),
+    evidenceArtifactPath(snapshot, "hive-agent-policy", ".visual-hive/hive/hive-agent-policy.json"),
+    evidenceArtifactPath(snapshot, "hive-guarded-repair-preview", ".visual-hive/hive/guarded-repair-preview.json"),
+    ".visual-hive/hive/guarded-repair-preview.md",
+    evidenceArtifactPath(snapshot, "hive-repair-request-envelope", ".visual-hive/hive/repair-request-envelope.json"),
+    ".visual-hive/hive/repair-request-envelope.md",
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-consumer-summary", ".visual-hive/hive/trusted-repair-consumer-summary.json"),
+    ".visual-hive/hive/trusted-repair-consumer-summary.md",
+    evidenceArtifactPath(snapshot, "hive-trusted-repair-workflow-dry-run", ".visual-hive/hive/trusted-repair-workflow-dry-run.json"),
+    ".visual-hive/hive/trusted-repair-workflow-dry-run.md"
   ];
   const hiveExport = snapshot.hiveExport;
+  const guardedRepairPreview = snapshot.hiveGuardedRepairPreview;
+  const repairRequestEnvelope = snapshot.hiveRepairRequestEnvelope;
+  const trustedRepairConsumerSummary = snapshot.hiveTrustedRepairConsumerSummary;
+  const trustedRepairWorkflowDryRun = snapshot.hiveTrustedRepairWorkflowDryRun;
   const hiveModeComparison = snapshot.hiveModeComparison;
   const hiveReadiness = snapshot.evidencePacket?.hiveReadiness;
   const hiveModeReadiness = hiveReadiness?.modeReadiness ?? [];
@@ -876,6 +1195,7 @@ function AgentForwardWorkflow({
   const recommendedHiveCommand = recommendedHiveReadiness
     ? hiveModeCommands.find((entry) => entry.id === hiveCommandIdForMode(recommendedHiveReadiness.mode))?.command
     : undefined;
+  const repairReadiness = trustedRepairReadinessState(snapshot);
   return (
     <Card
       title="Evidence to agent handoff"
@@ -899,10 +1219,58 @@ function AgentForwardWorkflow({
         A guided chain from deterministic evidence to repair-ready handoff. Visual Hive owns the verdict; Hive, LLMs, MCP tools, and agents only consume this packet and recommend actions.
       </p>
       <div className="view-grid">
+        <div className="guided-panel span-12">
+          <div className="guided-copy">
+            <Badge tone={repairReadiness.tone}>{repairReadiness.state}</Badge>
+            <h3>Trusted repair readiness</h3>
+            <p>{repairReadiness.summary}</p>
+          </div>
+          <div className="guided-actions">
+            <div className={`next-action tone-${repairReadiness.tone}`}>
+              <ArrowRight size={18} />
+              <span>
+                <strong>{repairReadiness.primaryAction}</strong>
+                <small>{repairReadiness.whyItMatters}</small>
+              </span>
+              <Badge tone={repairReadiness.tone}>{repairReadiness.actionBadge}</Badge>
+            </div>
+            <div className="next-action secondary">
+              <ShieldCheck size={18} />
+              <span>
+                <strong>Safety boundary</strong>
+                <small>No checkout, branch, pull request, issue, Hive call, provider call, repair execution, or Visual Hive rerun happens in this local dry run.</small>
+              </span>
+              <Badge tone="success">guarded</Badge>
+            </div>
+            <div className="next-action secondary">
+              <ClipboardList size={18} />
+              <span>
+                <strong>Evidence chain</strong>
+                <small>{repairReadiness.chainSummary}</small>
+              </span>
+              <Badge tone={repairReadiness.chainComplete ? "success" : "warning"}>{repairReadiness.chainComplete ? "complete" : "incomplete"}</Badge>
+            </div>
+          </div>
+        </div>
         <MetricCard className="span-3" label="Visual Hive verdict" tone={verdictTone(verdict)} value={verdict ?? "missing"} />
         <MetricCard className="span-3" label="Gating evidence" tone={gatingCount > 0 ? "success" : "warning"} value={gatingCount} />
         <MetricCard className="span-3" label="Agent work items" tone={workItems.length > 0 ? "warning" : "success"} value={workItems.length} />
         <MetricCard className="span-3" label="Pipeline" tone={pipelineTone(snapshot.pipelineReport?.status)} value={pipelineStatus} />
+        <Card className="span-12" title="Automation ladder">
+          <p className="card-subtext">
+            Visual Hive can package the same deterministic evidence for different levels of follow-up. Start with advisory context, then move toward repair only after policy, branch isolation, bounded tools, human review, and a fresh Visual Hive rerun are explicit.
+          </p>
+          <SimpleTable
+            headers={["Level", "What it gives Hive or agents", "Default safety state"]}
+            rows={[
+              ["Advisory", "Sanitized issue context and evidence summary for humans or agents to read.", "Local dry run; no external calls."],
+              ["Measured", "Beads, wiki facts, and knowledge graph edges that preserve repo/testing context.", "Local dry run; evidence only."],
+              ["Repair request", "Guarded work orders with likely files, reproduction commands, and acceptance criteria.", "Local dry run; no branch or PR."],
+              ["Guarded repair", "A trusted workflow plan that can later isolate branches and rerun Visual Hive after repair.", "Trusted workflow required."],
+              ["Full", "Reserved for mature automation after governance is proven.", "Full automation remains blocked locally."]
+            ]}
+          />
+        </Card>
         <Card className="span-6" title="Hive readiness next step">
           <p className="card-subtext">
             Start with the safest ready Hive mode. Trusted repair lanes stay blocked until policy, branch isolation, human review, and a Visual Hive rerun are explicit.
@@ -941,6 +1309,16 @@ function AgentForwardWorkflow({
               ["Verdict Report", snapshot.verdictReport ? "ready" : "missing"],
               ["Handoff Packet", snapshot.handoffPacket ? `${snapshot.handoffPacket.status}; calls=${snapshot.handoffPacket.externalCallsMade}` : "missing"],
               ["Hive native export", snapshot.hiveExport ? `${snapshot.hiveExport.mode}; calls=${snapshot.hiveExport.externalCallsMade}` : "missing"],
+              ["Guarded repair preview", guardedRepairPreview ? `${guardedRepairPreview.status}; ready=${guardedRepairPreview.readiness.canRequestGuardedRepair}` : "missing"],
+              ["Repair request envelope", repairRequestEnvelope ? `${repairRequestEnvelope.status}; ready=${repairRequestEnvelope.readiness.canOpenTrustedRepairRequest}` : "missing"],
+              [
+                "Trusted repair consumer",
+                trustedRepairConsumerSummary ? `${trustedRepairConsumerSummary.status}; workflowReady=${trustedRepairConsumerSummary.readiness.canStartTrustedRepairWorkflow}` : "missing"
+              ],
+              [
+                "Trusted workflow dry run",
+                trustedRepairWorkflowDryRun ? `${trustedRepairWorkflowDryRun.status}; ready=${trustedRepairWorkflowDryRun.readiness.canRunTrustedRepairWorkflow}` : "missing"
+              ],
               ["Agent Packet", snapshot.agentPacket ? `${snapshot.agentPacket.profile}; network=${snapshot.agentPacket.budgets.allowExternalNetwork}` : "missing"],
               ["Advisory evidence", advisoryCount]
             ]}
@@ -1064,6 +1442,60 @@ function AgentForwardWorkflow({
         </Card>
         <Card className="span-6" title="Repair guardrails">
           <p className="card-subtext">Repair work orders are PR-only, bounded, and require a fresh Visual Hive rerun before completion.</p>
+          <KeyValueTable
+            rows={[
+              ["Guarded preview", guardedRepairPreview ? <Badge key="guarded-preview" tone={statusTone(guardedRepairPreview.status)}>{guardedRepairPreview.status}</Badge> : "missing"],
+              ["Can request repair", guardedRepairPreview?.readiness.canRequestGuardedRepair ? "yes" : "no"],
+              ["External calls", guardedRepairPreview?.externalCallsMade ?? 0],
+              ["Ready / blocked work orders", guardedRepairPreview ? `${guardedRepairPreview.summary.readyWorkOrders} / ${guardedRepairPreview.summary.blockedWorkOrders}` : "n/a"],
+              ["Repair envelope", repairRequestEnvelope ? <Badge key="repair-envelope" tone={statusTone(repairRequestEnvelope.status)}>{repairRequestEnvelope.status}</Badge> : "missing"],
+              ["Trusted repair ready", repairRequestEnvelope?.readiness.canOpenTrustedRepairRequest ? "yes" : "no"],
+              [
+                "Repair consumer summary",
+                trustedRepairConsumerSummary ? <Badge key="repair-consumer" tone={statusTone(trustedRepairConsumerSummary.status)}>{trustedRepairConsumerSummary.status}</Badge> : "missing"
+              ],
+              ["Trusted consumer ready", trustedRepairConsumerSummary?.readiness.canStartTrustedRepairWorkflow ? "yes" : "no"],
+              ["Branches / PRs preview", trustedRepairConsumerSummary ? `${trustedRepairConsumerSummary.summary.branchesToCreate} branches / ${trustedRepairConsumerSummary.summary.pullRequestsToOpen} PRs` : "n/a"],
+              [
+                "Trusted workflow dry run",
+                trustedRepairWorkflowDryRun ? <Badge key="repair-workflow" tone={statusTone(trustedRepairWorkflowDryRun.status)}>{trustedRepairWorkflowDryRun.status}</Badge> : "missing"
+              ],
+              ["Can run trusted workflow", trustedRepairWorkflowDryRun?.readiness.canRunTrustedRepairWorkflow ? "yes" : "no"],
+              ["Planned actions", trustedRepairWorkflowDryRun ? `${trustedRepairWorkflowDryRun.summary.plannedActions} future actions / ${trustedRepairWorkflowDryRun.summary.blockedActions} blocked` : "n/a"],
+              ["Required commands", repairRequestEnvelope?.readiness.requiredCommands.slice(0, 2).join("; ") ?? guardedRepairPreview?.readiness.requiredCommands.slice(0, 2).join("; ") ?? "Run visual-hive hive guarded-repair-preview"]
+            ]}
+          />
+          {guardedRepairPreview?.readiness.blockedReasons.length ? (
+            <FindingList findings={guardedRepairPreview.readiness.blockedReasons.slice(0, mode === "expert" ? 8 : 3)} tone="warning" />
+          ) : null}
+          {repairRequestEnvelope?.readiness.blockedReasons.length ? (
+            <FindingList findings={repairRequestEnvelope.readiness.blockedReasons.slice(0, mode === "expert" ? 8 : 3)} tone="warning" />
+          ) : null}
+          {trustedRepairConsumerSummary?.readiness.blockedReasons.length ? (
+            <FindingList findings={trustedRepairConsumerSummary.readiness.blockedReasons.slice(0, mode === "expert" ? 8 : 3)} tone="warning" />
+          ) : null}
+          {trustedRepairWorkflowDryRun?.readiness.blockedReasons.length ? (
+            <FindingList findings={trustedRepairWorkflowDryRun.readiness.blockedReasons.slice(0, mode === "expert" ? 8 : 3)} tone="warning" />
+          ) : null}
+          <ArtifactList
+            artifacts={[
+              ...(guardedRepairPreview ? [guardedRepairPreview.outputArtifacts.preview, guardedRepairPreview.outputArtifacts.markdown] : []),
+              ...(repairRequestEnvelope ? [repairRequestEnvelope.outputArtifacts.envelope, repairRequestEnvelope.outputArtifacts.markdown] : []),
+              ...(trustedRepairConsumerSummary ? [trustedRepairConsumerSummary.outputArtifacts.summary, trustedRepairConsumerSummary.outputArtifacts.markdown] : []),
+              ...(trustedRepairWorkflowDryRun ? [trustedRepairWorkflowDryRun.outputArtifacts.dryRun, trustedRepairWorkflowDryRun.outputArtifacts.markdown] : [])
+            ]}
+            connection={connection}
+          />
+          {trustedRepairWorkflowDryRun?.items.length ? (
+            <SimpleTable
+              headers={["Future workflow item", "Branch / PR", "Actions"]}
+              rows={trustedRepairWorkflowDryRun.items.slice(0, hivePreviewLimit).map((item) => [
+                `${item.title} (${item.status})`,
+                `${item.branchName} / ${item.pullRequestTitle}`,
+                `${item.plannedActions.filter((action) => action.status === "planned").length} planned; ${item.plannedActions.filter((action) => action.status === "blocked").length} blocked`
+              ])}
+            />
+          ) : null}
           {repairOrders.length ? (
             <SimpleTable
               headers={["Work order", "Limits", "Validation"]}
@@ -1123,6 +1555,11 @@ function AgentForwardWorkflow({
               verdictReport: snapshot.verdictReport,
               handoffPacket: snapshot.handoffPacket,
               hiveExport: snapshot.hiveExport,
+              hiveGuardedRepairPreview: snapshot.hiveGuardedRepairPreview,
+              hiveRepairRequestEnvelope: snapshot.hiveRepairRequestEnvelope,
+              hiveTrustedRepairConsumerSummary: snapshot.hiveTrustedRepairConsumerSummary,
+              hiveTrustedRepairWorkflowDryRun: snapshot.hiveTrustedRepairWorkflowDryRun,
+              hiveModeComparison: snapshot.hiveModeComparison,
               agentPacket: snapshot.agentPacket,
               pipelineReport: snapshot.pipelineReport
             }}
@@ -1140,6 +1577,21 @@ function readinessFindings(snapshot: Snapshot) {
   if (blocked.length) return blocked.map((gate: any) => `${gate.label ?? gate.id}: ${gate.message ?? gate.status}`);
   if (report?.status) return [`Readiness status: ${report.status}`];
   return [];
+}
+
+function schemaCatalogFindings(snapshot: Snapshot) {
+  const catalog = snapshot.schemaCatalog;
+  if (!catalog) {
+    return ["No schema catalog verification artifact found. Run `visual-hive schemas verify --output .visual-hive/schema-catalog.json` after schema or evidence-resource changes."];
+  }
+  const failedChecks = catalog.checks.filter((check) => check.status === "failed");
+  if (failedChecks.length) {
+    return failedChecks.slice(0, 6).map((check) => `${check.file ?? check.id}: ${check.message}`);
+  }
+  return [
+    `Schema catalog passed with ${catalog.summary.checks} checks across ${catalog.summary.schemasChecked} schemas.`,
+    `${catalog.summary.evidenceResources} evidence resources and ${catalog.summary.evidenceReadTools} read tools are catalog-aligned.`
+  ];
 }
 
 function riskFindings(snapshot: Snapshot) {
@@ -1201,6 +1653,14 @@ function FailureInbox({ snapshot, connection }: { snapshot: Snapshot; connection
       </Card>
       <Card eyebrow="Artifacts" title="Failure context">
         <div className="stack">
+          <ArtifactList
+            artifacts={[
+              evidenceArtifactPath(snapshot, "triage-report", ".visual-hive/triage.json"),
+              evidenceArtifactPath(snapshot, "issue-body", ".visual-hive/issue.md"),
+              evidenceArtifactPath(snapshot, "pr-comment", ".visual-hive/pr-comment.md")
+            ]}
+            connection={connection}
+          />
           {failures.flatMap((failure) => failure.artifacts ?? []).slice(0, 12).map((artifact) => (
             <ExternalArtifactLink href={artifactUrl(artifact, "file", connection)} key={artifact} label={artifact} />
           ))}
@@ -1256,7 +1716,18 @@ function Baselines({
   }
   return (
     <div className="view-grid">
-      <Card className="span-12" eyebrow="Review policy" title="Baseline queue">
+      <Card
+        className="span-12"
+        eyebrow="Review policy"
+        title="Baseline queue"
+        action={
+          <div className="row">
+            <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "baseline-review", ".visual-hive/baselines.json"), "file", connection)} label="Open baseline queue" />
+            <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "baseline-approvals", ".visual-hive/baseline-approvals.json"), "file", connection)} label="Approvals" />
+            <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "baseline-rejections", ".visual-hive/baseline-rejections.json"), "file", connection)} label="Rejections" />
+          </div>
+        }
+      >
         <p className="card-subtext">Review baseline, actual, and diff images before approving or rejecting. Writes require explicit confirmation.</p>
       </Card>
       {screenshots.map((shot) => (
@@ -1432,37 +1903,115 @@ function ConfigEditor({ snapshot, runAction, connection }: { snapshot: Snapshot;
 }
 
 function Providers({ snapshot, runAction, connection }: { snapshot: Snapshot; runAction: (label: string, action: () => Promise<unknown>) => Promise<void>; connection?: string }) {
+  const providerRuns = new Map((snapshot.providerRunReport?.providers ?? []).map((provider: any) => [provider.providerId, provider]));
+  const providerSummary = {
+    enabled: (snapshot.providers ?? []).filter((provider: any) => provider.availability === "enabled").length,
+    blocked: (snapshot.providers ?? []).filter((provider: any) => provider.availability === "blocked" || provider.missingEnv?.length).length,
+    externalCallsMade: (snapshot.providerRunReport?.providers ?? []).reduce((total: number, provider: any) => total + (provider.normalized?.externalCallsMade ?? 0), 0),
+    uploadArtifacts: (snapshot.providerRunReport?.providers ?? []).reduce((total: number, provider: any) => total + (provider.result?.upload?.stagedArtifacts ?? 0), 0)
+  };
   return (
     <div className="view-grid">
-      {(snapshot.providers ?? []).map((provider: any) => (
-        <Card className="span-6" key={provider.id} title={provider.label ?? provider.id} action={<Badge tone={statusTone(provider.availability)}>{provider.availability}</Badge>}>
-          <KeyValueTable
-            rows={[
-              ["Role", provider.deterministicRole],
-              ["Required env", provider.requiredEnv?.join(", ") || "none"],
-              ["Missing env", provider.missingEnv?.join(", ") || "none"],
-              ["External calls planned", provider.externalCallsPlanned ?? 0],
-              ["Upload allowed", provider.externalUploadAllowed ? "yes" : "no"]
-            ]}
-          />
-          <div className="row">
-            <ConfirmButton
-              disabled={snapshot.readOnly}
-              message={`Record a skip decision for ${provider.label ?? provider.id}?`}
-              onConfirm={() => runAction(`provider-${provider.id}`, () => postJson("/api/providers/decision", { providerId: provider.id, decision: "skip", reason: "Recorded from Control Plane", confirm: true }, connection))}
-            >
-              Record skip
-            </ConfirmButton>
-            <ConfirmButton
-              disabled={snapshot.readOnly}
-              message={`Write setup plan for ${provider.label ?? provider.id}?`}
-              onConfirm={() => runAction(`provider-plan-${provider.id}`, () => postJson("/api/providers/setup-plan", { providerId: provider.id, confirm: true }, connection))}
-            >
-              Write setup plan
-            </ConfirmButton>
+      <div className="guided-panel span-12">
+        <div className="guided-copy">
+          <Badge tone={providerSummary.externalCallsMade === 0 ? "success" : "warning"}>{providerSummary.externalCallsMade === 0 ? "no external calls" : "external activity"}</Badge>
+          <h3>Provider policy guardrails</h3>
+          <p>Provider output is advisory by default. Uploads stay blocked unless a trusted lane explicitly enables credentials, cost policy, gating, and budget authorization.</p>
+        </div>
+        <div className="guided-actions">
+          <div className="next-action secondary">
+            <ShieldCheck size={18} />
+            <span>
+              <strong>Default oracle</strong>
+              <small>Visual Hive's verdict comes from deterministic evidence. Playwright remains the local browser runner; providers do not override the verdict by default.</small>
+            </span>
+            <Badge tone="success">local-first</Badge>
           </div>
-        </Card>
-      ))}
+          <div className="next-action secondary">
+            <ClipboardList size={18} />
+            <span>
+              <strong>Review before upload</strong>
+              <small>{providerSummary.uploadArtifacts} provider artifact(s) are staged or recorded for review; external calls made: {providerSummary.externalCallsMade}.</small>
+            </span>
+            <Badge tone={providerSummary.uploadArtifacts > 0 ? "warning" : "success"}>{providerSummary.uploadArtifacts > 0 ? "review" : "none"}</Badge>
+          </div>
+          <div className="next-action secondary">
+            <Shield size={18} />
+            <span>
+              <strong>Provider specialist</strong>
+              <small>The provider-specialist packet can inspect provider evidence without upload authority, provider gating authority, or secret access.</small>
+            </span>
+            <Badge tone={snapshot.providerAgentPacket ? "success" : "warning"}>{snapshot.providerAgentPacket ? "ready" : "missing"}</Badge>
+          </div>
+        </div>
+      </div>
+      {(snapshot.providers ?? []).map((provider: any) => {
+        const run = providerRuns.get(provider.id) as any;
+        const upload = run?.result?.upload;
+        return (
+          <Card className="span-6" key={provider.id} title={provider.label ?? provider.id} action={<Badge tone={statusTone(run?.result?.status ?? provider.availability)}>{run?.result?.status ?? provider.availability}</Badge>}>
+            <KeyValueTable
+              rows={[
+                ["Role", provider.deterministicRole],
+                ["Required env", provider.requiredEnv?.join(", ") || "none"],
+                ["Missing env", provider.missingEnv?.join(", ") || "none"],
+                ["External calls planned", provider.externalCallsPlanned ?? 0],
+                ["Upload allowed", provider.externalUploadAllowed ? "yes" : "no"],
+                ["Latest provider result", run?.result?.status ?? "not run"],
+                ["Upload status", upload?.status ?? "not run"],
+                ["External calls made", run?.normalized?.externalCallsMade ?? 0],
+                ["Staged / uploaded", upload ? `${upload.stagedArtifacts} / ${upload.uploadedArtifacts}` : "0 / 0"]
+              ]}
+            />
+            {run?.result?.message && <p className="card-subtext">{safeText(run.result.message)}</p>}
+            {upload?.stderr && <CodeBlock value={`Provider stderr\n${upload.stderr}`} />}
+            {upload?.manifestPath && <ExternalArtifactLink href={artifactUrl(upload.manifestPath, "file", connection)} label="Open provider upload manifest" />}
+            <div className="row">
+              <ConfirmButton
+                disabled={snapshot.readOnly}
+                message={`Record a skip decision for ${provider.label ?? provider.id}?`}
+                onConfirm={() => runAction(`provider-${provider.id}`, () => postJson("/api/providers/decision", { providerId: provider.id, decision: "skip", reason: "Recorded from Control Plane", confirm: true }, connection))}
+              >
+                Record skip
+              </ConfirmButton>
+              <ConfirmButton
+                disabled={snapshot.readOnly}
+                message={`Write setup plan for ${provider.label ?? provider.id}?`}
+                onConfirm={() => runAction(`provider-plan-${provider.id}`, () => postJson("/api/providers/setup-plan", { providerId: provider.id, confirm: true }, connection))}
+              >
+                Write setup plan
+              </ConfirmButton>
+            </div>
+          </Card>
+        );
+      })}
+      <Card className="span-12" title="Provider specialist packet" action={<Badge tone={snapshot.providerAgentPacket ? "success" : "warning"}>{snapshot.providerAgentPacket ? "ready" : "missing"}</Badge>}>
+        <p className="card-subtext">A provider-specialist agent may review Argos/provider evidence, but cannot upload artifacts, enable paid providers, or make provider output authoritative.</p>
+        {snapshot.providerAgentPacket ? (
+          <>
+            <KeyValueTable
+              rows={[
+                ["Profile", snapshot.providerAgentPacket.profile],
+                ["Objective", snapshot.providerAgentPacket.objective],
+                ["External network", snapshot.providerAgentPacket.budgets.allowExternalNetwork ? "allowed" : "blocked"],
+                ["Max external cost", `$${snapshot.providerAgentPacket.budgets.maxExternalCostUsd}`],
+                ["Allowed tools", snapshot.providerAgentPacket.allowedTools.length]
+              ]}
+            />
+            <AgentToolList tools={snapshot.providerAgentPacket.allowedTools} connection={connection} />
+            <ArtifactList
+              artifacts={[
+                evidenceArtifactPath(snapshot, "provider-results", ".visual-hive/provider-results.json"),
+                evidenceArtifactPath(snapshot, "provider-upload-argos-manifest", ".visual-hive/provider-upload/argos/manifest.json"),
+                evidenceArtifactPath(snapshot, "provider-agent-packet", ".visual-hive/provider-agent-packet.json")
+              ]}
+              connection={connection}
+            />
+          </>
+        ) : (
+          <EmptyState title="No provider packet yet">Run `visual-hive agent-packet --profile provider_specialist --output .visual-hive/provider-agent-packet.json` after provider planning.</EmptyState>
+        )}
+      </Card>
       <EvidenceDisclosure className="span-12" title="Provider handoff raw evidence" data={snapshot.providerHandoff ?? snapshot.providerRunReport ?? snapshot.providerSetupPlan} />
     </div>
   );
@@ -1482,7 +2031,14 @@ function LLM({ snapshot, runAction, connection }: { snapshot: Snapshot; runActio
         </ConfirmButton>
       </Card>
       <Card className="span-6" title="Prompt artifacts">
-        <ArtifactList artifacts={[".visual-hive/triage-prompt.md", ".visual-hive/repair-prompt.md", ".visual-hive/missing-tests.md"]} connection={connection} />
+        <ArtifactList
+          artifacts={[
+            evidenceArtifactPath(snapshot, "triage-prompt", ".visual-hive/triage-prompt.md"),
+            evidenceArtifactPath(snapshot, "repair-prompt", ".visual-hive/repair-prompt.md"),
+            evidenceArtifactPath(snapshot, "missing-tests", ".visual-hive/missing-tests.md")
+          ]}
+          connection={connection}
+        />
       </Card>
       <EvidenceDisclosure className="span-12" title="LLM usage raw evidence" data={snapshot.llmUsage ?? snapshot.llmDecisionLog} />
     </div>
@@ -1702,6 +2258,9 @@ function GitHubView({ snapshot, runAction, connection }: { snapshot: Snapshot; r
         </ConfirmButton>
       </Card>
       <Card className="span-6" title="Workflow audit">
+        <div className="row">
+          <ExternalArtifactLink href={artifactUrl(evidenceArtifactPath(snapshot, "workflow-audit", ".visual-hive/workflows.json"), "file", connection)} label="Open workflow audit" />
+        </div>
         <CodeBlock value={JSON.stringify(snapshot.workflowAudit ?? {}, null, 2)} />
       </Card>
       <Card className="span-12" title="Trusted issue creation pattern">
@@ -1718,6 +2277,35 @@ function ArtifactList({ artifacts, connection }: { artifacts: string[]; connecti
     <div className="stack">
       {unique.map((artifact) => (
         <ExternalArtifactLink href={artifactUrl(artifact, artifact.endsWith(".png") ? "image" : "file", connection)} key={artifact} label={artifact} />
+      ))}
+    </div>
+  );
+}
+
+function evidenceArtifact(snapshot: Snapshot, resourceId: string, fallbackPath?: string) {
+  const normalizedFallback = fallbackPath?.replaceAll("\\", "/");
+  return (snapshot.artifacts ?? []).find((artifact) => {
+    const normalizedPath = artifact.path.replaceAll("\\", "/");
+    return artifact.evidenceResourceId === resourceId || (Boolean(normalizedFallback) && (normalizedPath === normalizedFallback || normalizedPath.endsWith(`/${normalizedFallback}`)));
+  });
+}
+
+function evidenceArtifactPath(snapshot: Snapshot, resourceId: string, fallbackPath: string) {
+  return evidenceArtifact(snapshot, resourceId, fallbackPath)?.path ?? fallbackPath;
+}
+
+function AgentToolList({ tools, connection }: { tools: AgentTool[]; connection?: string }) {
+  if (!tools.length) return <EmptyState title="No allowed tools listed" />;
+  return (
+    <div className="agent-tool-list">
+      {tools.map((tool) => (
+        <div className="agent-tool-row" key={tool.id}>
+          <div>
+            <strong>{tool.label}</strong>
+            <small>{tool.evidenceResourceTitle ? `${tool.evidenceResourceTitle} · ${tool.evidenceResourceUri}` : tool.reason}</small>
+          </div>
+          {tool.artifactPath ? <ExternalArtifactLink href={artifactUrl(tool.artifactPath, "file", connection)} label={tool.artifactPath} /> : <Badge tone="neutral">{tool.access}</Badge>}
+        </div>
       ))}
     </div>
   );
@@ -1796,6 +2384,104 @@ function hiveReadinessTone(value?: string): Tone {
 function hiveCommandIdForMode(mode: string): string {
   if (mode === "repair_request") return "hive-export-repair-request";
   return `hive-export-${mode}`;
+}
+
+function trustedRepairReadinessState(snapshot: Snapshot): {
+  tone: Tone;
+  state: string;
+  summary: string;
+  primaryAction: string;
+  whyItMatters: string;
+  actionBadge: string;
+  chainSummary: string;
+  chainComplete: boolean;
+} {
+  const chain = [
+    { label: "Evidence Packet", ready: Boolean(snapshot.evidencePacket) },
+    { label: "Handoff Packet", ready: Boolean(snapshot.handoffPacket) },
+    { label: "Hive export", ready: Boolean(snapshot.hiveExport) },
+    { label: "Guarded preview", ready: Boolean(snapshot.hiveGuardedRepairPreview) },
+    { label: "Repair envelope", ready: Boolean(snapshot.hiveRepairRequestEnvelope) },
+    { label: "Trusted consumer", ready: Boolean(snapshot.hiveTrustedRepairConsumerSummary) },
+    { label: "Workflow dry run", ready: Boolean(snapshot.hiveTrustedRepairWorkflowDryRun) }
+  ];
+  const readyCount = chain.filter((item) => item.ready).length;
+  const chainComplete = readyCount === chain.length;
+  const missing = chain.filter((item) => !item.ready).map((item) => item.label);
+  const chainSummary = chainComplete
+    ? "All seven evidence artifacts are present: Evidence Packet, Handoff Packet, Hive export, guarded preview, repair envelope, trusted consumer, and workflow dry run."
+    : `${readyCount}/${chain.length} artifacts ready. Missing next: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "..." : "."}`;
+
+  const blockedReason =
+    snapshot.hiveTrustedRepairWorkflowDryRun?.readiness.blockedReasons[0] ??
+    snapshot.hiveTrustedRepairConsumerSummary?.readiness.blockedReasons[0] ??
+    snapshot.hiveRepairRequestEnvelope?.readiness.blockedReasons[0] ??
+    snapshot.hiveGuardedRepairPreview?.readiness.blockedReasons[0] ??
+    snapshot.hiveExport?.blockedReasons?.[0] ??
+    snapshot.handoffPacket?.blockedReasons?.[0];
+
+  if (!snapshot.evidencePacket) {
+    return {
+      tone: "warning",
+      state: "not started",
+      summary: "Visual Hive has not packaged deterministic evidence for Hive or repair agents yet.",
+      primaryAction: "Create the Evidence Packet",
+      whyItMatters: "The Evidence Packet is the trusted source that keeps agents grounded in deterministic results instead of raw logs or guesswork.",
+      actionBadge: "generate",
+      chainSummary,
+      chainComplete
+    };
+  }
+
+  if (!snapshot.handoffPacket || !snapshot.hiveExport) {
+    return {
+      tone: "warning",
+      state: "evidence ready",
+      summary: "Deterministic evidence exists, but the Hive handoff bundle is not complete yet.",
+      primaryAction: "Run agent handoff review",
+      whyItMatters: "This creates sanitized task context, Hive-native work items, and policy evidence without making network calls.",
+      actionBadge: "prepare",
+      chainSummary,
+      chainComplete
+    };
+  }
+
+  if (!chainComplete) {
+    return {
+      tone: "warning",
+      state: "repair chain incomplete",
+      summary: "Hive export exists, but trusted repair readiness still needs the preview, envelope, consumer summary, or workflow dry-run artifacts.",
+      primaryAction: "Generate trusted repair previews",
+      whyItMatters: "The preview chain makes future repair automation reviewable before any branch, pull request, issue, Hive call, or repair execution can occur.",
+      actionBadge: "preview",
+      chainSummary,
+      chainComplete
+    };
+  }
+
+  if (snapshot.hiveTrustedRepairWorkflowDryRun?.readiness.canRunTrustedRepairWorkflow) {
+    return {
+      tone: "success",
+      state: "ready for trusted workflow review",
+      summary: "The no-network repair chain is complete and can be reviewed as a future trusted workflow plan.",
+      primaryAction: "Review trusted workflow dry run",
+      whyItMatters: "A maintainer can inspect the planned branch, repair, validation, and PR steps before enabling any real automation.",
+      actionBadge: "ready",
+      chainSummary,
+      chainComplete
+    };
+  }
+
+  return {
+    tone: "warning",
+    state: "blocked by policy",
+    summary: "The repair chain is complete, but policy still blocks a trusted repair workflow.",
+    primaryAction: "Resolve repair policy blockers",
+    whyItMatters: blockedReason ?? "Visual Hive keeps guarded repair blocked until the required approvals, commands, and verdict rerun policy are explicit.",
+    actionBadge: "blocked",
+    chainSummary,
+    chainComplete
+  };
 }
 
 function readHashWorkArea(): WorkAreaId {

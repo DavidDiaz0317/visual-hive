@@ -4,35 +4,69 @@
   "title": "Visual Hive Provider Decisions",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "generatedAt", "decisions"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "decisions"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "generatedAt": { "type": "string", "format": "date-time" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "decisions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/decision" }
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
     }
   },
   "$defs": {
     "decision": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["providerId", "decision", "reason", "decidedAt", "source", "externalCallsMade"],
+      "required": [
+        "providerId",
+        "decision",
+        "reason",
+        "decidedAt",
+        "source",
+        "externalCallsMade"
+      ],
       "properties": {
         "providerId": {
           "type": "string",
           "pattern": "^[A-Za-z0-9_-]{2,64}$"
         },
-        "label": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
         "decision": {
-          "enum": ["skip", "review_later", "approve_trusted_setup"]
+          "enum": [
+            "skip",
+            "review_later",
+            "approve_trusted_setup"
+          ]
         },
-        "reason": { "type": "string" },
-        "decidedAt": { "type": "string", "format": "date-time" },
+        "reason": {
+          "type": "string"
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "source": {
-          "enum": ["cli", "control-plane"]
+          "enum": [
+            "cli",
+            "control-plane"
+          ]
         },
-        "externalCallsMade": { "const": 0 }
+        "externalCallsMade": {
+          "const": 0
+        }
       }
     }
   }

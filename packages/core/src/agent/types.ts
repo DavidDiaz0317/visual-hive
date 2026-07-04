@@ -1,14 +1,55 @@
 import type { EvidenceContribution, EvidencePacket, VisualHiveVerdict } from "../evidence/types.js";
 import type { HandoffPacket, HandoffWorkItem } from "../handoff/types.js";
+import type { RunHistoryReport } from "../history/record.js";
 import type { TestCreationRecommendation } from "../testCreation/types.js";
 
-export type AgentPacketProfile = "repair_agent" | "test_creator" | "review_agent" | "handoff_agent";
+export type AgentPacketProfile = "repair_agent" | "test_creator" | "review_agent" | "handoff_agent" | "provider_specialist";
 
 export interface AgentToolPermission {
   id: string;
   label: string;
   access: "read_only" | "local_execution" | "trusted_write";
   reason: string;
+  evidenceResourceId?: string;
+  evidenceResourceUri?: string;
+  evidenceResourceTitle?: string;
+  evidenceResourceDescription?: string;
+  evidenceReadToolName?: string;
+  artifactPath?: string;
+}
+
+export interface AgentProviderEvidenceSummary {
+  providerId: string;
+  status: string;
+  deterministicRole: string;
+  message: string;
+  artifactCount: number;
+  missingEnv: string[];
+  uploadStatus?: string;
+  externalCallsMade: number;
+  stagedArtifacts?: number;
+  uploadedArtifacts?: number;
+  manifestPath?: string;
+  uploadDirectory?: string;
+  providerUrl?: string;
+  blockedReasons: string[];
+}
+
+export interface AgentRunHistorySummary {
+  artifactPath: string;
+  evidenceResourceId: "run-history";
+  evidenceResourceUri: "visual-hive://run-history";
+  evidenceReadToolName: "visual_hive_read_run_history";
+  authority: "trend_evidence_only";
+  runCount: number;
+  latestStatus?: "passed" | "failed";
+  latestRecordedAt?: string;
+  latestMutationScore?: number;
+  trendDirection: RunHistoryReport["trend"]["direction"];
+  trendReasons: string[];
+  totalVisualDiffs: number;
+  totalMissingBaselines: number;
+  totalCreatedBaselines: number;
 }
 
 export interface AgentPacket {
@@ -21,6 +62,7 @@ export interface AgentPacket {
     evidencePacket: string;
     handoffPacket?: string;
     testCreationPlan?: string;
+    runHistory?: string;
   };
   verdict: {
     visualHiveVerdict: VisualHiveVerdict;
@@ -36,6 +78,8 @@ export interface AgentPacket {
     selectedContracts: string[];
     selectedTargets: string[];
     mutationScore?: number;
+    providerEvidence: AgentProviderEvidenceSummary[];
+    runHistory?: AgentRunHistorySummary;
     testingLayers: EvidencePacket["testingLayers"];
     testCreationRecommendations: TestCreationRecommendation[];
   };
@@ -65,6 +109,8 @@ export interface BuildAgentPacketOptions {
   handoffPacketPath?: string;
   testCreationRecommendations?: TestCreationRecommendation[];
   testCreationPlanPath?: string;
+  runHistory?: RunHistoryReport;
+  runHistoryPath?: string;
   profile?: AgentPacketProfile;
   now?: Date;
 }

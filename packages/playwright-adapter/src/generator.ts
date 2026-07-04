@@ -79,11 +79,15 @@ const artifactDir = path.resolve(rootDir, visual.artifactDir ?? ".visual-hive/ar
 const visualHiveCi = process.env.VISUAL_HIVE_CI;
 const ciMode = visualHiveCi === "true" ? true : visualHiveCi === "false" ? false : process.env.CI === "true";
 const mutationOperator = process.env.VISUAL_HIVE_MUTATION_OPERATOR || "";
+const mutationOperators = parseMutationOperators();
+const mutationContractMatrix = parseMutationContractMatrix();
 
 // ---- Contract execution ----
 test.describe("visual-hive generated deterministic contracts", () => {
   for (const contract of contracts) {
-    test(\`contract:\${contract.id}\`, async ({ page }) => {
+    for (const activeMutationOperator of mutationOperators.length ? mutationOperators : [mutationOperator]) {
+    if (activeMutationOperator && !mutationAppliesToContract(activeMutationOperator, contract.id)) continue;
+    test(activeMutationOperator ? \`mutation:\${activeMutationOperator}:contract:\${contract.id}\` : \`contract:\${contract.id}\`, async ({ page }) => {
       test.setTimeout(contract.timeoutMs ?? 30000);
       const target = targets[contract.target];
       const startedAt = Date.now();
@@ -117,19 +121,19 @@ test.describe("visual-hive generated deterministic contracts", () => {
       });
 
       try {
-        await applyRouteMutation(page);
+        await applyRouteMutation(page, activeMutationOperator);
         await page.addInitScript((operator) => {
           window.localStorage.setItem("visual-hive-mutation", operator);
-        }, mutationOperator);
+        }, activeMutationOperator);
 
         const assertionRoute = contract.screenshots[0]?.route ?? "/";
         await page.setViewportSize(viewports.desktop ?? { width: 1440, height: 900 });
         await page.goto(joinUrl(target.url, assertionRoute), { waitUntil: "domcontentloaded" });
         await disableAnimations(page);
-        await applyDomMutation(page);
+        await applyDomMutation(page, activeMutationOperator);
         await applyWaits(page, contract, selectorAssertions);
         await assertSelectors(page, contract.selectors, selectorAssertions);
-        await runFlowSteps(page, target, contract, flowSteps);
+        await runFlowSteps(page, target, contract, flowSteps, activeMutationOperator);
 
         for (const shot of contract.screenshots) {
           const viewport = viewports[shot.viewport];
@@ -139,10 +143,10 @@ test.describe("visual-hive generated deterministic contracts", () => {
           await page.setViewportSize(viewport);
           await page.goto(joinUrl(target.url, shot.route), { waitUntil: "domcontentloaded" });
           await disableAnimations(page);
-          await applyDomMutation(page);
+          await applyDomMutation(page, activeMutationOperator);
           await applyWaits(page, contract, selectorAssertions);
           await assertSelectors(page, contract.selectors, selectorAssertions);
-          const assertion = await compareScreenshot(page, contract.id, shot, artifacts);
+          const assertion = await compareScreenshot(page, contract.id, shot, artifacts, activeMutationOperator);
           screenshotAssertions.push(assertion);
           if (assertion.status === "created" && contractStatus !== "failed") {
             contractStatus = "created";
@@ -160,7 +164,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
         errors.push(sanitizeText(error instanceof Error ? error.message : String(error)));
         throw error;
       } finally {
-        const resultPath = path.join(artifactDir, "results", \`\${safeName(contract.id)}.json\`);
+        const resultPath = path.join(artifactDir, "results", activeMutationOperator ? \`\${safeName(activeMutationOperator)}__\${safeName(contract.id)}.json\` : \`\${safeName(contract.id)}.json\`);
         artifacts.push(resultPath);
         await mkdir(path.dirname(resultPath), { recursive: true });
         await writeFile(
@@ -168,6 +172,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
           JSON.stringify(
             {
               contractId: contract.id,
+              mutationOperator: activeMutationOperator || undefined,
               targetId: contract.target,
               status: contractStatus,
               durationMs: Date.now() - startedAt,
@@ -188,10 +193,11 @@ test.describe("visual-hive generated deterministic contracts", () => {
         );
       }
     });
+    }
   }
 });
 
-async function runFlowSteps(page, target, contract, flowSteps) {
+async function runFlowSteps(page, target, contract, flowSteps, activeMutationOperator = "") {
   for (const step of contract.steps ?? []) {
     const startedAt = Date.now();
     const result = {
@@ -204,7 +210,7 @@ async function runFlowSteps(page, target, contract, flowSteps) {
       durationMs: 0
     };
     try {
-      await executeFlowStep(page, target, step);
+      await executeFlowStep(page, target, step, activeMutationOperator);
       result.durationMs = Date.now() - startedAt;
       flowSteps.push(result);
     } catch (error) {
@@ -217,12 +223,12 @@ async function runFlowSteps(page, target, contract, flowSteps) {
   }
 }
 
-async function executeFlowStep(page, target, step) {
+async function executeFlowStep(page, target, step, activeMutationOperator = "") {
   const timeout = step.timeoutMs ?? 5000;
   if (step.action === "goto") {
     await page.goto(joinUrl(target.url, step.route), { waitUntil: "domcontentloaded" });
     await disableAnimations(page);
-    await applyDomMutation(page);
+    await applyDomMutation(page, activeMutationOperator);
     return;
   }
   if (step.action === "click") {
@@ -317,10 +323,11 @@ async function recordAssertion(assertions, kind, value, fn) {
 }
 
 // ---- Screenshot baseline handling ----
-async function compareScreenshot(page, contractId, shot, artifacts) {
+async function compareScreenshot(page, contractId, shot, artifacts, activeMutationOperator = "") {
   const baselinePath = path.join(snapshotDir, \`\${safeName(contractId)}__\${safeName(shot.name)}__\${safeName(shot.viewport)}.png\`);
-  const actualPath = path.join(artifactDir, "screenshots", \`\${safeName(contractId)}__\${safeName(shot.name)}__\${safeName(shot.viewport)}.png\`);
-  const diffPath = path.join(artifactDir, "screenshots", \`\${safeName(contractId)}__\${safeName(shot.name)}__\${safeName(shot.viewport)}.diff.png\`);
+  const artifactPrefix = activeMutationOperator ? \`\${safeName(activeMutationOperator)}__\${safeName(contractId)}\` : safeName(contractId);
+  const actualPath = path.join(artifactDir, "screenshots", \`\${artifactPrefix}__\${safeName(shot.name)}__\${safeName(shot.viewport)}.png\`);
+  const diffPath = path.join(artifactDir, "screenshots", \`\${artifactPrefix}__\${safeName(shot.name)}__\${safeName(shot.viewport)}.diff.png\`);
   await mkdir(path.dirname(baselinePath), { recursive: true });
   await mkdir(path.dirname(actualPath), { recursive: true });
   const mask = (shot.mask ?? []).map((selector) => page.locator(selector));
@@ -435,18 +442,18 @@ async function disableAnimations(page) {
 }
 
 // ---- Mutation hooks ----
-async function applyRouteMutation(page) {
-  if (mutationOperator === "api-500") {
+async function applyRouteMutation(page, activeMutationOperator = mutationOperator) {
+  if (activeMutationOperator === "api-500") {
     await page.route("**/api/**", async (route) => {
       await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "visual-hive api-500 mutation" }) });
     });
   }
-  if (mutationOperator === "empty-data") {
+  if (activeMutationOperator === "empty-data") {
     await page.route("**/api/**", async (route) => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], message: "" }) });
     });
   }
-  if (mutationOperator === "broken-image") {
+  if (activeMutationOperator === "broken-image") {
     await page.route(/.*\\.(png|jpg|jpeg|gif|webp|svg)(\\?.*)?$/i, async (route) => {
       await route.fulfill({ status: 404, contentType: "text/plain", body: "visual-hive broken-image mutation" });
     });
@@ -473,17 +480,52 @@ function sanitizeText(input) {
   return value;
 }
 
-async function applyDomMutation(page) {
-  if (mutationOperator === "hide-critical-button") {
+function parseMutationOperators() {
+  const raw = process.env.VISUAL_HIVE_MUTATION_OPERATORS;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map((operator) => String(operator)).filter(Boolean);
+  } catch {
+    return raw.split(",").map((operator) => operator.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function parseMutationContractMatrix() {
+  const raw = process.env.VISUAL_HIVE_MUTATION_MATRIX;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const matrix = {};
+    for (const [operator, contractIds] of Object.entries(parsed)) {
+      if (Array.isArray(contractIds)) {
+        matrix[String(operator)] = contractIds.map((contractId) => String(contractId)).filter(Boolean);
+      }
+    }
+    return matrix;
+  } catch {
+    return {};
+  }
+}
+
+function mutationAppliesToContract(operator, contractId) {
+  const contractIds = mutationContractMatrix[operator];
+  return !Array.isArray(contractIds) || contractIds.length === 0 || contractIds.includes(contractId);
+}
+
+async function applyDomMutation(page, activeMutationOperator = mutationOperator) {
+  if (activeMutationOperator === "hide-critical-button") {
     await page.addStyleTag({ content: "[data-testid='critical-action-button'] { display: none !important; }" });
   }
-  if (mutationOperator === "remove-demo-badge") {
+  if (activeMutationOperator === "remove-demo-badge") {
     await page.addStyleTag({ content: "[data-testid='demo-badge'] { display: none !important; }" });
   }
-  if (mutationOperator === "mobile-overflow") {
+  if (activeMutationOperator === "mobile-overflow") {
     await page.addStyleTag({ content: "@media (max-width: 600px) { body::after { content: ''; display: block; width: 140vw; height: 1px; } }" });
   }
-  if (mutationOperator === "force-login-on-demo") {
+  if (activeMutationOperator === "force-login-on-demo") {
     await page.evaluate(() => {
       const forced = document.createElement("section");
       forced.setAttribute("data-testid", "login-page");
@@ -491,7 +533,7 @@ async function applyDomMutation(page) {
       document.body.prepend(forced);
     });
   }
-  if (mutationOperator === "route-guard-bypass") {
+  if (activeMutationOperator === "route-guard-bypass") {
     await page.evaluate(() => {
       const protectedSurface = document.createElement("section");
       protectedSurface.setAttribute("data-testid", "protected-route");
@@ -501,12 +543,12 @@ async function applyDomMutation(page) {
       document.body.prepend(protectedSurface);
     });
   }
-  if (mutationOperator === "hidden-error-banner") {
+  if (activeMutationOperator === "hidden-error-banner") {
     await page.addStyleTag({
       content: "[data-testid='error-banner'], [role='alert'], .error-banner, .alert-error { display: none !important; visibility: hidden !important; }"
     });
   }
-  if (mutationOperator === "broken-image") {
+  if (activeMutationOperator === "broken-image") {
     await page.evaluate(() => {
       const images = Array.from(document.querySelectorAll("img"));
       for (const image of images) {
@@ -525,7 +567,7 @@ async function applyDomMutation(page) {
       }
     });
   }
-  if (mutationOperator === "removed-accessible-name") {
+  if (activeMutationOperator === "removed-accessible-name") {
     await page.evaluate(() => {
       for (const element of Array.from(document.querySelectorAll("[aria-label], [alt], [title]"))) {
         element.removeAttribute("aria-label");
@@ -541,12 +583,12 @@ async function applyDomMutation(page) {
       }
     });
   }
-  if (mutationOperator === "theme-token-drift") {
+  if (activeMutationOperator === "theme-token-drift") {
     await page.addStyleTag({
       content: ":root { --visual-hive-theme-drift: 1; } body { background: #fff7ed !important; color: #1f2937 !important; } button, [role='button'] { background: #b91c1c !important; color: #fff !important; } [class*='card'], article { border-color: #f97316 !important; box-shadow: inset 0 0 0 3px rgba(249, 115, 22, 0.25) !important; }"
     });
   }
-  if (mutationOperator === "stale-loading-state") {
+  if (activeMutationOperator === "stale-loading-state") {
     await page.evaluate(() => {
       const loading = document.createElement("section");
       loading.setAttribute("data-testid", "loading-state");

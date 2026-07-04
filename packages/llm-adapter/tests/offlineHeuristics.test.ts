@@ -236,6 +236,55 @@ describe("classifyOffline", () => {
     expect(coveragePrompt).not.toContain("secret-provider-token");
   });
 
+  it("includes provider upload failure excerpts as advisory triage evidence", () => {
+    const providerRunReport: MockProviderRunReport = sampleProviderRunReport();
+    const argos = providerRunReport.providers[0]!;
+    argos.availability = "available";
+    argos.missingEnv = [];
+    argos.operations = [
+      {
+        operation: "upload_artifact",
+        status: "failed",
+        message: "Argos upload command failed; deterministic Playwright status is unchanged."
+      }
+    ];
+    argos.result = {
+      ...argos.result,
+      status: "failed",
+      message: "Argos upload command failed; deterministic Playwright status is unchanged.",
+      missingEnv: [],
+      upload: {
+        status: "failed",
+        externalCallsMade: 1,
+        uploadedArtifacts: 0,
+        stagedArtifacts: 2,
+        manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+        uploadDirectory: ".visual-hive/provider-upload/argos",
+        command: "npm exec --yes --package @argos-ci/cli@^5 -- argos upload .visual-hive/provider-upload/argos/screenshots",
+        stderr: "Provider upload command timed out after 50ms.",
+        stdout: "",
+        blockedReasons: []
+      }
+    };
+    argos.normalized = {
+      ...argos.normalized,
+      status: "failed",
+      networkMode: "external",
+      externalCallsMade: 1,
+      artifactSummary: {
+        ...argos.normalized.artifactSummary,
+        uploadMode: "blocked"
+      }
+    };
+
+    const findings = classifyOffline({ providerRunReport });
+    const providerFinding = findings.find((finding) => finding.classification === "provider_failure" && finding.title.includes("Argos"));
+
+    expect(providerFinding?.evidence.join("\n")).toContain("Upload status: failed");
+    expect(providerFinding?.evidence.join("\n")).toContain("Provider upload command timed out after 50ms.");
+    expect(providerFinding?.suggestedNextTests.join(" ")).toContain("Visual Hive verdict artifacts");
+  });
+
   it("builds missing-test markdown from mutation survivors", () => {
     const mutationReport: MutationReport = {
       schemaVersion: 2,

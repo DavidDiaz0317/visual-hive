@@ -17,47 +17,111 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.verdict.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": "visual-hive.verdict.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "evidencePacket": { "type": "string" },
-        "plan": { "type": "string" },
-        "report": { "type": "string" },
-        "mutationReport": { "type": "string" },
-        "triageReport": { "type": "string" },
-        "providerResults": { "type": "string" },
-        "readiness": { "type": "string" },
-        "coverage": { "type": "string" },
-        "repoMap": { "type": "string" },
-        "artifactsIndex": { "type": "string" }
+        "evidencePacket": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "report": {
+          "type": "string"
+        },
+        "mutationReport": {
+          "type": "string"
+        },
+        "triageReport": {
+          "type": "string"
+        },
+        "providerResults": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "string"
+        },
+        "repoMap": {
+          "type": "string"
+        },
+        "artifactsIndex": {
+          "type": "string"
+        }
       }
     },
     "governance": {
       "type": "object",
-      "required": ["verdictAuthority", "defaultBrowserBackend", "llmAuthority", "providerAuthority", "secretPolicy"],
+      "required": [
+        "verdictAuthority",
+        "defaultBrowserBackend",
+        "llmAuthority",
+        "providerAuthority",
+        "secretPolicy"
+      ],
       "additionalProperties": false,
       "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "defaultBrowserBackend": { "const": "playwright" },
-        "llmAuthority": { "const": "advisory_only" },
-        "providerAuthority": { "const": "policy_gated_when_normalized" },
-        "secretPolicy": { "const": "redacted_values_names_only" }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "defaultBrowserBackend": {
+          "const": "playwright"
+        },
+        "llmAuthority": {
+          "const": "advisory_only"
+        },
+        "providerAuthority": {
+          "const": "policy_gated_when_normalized"
+        },
+        "secretPolicy": {
+          "const": "redacted_values_names_only"
+        }
       }
     },
     "policy": {
       "type": "object",
-      "required": ["passFailOwnedBy", "deterministicSources", "advisorySources", "providerGating", "mutationGating"],
+      "required": [
+        "passFailOwnedBy",
+        "deterministicSources",
+        "advisorySources",
+        "providerGating",
+        "mutationGating"
+      ],
       "additionalProperties": false,
       "properties": {
-        "passFailOwnedBy": { "const": "visual_hive_verdict_engine" },
-        "deterministicSources": { "type": "array", "items": { "type": "string" } },
-        "advisorySources": { "type": "array", "items": { "type": "string" } },
-        "providerGating": { "const": "explicit_normalized_trusted_budget_authorized" },
-        "mutationGating": { "const": "configured_threshold" }
+        "passFailOwnedBy": {
+          "const": "visual_hive_verdict_engine"
+        },
+        "deterministicSources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisorySources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "providerGating": {
+          "const": "explicit_normalized_trusted_budget_authorized"
+        },
+        "mutationGating": {
+          "const": "configured_threshold"
+        }
       }
     },
     "summary": {
@@ -80,42 +144,105 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
-        "failedBecause": { "type": "array", "items": { "type": "string" } },
-        "warningBecause": { "type": "array", "items": { "type": "string" } },
-        "blockedBecause": { "type": "array", "items": { "type": "string" } },
-        "advisoryOnly": { "type": "array", "items": { "type": "string" } },
-        "totalContributions": { "type": "number" },
-        "gatingContributions": { "type": "number" },
-        "advisoryContributions": { "type": "number" },
-        "failedContributions": { "type": "number" },
-        "blockedContributions": { "type": "number" },
-        "warningContributions": { "type": "number" },
-        "inconclusiveContributions": { "type": "number" },
-        "passedContributions": { "type": "number" },
-        "skippedContributions": { "type": "number" }
+        "visualHiveVerdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive"
+          ]
+        },
+        "failedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warningBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisoryOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalContributions": {
+          "type": "number"
+        },
+        "gatingContributions": {
+          "type": "number"
+        },
+        "advisoryContributions": {
+          "type": "number"
+        },
+        "failedContributions": {
+          "type": "number"
+        },
+        "blockedContributions": {
+          "type": "number"
+        },
+        "warningContributions": {
+          "type": "number"
+        },
+        "inconclusiveContributions": {
+          "type": "number"
+        },
+        "passedContributions": {
+          "type": "number"
+        },
+        "skippedContributions": {
+          "type": "number"
+        }
       }
     },
     "gatingContributions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/verdictContribution" }
+      "items": {
+        "$ref": "#/$defs/verdictContribution"
+      }
     },
     "advisoryContributions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/verdictContribution" }
+      "items": {
+        "$ref": "#/$defs/verdictContribution"
+      }
     },
     "allContributions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/verdictContribution" }
+      "items": {
+        "$ref": "#/$defs/verdictContribution"
+      }
     }
   },
   "$defs": {
     "verdictContribution": {
       "type": "object",
-      "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],
+      "required": [
+        "key",
+        "source",
+        "kind",
+        "status",
+        "gating",
+        "authority",
+        "reason",
+        "artifacts"
+      ],
       "additionalProperties": false,
       "properties": {
-        "key": { "type": "string" },
+        "key": {
+          "type": "string"
+        },
         "source": {
           "enum": [
             "visual_hive",
@@ -131,17 +258,52 @@
             "agent"
           ]
         },
-        "kind": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
-        "gating": { "type": "boolean" },
-        "authority": { "enum": ["gating", "advisory"] },
-        "mode": { "type": "string" },
-        "contractId": { "type": "string" },
-        "targetId": { "type": "string" },
-        "operator": { "type": "string" },
-        "providerId": { "type": "string" },
-        "reason": { "type": "string" },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive",
+            "skipped"
+          ]
+        },
+        "gating": {
+          "type": "boolean"
+        },
+        "authority": {
+          "enum": [
+            "gating",
+            "advisory"
+          ]
+        },
+        "mode": {
+          "type": "string"
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

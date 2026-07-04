@@ -4,11 +4,23 @@
   "title": "Visual Hive Run History",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "summary", "entries"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "summary",
+    "entries"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -20,34 +32,82 @@
         "totalCreatedBaselines"
       ],
       "properties": {
-        "latestStatus": { "enum": ["passed", "failed"] },
-        "averageMutationScore": { "type": "number" },
-        "latestMutationScore": { "type": "number" }
+        "latestStatus": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "averageMutationScore": {
+          "type": "number"
+        },
+        "latestMutationScore": {
+          "type": "number"
+        }
       }
     },
     "trend": {
       "type": "object",
-      "required": ["hasPrevious", "direction", "reasons"],
+      "required": [
+        "hasPrevious",
+        "direction",
+        "reasons"
+      ],
       "properties": {
-        "hasPrevious": { "type": "boolean" },
-        "direction": { "enum": ["improved", "regressed", "unchanged", "unknown"] },
+        "hasPrevious": {
+          "type": "boolean"
+        },
+        "direction": {
+          "enum": [
+            "improved",
+            "regressed",
+            "unchanged",
+            "unknown"
+          ]
+        },
         "statusChanged": {
           "type": "object",
           "properties": {
-            "from": { "enum": ["passed", "failed"] },
-            "to": { "enum": ["passed", "failed"] }
+            "from": {
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            },
+            "to": {
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            }
           }
         },
-        "mutationScoreDelta": { "type": "number" },
-        "failedContractsDelta": { "type": "number" },
-        "visualDiffsDelta": { "type": "number" },
-        "missingBaselinesDelta": { "type": "number" },
-        "createdBaselinesDelta": { "type": "number" },
-        "consoleErrorsDelta": { "type": "number" },
-        "pageErrorsDelta": { "type": "number" },
+        "mutationScoreDelta": {
+          "type": "number"
+        },
+        "failedContractsDelta": {
+          "type": "number"
+        },
+        "visualDiffsDelta": {
+          "type": "number"
+        },
+        "missingBaselinesDelta": {
+          "type": "number"
+        },
+        "createdBaselinesDelta": {
+          "type": "number"
+        },
+        "consoleErrorsDelta": {
+          "type": "number"
+        },
+        "pageErrorsDelta": {
+          "type": "number"
+        },
         "reasons": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -72,41 +132,106 @@
           "artifacts"
         ],
         "properties": {
-          "deterministicStatus": { "enum": ["passed", "failed"] },
+          "deterministicStatus": {
+            "enum": [
+              "passed",
+              "failed"
+            ]
+          },
           "repository": {
             "type": "object",
             "properties": {
-              "provider": { "enum": ["local", "github-actions"] },
-              "repository": { "type": "string" },
-              "branch": { "type": "string" },
-              "baseBranch": { "type": "string" },
-              "commitSha": { "type": "string" },
-              "pullRequestNumber": { "type": "number" },
-              "runId": { "type": "string" }
+              "provider": {
+                "enum": [
+                  "local",
+                  "github-actions"
+                ]
+              },
+              "repository": {
+                "type": "string"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "baseBranch": {
+                "type": "string"
+              },
+              "commitSha": {
+                "type": "string"
+              },
+              "pullRequestNumber": {
+                "type": "number"
+              },
+              "runId": {
+                "type": "string"
+              }
             }
           },
-          "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
-          "mutationScore": { "type": "number" },
+          "mode": {
+            "enum": [
+              "pr",
+              "schedule",
+              "manual",
+              "canary",
+              "mutation",
+              "full"
+            ]
+          },
+          "mutationScore": {
+            "type": "number"
+          },
           "files": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "plan": { "type": "string" },
-              "report": { "type": "string" },
-              "mutationReport": { "type": "string" },
-              "triageReport": { "type": "string" },
-              "issue": { "type": "string" },
-              "prComment": { "type": "string" },
-              "triagePrompt": { "type": "string" },
-              "repairPrompt": { "type": "string" },
-              "missingTests": { "type": "string" },
-              "baselineReview": { "type": "string" },
-              "llmUsage": { "type": "string" },
-              "coverage": { "type": "string" },
-              "contracts": { "type": "string" },
-              "flows": { "type": "string" },
-              "targets": { "type": "string" },
-              "schedules": { "type": "string" }
+              "plan": {
+                "type": "string"
+              },
+              "report": {
+                "type": "string"
+              },
+              "mutationReport": {
+                "type": "string"
+              },
+              "triageReport": {
+                "type": "string"
+              },
+              "issue": {
+                "type": "string"
+              },
+              "prComment": {
+                "type": "string"
+              },
+              "triagePrompt": {
+                "type": "string"
+              },
+              "repairPrompt": {
+                "type": "string"
+              },
+              "missingTests": {
+                "type": "string"
+              },
+              "baselineReview": {
+                "type": "string"
+              },
+              "llmUsage": {
+                "type": "string"
+              },
+              "coverage": {
+                "type": "string"
+              },
+              "contracts": {
+                "type": "string"
+              },
+              "flows": {
+                "type": "string"
+              },
+              "targets": {
+                "type": "string"
+              },
+              "schedules": {
+                "type": "string"
+              }
             }
           }
         }

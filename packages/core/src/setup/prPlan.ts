@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { SetupRecommendationReport, SetupWorkflowPreview } from "./recommend.js";
+import { catalogedSetupOutputResource, type SetupRecommendationOutputResource, type SetupRecommendationReport, type SetupWorkflowPreview } from "./recommend.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type SetupPullRequestPlanStatus = "ready" | "review" | "blocked";
@@ -45,6 +45,7 @@ export interface SetupPullRequestPlanReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: SetupRecommendationOutputResource;
   sourceRecommendationGeneratedAt: string;
   setupProfile: SetupRecommendationReport["setupProfile"];
   status: SetupPullRequestPlanStatus;
@@ -79,6 +80,7 @@ export function buildSetupPullRequestPlan(
     schemaVersion: 1,
     project: sanitizeText(recommendation.project.name),
     generatedAt: now.toISOString(),
+    outputResource: catalogedSetupOutputResource("setup-pr-plan", ".visual-hive/setup-pr-plan.json"),
     sourceRecommendationGeneratedAt: recommendation.generatedAt,
     setupProfile: recommendation.setupProfile,
     status,

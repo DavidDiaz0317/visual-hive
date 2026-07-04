@@ -1,0 +1,450 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-trusted-repair-workflow-dry-run.schema.json",
+  "title": "Visual Hive Hive Trusted Repair Workflow Dry Run",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "outputResource",
+    "policy",
+    "readiness",
+    "summary",
+    "currentActions",
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "visual-hive.hive-trusted-repair-workflow-dry-run.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": [
+        "trustedRepairConsumerSummary",
+        "repairRequestEnvelope",
+        "guardedRepairPreview",
+        "hiveExport",
+        "repairWorkOrders",
+        "agentPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "trustedRepairConsumerSummary": {
+          "type": "string"
+        },
+        "repairRequestEnvelope": {
+          "type": "string"
+        },
+        "guardedRepairPreview": {
+          "type": "string"
+        },
+        "hiveExport": {
+          "type": "string"
+        },
+        "repairWorkOrders": {
+          "type": "string"
+        },
+        "agentPolicy": {
+          "type": "string"
+        },
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": [
+        "dryRun",
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dryRun": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      }
+    },
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactKey",
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactKey": {
+          "const": "dryRun"
+        },
+        "artifactPath": {
+          "const": ".visual-hive/hive/trusted-repair-workflow-dry-run.json"
+        },
+        "evidenceResourceId": {
+          "const": "hive-trusted-repair-workflow-dry-run"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://hive-trusted-repair-workflow-dry-run"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_hive_trusted_repair_workflow_dry_run"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "verdictAuthority",
+        "workflowExecution",
+        "repairExecution",
+        "checkoutCode",
+        "branchCreation",
+        "pullRequestCreation",
+        "issueCreation",
+        "hiveNetworkCalls",
+        "providerCalls",
+        "visualHiveRerun",
+        "requiresTrustedWorkflow",
+        "secretsPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "workflowExecution": {
+          "const": "dry_run_only"
+        },
+        "repairExecution": {
+          "const": "not_executed_by_visual_hive"
+        },
+        "checkoutCode": {
+          "const": false
+        },
+        "branchCreation": {
+          "const": false
+        },
+        "pullRequestCreation": {
+          "const": false
+        },
+        "issueCreation": {
+          "const": false
+        },
+        "hiveNetworkCalls": {
+          "const": false
+        },
+        "providerCalls": {
+          "const": false
+        },
+        "visualHiveRerun": {
+          "const": false
+        },
+        "requiresTrustedWorkflow": {
+          "const": true
+        },
+        "secretsPolicy": {
+          "const": "names_only_values_redacted"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "canRunTrustedRepairWorkflow",
+        "blockedReasons",
+        "requiredApprovals",
+        "requiredCommands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canRunTrustedRepairWorkflow": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredApprovals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "requestedRepairs",
+        "readyRepairs",
+        "blockedRepairs",
+        "plannedBranches",
+        "plannedPullRequests",
+        "plannedActions",
+        "blockedActions",
+        "externalCallsMade"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requestedRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readyRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "plannedBranches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "plannedPullRequests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "plannedActions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedActions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsMade": {
+          "const": 0
+        }
+      }
+    },
+    "currentActions": {
+      "type": "object",
+      "required": [
+        "checkedOutCode",
+        "createdBranches",
+        "openedPullRequests",
+        "createdIssues",
+        "calledHiveApi",
+        "calledProviders",
+        "ranVisualHive",
+        "executedRepair"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "checkedOutCode": {
+          "const": false
+        },
+        "createdBranches": {
+          "const": false
+        },
+        "openedPullRequests": {
+          "const": false
+        },
+        "createdIssues": {
+          "const": false
+        },
+        "calledHiveApi": {
+          "const": false
+        },
+        "calledProviders": {
+          "const": false
+        },
+        "ranVisualHive": {
+          "const": false
+        },
+        "executedRepair": {
+          "const": false
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "actor",
+        "status",
+        "branchName",
+        "pullRequestTitle",
+        "labels",
+        "allowedFiles",
+        "artifacts",
+        "reproductionCommands",
+        "acceptanceCriteria",
+        "finalValidationCommand",
+        "plannedActions",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "branchName": {
+          "type": "string"
+        },
+        "pullRequestTitle": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "finalValidationCommand": {
+          "type": "string"
+        },
+        "plannedActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "phase",
+        "status",
+        "futureTrustedOnly",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "artifact_validation",
+            "branch_preparation",
+            "repair_execution",
+            "validation",
+            "pull_request"
+          ]
+        },
+        "status": {
+          "enum": [
+            "planned",
+            "blocked"
+          ]
+        },
+        "futureTrustedOnly": {
+          "const": true
+        },
+        "command": {
+          "type": "string"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

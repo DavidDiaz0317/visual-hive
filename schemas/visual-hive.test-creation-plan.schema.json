@@ -3,57 +3,174 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.test-creation-plan.schema.json",
   "title": "Visual Hive Test Creation Plan",
   "type": "object",
-  "required": ["schemaVersion", "generatedAt", "project", "sourceArtifacts", "governance", "summary", "recommendations"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "sourceArtifacts",
+    "governance",
+    "summary",
+    "recommendations"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.test-creation-plan.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": "visual-hive.test-creation-plan.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "evidencePacket": { "type": "string" },
-        "coverageRecommendations": { "type": "string" },
-        "handoffPacket": { "type": "string" }
+        "evidencePacket": {
+          "type": "string"
+        },
+        "coverageRecommendations": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
       }
     },
     "governance": {
       "type": "object",
-      "required": ["verdictAuthority", "agentAuthority", "writePolicy", "secretPolicy"],
+      "required": [
+        "verdictAuthority",
+        "agentAuthority",
+        "writePolicy",
+        "secretPolicy"
+      ],
       "additionalProperties": false,
       "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "agentAuthority": { "const": "advisory_test_generation_only" },
-        "writePolicy": { "const": "no_config_or_test_files_written" },
-        "secretPolicy": { "const": "redacted_values_names_only" }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "agentAuthority": {
+          "const": "advisory_test_generation_only"
+        },
+        "writePolicy": {
+          "const": "no_config_or_test_files_written"
+        },
+        "secretPolicy": {
+          "const": "redacted_values_names_only"
+        }
       }
     },
     "summary": {
       "type": "object",
-      "required": ["total", "high", "medium", "low", "fromTestingLayers", "fromCoverageRecommendations", "fromMutationSurvivors", "fromHandoffWorkItems"],
+      "required": [
+        "total",
+        "high",
+        "medium",
+        "low",
+        "fromTestingLayers",
+        "fromCoverageRecommendations",
+        "fromMutationSurvivors",
+        "fromHandoffWorkItems"
+      ],
       "additionalProperties": false,
       "properties": {
-        "total": { "type": "number" },
-        "high": { "type": "number" },
-        "medium": { "type": "number" },
-        "low": { "type": "number" },
-        "fromTestingLayers": { "type": "number" },
-        "fromCoverageRecommendations": { "type": "number" },
-        "fromMutationSurvivors": { "type": "number" },
-        "fromHandoffWorkItems": { "type": "number" }
+        "total": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "medium": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "fromTestingLayers": {
+          "type": "number"
+        },
+        "fromCoverageRecommendations": {
+          "type": "number"
+        },
+        "fromMutationSurvivors": {
+          "type": "number"
+        },
+        "fromHandoffWorkItems": {
+          "type": "number"
+        }
       }
     },
-    "recommendations": { "type": "array", "items": { "$ref": "#/$defs/recommendation" } }
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/recommendation"
+      }
+    }
   },
   "$defs": {
-    "recommendation": {
+    "outputResource": {
       "type": "object",
-      "required": ["id", "source", "kind", "priority", "title", "rationale", "suggestedTests", "artifacts", "trustedOnly", "applyMode"],
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "source": { "enum": ["testing_layer", "coverage_recommendation", "mutation_survivor", "handoff_work_item"] },
+        "artifactPath": {
+          "const": ".visual-hive/test-creation-plan.json"
+        },
+        "evidenceResourceId": {
+          "const": "test-creation-plan"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://test-creation-plan"
+        },
+        "evidenceResourceTitle": {
+          "const": "Test Creation Plan"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_test_creation_plan"
+        }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "required": [
+        "id",
+        "source",
+        "kind",
+        "priority",
+        "title",
+        "rationale",
+        "suggestedTests",
+        "artifacts",
+        "trustedOnly",
+        "applyMode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "testing_layer",
+            "coverage_recommendation",
+            "mutation_survivor",
+            "handoff_work_item"
+          ]
+        },
         "kind": {
           "enum": [
             "unit_test",
@@ -70,29 +187,84 @@
             "agent_handoff"
           ]
         },
-        "priority": { "enum": ["low", "medium", "high"] },
-        "title": { "type": "string" },
-        "rationale": { "type": "array", "items": { "type": "string" } },
-        "layer": {
-          "type": "object",
-          "required": ["id", "name", "status"],
-          "additionalProperties": false,
-          "properties": {
-            "id": { "type": "number" },
-            "name": { "type": "string" },
-            "status": { "enum": ["covered", "partial", "missing", "not_applicable", "unknown"] }
+        "priority": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         },
-        "targetId": { "type": "string" },
-        "contractId": { "type": "string" },
-        "mutationOperator": { "type": "string" },
-        "coverageRecommendationId": { "type": "string" },
-        "handoffWorkItemId": { "type": "string" },
-        "suggestedTests": { "type": "array", "items": { "type": "string" } },
-        "suggestedConfigYaml": { "type": "string" },
-        "artifacts": { "type": "array", "items": { "type": "string" } },
-        "trustedOnly": { "type": "boolean" },
-        "applyMode": { "const": "advisory_no_write" }
+        "layer": {
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "covered",
+                "partial",
+                "missing",
+                "not_applicable",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "mutationOperator": {
+          "type": "string"
+        },
+        "coverageRecommendationId": {
+          "type": "string"
+        },
+        "handoffWorkItemId": {
+          "type": "string"
+        },
+        "suggestedTests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedConfigYaml": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trustedOnly": {
+          "type": "boolean"
+        },
+        "applyMode": {
+          "const": "advisory_no_write"
+        }
       }
     }
   }

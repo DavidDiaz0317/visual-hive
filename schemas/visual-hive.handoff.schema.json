@@ -21,38 +21,109 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.handoff.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
-    "mode": { "enum": ["dry_run", "github_issue", "bead_api"] },
-    "status": { "enum": ["ready", "blocked"] },
-    "externalCallsMade": { "const": 0 },
-    "sourceEvidencePacket": { "type": "string" },
-    "labels": { "type": "array", "items": { "type": "string" } },
-    "verdict": { "$ref": "#/$defs/verdict" },
-    "governance": {
-      "type": "object",
-      "required": ["verdictAuthority", "handoffAuthority", "networkPolicy", "secretPolicy", "requiresHumanApprovalFor"],
-      "additionalProperties": false,
-      "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "handoffAuthority": { "const": "advisory_repair_routing" },
-        "networkPolicy": { "const": "no_network_calls_in_dry_run" },
-        "secretPolicy": { "const": "redacted_values_names_only" },
-        "requiresHumanApprovalFor": { "type": "array", "items": { "type": "string" } }
+    "schemaVersion": {
+      "const": "visual-hive.handoff.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "dry_run",
+        "github_issue",
+        "bead_api"
+      ]
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "sourceEvidencePacket": {
+      "type": "string"
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
-    "workItems": { "type": "array", "items": { "$ref": "#/$defs/workItem" } },
-    "githubIssue": {
+    "verdict": {
+      "$ref": "#/$defs/verdict"
+    },
+    "governance": {
       "type": "object",
-      "required": ["title", "labels", "bodyPath", "dedupeSignature", "trustedWorkflowRequired"],
+      "required": [
+        "verdictAuthority",
+        "handoffAuthority",
+        "networkPolicy",
+        "secretPolicy",
+        "requiresHumanApprovalFor"
+      ],
       "additionalProperties": false,
       "properties": {
-        "title": { "type": "string" },
-        "labels": { "type": "array", "items": { "type": "string" } },
-        "bodyPath": { "type": "string" },
-        "dedupeSignature": { "type": "string" },
-        "trustedWorkflowRequired": { "const": true }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "handoffAuthority": {
+          "const": "advisory_repair_routing"
+        },
+        "networkPolicy": {
+          "const": "no_network_calls_in_dry_run"
+        },
+        "secretPolicy": {
+          "const": "redacted_values_names_only"
+        },
+        "requiresHumanApprovalFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "workItems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/workItem"
+      }
+    },
+    "githubIssue": {
+      "type": "object",
+      "required": [
+        "title",
+        "labels",
+        "bodyPath",
+        "dedupeSignature",
+        "trustedWorkflowRequired"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bodyPath": {
+          "type": "string"
+        },
+        "dedupeSignature": {
+          "type": "string"
+        },
+        "trustedWorkflowRequired": {
+          "const": true
+        }
       }
     },
     "hiveBeadRequest": {
@@ -71,48 +142,162 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "dryRun": { "const": true },
-        "requestPath": { "type": "string" },
-        "agent": { "type": "string" },
-        "labels": { "type": "array", "items": { "type": "string" } },
-        "evidencePacketPath": { "type": "string" },
-        "handoffPacketPath": { "type": "string" },
-        "integrationEnabled": { "type": "boolean" },
-        "configuredMode": { "enum": ["dry_run", "github_issue", "bead_api"] },
-        "beadApiUrl": { "type": "string" },
-        "tokenEnv": { "type": "string" },
-        "tokenPresent": { "type": "boolean" },
-        "missingTokenEnv": { "type": "string" }
+        "dryRun": {
+          "const": true
+        },
+        "requestPath": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidencePacketPath": {
+          "type": "string"
+        },
+        "handoffPacketPath": {
+          "type": "string"
+        },
+        "integrationEnabled": {
+          "type": "boolean"
+        },
+        "configuredMode": {
+          "enum": [
+            "dry_run",
+            "github_issue",
+            "bead_api"
+          ]
+        },
+        "beadApiUrl": {
+          "type": "string"
+        },
+        "tokenEnv": {
+          "type": "string"
+        },
+        "tokenPresent": {
+          "type": "boolean"
+        },
+        "missingTokenEnv": {
+          "type": "string"
+        }
       }
     },
-    "blockedReasons": { "type": "array", "items": { "type": "string" } }
+    "blockedReasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "$defs": {
     "verdict": {
       "type": "object",
-      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "required": [
+        "visualHiveVerdict",
+        "failedBecause",
+        "warningBecause",
+        "blockedBecause",
+        "advisoryOnly"
+      ],
       "additionalProperties": false,
       "properties": {
-        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
-        "failedBecause": { "type": "array", "items": { "type": "string" } },
-        "warningBecause": { "type": "array", "items": { "type": "string" } },
-        "blockedBecause": { "type": "array", "items": { "type": "string" } },
-        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+        "visualHiveVerdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive"
+          ]
+        },
+        "failedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warningBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisoryOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "workItem": {
       "type": "object",
-      "required": ["id", "kind", "priority", "title", "summary", "evidenceKeys", "artifacts", "suggestedNextSteps"],
+      "required": [
+        "id",
+        "kind",
+        "priority",
+        "title",
+        "summary",
+        "evidenceKeys",
+        "artifacts",
+        "suggestedNextSteps"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "kind": { "enum": ["repair", "test_creation", "review", "setup"] },
-        "priority": { "enum": ["low", "medium", "high", "critical"] },
-        "title": { "type": "string" },
-        "summary": { "type": "string" },
-        "evidenceKeys": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } },
-        "suggestedNextSteps": { "type": "array", "items": { "type": "string" } }
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "repair",
+            "test_creation",
+            "review",
+            "setup"
+          ]
+        },
+        "priority": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "evidenceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedNextSteps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

@@ -1,4 +1,3 @@
-import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   auditWorkflows,
@@ -17,9 +16,9 @@ import {
   type SetupRecommendationReport,
   type TriageReport,
   type VisualHiveConfig,
-  type WorkflowAuditInputFile,
   type WorkflowAuditReport
 } from "@visual-hive/core";
+import { readWorkflowFiles, resolveWorkflowRoot } from "./workflowAuditInput.js";
 
 export interface SetupStatusCommandOptions {
   config?: string;
@@ -63,7 +62,7 @@ export async function runSetupStatusCommand(options: SetupStatusCommandOptions =
   );
   const workflowAudit =
     (await readOptionalJson<WorkflowAuditReport>(path.resolve(rootDir, options.workflows ?? path.join(".visual-hive", "workflows.json")))) ??
-    (config ? await auditWorkflowDirIfPresent(config, rootDir, options.workflowDir) : undefined);
+    (config ? await auditWorkflowDirIfPresent(config, rootDir, cwd, options.workflowDir) : undefined);
   const readinessReport = await readOptionalJson<ReadinessReport>(path.resolve(rootDir, options.readiness ?? path.join(".visual-hive", "readiness.json")));
   const providerSetupPlan = await readOptionalJson<ProviderSetupPlan>(
     path.resolve(rootDir, options.providerSetupPlan ?? path.join(".visual-hive", "provider-setup-plan.json"))
@@ -130,23 +129,11 @@ async function readOptionalJson<T>(filePath: string): Promise<T | undefined> {
 async function auditWorkflowDirIfPresent(
   config: Parameters<typeof auditWorkflows>[0],
   rootDir: string,
+  cwd: string,
   workflowDir = ".github/workflows"
 ): Promise<WorkflowAuditReport | undefined> {
-  const workflowRoot = path.resolve(rootDir, workflowDir);
-  let entries: string[];
-  try {
-    entries = await readdir(workflowRoot);
-  } catch {
-    return undefined;
-  }
-  const files: WorkflowAuditInputFile[] = await Promise.all(
-    entries
-      .filter((entry) => entry.endsWith(".yml") || entry.endsWith(".yaml"))
-      .sort()
-      .map(async (entry) => ({
-        path: path.join(workflowRoot, entry),
-        content: await readFile(path.join(workflowRoot, entry), "utf8")
-      }))
-  );
+  const { workflowRoot, exists } = await resolveWorkflowRoot({ configRoot: rootDir, cwd, workflowDir });
+  if (!exists) return undefined;
+  const files = await readWorkflowFiles(workflowRoot);
   return auditWorkflows(config, files, { workflowRoot });
 }

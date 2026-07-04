@@ -18,98 +18,325 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.evidence-packet.v2" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": "visual-hive.evidence-packet.v2"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "plan": { "type": "string" },
-        "report": { "type": "string" },
-        "mutationReport": { "type": "string" },
-        "triageReport": { "type": "string" },
-        "providerResults": { "type": "string" },
-        "readiness": { "type": "string" },
-        "coverage": { "type": "string" },
-        "repoMap": { "type": "string" },
-        "artifactsIndex": { "type": "string" }
+        "plan": {
+          "type": "string"
+        },
+        "report": {
+          "type": "string"
+        },
+        "mutationReport": {
+          "type": "string"
+        },
+        "triageReport": {
+          "type": "string"
+        },
+        "providerResults": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "string"
+        },
+        "repoMap": {
+          "type": "string"
+        },
+        "artifactsIndex": {
+          "type": "string"
+        }
       }
     },
     "governance": {
       "type": "object",
-      "required": ["verdictAuthority", "defaultBrowserBackend", "llmAuthority", "providerAuthority", "secretPolicy"],
+      "required": [
+        "verdictAuthority",
+        "defaultBrowserBackend",
+        "llmAuthority",
+        "providerAuthority",
+        "secretPolicy"
+      ],
       "additionalProperties": false,
       "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "defaultBrowserBackend": { "const": "playwright" },
-        "llmAuthority": { "const": "advisory_only" },
-        "providerAuthority": { "const": "policy_gated_when_normalized" },
-        "secretPolicy": { "const": "redacted_values_names_only" }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "defaultBrowserBackend": {
+          "const": "playwright"
+        },
+        "llmAuthority": {
+          "const": "advisory_only"
+        },
+        "providerAuthority": {
+          "const": "policy_gated_when_normalized"
+        },
+        "secretPolicy": {
+          "const": "redacted_values_names_only"
+        }
       }
     },
     "repo": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repository": { "type": "string" },
-        "branch": { "type": "string" },
-        "commitSha": { "type": "string" },
-        "runContext": { "type": "string" }
+        "repository": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "commitSha": {
+          "type": "string"
+        },
+        "runContext": {
+          "type": "string"
+        }
       }
     },
-    "repoIntelligence": { "type": "object" },
-    "plan": { "type": "object" },
-    "deterministicReport": { "type": "object" },
-    "mutation": { "type": "object" },
+    "repoIntelligence": {
+      "type": "object"
+    },
+    "plan": {
+      "type": "object"
+    },
+    "deterministicReport": {
+      "type": "object"
+    },
+    "mutation": {
+      "type": "object"
+    },
     "providers": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["providerId", "label", "status", "deterministicRole", "message", "requiredEnv", "missingEnv", "artifactCount"],
+        "required": [
+          "providerId",
+          "label",
+          "status",
+          "deterministicRole",
+          "message",
+          "requiredEnv",
+          "missingEnv",
+          "artifactCount"
+        ],
         "additionalProperties": false,
         "properties": {
-          "providerId": { "type": "string" },
-          "label": { "type": "string" },
-          "status": { "type": "string" },
-          "deterministicRole": { "type": "string" },
-          "message": { "type": "string" },
-          "requiredEnv": { "type": "array", "items": { "type": "string" } },
-          "missingEnv": { "type": "array", "items": { "type": "string" } },
-          "artifactCount": { "type": "number" }
+          "providerId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "deterministicRole": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requiredEnv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missingEnv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifactCount": {
+            "type": "number"
+          },
+          "externalUrl": {
+            "type": "string"
+          },
+          "externalUploadAllowed": {
+            "type": "boolean"
+          },
+          "externalUploadBlockedReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimatedExternalScreenshots": {
+            "type": "number"
+          },
+          "upload": {
+            "type": "object",
+            "required": [
+              "status",
+              "externalCallsMade",
+              "uploadedArtifacts",
+              "stagedArtifacts",
+              "blockedReasons"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "uploaded",
+                  "skipped",
+                  "blocked",
+                  "missing_credentials",
+                  "failed",
+                  "dry_run"
+                ]
+              },
+              "externalCallsMade": {
+                "type": "number",
+                "minimum": 0
+              },
+              "uploadedArtifacts": {
+                "type": "number",
+                "minimum": 0
+              },
+              "stagedArtifacts": {
+                "type": "number",
+                "minimum": 0
+              },
+              "manifestPath": {
+                "type": "string"
+              },
+              "uploadDirectory": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "providerUrl": {
+                "type": "string"
+              },
+              "blockedReasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       }
     },
-    "triage": { "type": "object" },
+    "triage": {
+      "type": "object"
+    },
     "testingLayers": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "status", "evidence", "gaps"],
+        "required": [
+          "id",
+          "name",
+          "status",
+          "evidence",
+          "gaps"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" },
-          "status": { "enum": ["covered", "partial", "missing", "not_applicable", "unknown"] },
-          "evidence": { "type": "array", "items": { "type": "string" } },
-          "gaps": { "type": "array", "items": { "type": "string" } }
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "covered",
+              "partial",
+              "missing",
+              "not_applicable",
+              "unknown"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "evidenceContributions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/evidenceContribution" }
+      "items": {
+        "$ref": "#/$defs/evidenceContribution"
+      }
     },
     "verdictSummary": {
       "type": "object",
-      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "required": [
+        "visualHiveVerdict",
+        "failedBecause",
+        "warningBecause",
+        "blockedBecause",
+        "advisoryOnly"
+      ],
       "additionalProperties": false,
       "properties": {
-        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
-        "failedBecause": { "type": "array", "items": { "type": "string" } },
-        "warningBecause": { "type": "array", "items": { "type": "string" } },
-        "blockedBecause": { "type": "array", "items": { "type": "string" } },
-        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+        "visualHiveVerdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive"
+          ]
+        },
+        "failedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warningBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisoryOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "hiveReadiness": {
@@ -125,22 +352,50 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "readyForIssueHandoff": { "type": "boolean" },
-        "readyForHiveDryRun": { "type": "boolean" },
-        "blockedReasons": { "type": "array", "items": { "type": "string" } },
-        "suggestedLabels": { "type": "array", "items": { "type": "string" } },
-        "recommendedMode": { "$ref": "#/$defs/hiveMode" },
-        "recommendationReason": { "type": "string" },
+        "readyForIssueHandoff": {
+          "type": "boolean"
+        },
+        "readyForHiveDryRun": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestedLabels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendedMode": {
+          "$ref": "#/$defs/hiveMode"
+        },
+        "recommendationReason": {
+          "type": "string"
+        },
         "modeReadiness": {
           "type": "array",
           "minItems": 5,
-          "items": { "$ref": "#/$defs/hiveModeReadiness" }
+          "items": {
+            "$ref": "#/$defs/hiveModeReadiness"
+          }
         }
       }
     }
   },
   "$defs": {
-    "hiveMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+    "hiveMode": {
+      "enum": [
+        "advisory",
+        "measured",
+        "repair_request",
+        "guarded_repair",
+        "full"
+      ]
+    },
     "hiveModeReadiness": {
       "type": "object",
       "required": [
@@ -156,36 +411,92 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "mode": { "$ref": "#/$defs/hiveMode" },
-        "status": { "enum": ["ready", "blocked", "trusted_only"] },
-        "reason": { "type": "string" },
-        "nextCommand": { "type": "string" },
-        "localPreviewAllowed": { "type": "boolean" },
-        "trustedWorkflowRequired": { "type": "boolean" },
-        "externalCallsMade": { "const": 0 },
+        "mode": {
+          "$ref": "#/$defs/hiveMode"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "blocked",
+            "trusted_only"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "nextCommand": {
+          "type": "string"
+        },
+        "localPreviewAllowed": {
+          "type": "boolean"
+        },
+        "trustedWorkflowRequired": {
+          "type": "boolean"
+        },
+        "externalCallsMade": {
+          "const": 0
+        },
         "emits": {
           "type": "object",
-          "required": ["issueContext", "beads", "knowledgeFacts", "knowledgeGraph", "wikiVault", "repairWorkOrders", "agentPolicy"],
+          "required": [
+            "issueContext",
+            "beads",
+            "knowledgeFacts",
+            "knowledgeGraph",
+            "wikiVault",
+            "repairWorkOrders",
+            "agentPolicy"
+          ],
           "additionalProperties": false,
           "properties": {
-            "issueContext": { "type": "boolean" },
-            "beads": { "type": "boolean" },
-            "knowledgeFacts": { "type": "boolean" },
-            "knowledgeGraph": { "type": "boolean" },
-            "wikiVault": { "type": "boolean" },
-            "repairWorkOrders": { "type": "boolean" },
-            "agentPolicy": { "type": "boolean" }
+            "issueContext": {
+              "type": "boolean"
+            },
+            "beads": {
+              "type": "boolean"
+            },
+            "knowledgeFacts": {
+              "type": "boolean"
+            },
+            "knowledgeGraph": {
+              "type": "boolean"
+            },
+            "wikiVault": {
+              "type": "boolean"
+            },
+            "repairWorkOrders": {
+              "type": "boolean"
+            },
+            "agentPolicy": {
+              "type": "boolean"
+            }
           }
         },
-        "blockedReasons": { "type": "array", "items": { "type": "string" } }
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "evidenceContribution": {
       "type": "object",
-      "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],
+      "required": [
+        "key",
+        "source",
+        "kind",
+        "status",
+        "gating",
+        "authority",
+        "reason",
+        "artifacts"
+      ],
       "additionalProperties": false,
       "properties": {
-        "key": { "type": "string" },
+        "key": {
+          "type": "string"
+        },
         "source": {
           "enum": [
             "visual_hive",
@@ -201,17 +512,52 @@
             "agent"
           ]
         },
-        "kind": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
-        "gating": { "type": "boolean" },
-        "authority": { "enum": ["gating", "advisory"] },
-        "mode": { "type": "string" },
-        "contractId": { "type": "string" },
-        "targetId": { "type": "string" },
-        "operator": { "type": "string" },
-        "providerId": { "type": "string" },
-        "reason": { "type": "string" },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive",
+            "skipped"
+          ]
+        },
+        "gating": {
+          "type": "boolean"
+        },
+        "authority": {
+          "enum": [
+            "gating",
+            "advisory"
+          ]
+        },
+        "mode": {
+          "type": "string"
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

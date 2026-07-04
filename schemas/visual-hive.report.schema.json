@@ -25,48 +25,183 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 2 },
-    "project": { "type": "string" },
-    "repository": { "$ref": "#/$defs/repositoryMetadata" },
-    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
-    "generatedAt": { "type": "string" },
-    "status": { "enum": ["passed", "failed"] },
-    "changedFiles": { "type": "array", "items": { "type": "string" } },
-    "selectedTargets": { "type": "array", "items": { "type": "object" } },
-    "selectedContracts": { "type": "array", "items": { "type": "string" } },
-    "excludedContracts": { "type": "array", "items": { "type": "object" } },
-    "targetLifecycle": { "type": "array", "items": { "$ref": "#/$defs/targetLifecycleEvent" } },
-    "generatedSpecPath": { "type": "string" },
-    "results": { "type": "array", "items": { "$ref": "#/$defs/contractResult" } },
-    "summary": { "$ref": "#/$defs/reportSummary" },
-    "consoleErrors": { "type": "array", "items": { "type": "string" } },
-    "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
-    "artifacts": { "type": "array", "items": { "type": "string" } },
-    "providerResults": { "type": "array", "items": { "$ref": "#/$defs/providerResult" } },
-    "reproductionCommands": { "type": "array", "items": { "type": "string" } },
-    "verdictSummary": { "$ref": "#/$defs/verdictSummary" },
-    "verdictContributions": { "type": "array", "items": { "$ref": "#/$defs/evidenceContribution" } },
-    "noContractsReason": { "type": "string" }
+    "schemaVersion": {
+      "const": 2
+    },
+    "project": {
+      "type": "string"
+    },
+    "repository": {
+      "$ref": "#/$defs/repositoryMetadata"
+    },
+    "mode": {
+      "enum": [
+        "pr",
+        "schedule",
+        "manual",
+        "canary",
+        "mutation",
+        "full"
+      ]
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "selectedTargets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "selectedContracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excludedContracts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "targetLifecycle": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/targetLifecycleEvent"
+      }
+    },
+    "generatedSpecPath": {
+      "type": "string"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contractResult"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/reportSummary"
+    },
+    "consoleErrors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pageErrors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runtimeError"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "providerResults": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/providerResult"
+      }
+    },
+    "reproductionCommands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdictSummary": {
+      "$ref": "#/$defs/verdictSummary"
+    },
+    "verdictContributions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceContribution"
+      }
+    },
+    "noContractsReason": {
+      "type": "string"
+    }
   },
   "$defs": {
     "verdictSummary": {
       "type": "object",
-      "required": ["visualHiveVerdict", "failedBecause", "warningBecause", "blockedBecause", "advisoryOnly"],
+      "required": [
+        "visualHiveVerdict",
+        "failedBecause",
+        "warningBecause",
+        "blockedBecause",
+        "advisoryOnly"
+      ],
       "additionalProperties": false,
       "properties": {
-        "visualHiveVerdict": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive"] },
-        "failedBecause": { "type": "array", "items": { "type": "string" } },
-        "warningBecause": { "type": "array", "items": { "type": "string" } },
-        "blockedBecause": { "type": "array", "items": { "type": "string" } },
-        "advisoryOnly": { "type": "array", "items": { "type": "string" } }
+        "visualHiveVerdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive"
+          ]
+        },
+        "failedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warningBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedBecause": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advisoryOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "evidenceContribution": {
       "type": "object",
-      "required": ["key", "source", "kind", "status", "gating", "authority", "reason", "artifacts"],
+      "required": [
+        "key",
+        "source",
+        "kind",
+        "status",
+        "gating",
+        "authority",
+        "reason",
+        "artifacts"
+      ],
       "additionalProperties": false,
       "properties": {
-        "key": { "type": "string" },
+        "key": {
+          "type": "string"
+        },
         "source": {
           "enum": [
             "visual_hive",
@@ -82,69 +217,196 @@
             "agent"
           ]
         },
-        "kind": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "warning", "blocked", "inconclusive", "skipped"] },
-        "gating": { "type": "boolean" },
-        "authority": { "enum": ["gating", "advisory"] },
-        "mode": { "type": "string" },
-        "contractId": { "type": "string" },
-        "targetId": { "type": "string" },
-        "operator": { "type": "string" },
-        "providerId": { "type": "string" },
-        "reason": { "type": "string" },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive",
+            "skipped"
+          ]
+        },
+        "gating": {
+          "type": "boolean"
+        },
+        "authority": {
+          "enum": [
+            "gating",
+            "advisory"
+          ]
+        },
+        "mode": {
+          "type": "string"
+        },
+        "contractId": {
+          "type": "string"
+        },
+        "mutationOperator": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "runtimeError": {
       "type": "object",
-      "required": ["type", "message"],
+      "required": [
+        "type",
+        "message"
+      ],
       "properties": {
-        "type": { "enum": ["console", "page"] },
-        "message": { "type": "string" }
+        "type": {
+          "enum": [
+            "console",
+            "page"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "repositoryMetadata": {
       "type": "object",
-      "required": ["provider", "repository"],
+      "required": [
+        "provider",
+        "repository"
+      ],
       "additionalProperties": false,
       "properties": {
-        "provider": { "enum": ["local", "github-actions"] },
-        "repository": { "type": "string" },
-        "owner": { "type": "string" },
-        "repo": { "type": "string" },
-        "remoteUrl": { "type": "string" },
-        "branch": { "type": "string" },
-        "baseBranch": { "type": "string" },
-        "commitSha": { "type": "string" },
-        "pullRequestNumber": { "type": "number" },
-        "runId": { "type": "string" },
-        "runAttempt": { "type": "string" },
-        "workflow": { "type": "string" },
-        "actor": { "type": "string" }
+        "provider": {
+          "enum": [
+            "local",
+            "github-actions"
+          ]
+        },
+        "repository": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "remoteUrl": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string"
+        },
+        "commitSha": {
+          "type": "string"
+        },
+        "pullRequestNumber": {
+          "type": "number"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "runAttempt": {
+          "type": "string"
+        },
+        "workflow": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        }
       }
     },
     "networkError": {
       "type": "object",
-      "required": ["type", "url", "status", "statusText"],
+      "required": [
+        "type",
+        "url",
+        "status",
+        "statusText"
+      ],
       "properties": {
-        "type": { "const": "network" },
-        "url": { "type": "string" },
-        "status": { "type": "number" },
-        "statusText": { "type": "string" }
+        "type": {
+          "const": "network"
+        },
+        "url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "number"
+        },
+        "statusText": {
+          "type": "string"
+        }
       }
     },
     "targetLifecycleEvent": {
       "type": "object",
-      "required": ["targetId", "phase", "status", "durationMs"],
+      "required": [
+        "targetId",
+        "phase",
+        "status",
+        "durationMs"
+      ],
       "properties": {
-        "targetId": { "type": "string" },
-        "serviceName": { "type": "string" },
-        "phase": { "enum": ["install", "build", "setup", "serve", "service", "teardown"] },
-        "status": { "enum": ["started", "passed", "failed", "stopped"] },
-        "durationMs": { "type": "number", "minimum": 0 },
-        "command": { "type": "string" },
-        "url": { "type": "string" },
-        "message": { "type": "string" }
+        "targetId": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "install",
+            "build",
+            "setup",
+            "serve",
+            "service",
+            "teardown"
+          ]
+        },
+        "status": {
+          "enum": [
+            "started",
+            "passed",
+            "failed",
+            "stopped"
+          ]
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "command": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "reportSummary": {
@@ -162,42 +424,121 @@
         "pageErrors"
       ],
       "properties": {
-        "passed": { "type": "number" },
-        "failed": { "type": "number" },
-        "screenshotsPassed": { "type": "number" },
-        "screenshotsFailed": { "type": "number" },
-        "baselinesCreated": { "type": "number" },
-        "createdBaselines": { "type": "number" },
-        "missingBaselines": { "type": "number" },
-        "visualDiffs": { "type": "number" },
-        "consoleErrors": { "type": "number" },
-        "pageErrors": { "type": "number" },
-        "flowStepsPassed": { "type": "number" },
-        "flowStepsFailed": { "type": "number" }
+        "passed": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "screenshotsPassed": {
+          "type": "number"
+        },
+        "screenshotsFailed": {
+          "type": "number"
+        },
+        "baselinesCreated": {
+          "type": "number"
+        },
+        "createdBaselines": {
+          "type": "number"
+        },
+        "missingBaselines": {
+          "type": "number"
+        },
+        "visualDiffs": {
+          "type": "number"
+        },
+        "consoleErrors": {
+          "type": "number"
+        },
+        "pageErrors": {
+          "type": "number"
+        },
+        "flowStepsPassed": {
+          "type": "number"
+        },
+        "flowStepsFailed": {
+          "type": "number"
+        }
       }
     },
     "selectorAssertion": {
       "type": "object",
-      "required": ["kind", "value", "status"],
+      "required": [
+        "kind",
+        "value",
+        "status"
+      ],
       "properties": {
-        "kind": { "enum": ["mustExist", "mustNotExist", "textMustExist", "textMustNotExist", "waitFor"] },
-        "value": { "type": "string" },
-        "status": { "enum": ["passed", "failed"] },
-        "message": { "type": "string" }
+        "kind": {
+          "enum": [
+            "mustExist",
+            "mustNotExist",
+            "textMustExist",
+            "textMustNotExist",
+            "waitFor"
+          ]
+        },
+        "value": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "flowStep": {
       "type": "object",
-      "required": ["action", "status", "durationMs"],
+      "required": [
+        "action",
+        "status",
+        "durationMs"
+      ],
       "properties": {
-        "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
-        "description": { "type": "string" },
-        "selector": { "type": "string" },
-        "route": { "type": "string" },
-        "value": { "type": "string" },
-        "status": { "enum": ["passed", "failed"] },
-        "durationMs": { "type": "number", "minimum": 0 },
-        "message": { "type": "string" }
+        "action": {
+          "enum": [
+            "goto",
+            "click",
+            "fill",
+            "press",
+            "waitFor",
+            "assertVisible",
+            "assertHidden",
+            "assertText",
+            "assertUrl"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "screenshotAssertion": {
@@ -215,41 +556,141 @@
         "totalPixels"
       ],
       "properties": {
-        "contractId": { "type": "string" },
-        "screenshotName": { "type": "string" },
-        "name": { "type": "string" },
-        "route": { "type": "string" },
-        "viewport": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "created", "missing_baseline"] },
-        "baselinePath": { "type": "string" },
-        "actualPath": { "type": "string" },
-        "diffPath": { "type": "string" },
-        "maxDiffPixelRatio": { "type": "number" },
-        "maxDiffPixels": { "type": "number" },
-        "actualDiffPixelRatio": { "type": "number" },
-        "actualDiffPixels": { "type": "number" },
-        "diffPixels": { "type": "number" },
-        "totalPixels": { "type": "number" },
-        "message": { "type": "string" }
+        "contractId": {
+          "type": "string"
+        },
+        "screenshotName": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "created",
+            "missing_baseline"
+          ]
+        },
+        "baselinePath": {
+          "type": "string"
+        },
+        "actualPath": {
+          "type": "string"
+        },
+        "diffPath": {
+          "type": "string"
+        },
+        "maxDiffPixelRatio": {
+          "type": "number"
+        },
+        "maxDiffPixels": {
+          "type": "number"
+        },
+        "actualDiffPixelRatio": {
+          "type": "number"
+        },
+        "actualDiffPixels": {
+          "type": "number"
+        },
+        "diffPixels": {
+          "type": "number"
+        },
+        "totalPixels": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "contractResult": {
       "type": "object",
-      "required": ["contractId", "targetId", "status", "durationMs", "errors", "artifacts"],
+      "required": [
+        "contractId",
+        "targetId",
+        "status",
+        "durationMs",
+        "errors",
+        "artifacts"
+      ],
       "properties": {
-        "contractId": { "type": "string" },
-        "targetId": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "created", "skipped"] },
-        "durationMs": { "type": "number", "minimum": 0 },
-        "errors": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } },
-        "reproductionCommand": { "type": "string" },
-        "selectorAssertions": { "type": "array", "items": { "$ref": "#/$defs/selectorAssertion" } },
-        "flowSteps": { "type": "array", "items": { "$ref": "#/$defs/flowStep" } },
-        "screenshotAssertions": { "type": "array", "items": { "$ref": "#/$defs/screenshotAssertion" } },
-        "consoleErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
-        "pageErrors": { "type": "array", "items": { "$ref": "#/$defs/runtimeError" } },
-        "networkErrors": { "type": "array", "items": { "$ref": "#/$defs/networkError" } }
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "created",
+            "skipped"
+          ]
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommand": {
+          "type": "string"
+        },
+        "selectorAssertions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selectorAssertion"
+          }
+        },
+        "flowSteps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowStep"
+          }
+        },
+        "screenshotAssertions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/screenshotAssertion"
+          }
+        },
+        "consoleErrors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/runtimeError"
+          }
+        },
+        "pageErrors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/runtimeError"
+          }
+        },
+        "networkErrors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/networkError"
+          }
+        }
       }
     },
     "providerResult": {
@@ -266,19 +707,65 @@
         "normalizedAt"
       ],
       "properties": {
-        "providerId": { "type": "string" },
-        "label": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
-        "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "message": { "type": "string" },
-        "requiredEnv": { "type": "array", "items": { "type": "string" } },
-        "missingEnv": { "type": "array", "items": { "type": "string" } },
-        "artifactCount": { "type": "number", "minimum": 0 },
-        "externalUploadAllowed": { "type": "boolean" },
-        "externalUploadBlockedReasons": { "type": "array", "items": { "type": "string" } },
-        "estimatedExternalScreenshots": { "type": "number", "minimum": 0 },
-        "externalUrl": { "type": "string" },
-        "normalizedAt": { "type": "string" }
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "missing_credentials",
+            "mock"
+          ]
+        },
+        "deterministicRole": {
+          "enum": [
+            "oracle",
+            "supplemental"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "requiredEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missingEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifactCount": {
+          "type": "number",
+          "minimum": 0
+        },
+        "externalUploadAllowed": {
+          "type": "boolean"
+        },
+        "externalUploadBlockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "estimatedExternalScreenshots": {
+          "type": "number",
+          "minimum": 0
+        },
+        "externalUrl": {
+          "type": "string"
+        },
+        "normalizedAt": {
+          "type": "string"
+        }
       }
     }
   }

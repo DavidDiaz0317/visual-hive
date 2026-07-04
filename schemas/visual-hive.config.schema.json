@@ -3,19 +3,46 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.config.schema.json",
   "title": "Visual Hive Config",
   "type": "object",
-  "required": ["project", "targets", "contracts"],
+  "required": [
+    "project",
+    "targets",
+    "contracts"
+  ],
   "additionalProperties": false,
   "properties": {
     "project": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "type": { "enum": ["react-vite", "nextjs", "static", "dashboard", "custom"], "default": "custom" },
-        "defaultBranch": { "type": "string", "default": "main" },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "react-vite",
+            "nextjs",
+            "static",
+            "dashboard",
+            "custom"
+          ],
+          "default": "custom"
+        },
+        "defaultBranch": {
+          "type": "string",
+          "default": "main"
+        },
         "setupProfile": {
-          "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"],
+          "enum": [
+            "free-local",
+            "hosted-review",
+            "component-storybook",
+            "enterprise-visual-ai",
+            "complex-app"
+          ],
           "default": "free-local"
         }
       }
@@ -25,56 +52,130 @@
       "minProperties": 1,
       "additionalProperties": {
         "oneOf": [
-          { "$ref": "#/$defs/urlTarget" },
-          { "$ref": "#/$defs/deployPreviewTarget" },
-          { "$ref": "#/$defs/storybookTarget" },
-          { "$ref": "#/$defs/commandTarget" },
-          { "$ref": "#/$defs/commandGroupTarget" },
-          { "$ref": "#/$defs/protectedTarget" }
+          {
+            "$ref": "#/$defs/urlTarget"
+          },
+          {
+            "$ref": "#/$defs/deployPreviewTarget"
+          },
+          {
+            "$ref": "#/$defs/storybookTarget"
+          },
+          {
+            "$ref": "#/$defs/commandTarget"
+          },
+          {
+            "$ref": "#/$defs/commandGroupTarget"
+          },
+          {
+            "$ref": "#/$defs/protectedTarget"
+          }
         ]
       }
     },
-    "contracts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/contract" } },
-    "viewports": { "type": "object", "additionalProperties": { "$ref": "#/$defs/viewport" } },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/contract"
+      }
+    },
+    "viewports": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/viewport"
+      }
+    },
     "visual": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "maxDiffPixelRatio": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.01 },
-        "maxDiffPixels": { "type": "integer", "minimum": 0 },
-        "updateSnapshots": { "type": "boolean", "default": false },
-        "failOnMissingBaselineInCI": { "type": "boolean", "default": true },
-        "snapshotDir": { "$ref": "#/$defs/repoRelativePath", "default": ".visual-hive/snapshots" },
-        "artifactDir": { "$ref": "#/$defs/repoRelativePath", "default": ".visual-hive/artifacts" }
+        "maxDiffPixelRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.01
+        },
+        "maxDiffPixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updateSnapshots": {
+          "type": "boolean",
+          "default": false
+        },
+        "failOnMissingBaselineInCI": {
+          "type": "boolean",
+          "default": true
+        },
+        "snapshotDir": {
+          "$ref": "#/$defs/repoRelativePath",
+          "default": ".visual-hive/snapshots"
+        },
+        "artifactDir": {
+          "$ref": "#/$defs/repoRelativePath",
+          "default": ".visual-hive/artifacts"
+        }
       }
     },
     "selection": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "changedFiles": { "type": "array", "items": { "$ref": "#/$defs/changedFileRule" } },
-        "ignoreChangedFiles": { "type": "array", "items": { "$ref": "#/$defs/ignoredChangedFileRule" } }
+        "changedFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/changedFileRule"
+          }
+        },
+        "ignoreChangedFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ignoredChangedFileRule"
+          }
+        }
       }
     },
     "mutation": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "runOn": { "$ref": "#/$defs/runOn" },
-        "minScore": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "runOn": {
+          "$ref": "#/$defs/runOn"
+        },
+        "minScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7
+        },
         "operators": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "$ref": "#/$defs/mutationOperator" },
+              {
+                "$ref": "#/$defs/mutationOperator"
+              },
               {
                 "type": "object",
-                "required": ["id"],
+                "required": [
+                  "id"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "id": { "$ref": "#/$defs/mutationOperator" },
-                  "contracts": { "type": "array", "items": { "type": "string" } }
+                  "id": {
+                    "$ref": "#/$defs/mutationOperator"
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             ]
@@ -86,310 +187,855 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "provider": { "type": "string", "default": "none" },
-        "model": { "type": "string", "default": "offline-heuristics" },
-        "neverSoleOracle": { "type": "boolean", "const": true },
-        "createIssuePrompt": { "type": "boolean", "default": true },
-        "maxDailyRuns": { "type": "integer", "minimum": 1, "default": 5 },
-        "maxPromptTokens": { "type": "integer", "minimum": 1, "default": 50000 },
-        "maxEstimatedCostUsd": { "type": "number", "minimum": 0, "default": 0 }
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "provider": {
+          "type": "string",
+          "default": "none"
+        },
+        "model": {
+          "type": "string",
+          "default": "offline-heuristics"
+        },
+        "neverSoleOracle": {
+          "type": "boolean",
+          "const": true
+        },
+        "createIssuePrompt": {
+          "type": "boolean",
+          "default": true
+        },
+        "maxDailyRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5
+        },
+        "maxPromptTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50000
+        },
+        "maxEstimatedCostUsd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
       }
     },
     "providers": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "playwright": { "$ref": "#/$defs/providerConfig" },
-        "argos": { "$ref": "#/$defs/providerConfig" },
-        "percy": { "$ref": "#/$defs/providerConfig" },
-        "chromatic": { "$ref": "#/$defs/providerConfig" },
-        "applitools": { "$ref": "#/$defs/providerConfig" },
-        "storybook": { "$ref": "#/$defs/providerConfig" },
-        "github-checks": { "$ref": "#/$defs/providerConfig" }
+        "playwright": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "argos": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "percy": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "chromatic": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "applitools": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "storybook": {
+          "$ref": "#/$defs/providerConfig"
+        },
+        "github-checks": {
+          "$ref": "#/$defs/providerConfig"
+        }
       }
     },
-    "costPolicy": { "$ref": "#/$defs/costPolicy" },
+    "costPolicy": {
+      "$ref": "#/$defs/costPolicy"
+    },
     "integrations": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "hive": { "$ref": "#/$defs/hiveIntegration" }
+        "hive": {
+          "$ref": "#/$defs/hiveIntegration"
+        }
       }
     },
     "github": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "issueLabels": { "type": "array", "items": { "type": "string" } },
-        "commentMarker": { "type": "string", "default": "<!-- visual-hive-report -->" }
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "issueLabels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commentMarker": {
+          "type": "string",
+          "default": "<!-- visual-hive-report -->"
+        }
       }
     }
   },
   "$defs": {
-    "cost": { "enum": ["cheap", "medium", "expensive"] },
-    "severity": { "enum": ["low", "medium", "high", "critical"] },
+    "cost": {
+      "enum": [
+        "cheap",
+        "medium",
+        "expensive"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
     "runOn": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "pullRequest": { "type": "boolean", "default": false },
-        "schedule": { "type": "boolean", "default": false }
+        "pullRequest": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "boolean",
+          "default": false
+        }
       }
     },
     "viewport": {
       "type": "object",
-      "required": ["width", "height"],
+      "required": [
+        "width",
+        "height"
+      ],
       "additionalProperties": false,
       "properties": {
-        "width": { "type": "integer", "minimum": 1 },
-        "height": { "type": "integer", "minimum": 1 }
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "repoRelativePath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$)).+"
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "^[A-Za-z]:[\\\\/]"
+          },
+          {
+            "pattern": "^/"
+          },
+          {
+            "pattern": "^\\\\"
+          },
+          {
+            "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)"
+          }
+        ]
+      }
     },
     "targetBase": {
       "type": "object",
       "properties": {
-        "url": { "type": "string", "format": "uri" },
-        "prSafe": { "type": "boolean", "default": false },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost" }
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        }
       }
     },
     "urlTarget": {
       "allOf": [
-        { "$ref": "#/$defs/targetBase" },
+        {
+          "$ref": "#/$defs/targetBase"
+        },
         {
           "type": "object",
-          "required": ["kind", "url"],
+          "required": [
+            "kind",
+            "url"
+          ],
           "additionalProperties": false,
           "properties": {
-            "kind": { "const": "url" },
-            "url": { "type": "string", "format": "uri" },
-            "prSafe": { "type": "boolean", "default": false },
-            "schedule": { "type": "string" },
-            "cost": { "$ref": "#/$defs/cost" }
+            "kind": {
+              "const": "url"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "prSafe": {
+              "type": "boolean",
+              "default": false
+            },
+            "schedule": {
+              "type": "string"
+            },
+            "cost": {
+              "$ref": "#/$defs/cost"
+            }
           }
         }
       ]
     },
     "commandTarget": {
       "type": "object",
-      "required": ["kind", "serve", "url"],
+      "required": [
+        "kind",
+        "serve",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "command" },
-        "install": { "type": "string" },
-        "build": { "type": "string" },
-        "serve": { "type": "string" },
-        "url": { "type": "string", "format": "uri" },
-        "prSafe": { "type": "boolean", "default": false },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost" }
+        "kind": {
+          "const": "command"
+        },
+        "install": {
+          "type": "string"
+        },
+        "build": {
+          "type": "string"
+        },
+        "serve": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        }
       }
     },
     "deployPreviewTarget": {
       "type": "object",
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false,
-      "anyOf": [{ "required": ["url"] }, { "required": ["urlEnv"] }, { "required": ["fallbackUrl"] }],
+      "anyOf": [
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "urlEnv"
+          ]
+        },
+        {
+          "required": [
+            "fallbackUrl"
+          ]
+        }
+      ],
       "properties": {
-        "kind": { "const": "deployPreview" },
-        "provider": { "enum": ["vercel", "netlify", "github-pages", "custom"], "default": "custom" },
-        "url": { "type": "string", "format": "uri" },
-        "urlEnv": { "type": "string", "minLength": 1 },
-        "urlTemplate": { "type": "string", "minLength": 1 },
-        "fallbackUrl": { "type": "string", "format": "uri" },
-        "prSafe": { "type": "boolean", "default": true },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost", "default": "cheap" }
+        "kind": {
+          "const": "deployPreview"
+        },
+        "provider": {
+          "enum": [
+            "vercel",
+            "netlify",
+            "github-pages",
+            "custom"
+          ],
+          "default": "custom"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "urlEnv": {
+          "type": "string",
+          "minLength": 1
+        },
+        "urlTemplate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fallbackUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": true
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost",
+          "default": "cheap"
+        }
       }
     },
     "storybookTarget": {
       "type": "object",
-      "required": ["kind", "url"],
+      "required": [
+        "kind",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "storybook" },
-        "url": { "type": "string", "format": "uri" },
-        "install": { "type": "string" },
-        "build": { "type": "string" },
-        "serve": { "type": "string" },
-        "stories": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "components": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "prSafe": { "type": "boolean", "default": true },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost", "default": "cheap" }
+        "kind": {
+          "const": "storybook"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "install": {
+          "type": "string"
+        },
+        "build": {
+          "type": "string"
+        },
+        "serve": {
+          "type": "string"
+        },
+        "stories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": true
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost",
+          "default": "cheap"
+        }
       }
     },
     "service": {
       "type": "object",
-      "required": ["name", "command", "url"],
+      "required": [
+        "name",
+        "command",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "command": { "type": "string", "minLength": 1 },
-        "url": { "type": "string", "format": "uri" },
-        "healthPath": { "type": "string" },
-        "readinessTimeoutMs": { "type": "integer", "minimum": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "healthPath": {
+          "type": "string"
+        },
+        "readinessTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "commandGroupTarget": {
       "type": "object",
-      "required": ["kind", "services", "url"],
+      "required": [
+        "kind",
+        "services",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "commandGroup" },
-        "setup": { "type": "array", "items": { "type": "string" } },
-        "services": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/service" } },
-        "teardown": { "type": "array", "items": { "type": "string" } },
-        "url": { "type": "string", "format": "uri" },
-        "prSafe": { "type": "boolean", "default": false },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost" }
+        "kind": {
+          "const": "commandGroup"
+        },
+        "setup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/service"
+          }
+        },
+        "teardown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost"
+        }
       }
     },
     "protectedTarget": {
       "type": "object",
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false,
       "anyOf": [
-        { "required": ["url"] },
+        {
+          "required": [
+            "url"
+          ]
+        },
         {
           "properties": {
-            "services": { "type": "array", "minItems": 1 }
+            "services": {
+              "type": "array",
+              "minItems": 1
+            }
           },
-          "required": ["services"]
+          "required": [
+            "services"
+          ]
         }
       ],
       "properties": {
-        "kind": { "const": "protected" },
-        "setup": { "type": "array", "items": { "type": "string" } },
-        "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
-        "teardown": { "type": "array", "items": { "type": "string" } },
-        "url": { "type": "string", "format": "uri" },
-        "prSafe": { "type": "boolean", "default": false },
-        "schedule": { "type": "string" },
-        "cost": { "$ref": "#/$defs/cost", "default": "expensive" },
-        "requiresSecrets": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "const": "protected"
+        },
+        "setup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/service"
+          }
+        },
+        "teardown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "prSafe": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/cost",
+          "default": "expensive"
+        },
+        "requiresSecrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "contract": {
       "type": "object",
-      "required": ["id", "description", "target"],
+      "required": [
+        "id",
+        "description",
+        "target"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 },
-        "target": { "type": "string", "minLength": 1 },
-        "severity": { "$ref": "#/$defs/severity" },
-        "runOn": { "$ref": "#/$defs/runOn" },
-        "timeoutMs": { "type": "integer", "minimum": 1 },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "runOn": {
+          "$ref": "#/$defs/runOn"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
         "waitFor": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["selector"],
+            "required": [
+              "selector"
+            ],
             "additionalProperties": false,
             "properties": {
-              "selector": { "type": "string", "minLength": 1 },
-              "state": { "enum": ["visible", "attached", "hidden"], "default": "visible" },
-              "timeoutMs": { "type": "integer", "minimum": 1, "default": 5000 }
+              "selector": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "enum": [
+                  "visible",
+                  "attached",
+                  "hidden"
+                ],
+                "default": "visible"
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 5000
+              }
             }
           }
         },
-        "steps": { "type": "array", "items": { "$ref": "#/$defs/flowStep" } },
-        "failOnConsoleError": { "type": "boolean", "default": false },
-        "expectedConsoleErrors": { "type": "array", "items": { "type": "string" } },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowStep"
+          }
+        },
+        "failOnConsoleError": {
+          "type": "boolean",
+          "default": false
+        },
+        "expectedConsoleErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "selectors": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mustExist": { "type": "array", "items": { "type": "string" } },
-            "mustNotExist": { "type": "array", "items": { "type": "string" } },
-            "textMustExist": { "type": "array", "items": { "type": "string" } },
-            "textMustNotExist": { "type": "array", "items": { "type": "string" } }
+            "mustExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "mustNotExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "textMustExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "textMustNotExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
-        "screenshots": { "type": "array", "items": { "$ref": "#/$defs/screenshot" } }
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/screenshot"
+          }
+        }
       }
     },
     "screenshot": {
       "type": "object",
-      "required": ["name", "route", "viewport"],
+      "required": [
+        "name",
+        "route",
+        "viewport"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "route": { "type": "string", "default": "/" },
-        "viewport": { "type": "string", "minLength": 1 },
-        "fullPage": { "type": "boolean", "default": true },
-        "mask": { "type": "array", "items": { "type": "string" } }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "route": {
+          "type": "string",
+          "default": "/"
+        },
+        "viewport": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fullPage": {
+          "type": "boolean",
+          "default": true
+        },
+        "mask": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "flowStep": {
       "type": "object",
-      "required": ["action"],
+      "required": [
+        "action"
+      ],
       "additionalProperties": false,
       "allOf": [
         {
-          "if": { "properties": { "action": { "const": "goto" } } },
-          "then": { "required": ["route"] }
+          "if": {
+            "properties": {
+              "action": {
+                "const": "goto"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "route"
+            ]
+          }
         },
         {
-          "if": { "properties": { "action": { "enum": ["click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText"] } } },
-          "then": { "required": ["selector"] }
+          "if": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "click",
+                  "fill",
+                  "press",
+                  "waitFor",
+                  "assertVisible",
+                  "assertHidden",
+                  "assertText"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "selector"
+            ]
+          }
         },
         {
-          "if": { "properties": { "action": { "const": "fill" } } },
-          "then": { "required": ["value"] }
+          "if": {
+            "properties": {
+              "action": {
+                "const": "fill"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "value"
+            ]
+          }
         },
         {
-          "if": { "properties": { "action": { "const": "press" } } },
-          "then": { "required": ["key"] }
+          "if": {
+            "properties": {
+              "action": {
+                "const": "press"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "key"
+            ]
+          }
         },
         {
-          "if": { "properties": { "action": { "const": "assertText" } } },
-          "then": { "required": ["text"] }
+          "if": {
+            "properties": {
+              "action": {
+                "const": "assertText"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "text"
+            ]
+          }
         },
         {
-          "if": { "properties": { "action": { "const": "assertUrl" } } },
-          "then": { "required": ["value"] }
+          "if": {
+            "properties": {
+              "action": {
+                "const": "assertUrl"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "value"
+            ]
+          }
         }
       ],
       "properties": {
-        "action": { "enum": ["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"] },
-        "description": { "type": "string" },
-        "selector": { "type": "string" },
-        "route": { "type": "string" },
-        "value": { "type": "string" },
-        "key": { "type": "string" },
-        "text": { "type": "string" },
-        "state": { "enum": ["visible", "attached", "hidden"], "default": "visible" },
-        "timeoutMs": { "type": "integer", "minimum": 1, "default": 5000 }
+        "action": {
+          "enum": [
+            "goto",
+            "click",
+            "fill",
+            "press",
+            "waitFor",
+            "assertVisible",
+            "assertHidden",
+            "assertText",
+            "assertUrl"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "visible",
+            "attached",
+            "hidden"
+          ],
+          "default": "visible"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5000
+        }
       }
     },
     "changedFileRule": {
       "type": "object",
-      "required": ["pattern"],
+      "required": [
+        "pattern"
+      ],
       "additionalProperties": false,
       "properties": {
-        "pattern": { "type": "string", "minLength": 1 },
-        "contracts": { "type": "array", "items": { "type": "string" } },
-        "risk": { "$ref": "#/$defs/severity" }
+        "pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk": {
+          "$ref": "#/$defs/severity"
+        }
       }
     },
     "ignoredChangedFileRule": {
       "type": "object",
-      "required": ["pattern"],
+      "required": [
+        "pattern"
+      ],
       "additionalProperties": false,
       "properties": {
-        "pattern": { "type": "string", "minLength": 1 },
-        "reason": { "type": "string", "minLength": 1, "default": "changed file is ignored for visual planning" }
+        "pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "default": "changed file is ignored for visual planning"
+        }
       }
     },
     "mutationOperator": {
@@ -412,59 +1058,116 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "mode": { "enum": ["mock", "external"], "default": "external" },
-        "requiredEnv": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "projectId": { "type": "string", "minLength": 1 },
-        "failOnProviderFailure": { "type": "boolean", "default": false },
-        "upload": { "$ref": "#/$defs/providerUploadConfig" }
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "enum": [
+            "mock",
+            "external"
+          ],
+          "default": "external"
+        },
+        "requiredEnv": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failOnProviderFailure": {
+          "type": "boolean",
+          "default": false
+        },
+        "upload": {
+          "$ref": "#/$defs/providerUploadConfig"
+        }
       }
     },
     "providerUploadConfig": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "buildName": { "type": "string", "minLength": 1 },
-        "includeActualScreenshots": { "type": "boolean", "default": true },
-        "includeDiffScreenshots": { "type": "boolean", "default": true },
-        "includeTextArtifacts": { "type": "boolean", "default": false },
+        "buildName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "includeActualScreenshots": {
+          "type": "boolean",
+          "default": true
+        },
+        "includeDiffScreenshots": {
+          "type": "boolean",
+          "default": true
+        },
+        "includeTextArtifacts": {
+          "type": "boolean",
+          "default": false
+        },
         "extraFiles": {
           "type": "array",
-          "items": { "$ref": "#/$defs/repoRelativePath" },
+          "items": {
+            "$ref": "#/$defs/repoRelativePath"
+          },
           "default": []
         }
-      }
-    },
-    "repoRelativePath": {
-      "type": "string",
-      "minLength": 1,
-      "not": {
-        "anyOf": [
-          { "pattern": "^[A-Za-z]:[\\\\/]" },
-          { "pattern": "^/" },
-          { "pattern": "^\\\\" },
-          { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }
-        ]
       }
     },
     "costPolicy": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0, "default": 0 },
-        "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0, "default": 5000 },
+        "maxExternalScreenshotsPerRun": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "maxMonthlyExternalScreenshots": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 5000
+        },
         "externalUpload": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "pullRequest": { "type": "boolean", "default": false },
-            "schedule": { "type": "boolean", "default": true },
-            "manual": { "type": "boolean", "default": true },
-            "canary": { "type": "boolean", "default": false },
-            "mutation": { "type": "boolean", "default": false },
-            "full": { "type": "boolean", "default": true },
-            "onFailureOnly": { "type": "boolean", "default": true },
-            "criticalContractsOnly": { "type": "boolean", "default": true }
+            "pullRequest": {
+              "type": "boolean",
+              "default": false
+            },
+            "schedule": {
+              "type": "boolean",
+              "default": true
+            },
+            "manual": {
+              "type": "boolean",
+              "default": true
+            },
+            "canary": {
+              "type": "boolean",
+              "default": false
+            },
+            "mutation": {
+              "type": "boolean",
+              "default": false
+            },
+            "full": {
+              "type": "boolean",
+              "default": true
+            },
+            "onFailureOnly": {
+              "type": "boolean",
+              "default": true
+            },
+            "criticalContractsOnly": {
+              "type": "boolean",
+              "default": true
+            }
           }
         }
       }
@@ -473,49 +1176,127 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
         "mode": {
-          "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "dry_run", "github_issue", "bead_api"],
+          "enum": [
+            "advisory",
+            "measured",
+            "repair_request",
+            "guarded_repair",
+            "full",
+            "dry_run",
+            "github_issue",
+            "bead_api"
+          ],
           "default": "advisory"
         },
-        "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6, "default": 3 },
-        "defaultActor": { "type": "string", "minLength": 1, "default": "quality" },
+        "acmmLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "default": 3
+        },
+        "defaultActor": {
+          "type": "string",
+          "minLength": 1,
+          "default": "quality"
+        },
         "labels": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "default": ["visual-hive", "hive/quality", "ai-ready"]
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [
+            "visual-hive",
+            "hive/quality",
+            "ai-ready"
+          ]
         },
         "export": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "beads": { "type": "boolean", "default": true },
-            "knowledgeFacts": { "type": "boolean", "default": true },
-            "knowledgeGraph": { "type": "boolean", "default": true },
-            "wikiVault": { "type": "boolean", "default": true },
-            "repairWorkOrders": { "type": "boolean", "default": true },
-            "maxFacts": { "type": "integer", "minimum": 1, "default": 50 }
+            "beads": {
+              "type": "boolean",
+              "default": true
+            },
+            "knowledgeFacts": {
+              "type": "boolean",
+              "default": true
+            },
+            "knowledgeGraph": {
+              "type": "boolean",
+              "default": true
+            },
+            "wikiVault": {
+              "type": "boolean",
+              "default": true
+            },
+            "repairWorkOrders": {
+              "type": "boolean",
+              "default": true
+            },
+            "maxFacts": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50
+            }
           }
         },
         "repair": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean", "default": false },
-            "prOnly": { "type": "boolean", "default": true },
-            "maxAttempts": { "type": "integer", "minimum": 1, "default": 1 },
-            "requireHumanReview": { "type": "boolean", "default": true },
-            "rerunVisualHive": { "type": "boolean", "default": true },
-            "branchPrefix": { "type": "string", "minLength": 1, "default": "hive/visual-hive-" }
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "prOnly": {
+              "type": "boolean",
+              "default": true
+            },
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "requireHumanReview": {
+              "type": "boolean",
+              "default": true
+            },
+            "rerunVisualHive": {
+              "type": "boolean",
+              "default": true
+            },
+            "branchPrefix": {
+              "type": "string",
+              "minLength": 1,
+              "default": "hive/visual-hive-"
+            }
           }
         },
         "beadApi": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "url": { "type": "string", "minLength": 1 },
-            "tokenEnv": { "type": "string", "minLength": 1, "default": "HIVE_DASHBOARD_TOKEN" },
-            "agent": { "type": "string", "minLength": 1, "default": "quality" }
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tokenEnv": {
+              "type": "string",
+              "minLength": 1,
+              "default": "HIVE_DASHBOARD_TOKEN"
+            },
+            "agent": {
+              "type": "string",
+              "minLength": 1,
+              "default": "quality"
+            }
           }
         }
       }

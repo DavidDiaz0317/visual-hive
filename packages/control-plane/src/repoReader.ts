@@ -26,6 +26,7 @@ import {
   resolveConnection,
   sanitizeText,
   type ContractConfig,
+  type ContextLedger,
   type CostAuditReport,
   type CoverageImprovementReport,
   type CoverageReport,
@@ -34,7 +35,11 @@ import {
   type FlowAuditReport,
   type HandoffPacket,
   type HiveExportBundle,
+  type HiveGuardedRepairPreview,
   type HiveModeComparison,
+  type HiveRepairRequestEnvelope,
+  type HiveTrustedRepairConsumerSummary,
+  type HiveTrustedRepairWorkflowDryRun,
   type BaselineList,
   type LLMUsageReport,
   type MockProviderRunReport,
@@ -47,6 +52,7 @@ import {
   type RiskRegisterReport,
   type ReadinessReport,
   type SecurityAuditReport,
+  type SchemaCatalogReport,
   type RunHistoryReport,
   type SetupRecommendationReport,
   type SetupProgressReport,
@@ -62,6 +68,7 @@ import {
 import { readControlPlaneActionHistory } from "./commandExecutor.js";
 import { readLLMDecisionLog } from "./llmDecisions.js";
 import { readProviderDecisionLog } from "./providerDecisions.js";
+import { isControlPlaneExecutableCommandId } from "./runbookPolicy.js";
 import {
   isInsidePath,
   normalizeRepoRelativePath,
@@ -120,6 +127,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerDecisionLog,
     providerSetupPlan,
     providerHandoff,
+    schemaCatalog,
     coverageImprovementArtifact,
     flowAuditArtifact,
     setupRecommendation,
@@ -127,6 +135,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     pipelineReport,
     workflowAuditArtifact,
     runHistoryArtifact,
+    contextLedger,
     riskArtifact,
     readinessArtifact,
     securityAudit,
@@ -135,8 +144,14 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     verdictReport,
     handoffPacket,
     hiveExport,
+    hiveGuardedRepairPreview,
+    hiveRepairRequestEnvelope,
+    hiveTrustedRepairConsumerSummary,
+    hiveTrustedRepairWorkflowDryRun,
     hiveModeComparison,
     agentPacket,
+    handoffAgentPacket,
+    providerAgentPacket,
     testCreationPlan,
     issueMarkdown,
     prCommentMarkdown,
@@ -159,6 +174,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readProviderDecisionLog(path.join(hiveRoot, "provider-decisions.json")),
     readJsonIfExists<ProviderSetupPlan>(path.join(hiveRoot, "provider-setup-plan.json")),
     readJsonIfExists<ProviderHandoffManifest>(path.join(hiveRoot, "provider-handoff.json")),
+    readJsonIfExists<SchemaCatalogReport>(path.join(hiveRoot, "schema-catalog.json")),
     readJsonIfExists<CoverageImprovementReport>(path.join(hiveRoot, "coverage-recommendations.json")),
     readJsonIfExists<FlowAuditReport>(path.join(hiveRoot, "flows.json")),
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
@@ -166,6 +182,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<ControlPlanePipelineReport>(path.join(hiveRoot, "pipeline.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
+    readJsonIfExists<ContextLedger>(path.join(hiveRoot, "context-ledger.json")),
     readJsonIfExists<RiskRegisterReport>(path.join(hiveRoot, "risk.json")),
     readJsonIfExists<ReadinessReport>(path.join(hiveRoot, "readiness.json")),
     readJsonIfExists<SecurityAuditReport>(path.join(hiveRoot, "security.json")),
@@ -174,8 +191,14 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<VerdictReport>(path.join(hiveRoot, "verdict.json")),
     readJsonIfExists<HandoffPacket>(path.join(hiveRoot, "handoff.json")),
     readJsonIfExists<HiveExportBundle>(path.join(hiveRoot, "hive", "hive-export.json")),
+    readJsonIfExists<HiveGuardedRepairPreview>(path.join(hiveRoot, "hive", "guarded-repair-preview.json")),
+    readJsonIfExists<HiveRepairRequestEnvelope>(path.join(hiveRoot, "hive", "repair-request-envelope.json")),
+    readJsonIfExists<HiveTrustedRepairConsumerSummary>(path.join(hiveRoot, "hive", "trusted-repair-consumer-summary.json")),
+    readJsonIfExists<HiveTrustedRepairWorkflowDryRun>(path.join(hiveRoot, "hive", "trusted-repair-workflow-dry-run.json")),
     readJsonIfExists<HiveModeComparison>(path.join(hiveRoot, "hive", "mode-comparison.json")),
     readJsonIfExists<AgentPacket>(path.join(hiveRoot, "agent-packet.json")),
+    readJsonIfExists<AgentPacket>(path.join(hiveRoot, "handoff-agent-packet.json")),
+    readJsonIfExists<AgentPacket>(path.join(hiveRoot, "provider-agent-packet.json")),
     readJsonIfExists<TestCreationPlan>(path.join(hiveRoot, "test-creation-plan.json")),
     readTextIfExists(path.join(hiveRoot, "issue.md")),
     readTextIfExists(path.join(hiveRoot, "pr-comment.md")),
@@ -271,9 +294,15 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     report,
     evidencePacket,
     verdictReport,
+    handoffPacket,
+    agentPacket,
     mutationReport,
     setupProgress,
     readinessReport,
+    workflowAudit,
+    setupPullRequestPlan,
+    runbook,
+    readOnly: resolved.readOnly,
     screenshots,
     failures
   });
@@ -287,8 +316,15 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     evidencePacket,
     handoffPacket,
     hiveExport,
+    hiveGuardedRepairPreview,
+    hiveRepairRequestEnvelope,
+    hiveTrustedRepairConsumerSummary,
+    hiveTrustedRepairWorkflowDryRun,
     hiveModeComparison,
     agentPacket,
+    handoffAgentPacket,
+    providerAgentPacket,
+    schemaCatalog,
     artifacts
   });
 
@@ -309,6 +345,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     report,
     triageReport,
     runHistory,
+    contextLedger,
     riskReport,
     readinessReport,
     securityAudit,
@@ -317,13 +354,20 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     verdictReport,
     handoffPacket,
     hiveExport,
+    hiveGuardedRepairPreview,
+    hiveRepairRequestEnvelope,
+    hiveTrustedRepairConsumerSummary,
+    hiveTrustedRepairWorkflowDryRun,
     hiveModeComparison,
     agentPacket,
+    handoffAgentPacket,
+    providerAgentPacket,
     mutationReport,
     providerRunReport,
     providerDecisionLog,
     providerSetupPlan,
     providerHandoff,
+    schemaCatalog,
     setupRecommendation,
     setupPullRequestPlan,
     pipelineReport,
@@ -370,9 +414,15 @@ function buildGuidanceState(input: {
   report?: Report;
   evidencePacket?: EvidencePacket;
   verdictReport?: VerdictReport;
+  handoffPacket?: HandoffPacket;
+  agentPacket?: AgentPacket;
   mutationReport?: MutationReport;
   setupProgress: SetupProgressReport;
   readinessReport?: ReadinessReport;
+  workflowAudit?: WorkflowAuditReport;
+  setupPullRequestPlan?: SetupPullRequestPlanReport;
+  runbook: ControlPlaneRunbook;
+  readOnly: boolean;
   screenshots: ControlPlaneScreenshot[];
   failures: ControlPlaneFailure[];
 }): ControlPlaneGuidanceState {
@@ -521,8 +571,148 @@ function buildGuidanceState(input: {
     primaryAction,
     secondaryActions,
     blockedReasons,
-    progress: buildGuidanceProgress(input, state)
+    progress: buildGuidanceProgress(input, state),
+    adoptionChecklist: buildAdoptionChecklist(input)
   };
+}
+
+function buildAdoptionChecklist(input: {
+  config?: VisualHiveConfig;
+  configError?: string;
+  plan?: Plan;
+  report?: Report;
+  evidencePacket?: EvidencePacket;
+  handoffPacket?: HandoffPacket;
+  agentPacket?: AgentPacket;
+  mutationReport?: MutationReport;
+  setupProgress: SetupProgressReport;
+  screenshots: ControlPlaneScreenshot[];
+  failures: ControlPlaneFailure[];
+  workflowAudit?: WorkflowAuditReport;
+  setupPullRequestPlan?: SetupPullRequestPlanReport;
+  runbook: ControlPlaneRunbook;
+  readOnly: boolean;
+}): ControlPlaneGuidanceState["adoptionChecklist"] {
+  const pendingBaselines = input.screenshots.filter((shot) => ["created", "failed", "missing_baseline"].includes(shot.status)).length;
+  const mutationScore = input.mutationReport?.score;
+  const mutationMinScore = input.mutationReport?.minScore ?? input.config?.mutation?.minScore ?? 0.7;
+  const selectedPlanItems = input.plan?.items.length ?? 0;
+  const criticalWorkflowFindings = input.workflowAudit?.summary?.criticalFindings ?? 0;
+  const commandFor = (commandId: string | undefined) => checklistCommand(commandId, input.runbook, input.readOnly);
+  return [
+    {
+      id: "configure-repo",
+      step: "1. Configure the repo",
+      status: input.configError ? "blocked" : input.config ? "complete" : "current",
+      why: "Visual Hive needs a target, contracts, and safe defaults before it can produce useful evidence.",
+      nextAction: input.configError ? "Fix config validation errors" : input.config ? "Config loaded" : "Generate or write config",
+      area: "configure",
+      ...commandFor("doctor")
+    },
+    {
+      id: "plan-pr-safe",
+      step: "2. Plan PR-safe checks",
+      status: selectedPlanItems > 0 ? "complete" : "pending",
+      why: "Planning decides what to run based on changed files, target safety, cost, and severity.",
+      nextAction: selectedPlanItems > 0 ? `${selectedPlanItems} selected item(s)` : "Run a PR plan",
+      area: "run",
+      ...commandFor("plan-pr")
+    },
+    {
+      id: "run-deterministic-evidence",
+      step: "3. Run deterministic evidence",
+      status: input.report?.status === "passed" ? "complete" : input.report?.status === "failed" ? "blocked" : input.report ? "review" : "pending",
+      why: "Deterministic browser, selector, screenshot, console, and network evidence feeds the Visual Hive verdict.",
+      nextAction: input.report ? `Latest run ${input.report.status}` : "Run PR-safe checks",
+      area: "run",
+      ...commandFor("run-ci")
+    },
+    {
+      id: "review-visual-changes",
+      step: "4. Review visual changes",
+      status: pendingBaselines > 0 || input.failures.length > 0 ? "review" : input.report ? "complete" : "pending",
+      why: "Created baselines, visual diffs, and failures need human review before a workflow becomes trusted.",
+      nextAction:
+        pendingBaselines > 0
+          ? `${pendingBaselines} baseline(s) need review`
+          : input.failures.length
+            ? `${input.failures.length} failure(s) need triage`
+            : "No visual review blockers",
+      area: "review",
+      ...commandFor(input.failures.length > 0 ? "triage-report" : "baselines")
+    },
+    {
+      id: "measure-adequacy",
+      step: "5. Measure adequacy",
+      status: typeof mutationScore === "number" ? (mutationScore >= mutationMinScore ? "complete" : "review") : "pending",
+      why: "Mutation adequacy asks whether the visual contracts catch intentional UI/auth/API breakage.",
+      nextAction: typeof mutationScore === "number" ? `Mutation score ${Math.round(mutationScore * 100)}%` : "Run mutation audit",
+      area: "run",
+      ...commandFor("mutate")
+    },
+    {
+      id: "package-agent-handoff",
+      step: "6. Package agent handoff",
+      status: input.evidencePacket && input.handoffPacket && input.agentPacket ? "complete" : input.evidencePacket ? "review" : "pending",
+      why: "Evidence, handoff, Hive export, and Agent Packets give humans or agents safe context without granting verdict authority.",
+      nextAction: input.agentPacket ? "Agent packet ready" : input.evidencePacket ? "Complete handoff packet" : "Create Evidence Packet",
+      area: "review",
+      ...commandFor(!input.evidencePacket ? "evidence" : !input.handoffPacket ? "handoff" : "agent-packet")
+    },
+    {
+      id: "enable-safe-workflow",
+      step: "7. Enable safe workflow",
+      status: criticalWorkflowFindings > 0 ? "blocked" : input.setupPullRequestPlan || input.workflowAudit ? "complete" : "pending",
+      why: "PR workflows should stay read-only, no-secret, and artifact-based before teams depend on them.",
+      nextAction: criticalWorkflowFindings > 0 ? `${criticalWorkflowFindings} critical workflow issue(s)` : input.setupPullRequestPlan ? "Setup PR plan ready" : "Generate workflow guidance",
+      area: "configure",
+      ...commandFor(criticalWorkflowFindings > 0 ? "security" : "readiness")
+    }
+  ];
+}
+
+function checklistCommand(
+  commandId: string | undefined,
+  runbook: ControlPlaneRunbook,
+  readOnly: boolean
+): Pick<
+  ControlPlaneGuidanceState["adoptionChecklist"][number],
+  "commandId" | "commandLabel" | "command" | "commandSafety" | "commandRunnable" | "commandBlockedReason" | "expectedArtifacts"
+> {
+  if (!commandId) {
+    return {
+      commandRunnable: false,
+      commandBlockedReason: "This step is navigation-only; open the linked workspace for guided actions.",
+      expectedArtifacts: []
+    };
+  }
+  const command = runbook.commands.find((candidate) => candidate.id === commandId);
+  if (!command) {
+    return {
+      commandId,
+      commandRunnable: false,
+      commandBlockedReason: `Runbook command "${commandId}" is not available in this snapshot.`,
+      expectedArtifacts: []
+    };
+  }
+  const blockedReason = checklistCommandBlockedReason(command, readOnly);
+  return {
+    commandId: command.id,
+    commandLabel: command.label,
+    command: command.command,
+    commandSafety: command.safety,
+    commandRunnable: !blockedReason,
+    commandBlockedReason: blockedReason,
+    expectedArtifacts: command.expectedArtifacts
+  };
+}
+
+function checklistCommandBlockedReason(command: ControlPlaneRunbookCommand, readOnly: boolean): string | undefined {
+  if (readOnly) return "Control Plane is read-only. Copy the command or restart without --read-only to run it locally.";
+  if (!isControlPlaneExecutableCommandId(command.id)) return `Runbook command "${command.id}" is guidance-only and cannot be executed from the Control Plane.`;
+  if (command.safety === "trusted_only") return "Trusted-only commands require scheduled/manual protected automation and cannot be launched locally.";
+  if (command.requiredSecrets.length > 0) return `Command requires protected environment variable names: ${command.requiredSecrets.join(", ")}.`;
+  return undefined;
 }
 
 function buildGuidanceProgress(
@@ -593,8 +783,15 @@ function buildNavigationBadges(input: {
   evidencePacket?: EvidencePacket;
   handoffPacket?: HandoffPacket;
   hiveExport?: HiveExportBundle;
+  hiveGuardedRepairPreview?: HiveGuardedRepairPreview;
+  hiveRepairRequestEnvelope?: HiveRepairRequestEnvelope;
+  hiveTrustedRepairConsumerSummary?: HiveTrustedRepairConsumerSummary;
+  hiveTrustedRepairWorkflowDryRun?: HiveTrustedRepairWorkflowDryRun;
   hiveModeComparison?: HiveModeComparison;
   agentPacket?: AgentPacket;
+  handoffAgentPacket?: AgentPacket;
+  providerAgentPacket?: AgentPacket;
+  schemaCatalog?: SchemaCatalogReport;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
   const baselines = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
@@ -603,13 +800,26 @@ function buildNavigationBadges(input: {
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
-  const missingAgentForwardPackets = [input.evidencePacket, input.handoffPacket, input.hiveExport, input.hiveModeComparison, input.agentPacket].filter((artifact) => !artifact).length;
+  const schemaCatalogFailures = input.schemaCatalog?.status === "failed" ? Math.max(1, Number(input.schemaCatalog.summary.failed ?? 0)) : 0;
+  const missingAgentForwardPackets = [
+    input.evidencePacket,
+    input.handoffPacket,
+    input.hiveExport,
+    input.hiveGuardedRepairPreview,
+    input.hiveRepairRequestEnvelope,
+    input.hiveTrustedRepairConsumerSummary,
+    input.hiveTrustedRepairWorkflowDryRun,
+    input.hiveModeComparison,
+    input.agentPacket,
+    input.handoffAgentPacket,
+    input.providerAgentPacket
+  ].filter((artifact) => !artifact).length;
   return {
-    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets, 99),
+    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets + schemaCatalogFailures, 99),
     run: 0,
     review: Math.min(failures + baselines + testCreation + missingAgentForwardPackets, 99),
-    configure: Math.min(setup + risks + providerBlocks, 99),
-    expert: input.artifacts.length,
+    configure: Math.min(setup + risks + providerBlocks + schemaCatalogFailures, 99),
+    expert: input.artifacts.length + schemaCatalogFailures,
     failures,
     baselines,
     risks,
@@ -659,8 +869,23 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
     {
       id: "agent-handoff-review",
       label: "Evidence to agent handoff",
-      description: "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, Hive-native export, mode comparison, advisory test plan, and bounded Agent Packet.",
-      commandIds: ["evidence", "verdict", "handoff", "hive-export", "hive-compare-modes", "test-creation-plan", "agent-packet"]
+      description:
+        "Regenerate the sanitized Evidence Packet, Visual Hive verdict, dry-run Hive handoff, Hive-native export, guarded repair preview, trusted repair request envelope, trusted repair consumer summary, mode comparison, advisory test plan, and bounded Agent Packet.",
+      commandIds: [
+        "evidence",
+        "verdict",
+        "handoff",
+        "hive-export",
+        "hive-guarded-repair-preview",
+        "hive-repair-request-envelope",
+        "hive-trusted-repair-consumer-summary",
+        "hive-trusted-repair-workflow-dry-run",
+        "hive-compare-modes",
+        "test-creation-plan",
+        "agent-packet",
+        "handoff-agent-packet",
+        "provider-agent-packet"
+      ]
     },
     {
       id: "operational-pipeline",
@@ -681,10 +906,16 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
       commandIds: ["doctor", "costs", "readiness", "triage-report"]
     },
     {
+      id: "schema-catalog-health",
+      label: "Schema/catalog health",
+      description: "Verify checked-in JSON Schemas, MCP resource metadata, Tool Registry cards, Agent Packets, Context Ledger, and artifact evidence-resource enums stay aligned.",
+      commandIds: ["schemas-verify"]
+    },
+    {
       id: "provider-governance",
       label: "Provider governance review",
-      description: "Refresh no-network provider readiness, setup-plan, handoff, cost, and readiness evidence before considering any trusted provider-backed lane.",
-      commandIds: ["providers", "provider-plan", "provider-handoff", "costs", "readiness"]
+      description: "Refresh no-network provider readiness, setup-plan, handoff, provider-specialist Agent Packet, cost, and readiness evidence before considering any trusted provider-backed lane.",
+      commandIds: ["providers", "provider-plan", "provider-handoff", "provider-agent-packet", "costs", "readiness"]
     },
     {
       id: "portfolio-refresh",
@@ -742,7 +973,9 @@ function buildRunbook(
   mutationReport?: MutationReport
 ): ControlPlaneRunbook {
   const configPath = toRepoRelativePath(resolved.repoRoot, resolved.configPath);
+  const configRoot = toRepoRelativePath(resolved.repoRoot, resolved.configRoot);
   const configFlag = `--config ${quoteForShell(configPath)}`;
+  const schemaCatalogPath = toRepoRelativePath(resolved.repoRoot, path.join(resolved.configRoot, ".visual-hive", "schema-catalog.json"));
   const providerId = providerReviewId(config);
   const commands: ControlPlaneRunbookCommand[] = [
     {
@@ -755,6 +988,17 @@ function buildRunbook(
       description: "Validate config, Node, Playwright, target shapes, and protected secret names before running contracts.",
       requiredSecrets: [],
       expectedArtifacts: []
+    },
+    {
+      id: "recommend",
+      label: "Recommend setup",
+      lane: "local",
+      command: `visual-hive recommend --repo ${quoteForShell(configRoot)}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Inspect the repository and write setup recommendations, starter workflow guidance, provider posture, and a setup PR plan without making external calls.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/recommendations.json", ".visual-hive/setup-pr-plan.json"]
     },
     {
       id: "plan-pr",
@@ -889,6 +1133,17 @@ function buildRunbook(
       expectedArtifacts: [".visual-hive/costs.json"]
     },
     {
+      id: "schemas-verify",
+      label: "Verify schema catalog",
+      lane: "local",
+      command: `visual-hive schemas verify --output ${quoteForShell(schemaCatalogPath)}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description: "Write schema/catalog drift evidence proving JSON Schemas, MCP resources, Tool Registry metadata, Agent Packets, Context Ledger, and artifact index metadata still agree.",
+      requiredSecrets: [],
+      expectedArtifacts: [schemaCatalogPath]
+    },
+    {
       id: "providers",
       label: "Inspect provider readiness",
       lane: "local",
@@ -977,6 +1232,30 @@ function buildRunbook(
       expectedArtifacts: [".visual-hive/agent-packet.json"]
     },
     {
+      id: "handoff-agent-packet",
+      label: "Write handoff Agent Packet",
+      lane: "local",
+      command: `visual-hive agent-packet ${configFlag} --profile handoff_agent --output .visual-hive/handoff-agent-packet.json`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a bounded no-network handoff-agent packet for reviewing Evidence, Handoff, Hive-native export, repair-chain, mode-comparison, validation, and provider evidence before trusted routing.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/handoff-agent-packet.json"]
+    },
+    {
+      id: "provider-agent-packet",
+      label: "Write provider specialist Agent Packet",
+      lane: "local",
+      command: `visual-hive agent-packet ${configFlag} --profile provider_specialist --output .visual-hive/provider-agent-packet.json`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a bounded no-network provider-specialist packet for reviewing provider results, upload manifests, blocked reasons, and readiness without enabling upload or provider verdict authority.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/provider-agent-packet.json"]
+    },
+    {
       id: "hive-export",
       label: "Write Hive native export",
       lane: "local",
@@ -1044,6 +1323,60 @@ function buildRunbook(
       ]
     },
     {
+      id: "hive-guarded-repair-preview",
+      label: "Preview guarded Hive repair",
+      lane: "local",
+      command: `visual-hive hive guarded-repair-preview ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a no-network, preview-only guarded repair gate from Hive repair work orders and agent policy. This does not execute repair or call Hive.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/hive/guarded-repair-preview.json", ".visual-hive/hive/guarded-repair-preview.md"]
+    },
+    {
+      id: "hive-repair-request-envelope",
+      label: "Write trusted repair request envelope",
+      lane: "local",
+      command: `visual-hive hive repair-request-envelope ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a no-network trusted repair request envelope from the guarded repair preview. This does not create branches, open pull requests, execute repair, or call Hive.",
+      requiredSecrets: [],
+      expectedArtifacts: [".visual-hive/hive/repair-request-envelope.json", ".visual-hive/hive/repair-request-envelope.md"]
+    },
+    {
+      id: "hive-trusted-repair-consumer-summary",
+      label: "Write trusted repair consumer summary",
+      lane: "local",
+      command: `visual-hive hive trusted-repair-consumer-summary ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a no-network dry-run consumer summary from the repair request envelope. This previews trusted workflow readiness without checkout, repair execution, branches, pull requests, issues, Hive calls, or Visual Hive reruns.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/trusted-repair-consumer-summary.json",
+        ".visual-hive/hive/trusted-repair-consumer-summary.md"
+      ]
+    },
+    {
+      id: "hive-trusted-repair-workflow-dry-run",
+      label: "Preview trusted repair workflow",
+      lane: "local",
+      command: `visual-hive hive trusted-repair-workflow-dry-run ${configFlag}`,
+      cwd: resolved.repoRoot,
+      safety: "pr_safe",
+      description:
+        "Write a no-network dry-run plan for future trusted repair workflow actions. This does not checkout code, execute repair, create branches, open pull requests, create issues, call Hive, call providers, or rerun Visual Hive.",
+      requiredSecrets: [],
+      expectedArtifacts: [
+        ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
+        ".visual-hive/hive/trusted-repair-workflow-dry-run.md"
+      ]
+    },
+    {
       id: "hive-compare-modes",
       label: "Compare Hive export modes",
       lane: "local",
@@ -1081,7 +1414,17 @@ function buildRunbook(
         ".visual-hive/verdict.json",
         ".visual-hive/handoff.json",
         ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/guarded-repair-preview.json",
+        ".visual-hive/hive/guarded-repair-preview.md",
+        ".visual-hive/hive/repair-request-envelope.json",
+        ".visual-hive/hive/repair-request-envelope.md",
+        ".visual-hive/hive/trusted-repair-consumer-summary.json",
+        ".visual-hive/hive/trusted-repair-consumer-summary.md",
+        ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
+        ".visual-hive/hive/trusted-repair-workflow-dry-run.md",
         ".visual-hive/agent-packet.json",
+        ".visual-hive/handoff-agent-packet.json",
+        ".visual-hive/provider-agent-packet.json",
         ".visual-hive/tools/tool-registry.json",
         ".visual-hive/context-ledger.json"
       ]

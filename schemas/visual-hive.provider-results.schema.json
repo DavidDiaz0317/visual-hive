@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://visual-hive.local/schemas/visual-hive.provider-results.schema.json",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.provider-results.schema.json",
   "title": "Visual Hive Provider Adapter Results",
   "type": "object",
   "required": [
@@ -14,14 +14,31 @@
     "warnings"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "deterministicStatus": { "enum": ["passed", "failed"] },
-    "artifactCount": { "type": "integer", "minimum": 0 },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deterministicStatus": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "artifactCount": {
+      "type": "integer",
+      "minimum": 0
+    },
     "providers": {
       "type": "array",
-      "items": { "$ref": "#/$defs/provider" }
+      "items": {
+        "$ref": "#/$defs/provider"
+      }
     },
     "summary": {
       "type": "object",
@@ -35,19 +52,42 @@
         "failedProviders"
       ],
       "properties": {
-        "providerCount": { "type": "integer", "minimum": 0 },
-        "enabledProviders": { "type": "integer", "minimum": 0 },
-        "mockProviders": { "type": "integer", "minimum": 0 },
-        "missingCredentialProviders": { "type": "integer", "minimum": 0 },
-        "externalDeferredProviders": { "type": "integer", "minimum": 0 },
-        "skippedProviders": { "type": "integer", "minimum": 0 },
-        "failedProviders": { "type": "integer", "minimum": 0 }
+        "providerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "enabledProviders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mockProviders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missingCredentialProviders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalDeferredProviders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skippedProviders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedProviders": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     },
     "warnings": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   },
   "additionalProperties": false,
@@ -69,43 +109,102 @@
         "warnings"
       ],
       "properties": {
-        "providerId": { "type": "string" },
-        "label": { "type": "string" },
-        "enabled": { "type": "boolean" },
-        "mode": { "enum": ["mock", "external"] },
-        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
-        "deterministicRole": { "enum": ["oracle", "supplemental"] },
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "mock",
+            "external"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "disabled",
+            "missing_credentials",
+            "mock",
+            "policy_blocked"
+          ]
+        },
+        "deterministicRole": {
+          "enum": [
+            "oracle",
+            "supplemental"
+          ]
+        },
         "operations": {
           "type": "array",
-          "items": { "$ref": "#/$defs/operation" }
+          "items": {
+            "$ref": "#/$defs/operation"
+          }
         },
-        "result": { "$ref": "#/$defs/result" },
-        "normalized": { "$ref": "#/$defs/normalized" },
+        "result": {
+          "$ref": "#/$defs/result"
+        },
+        "normalized": {
+          "$ref": "#/$defs/normalized"
+        },
         "artifacts": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "missingEnv": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "warnings": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
     },
     "operation": {
       "type": "object",
-      "required": ["operation", "status", "message"],
+      "required": [
+        "operation",
+        "status",
+        "message"
+      ],
       "properties": {
         "operation": {
-          "enum": ["availability", "upload_artifact", "compare", "fetch_result", "normalize_result", "emit_report_metadata"]
+          "enum": [
+            "availability",
+            "upload_artifact",
+            "compare",
+            "fetch_result",
+            "normalize_result",
+            "emit_report_metadata"
+          ]
         },
-        "status": { "enum": ["passed", "failed", "skipped", "mock"] },
-        "message": { "type": "string" },
-        "artifactCount": { "type": "integer", "minimum": 0 }
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "mock"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "artifactCount": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     },
@@ -123,49 +222,126 @@
         "normalizedAt"
       ],
       "properties": {
-        "providerId": { "type": "string" },
-        "label": { "type": "string" },
-        "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
-        "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "message": { "type": "string" },
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "missing_credentials",
+            "mock"
+          ]
+        },
+        "deterministicRole": {
+          "enum": [
+            "oracle",
+            "supplemental"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
         "requiredEnv": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "missingEnv": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "artifactCount": { "type": "integer", "minimum": 0 },
-        "externalUploadAllowed": { "type": "boolean" },
+        "artifactCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalUploadAllowed": {
+          "type": "boolean"
+        },
         "externalUploadBlockedReasons": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
-        "externalUrl": { "type": "string" },
-        "upload": { "$ref": "#/$defs/uploadEvidence" },
-        "normalizedAt": { "type": "string", "format": "date-time" }
+        "estimatedExternalScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalUrl": {
+          "type": "string"
+        },
+        "upload": {
+          "$ref": "#/$defs/uploadEvidence"
+        },
+        "normalizedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "additionalProperties": false
     },
     "uploadEvidence": {
       "type": "object",
-      "required": ["status", "externalCallsMade", "uploadedArtifacts", "stagedArtifacts"],
+      "required": [
+        "status",
+        "externalCallsMade",
+        "uploadedArtifacts",
+        "stagedArtifacts"
+      ],
       "properties": {
-        "status": { "enum": ["uploaded", "skipped", "blocked", "missing_credentials", "failed", "dry_run"] },
-        "externalCallsMade": { "type": "integer", "minimum": 0 },
-        "uploadedArtifacts": { "type": "integer", "minimum": 0 },
-        "stagedArtifacts": { "type": "integer", "minimum": 0 },
-        "manifestPath": { "type": "string" },
-        "uploadDirectory": { "type": "string" },
-        "command": { "type": "string" },
-        "stdout": { "type": "string" },
-        "stderr": { "type": "string" },
-        "providerUrl": { "type": "string" },
+        "status": {
+          "enum": [
+            "uploaded",
+            "skipped",
+            "blocked",
+            "missing_credentials",
+            "failed",
+            "dry_run"
+          ]
+        },
+        "externalCallsMade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uploadedArtifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stagedArtifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "manifestPath": {
+          "type": "string"
+        },
+        "uploadDirectory": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "providerUrl": {
+          "type": "string"
+        },
         "blockedReasons": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -184,20 +360,80 @@
         "notes"
       ],
       "properties": {
-        "providerId": { "type": "string" },
-        "category": { "enum": ["built-in", "hosted-visual", "component", "ci"] },
-        "status": { "enum": ["passed", "failed", "skipped", "missing_credentials", "mock"] },
-        "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "networkMode": { "enum": ["local", "mock", "deferred", "external", "disabled", "missing_credentials", "policy_blocked"] },
-        "externalCallsMade": { "type": "integer", "minimum": 0 },
+        "providerId": {
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "built-in",
+            "hosted-visual",
+            "component",
+            "ci"
+          ]
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "missing_credentials",
+            "mock"
+          ]
+        },
+        "deterministicRole": {
+          "enum": [
+            "oracle",
+            "supplemental"
+          ]
+        },
+        "networkMode": {
+          "enum": [
+            "local",
+            "mock",
+            "deferred",
+            "external",
+            "disabled",
+            "missing_credentials",
+            "policy_blocked"
+          ]
+        },
+        "externalCallsMade": {
+          "type": "integer",
+          "minimum": 0
+        },
         "artifactSummary": {
           "type": "object",
-          "required": ["localArtifacts", "uploadedArtifacts", "comparedArtifacts", "uploadMode"],
+          "required": [
+            "localArtifacts",
+            "uploadedArtifacts",
+            "comparedArtifacts",
+            "uploadMode"
+          ],
           "properties": {
-            "localArtifacts": { "type": "integer", "minimum": 0 },
-            "uploadedArtifacts": { "type": "integer", "minimum": 0 },
-            "comparedArtifacts": { "type": "integer", "minimum": 0 },
-            "uploadMode": { "enum": ["local-only", "mock", "deferred", "uploaded", "dry-run", "not-supported", "disabled", "blocked"] }
+            "localArtifacts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uploadedArtifacts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "comparedArtifacts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uploadMode": {
+              "enum": [
+                "local-only",
+                "mock",
+                "deferred",
+                "uploaded",
+                "dry-run",
+                "not-supported",
+                "disabled",
+                "blocked"
+              ]
+            }
           },
           "additionalProperties": false
         },
@@ -211,52 +447,119 @@
             "maxMonthlyExternalScreenshots"
           ],
           "properties": {
-            "externalUploadAllowed": { "type": "boolean" },
+            "externalUploadAllowed": {
+              "type": "boolean"
+            },
             "blockedReasons": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
-            "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
-            "maxExternalScreenshotsPerRun": { "type": "integer", "minimum": 0 },
-            "maxMonthlyExternalScreenshots": { "type": "integer", "minimum": 0 }
+            "estimatedExternalScreenshots": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxExternalScreenshotsPerRun": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxMonthlyExternalScreenshots": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "additionalProperties": false
         },
         "hostedVisual": {
           "type": "object",
-          "required": ["provider", "baselinePolicy"],
+          "required": [
+            "provider",
+            "baselinePolicy"
+          ],
           "properties": {
-            "provider": { "enum": ["argos", "percy", "chromatic", "applitools"] },
-            "projectId": { "type": "string" },
-            "reviewUrl": { "type": "string" },
-            "baselinePolicy": { "enum": ["visual-hive-owned", "provider-owned-future"] }
+            "provider": {
+              "enum": [
+                "argos",
+                "percy",
+                "chromatic",
+                "applitools"
+              ]
+            },
+            "projectId": {
+              "type": "string"
+            },
+            "reviewUrl": {
+              "type": "string"
+            },
+            "baselinePolicy": {
+              "enum": [
+                "visual-hive-owned",
+                "provider-owned-future"
+              ]
+            }
           },
           "additionalProperties": false
         },
         "storybook": {
           "type": "object",
-          "required": ["mode", "recommendedCommand", "coverageHint"],
+          "required": [
+            "mode",
+            "recommendedCommand",
+            "coverageHint"
+          ],
           "properties": {
-            "mode": { "enum": ["mock", "deferred", "disabled"] },
-            "recommendedCommand": { "type": "string" },
-            "coverageHint": { "type": "string" }
+            "mode": {
+              "enum": [
+                "mock",
+                "deferred",
+                "disabled"
+              ]
+            },
+            "recommendedCommand": {
+              "type": "string"
+            },
+            "coverageHint": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         },
         "githubChecks": {
           "type": "object",
-          "required": ["checkName", "conclusion", "annotationCount", "trustedIssueWorkflowRequired"],
+          "required": [
+            "checkName",
+            "conclusion",
+            "annotationCount",
+            "trustedIssueWorkflowRequired"
+          ],
           "properties": {
-            "checkName": { "type": "string" },
-            "conclusion": { "enum": ["success", "failure", "neutral", "skipped"] },
-            "annotationCount": { "type": "integer", "minimum": 0 },
-            "trustedIssueWorkflowRequired": { "const": true }
+            "checkName": {
+              "type": "string"
+            },
+            "conclusion": {
+              "enum": [
+                "success",
+                "failure",
+                "neutral",
+                "skipped"
+              ]
+            },
+            "annotationCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "trustedIssueWorkflowRequired": {
+              "const": true
+            }
           },
           "additionalProperties": false
         },
         "notes": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

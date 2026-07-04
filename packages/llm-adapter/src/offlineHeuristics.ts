@@ -115,6 +115,7 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
   const providerRunProviders = input.providerRunReport?.providers ?? [];
   for (const provider of providerRunProviders) {
     const failedOperations = provider.operations.filter((operation) => operation.status === "failed");
+    const upload = provider.result.upload;
     if (provider.result.status === "failed" || provider.result.status === "missing_credentials" || failedOperations.length > 0) {
       findings.push({
         classification: "provider_failure",
@@ -127,8 +128,12 @@ export function classifyOffline(input: TriageInput): TriageFinding[] {
             ? `Failed operations: ${failedOperations.map((operation) => `${operation.operation}:${operation.message}`).join("; ")}`
             : "No failed adapter operation was reported.",
           `Network mode: ${provider.normalized.networkMode}`,
-          `External calls made: ${provider.normalized.externalCallsMade}`
-        ],
+          `External calls made: ${provider.normalized.externalCallsMade}`,
+          upload ? `Upload status: ${upload.status}` : "",
+          upload?.command ? `Upload command: ${upload.command}` : "",
+          upload?.stderr ? `Upload stderr: ${upload.stderr}` : "",
+          upload?.stdout ? `Upload stdout: ${upload.stdout}` : ""
+        ].filter(Boolean),
         suggestedFiles: changedFiles,
         suggestedNextTests: [
           "Keep Visual Hive verdict artifacts as the pass/fail authority.",

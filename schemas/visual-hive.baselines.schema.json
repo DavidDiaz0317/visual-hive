@@ -16,13 +16,27 @@
     "entries"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "reportGeneratedAt": { "type": "string" },
-    "reportPath": { "type": "string" },
-    "approvalLogPath": { "type": "string" },
-    "rejectionLogPath": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "reportGeneratedAt": {
+      "type": "string"
+    },
+    "reportPath": {
+      "type": "string"
+    },
+    "approvalLogPath": {
+      "type": "string"
+    },
+    "rejectionLogPath": {
+      "type": "string"
+    },
     "summary": {
       "type": "object",
       "additionalProperties": false,
@@ -38,15 +52,42 @@
         "pendingReview"
       ],
       "properties": {
-        "total": { "type": "number", "minimum": 0 },
-        "passed": { "type": "number", "minimum": 0 },
-        "failed": { "type": "number", "minimum": 0 },
-        "created": { "type": "number", "minimum": 0 },
-        "missingBaseline": { "type": "number", "minimum": 0 },
-        "approvable": { "type": "number", "minimum": 0 },
-        "approved": { "type": "number", "minimum": 0 },
-        "rejected": { "type": "number", "minimum": 0 },
-        "pendingReview": { "type": "number", "minimum": 0 }
+        "total": {
+          "type": "number",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "number",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "number",
+          "minimum": 0
+        },
+        "created": {
+          "type": "number",
+          "minimum": 0
+        },
+        "missingBaseline": {
+          "type": "number",
+          "minimum": 0
+        },
+        "approvable": {
+          "type": "number",
+          "minimum": 0
+        },
+        "approved": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "number",
+          "minimum": 0
+        },
+        "pendingReview": {
+          "type": "number",
+          "minimum": 0
+        }
       }
     },
     "entries": {
@@ -67,22 +108,62 @@
           "canReject"
         ],
         "properties": {
-          "contractId": { "type": "string" },
-          "screenshotName": { "type": "string" },
-          "route": { "type": "string" },
-          "viewport": { "type": "string" },
-          "status": { "enum": ["passed", "failed", "created", "missing_baseline"] },
-          "baselinePath": { "type": "string" },
-          "actualPath": { "type": "string" },
-          "diffPath": { "type": "string" },
-          "maxDiffPixelRatio": { "type": "number", "minimum": 0 },
-          "actualDiffPixelRatio": { "type": "number", "minimum": 0 },
-          "actualDiffPixels": { "type": "number", "minimum": 0 },
-          "canApprove": { "type": "boolean" },
-          "canReject": { "type": "boolean" },
-          "approvedAt": { "type": "string" },
-          "rejectedAt": { "type": "string" },
-          "rejectionReason": { "type": "string" }
+          "contractId": {
+            "type": "string"
+          },
+          "screenshotName": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "viewport": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "created",
+              "missing_baseline"
+            ]
+          },
+          "baselinePath": {
+            "type": "string"
+          },
+          "actualPath": {
+            "type": "string"
+          },
+          "diffPath": {
+            "type": "string"
+          },
+          "maxDiffPixelRatio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "actualDiffPixelRatio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "actualDiffPixels": {
+            "type": "number",
+            "minimum": 0
+          },
+          "canApprove": {
+            "type": "boolean"
+          },
+          "canReject": {
+            "type": "boolean"
+          },
+          "approvedAt": {
+            "type": "string"
+          },
+          "rejectedAt": {
+            "type": "string"
+          },
+          "rejectionReason": {
+            "type": "string"
+          }
         }
       }
     }

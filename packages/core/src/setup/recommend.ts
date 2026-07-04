@@ -9,12 +9,14 @@ import {
   type VisualHiveConfig
 } from "../config/schema.js";
 import { githubWorkflowTemplates } from "../github/workflowTemplates.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export interface SetupRecommendationReport {
   schemaVersion: 1;
   project: SetupRecommendationProject;
   generatedAt: string;
+  outputResource?: SetupRecommendationOutputResource;
   configPath: string;
   setupProfile: VisualHiveConfig["project"]["setupProfile"];
   providerRecommendations: SetupProviderRecommendation[];
@@ -36,6 +38,15 @@ export interface SetupRecommendationReport {
   recommendedCommands: string[];
   findings: SetupRecommendationFinding[];
   warnings: string[];
+}
+
+export interface SetupRecommendationOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface SetupRecommendationProject {
@@ -315,6 +326,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
       scripts: Object.keys(scripts).sort()
     },
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedOutputResource("setup-recommendations", ".visual-hive/recommendations.json"),
     configPath: normalizeSlashes(path.relative(repoRoot, configPath) || path.basename(configPath)),
     setupProfile,
     providerRecommendations,
@@ -1650,4 +1662,20 @@ function unique<T>(values: T[]): T[] {
 
 function normalizeSlashes(value: string): string {
   return sanitizeText(value.replaceAll("\\", "/"));
+}
+
+export function catalogedSetupOutputResource(resourceId: string, artifactPath: string): SetupRecommendationOutputResource {
+  return catalogedOutputResource(resourceId, artifactPath);
+}
+
+function catalogedOutputResource(resourceId: string, artifactPath: string): SetupRecommendationOutputResource {
+  const resource = getEvidenceResourceById(resourceId);
+  return {
+    artifactPath,
+    evidenceResourceId: resource?.id ?? resourceId,
+    evidenceResourceUri: resource?.uri ?? `visual-hive://${resourceId}`,
+    evidenceResourceTitle: resource?.title ?? resourceId,
+    evidenceResourceDescription: resource?.description ?? "Visual Hive setup evidence artifact.",
+    ...(resource?.readTool?.name ? { evidenceReadToolName: resource.readTool.name } : {})
+  };
 }

@@ -3,70 +3,185 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.testing-layers.schema.json",
   "title": "Visual Hive Testing Layer Report",
   "type": "object",
-  "required": ["schemaVersion", "generatedAt", "project", "sourceArtifacts", "governance", "summary", "layers", "recommendations"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "sourceArtifacts",
+    "governance",
+    "summary",
+    "layers",
+    "recommendations"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "evidencePacket": { "type": "string" },
-        "plan": { "type": "string" },
-        "report": { "type": "string" },
-        "mutationReport": { "type": "string" },
-        "triageReport": { "type": "string" },
-        "providerResults": { "type": "string" },
-        "readiness": { "type": "string" },
-        "coverage": { "type": "string" },
-        "repoMap": { "type": "string" },
-        "artifactsIndex": { "type": "string" }
+        "evidencePacket": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "report": {
+          "type": "string"
+        },
+        "mutationReport": {
+          "type": "string"
+        },
+        "triageReport": {
+          "type": "string"
+        },
+        "providerResults": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "string"
+        },
+        "repoMap": {
+          "type": "string"
+        },
+        "artifactsIndex": {
+          "type": "string"
+        }
       }
     },
     "governance": {
       "type": "object",
-      "required": ["verdictAuthority", "defaultBrowserBackend", "agentAuthority"],
+      "required": [
+        "verdictAuthority",
+        "defaultBrowserBackend",
+        "agentAuthority"
+      ],
       "additionalProperties": false,
       "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "defaultBrowserBackend": { "const": "playwright" },
-        "agentAuthority": { "const": "advisory_only" }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "defaultBrowserBackend": {
+          "const": "playwright"
+        },
+        "agentAuthority": {
+          "const": "advisory_only"
+        }
       }
     },
     "summary": {
       "type": "object",
-      "required": ["totalLayers", "covered", "partial", "missing", "notApplicable", "unknown", "gapCount", "status"],
+      "required": [
+        "totalLayers",
+        "covered",
+        "partial",
+        "missing",
+        "notApplicable",
+        "unknown",
+        "gapCount",
+        "status"
+      ],
       "additionalProperties": false,
       "properties": {
-        "totalLayers": { "type": "number" },
-        "covered": { "type": "number" },
-        "partial": { "type": "number" },
-        "missing": { "type": "number" },
-        "notApplicable": { "type": "number" },
-        "unknown": { "type": "number" },
-        "gapCount": { "type": "number" },
-        "status": { "enum": ["covered", "attention", "missing_evidence"] }
+        "totalLayers": {
+          "type": "number"
+        },
+        "covered": {
+          "type": "number"
+        },
+        "partial": {
+          "type": "number"
+        },
+        "missing": {
+          "type": "number"
+        },
+        "notApplicable": {
+          "type": "number"
+        },
+        "unknown": {
+          "type": "number"
+        },
+        "gapCount": {
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "covered",
+            "attention",
+            "missing_evidence"
+          ]
+        }
       }
     },
     "layers": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "status", "evidence", "gaps", "skippedReasons"],
+        "required": [
+          "id",
+          "name",
+          "status",
+          "evidence",
+          "gaps",
+          "skippedReasons"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" },
-          "status": { "enum": ["covered", "partial", "missing", "not_applicable", "unknown"] },
-          "evidence": { "type": "array", "items": { "type": "string" } },
-          "gaps": { "type": "array", "items": { "type": "string" } },
-          "skippedReasons": { "type": "array", "items": { "type": "string" } },
-          "recommendedNextStep": { "type": "string" }
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "covered",
+              "partial",
+              "missing",
+              "not_applicable",
+              "unknown"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skippedReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommendedNextStep": {
+            "type": "string"
+          }
         }
       }
     },
-    "recommendations": { "type": "array", "items": { "type": "string" } }
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

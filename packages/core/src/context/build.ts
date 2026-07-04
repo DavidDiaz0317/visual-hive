@@ -1,6 +1,7 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import type { AgentPacket } from "../agent/types.js";
+import { VISUAL_HIVE_EVIDENCE_RESOURCES } from "../tools/evidenceResources.js";
 import type { ToolRegistry, ToolRegistryEntry } from "../tools/types.js";
 import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
@@ -19,6 +20,7 @@ export interface BuildContextLedgerOptions {
   rootDir: string;
   project: string;
   now?: Date;
+  budgets?: Partial<ContextLedgerBudgets>;
   toolRegistryPath?: string;
   agentPacketPath?: string;
   evidencePacketPath?: string;
@@ -113,7 +115,7 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
   ]);
 
   const sourceArtifacts = await existingSources(rootDir, paths);
-  const budgets = budgetsFor(agentPacket, toolRegistry);
+  const budgets = budgetsFor(agentPacket, toolRegistry, options.budgets);
   const providerUsage = providerUsageFor(providerResultsReport, providerUploadManifest);
   const llmUsage = llmUsageFor(llmUsageReport);
   const toolCalls = toolCallsFor(pipelineReport, toolRegistry);
@@ -174,28 +176,38 @@ export async function writeContextLedger(
   return { ledger, ledgerPath };
 }
 
-function budgetsFor(agentPacket?: AgentPacket, registry?: ToolRegistry): ContextLedgerBudgets {
+function budgetsFor(agentPacket?: AgentPacket, registry?: ToolRegistry, overrides?: Partial<ContextLedgerBudgets>): ContextLedgerBudgets {
   return {
-    maxToolCalls: numberOr(agentPacket?.budgets?.maxToolCalls, registry?.policy?.maxToolCallsPerTask, DEFAULT_BUDGETS.maxToolCalls),
+    maxToolCalls: numberOr(overrides?.maxToolCalls, agentPacket?.budgets?.maxToolCalls, registry?.policy?.maxToolCallsPerTask, DEFAULT_BUDGETS.maxToolCalls),
     maxToolResultTokens: numberOr(
+      overrides?.maxToolResultTokens,
       agentPacket?.budgets?.maxToolResultTokens,
       registry?.policy?.maxToolResultTokensPerTask,
       DEFAULT_BUDGETS.maxToolResultTokens
     ),
     maxExternalCostUsd: numberOr(
+      overrides?.maxExternalCostUsd,
       agentPacket?.budgets?.maxExternalCostUsd,
       registry?.policy?.maxExternalCostUsdPerTask,
       DEFAULT_BUDGETS.maxExternalCostUsd
     ),
-    maxProviderScreenshots: DEFAULT_BUDGETS.maxProviderScreenshots
+    maxProviderScreenshots: numberOr(overrides?.maxProviderScreenshots, DEFAULT_BUDGETS.maxProviderScreenshots)
   };
 }
 
 function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry): ContextToolCall[] {
   const toolByCommand = new Map<string, ToolRegistryEntry>();
+  const ambiguousCommandKeys = new Set<string>();
   for (const tool of registry?.tools ?? []) {
     const commandKey = firstCommandWord(tool.command);
-    if (commandKey) toolByCommand.set(commandKey, tool);
+    if (commandKey) {
+      if (toolByCommand.has(commandKey)) {
+        toolByCommand.delete(commandKey);
+        ambiguousCommandKeys.add(commandKey);
+      } else if (!ambiguousCommandKeys.has(commandKey)) {
+        toolByCommand.set(commandKey, tool);
+      }
+    }
     toolByCommand.set(tool.id, tool);
   }
 
@@ -213,6 +225,7 @@ function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry): C
       status: sanitizeText(stringOr(step.status, "unknown")),
       trustedOnly: Boolean(matched?.trustedOnly),
       externalNetwork: Boolean(matched?.externalNetwork),
+      ...contextEvidenceResourceMetadata(matched, artifacts),
       estimatedResultTokens: estimateToolResultTokens(step, artifacts),
       artifacts,
       reason: sanitizeText(stringOr(step.message, "Recorded from .visual-hive/pipeline.json."))
@@ -233,10 +246,90 @@ function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry): C
       status: "available",
       trustedOnly: tool.trustedOnly,
       externalNetwork: tool.externalNetwork,
+      ...contextEvidenceResourceMetadata(tool, tool.evidenceArtifacts),
       estimatedResultTokens: 0,
       artifacts: tool.evidenceArtifacts.map((artifact) => sanitizeText(artifact)),
       reason: "Available tool from registry; not counted as an executed call."
     }));
+}
+
+function contextEvidenceResourceMetadata(tool?: ToolRegistryEntry, artifactPaths: string[] = []): Partial<ContextToolCall> {
+  const linkedResources = evidenceResourcesFromArtifacts(artifactPaths);
+  const resource =
+    tool?.evidenceResourceId || tool?.evidenceResourceUri || tool?.evidenceReadToolName
+      ? {
+          id: tool.evidenceResourceId,
+          uri: tool.evidenceResourceUri,
+          title: tool.evidenceResourceTitle,
+          description: tool.evidenceResourceDescription,
+          readToolName: tool.evidenceReadToolName,
+          artifactPath: tool.evidenceArtifacts[0] ?? artifactPaths[0]
+        }
+      : linkedResources[0]
+        ? {
+            id: linkedResources[0].evidenceResourceId,
+            uri: linkedResources[0].evidenceResourceUri,
+            title: linkedResources[0].evidenceResourceTitle,
+            description: linkedResources[0].evidenceResourceDescription,
+            readToolName: linkedResources[0].evidenceReadToolName,
+            artifactPath: linkedResources[0].artifactPath
+          }
+        : undefined;
+  const evidenceResources = uniqueEvidenceResources([
+    ...(resource?.id && resource.uri && resource.title && resource.description && resource.artifactPath
+      ? [
+          {
+            evidenceResourceId: resource.id,
+            evidenceResourceUri: resource.uri,
+            evidenceResourceTitle: resource.title,
+            evidenceResourceDescription: resource.description,
+            evidenceReadToolName: resource.readToolName,
+            artifactPath: resource.artifactPath
+          }
+        ]
+      : []),
+    ...linkedResources
+  ]);
+  if (!resource?.id) return evidenceResources.length ? { evidenceResources } : {};
+  const metadata: Partial<ContextToolCall> = {
+    evidenceResourceId: resource.id,
+    evidenceResourceUri: resource.uri,
+    evidenceResourceTitle: resource.title,
+    evidenceResourceDescription: resource.description,
+    evidenceReadToolName: resource.readToolName,
+    evidenceResources
+  };
+  return Object.fromEntries(Object.entries(metadata).filter(([, value]) => value !== undefined)) as Partial<ContextToolCall>;
+}
+
+function evidenceResourcesFromArtifacts(artifacts: string[] = []): NonNullable<ContextToolCall["evidenceResources"]> {
+  const resources: NonNullable<ContextToolCall["evidenceResources"]> = [];
+  for (const rawArtifact of artifacts) {
+    const artifact = sanitizeText(rawArtifact);
+    const normalizedArtifact = artifact.replaceAll("\\", "/").toLowerCase();
+    const resource = VISUAL_HIVE_EVIDENCE_RESOURCES.find((candidate) => normalizedArtifact === candidate.relativePath.toLowerCase());
+    if (resource) {
+      resources.push({
+        evidenceResourceId: resource.id,
+        evidenceResourceUri: resource.uri,
+        evidenceResourceTitle: resource.title,
+        evidenceResourceDescription: resource.description,
+        evidenceReadToolName: resource.readTool?.name,
+        artifactPath: resource.relativePath
+      });
+    }
+  }
+  return uniqueEvidenceResources(resources);
+}
+
+function uniqueEvidenceResources(resources: NonNullable<ContextToolCall["evidenceResources"]>): NonNullable<ContextToolCall["evidenceResources"]> {
+  const seen = new Set<string>();
+  return resources.filter((resource) => {
+    const key = `${resource.evidenceResourceId}:${resource.artifactPath}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function providerUsageFor(providerResults: unknown, providerUploadManifest: unknown): ContextProviderUsage[] {
@@ -250,10 +343,19 @@ function providerUsageFor(providerResults: unknown, providerUploadManifest: unkn
     ...merged[index],
     uploadStatus: fromManifest.uploadStatus,
     artifactCount: Math.max(merged[index]?.artifactCount ?? 0, fromManifest.artifactCount),
+    stagedArtifacts: numberOr(merged[index]?.stagedArtifacts, fromManifest.stagedArtifacts),
+    uploadedArtifacts: numberOr(merged[index]?.uploadedArtifacts, fromManifest.uploadedArtifacts),
     estimatedExternalScreenshots: Math.max(merged[index]?.estimatedExternalScreenshots ?? 0, fromManifest.estimatedExternalScreenshots),
     externalCallsMade: Math.max(merged[index]?.externalCallsMade ?? 0, fromManifest.externalCallsMade),
     blockedReasons: unique([...(merged[index]?.blockedReasons ?? []), ...fromManifest.blockedReasons]),
-    artifacts: unique([...(merged[index]?.artifacts ?? []), ...fromManifest.artifacts])
+    artifacts: unique([...(merged[index]?.artifacts ?? []), ...fromManifest.artifacts]),
+    manifestPath: fromManifest.manifestPath ?? merged[index]?.manifestPath,
+    uploadDirectory: fromManifest.uploadDirectory ?? merged[index]?.uploadDirectory,
+    command: fromManifest.command ?? merged[index]?.command,
+    stdout: fromManifest.stdout ?? merged[index]?.stdout,
+    stderr: fromManifest.stderr ?? merged[index]?.stderr,
+    providerUrl: fromManifest.providerUrl ?? merged[index]?.providerUrl,
+    dryRun: fromManifest.dryRun ?? merged[index]?.dryRun
   };
   return merged;
 }
@@ -266,16 +368,26 @@ function providerUsagesFromResults(input: unknown): ContextProviderUsage[] {
     .map((record) => {
       const normalized = objectAt(record, "normalized");
       const costPolicy = objectAt(record, "costPolicy");
+      const upload = objectAt(record, "upload");
       return {
         providerId: sanitizeText(stringOr(record.providerId, "unknown-provider")),
         status: sanitizeText(stringOr(record.status, "unknown")),
+        uploadStatus: sanitizeOptionalString(upload?.status),
         artifactCount: numberOr(record.artifactCount, 0),
+        stagedArtifacts: optionalNumber(upload?.stagedArtifacts),
+        uploadedArtifacts: optionalNumber(upload?.uploadedArtifacts),
         estimatedExternalScreenshots: numberOr(record.estimatedExternalScreenshots, costPolicy?.estimatedExternalScreenshots, 0),
-        externalCallsMade: numberOr(normalized?.externalCallsMade, record.externalCallsMade, 0),
+        externalCallsMade: numberOr(upload?.externalCallsMade, normalized?.externalCallsMade, record.externalCallsMade, 0),
         estimatedCostUsd: numberOr(record.estimatedCostUsd, 0),
         missingEnv: stringArray(record.missingEnv),
-        blockedReasons: unique([...stringArray(record.externalUploadBlockedReasons), ...stringArray(costPolicy?.blockedReasons)]),
-        artifacts: [".visual-hive/provider-results.json"]
+        blockedReasons: unique([...stringArray(record.externalUploadBlockedReasons), ...stringArray(costPolicy?.blockedReasons), ...stringArray(upload?.blockedReasons)]),
+        artifacts: unique([".visual-hive/provider-results.json", sanitizeOptionalString(upload?.manifestPath), sanitizeOptionalString(upload?.uploadDirectory)].filter(Boolean) as string[]),
+        manifestPath: sanitizeOptionalString(upload?.manifestPath),
+        uploadDirectory: sanitizeOptionalString(upload?.uploadDirectory),
+        command: sanitizeOptionalString(upload?.command),
+        stdout: sanitizeOptionalString(upload?.stdout),
+        stderr: sanitizeOptionalString(upload?.stderr),
+        providerUrl: sanitizeOptionalString(upload?.providerUrl)
       };
     });
 }
@@ -290,12 +402,21 @@ function providerUsageFromManifest(input: unknown): ContextProviderUsage | undef
     status: sanitizeText(status),
     uploadStatus: sanitizeText(status),
     artifactCount: numberOr(summary?.stagedArtifacts, summary?.uploadedArtifacts, manifest.artifactCount, 0),
+    stagedArtifacts: optionalNumber(summary?.stagedArtifacts),
+    uploadedArtifacts: optionalNumber(summary?.uploadedArtifacts),
     estimatedExternalScreenshots: numberOr(summary?.stagedArtifacts, manifest.estimatedExternalScreenshots, 0),
     externalCallsMade: numberOr(manifest.externalCallsMade, 0),
     estimatedCostUsd: numberOr(manifest.estimatedCostUsd, 0),
     missingEnv: stringArray(manifest.missingEnv),
     blockedReasons: stringArray(manifest.blockedReasons),
-    artifacts: [".visual-hive/provider-upload/argos/manifest.json"]
+    artifacts: [".visual-hive/provider-upload/argos/manifest.json"],
+    manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+    uploadDirectory: ".visual-hive/provider-upload/argos",
+    command: sanitizeOptionalString(manifest.command),
+    stdout: sanitizeOptionalString(manifest.stdout),
+    stderr: sanitizeOptionalString(manifest.stderr),
+    providerUrl: sanitizeOptionalString(manifest.providerUrl),
+    dryRun: Boolean(manifest.dryRun)
   };
 }
 

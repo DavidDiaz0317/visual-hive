@@ -4,12 +4,33 @@
   "title": "Visual Hive Target Audit",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "summary", "targets"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "summary",
+    "targets"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "pr",
+        "schedule",
+        "manual",
+        "canary",
+        "mutation",
+        "full"
+      ]
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -56,19 +77,44 @@
           "recommendations"
         ],
         "properties": {
-          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
-          "latestStatus": { "enum": ["passed", "failed", "not_run"] },
+          "kind": {
+            "enum": [
+              "url",
+              "command",
+              "commandGroup",
+              "deployPreview",
+              "storybook",
+              "protected"
+            ]
+          },
+          "latestStatus": {
+            "enum": [
+              "passed",
+              "failed",
+              "not_run"
+            ]
+          },
           "labels": {
             "type": "array",
             "items": {
-              "enum": ["Safe on PR", "Protected", "Expensive", "Schedule-only", "Needs setup"]
+              "enum": [
+                "Safe on PR",
+                "Protected",
+                "Expensive",
+                "Schedule-only",
+                "Needs setup"
+              ]
             }
           },
           "gaps": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kind", "severity", "message"],
+              "required": [
+                "kind",
+                "severity",
+                "message"
+              ],
               "properties": {
                 "kind": {
                   "enum": [
@@ -84,8 +130,16 @@
                     "expensive_pr_safe"
                   ]
                 },
-                "severity": { "enum": ["low", "medium", "high"] },
-                "message": { "type": "string" }
+                "severity": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
               }
             }
           }

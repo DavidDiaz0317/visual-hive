@@ -3,6 +3,7 @@ import type { MutationOperator, VisualHiveConfig } from "../config/schema.js";
 import { VisualHiveConfigSchema } from "../config/schema.js";
 import { validateReferences } from "../config/load.js";
 import type { MutationReport } from "../reports/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageGap, CoverageReport } from "./analyze.js";
 import type { FlowAuditEntry, FlowAuditReport } from "../flows/audit.js";
@@ -11,8 +12,18 @@ export interface CoverageImprovementReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: CoverageImprovementOutputResource;
   summary: CoverageImprovementSummary;
   recommendations: CoverageImprovementRecommendation[];
+}
+
+export interface CoverageImprovementOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface CoverageImprovementSummary {
@@ -81,6 +92,7 @@ export function buildCoverageImprovementReport(
     schemaVersion: 1,
     project: config.project.name,
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedOutputResource("coverage-recommendations", ".visual-hive/coverage-recommendations.json"),
     summary: summarize(deduped),
     recommendations: deduped
   };
@@ -678,4 +690,16 @@ function slug(value: string): string {
 
 function severityRank(severity: CoverageImprovementRecommendation["severity"]): number {
   return { low: 1, medium: 2, high: 3 }[severity];
+}
+
+function catalogedOutputResource(resourceId: string, artifactPath: string): CoverageImprovementOutputResource {
+  const resource = getEvidenceResourceById(resourceId);
+  return {
+    artifactPath,
+    evidenceResourceId: resource?.id ?? resourceId,
+    evidenceResourceUri: resource?.uri ?? `visual-hive://${resourceId}`,
+    evidenceResourceTitle: resource?.title ?? resourceId,
+    evidenceResourceDescription: resource?.description ?? "Visual Hive evidence artifact.",
+    ...(resource?.readTool?.name ? { evidenceReadToolName: resource.readTool.name } : {})
+  };
 }

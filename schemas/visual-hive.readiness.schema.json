@@ -3,22 +3,69 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.readiness.schema.json",
   "title": "Visual Hive Readiness Gate",
   "type": "object",
-  "required": ["schemaVersion", "project", "generatedAt", "status", "score", "summary", "inputs", "gates", "nextActions"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "status",
+    "score",
+    "summary",
+    "inputs",
+    "gates",
+    "nextActions"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "status": { "enum": ["ready", "attention", "blocked"] },
-    "score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "attention",
+        "blocked"
+      ]
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
     "summary": {
       "type": "object",
-      "required": ["total", "passed", "warnings", "blocked", "missing"],
+      "required": [
+        "total",
+        "passed",
+        "warnings",
+        "blocked",
+        "missing"
+      ],
       "properties": {
-        "total": { "type": "integer", "minimum": 0 },
-        "passed": { "type": "integer", "minimum": 0 },
-        "warnings": { "type": "integer", "minimum": 0 },
-        "blocked": { "type": "integer", "minimum": 0 },
-        "missing": { "type": "integer", "minimum": 0 }
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     },
@@ -39,18 +86,42 @@
         "llmDecisions"
       ],
       "properties": {
-        "plan": { "type": "boolean" },
-        "report": { "type": "boolean" },
-        "mutationReport": { "type": "boolean" },
-        "baselines": { "type": "boolean" },
-        "workflowAudit": { "type": "boolean" },
-        "securityAudit": { "type": "boolean" },
-        "costAudit": { "type": "boolean" },
-        "runHistory": { "type": "boolean" },
-        "providerDecisions": { "type": "boolean" },
-        "providerSetupPlan": { "type": "boolean" },
-        "providerHandoff": { "type": "boolean" },
-        "llmDecisions": { "type": "boolean" }
+        "plan": {
+          "type": "boolean"
+        },
+        "report": {
+          "type": "boolean"
+        },
+        "mutationReport": {
+          "type": "boolean"
+        },
+        "baselines": {
+          "type": "boolean"
+        },
+        "workflowAudit": {
+          "type": "boolean"
+        },
+        "securityAudit": {
+          "type": "boolean"
+        },
+        "costAudit": {
+          "type": "boolean"
+        },
+        "runHistory": {
+          "type": "boolean"
+        },
+        "providerDecisions": {
+          "type": "boolean"
+        },
+        "providerSetupPlan": {
+          "type": "boolean"
+        },
+        "providerHandoff": {
+          "type": "boolean"
+        },
+        "llmDecisions": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
@@ -58,23 +129,78 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "category", "status", "title", "message", "evidence", "artifacts", "nextActions"],
+        "required": [
+          "id",
+          "category",
+          "status",
+          "title",
+          "message",
+          "evidence",
+          "artifacts",
+          "nextActions"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "category": {
-            "enum": ["config", "setup", "planning", "deterministic", "baselines", "mutation", "workflow", "security", "provider", "llm", "cost", "history"]
+          "id": {
+            "type": "string"
           },
-          "status": { "enum": ["passed", "warning", "blocked", "missing"] },
-          "title": { "type": "string" },
-          "message": { "type": "string" },
-          "evidence": { "type": "array", "items": { "type": "string" } },
-          "artifacts": { "type": "array", "items": { "type": "string" } },
-          "nextActions": { "type": "array", "items": { "type": "string" } }
+          "category": {
+            "enum": [
+              "config",
+              "setup",
+              "planning",
+              "deterministic",
+              "baselines",
+              "mutation",
+              "workflow",
+              "security",
+              "provider",
+              "llm",
+              "cost",
+              "history"
+            ]
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "warning",
+              "blocked",
+              "missing"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nextActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
         "additionalProperties": false
       }
     },
-    "nextActions": { "type": "array", "items": { "type": "string" } }
+    "nextActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "additionalProperties": false
 }

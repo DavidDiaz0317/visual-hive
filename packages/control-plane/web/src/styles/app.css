@@ -503,9 +503,43 @@
 
 .finding-list,
 .artifact-preview,
-.command-list {
+.command-list,
+.agent-tool-list,
+.linked-evidence-list,
+.linked-evidence-links {
   display: grid;
   gap: 8px;
+}
+
+.agent-tool-row,
+.linked-evidence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--vh-border);
+  border-radius: var(--vh-radius-sm);
+  background: var(--vh-bg-soft);
+}
+
+.agent-tool-row strong,
+.agent-tool-row small,
+.linked-evidence-row strong,
+.linked-evidence-row small {
+  display: block;
+  min-width: 0;
+}
+
+.agent-tool-row small,
+.linked-evidence-row small {
+  margin-top: 3px;
+  color: var(--vh-muted);
+  overflow-wrap: anywhere;
+}
+
+.linked-evidence-links {
+  justify-items: end;
 }
 
 .finding-item,
@@ -815,6 +849,36 @@ textarea:focus-visible {
   letter-spacing: 0.01em;
 }
 
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--vh-amber);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.4;
+  padding: 0;
+  text-align: left;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+  color: var(--vh-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.checklist-action {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.checklist-action small,
+.muted-text {
+  color: var(--vh-muted);
+  line-height: 1.35;
+}
+
 .stack {
   display: grid;
   gap: 12px;
@@ -825,6 +889,10 @@ textarea:focus-visible {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.row.compact {
+  gap: 6px;
 }
 
 .split {

@@ -17,6 +17,19 @@ Outputs:
 
 Schema: `schemas/visual-hive.test-creation-plan.schema.json`
 
+Catalog resource: `visual-hive://test-creation-plan`
+
+Read tool: `visual_hive_read_test_creation_plan`
+
+Generated JSON includes an `outputResource` block that repeats the catalog identity inside the artifact itself:
+
+- `artifactPath: .visual-hive/test-creation-plan.json`
+- `evidenceResourceId: test-creation-plan`
+- `evidenceResourceUri: visual-hive://test-creation-plan`
+- `evidenceReadToolName: visual_hive_read_test_creation_plan`
+
+Agents and trusted workflow consumers should use that metadata instead of guessing from paths.
+
 ## Inputs
 
 The command reads:

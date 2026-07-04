@@ -33,9 +33,18 @@ import { buildTestingLayerReport, writeTestingLayerReport } from "../src/layers/
 import { buildTestCreationPlan, writeTestCreationPlan } from "../src/testCreation/build.js";
 import { buildHandoffArtifacts, writeHandoffArtifacts } from "../src/handoff/build.js";
 import { validateHandoffArtifacts } from "../src/handoff/validate.js";
+import {
+  writeHiveExportArtifacts,
+  writeHiveGuardedRepairPreview,
+  writeHiveRepairRequestEnvelope,
+  writeHiveTrustedRepairConsumerSummary,
+  writeHiveTrustedRepairWorkflowDryRun
+} from "../src/hive/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
+import { VISUAL_HIVE_EVIDENCE_RESOURCES } from "../src/tools/evidenceResources.js";
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
+import { verifySchemaCatalog } from "../src/schemas/catalog.js";
 import { analyzeRepository, writeRepoMap } from "../src/repo/analyze.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
@@ -53,7 +62,7 @@ import { buildSetupPullRequestPlan } from "../src/setup/prPlan.js";
 import { buildSetupProgress } from "../src/setup/progress.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
-import type { Report } from "../src/reports/types.js";
+import type { MutationReport, Report } from "../src/reports/types.js";
 
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -996,7 +1005,9 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.handoff.schema.json");
     expect(schemaNames).toContain("visual-hive.agent-packet.schema.json");
     expect(schemaNames).toContain("visual-hive.tool-registry.schema.json");
+    expect(schemaNames).toContain("visual-hive.mcp.schema.json");
     expect(schemaNames).toContain("visual-hive.context-ledger.schema.json");
+    expect(schemaNames).toContain("visual-hive.pipeline.schema.json");
     expect(schemaNames).toContain("visual-hive.handoff-validation.schema.json");
     expect(schemaNames).toContain("visual-hive.repo-map.schema.json");
     expect(schemaNames).toContain("visual-hive.testing-layers.schema.json");
@@ -1004,6 +1015,15 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.verdict.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-bead-request.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-handoff-result.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-beads.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-knowledge-facts.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-knowledge-graph.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-repair-work-orders.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-agent-policy.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-guarded-repair-preview.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-repair-request-envelope.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-trusted-repair-consumer-summary.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-trusted-repair-workflow-dry-run.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-mode-comparison.schema.json");
 
     const providerSchema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.provider-decisions.schema.json"), "utf8")) as {
@@ -1018,6 +1038,11 @@ describe("schema catalog", () => {
     expect(llmSchema.$defs.decision.properties.externalCallsMade).toEqual({ const: 0 });
     expect(providerSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
     expect(llmSchema.$defs.decision.properties.source).toEqual({ enum: ["cli", "control-plane"] });
+
+    for (const schemaName of schemaNames) {
+      const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", schemaName), "utf8")) as { $id?: string };
+      expect(schema.$id, schemaName).toBe(`https://visual-hive.dev/schemas/${schemaName}`);
+    }
   });
 });
 
@@ -1443,6 +1468,14 @@ describe("coverage analysis", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.project).toBe("sample");
+    expect(report.outputResource).toEqual({
+      artifactPath: ".visual-hive/coverage-recommendations.json",
+      evidenceResourceId: "coverage-recommendations",
+      evidenceResourceUri: "visual-hive://coverage-recommendations",
+      evidenceResourceTitle: "Coverage Recommendations",
+      evidenceResourceDescription: "Deterministic no-write missing-coverage and config-improvement recommendations for human or agent review.",
+      evidenceReadToolName: "visual_hive_read_coverage_recommendations"
+    });
     expect(report.summary.total).toBeGreaterThan(0);
     expect(report.summary.fromMutationSurvivors).toBe(1);
     expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("map_mutation_operator");
@@ -2632,6 +2665,20 @@ jobs:
     expect(hiveHandoffTemplate).toContain("workflow_run:");
     expect(hiveHandoffTemplate).toContain("hive-bead-request.json");
     expect(hiveHandoffTemplate).toContain("hive-handoff-validation.json");
+    expect(hiveHandoffTemplate).toContain("hive/hive-export.json");
+    expect(hiveHandoffTemplate).toContain("hive/guarded-repair-preview.json");
+    expect(hiveHandoffTemplate).toContain("hive/repair-request-envelope.json");
+    expect(hiveHandoffTemplate).toContain("hive/trusted-repair-workflow-dry-run.json");
+    expect(hiveHandoffTemplate).toContain("Guarded repair preview");
+    expect(hiveHandoffTemplate).toContain("Repair request envelope");
+    expect(hiveHandoffTemplate).toContain("Trusted repair workflow dry-run");
+    expect(hiveHandoffTemplate).toContain("preview_only_no_execution");
+    expect(hiveHandoffTemplate).toContain("trusted_workflow_request_only");
+    expect(hiveHandoffTemplate).toContain("dry_run_only");
+    expect(hiveHandoffTemplate).toContain("not_executed_by_visual_hive");
+    expect(hiveHandoffTemplate).toContain("canOpenTrustedRepairRequest");
+    expect(hiveHandoffTemplate).toContain("canRunTrustedRepairWorkflow");
+    expect(hiveHandoffTemplate).toContain("decide_visual_hive_verdict");
     expect(hiveHandoffTemplate).toContain("hive-issue.md");
     expect(hiveHandoffTemplate).toContain("externalCallsMade");
     expect(hiveHandoffTemplate).toContain("visual-hive-hive-handoff-dedupe");
@@ -3847,32 +3894,141 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "verdict.md"), "Verdict token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "setup-pr-plan.json"), '{"schemaVersion":1,"summary":{"externalCallsMade":0},"warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage.json"), '{"schemaVersion":1,"findings":[{"title":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "history.json"), '{"schemaVersion":1,"runs":[{"status":"failed","message":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "baselines.json"), '{"summary":{"pendingReview":1},"entries":[{"actualPath":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "baseline-approvals.json"), '{"schemaVersion":1,"approvals":[{"actualPath":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "baseline-rejections.json"), '{"schemaVersion":1,"rejections":[{"reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "triage-prompt.md"), "Authorization: Bearer secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "baseline-review.md"), "client_secret=baseline-review-secret", "utf8");
     await writeFile(path.join(hiveRoot, "pr-comment.md"), "Cookie: session=secret-token", "utf8");
     await writeFile(path.join(hiveRoot, "control-plane-actions.json"), '{"actions":[{"stdout":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "coverage-recommendations.json"), '{"recommendations":[{"rationale":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "flows.json"), '{"schemaVersion":1,"flows":[{"latestFailedMessages":["token=abc123"]}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "workflows.json"), '{"schemaVersion":1,"findings":[{"message":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "security.json"), '{"findings":[{"evidence":["authorization: bearer abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "costs.json"), '{"providers":[{"blockedReasons":["client_secret=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "readiness.json"), '{"gates":[{"evidence":["token=abc123"]}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-decisions.json"), '{"decisions":[{"providerId":"argos","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-setup-plan.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "provider-handoff.json"), '{"providerId":"argos","warnings":["token=abc123"]}', "utf8");
+    await mkdir(path.join(hiveRoot, "provider-upload", "argos"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "provider-upload", "argos", "manifest.json"), '{"schemaVersion":1,"provider":"argos","warnings":["token=abc123"]}', "utf8");
     await writeFile(path.join(hiveRoot, "llm-decisions.json"), '{"decisions":[{"decision":"keep_disabled","reason":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "agent-packet.json"), '{"schemaVersion":"visual-hive.agent-packet.v1","objective":"token=abc123"}', "utf8");
+    await writeFile(path.join(hiveRoot, "handoff-agent-packet.json"), '{"schemaVersion":"visual-hive.agent-packet.v1","profile":"handoff_agent","objective":"token=abc123"}', "utf8");
+    await writeFile(path.join(hiveRoot, "provider-agent-packet.json"), '{"schemaVersion":"visual-hive.agent-packet.v1","profile":"provider_specialist","objective":"token=abc123"}', "utf8");
     await mkdir(path.join(hiveRoot, "tools"), { recursive: true });
     await writeFile(path.join(hiveRoot, "tools", "tool-registry.json"), '{"schemaVersion":"visual-hive.tool-registry.v1","tools":[{"id":"token=abc123"}]}', "utf8");
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
-    await writeFile(path.join(hiveRoot, "context-ledger.json"), '{"schemaVersion":"visual-hive.context-ledger.v1","notes":["token=abc123"]}', "utf8");
+    await writeFile(
+      path.join(hiveRoot, "mcp-manifest.json"),
+      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.0","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "context-ledger.json"),
+      JSON.stringify({
+        schemaVersion: "visual-hive.context-ledger.v1",
+        toolCalls: [
+          {
+            id: "triage",
+            source: "pipeline",
+            toolId: "visual_hive_triage",
+            label: "Triage token=abc123",
+            access: "local_execution",
+            status: "passed",
+            trustedOnly: false,
+            externalNetwork: false,
+            evidenceResourceId: "triage-report",
+            evidenceResourceUri: "visual-hive://triage-report",
+            evidenceResourceTitle: "Triage Report",
+            evidenceResourceDescription: "Read deterministic triage classifications.",
+            evidenceReadToolName: "visual_hive_read_triage_report",
+            evidenceResources: [
+              {
+                evidenceResourceId: "triage-report",
+                evidenceResourceUri: "visual-hive://triage-report",
+                evidenceResourceTitle: "Triage Report",
+                evidenceResourceDescription: "Read deterministic triage classifications.",
+                evidenceReadToolName: "visual_hive_read_triage_report",
+                artifactPath: ".visual-hive/triage.json"
+              },
+              {
+                evidenceResourceId: "issue-body",
+                evidenceResourceUri: "visual-hive://issue-body",
+                evidenceResourceTitle: "GitHub Issue Body",
+                evidenceResourceDescription: "Read sanitized GitHub issue Markdown.",
+                evidenceReadToolName: "visual_hive_read_issue_body",
+                artifactPath: ".visual-hive/issue.md"
+              },
+              {
+                evidenceResourceId: "missing-tests",
+                evidenceResourceUri: "visual-hive://missing-tests",
+                evidenceResourceTitle: "Missing Tests",
+                evidenceResourceDescription: "Read missing-test recommendations.",
+                evidenceReadToolName: "visual_hive_read_missing_tests",
+                artifactPath: ".visual-hive/missing-tests.md"
+              }
+            ],
+            estimatedResultTokens: 600,
+            artifacts: [".visual-hive/triage.json", ".visual-hive/issue.md", ".visual-hive/missing-tests.md"],
+            reason: "Recorded from .visual-hive/pipeline.json with token=abc123"
+          }
+        ],
+        notes: ["token=abc123"]
+      }),
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "pipeline.json"),
+      '{"schemaVersion":1,"project":"artifact-fixture","mode":"pr","generatedAt":"2026-06-15T00:00:00.000Z","status":"passed","exitCode":0,"options":{"ci":true,"bootstrapBaselines":false,"enforceMutation":false,"continueOnError":true,"skipInstall":true,"skipBuild":true},"steps":[{"id":"evidence","label":"Evidence Packet","status":"passed","startedAt":"2026-06-15T00:00:00.000Z","completedAt":"2026-06-15T00:00:01.000Z","durationMs":1000,"exitCode":0,"artifacts":[".visual-hive/evidence-packet.json"],"message":"token=abc123"}],"artifacts":[".visual-hive/pipeline.json"]}',
+      "utf8"
+    );
     await writeFile(path.join(hiveRoot, "hive-handoff-validation.json"), '{"schemaVersion":"visual-hive.handoff-validation.v1","warnings":["token=abc123"]}', "utf8");
     await mkdir(path.join(hiveRoot, "hive"), { recursive: true });
+    await writeFile(
+      path.join(hiveRoot, "hive", "beads.json"),
+      '[{"id":"vh-bead-1","title":"token=abc123","type":"bug","status":"open","priority":1,"actor":"quality","external_ref":"visual-hive://latest-evidence","metadata":{"secret":"token=abc123"},"notes":"token=abc123","created_at":"2026-06-15T00:00:00.000Z","updated_at":"2026-06-15T00:00:00.000Z","depends_on":[]}]',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "hive", "knowledge-facts.json"),
+      '[{"slug":"visual-hive-regression","title":"token=abc123","type":"regression","layer":"project","confidence":0.9,"tags":["visual-hive"],"source":"visual-hive:evidence","body":"token=abc123","relatedEvidenceKeys":["selector.dashboard"],"artifacts":[".visual-hive/evidence-packet.json"]}]',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "hive", "knowledge-graph.json"),
+      '{"schemaVersion":"visual-hive.hive-knowledge-graph.v1","nodes":[{"id":"fact:visual-hive-regression","slug":"visual-hive-regression","title":"token=abc123","type":"fact","tags":["visual-hive"],"artifactPath":".visual-hive/hive/knowledge-facts.json"}],"edges":[]}',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "hive", "repair-work-orders.json"),
+      '[{"id":"repair-1","actor":"quality","title":"token=abc123","objective":"Fix Visual Hive regression","sourceBeadIds":["vh-bead-1"],"evidenceKeys":["selector.dashboard"],"likelyFiles":["src/App.tsx"],"artifacts":[".visual-hive/report.json"],"reproductionCommands":["visual-hive run --ci"],"acceptanceCriteria":["Visual Hive verdict passes after repair."],"allowedActions":["edit_pr_branch"],"forbiddenActions":["decide_visual_hive_verdict"],"maxAttempts":1,"branchPrefix":"hive/visual-hive-","prOnly":true,"requireHumanReview":true,"rerunVisualHive":true}]',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "hive", "hive-agent-policy.json"),
+      '{"schemaVersion":"visual-hive.hive-agent-policy.v1","mode":"repair_request","acmmLevel":4,"enabled":true,"externalCallsMade":0,"verdictAuthority":"visual_hive","hiveAuthority":"advisory_or_guarded_repair","repair":{"enabled":true,"prOnly":true,"maxAttempts":1,"requireHumanReview":true,"rerunVisualHive":true,"branchPrefix":"hive/visual-hive-"},"allowedActions":["read_sanitized_evidence"],"forbiddenActions":["decide_visual_hive_verdict"],"trustedWorkflowRequiredFor":["agent_repair_execution"],"finalValidation":{"required":true,"command":"visual-hive pipeline --mode pr --ci","passFailOwnedBy":"visual_hive_verdict_engine"}}',
+      "utf8"
+    );
     await writeFile(path.join(hiveRoot, "hive", "mode-comparison.json"), '{"schemaVersion":"visual-hive.hive-mode-comparison.v1","modes":[{"recommendedUse":"token=abc123"}]}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "guarded-repair-preview.json"), '{"schemaVersion":"visual-hive.hive-guarded-repair-preview.v1","readiness":{"blockedReasons":["token=abc123"]}}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "guarded-repair-preview.md"), "Guarded repair token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "repair-request-envelope.json"), '{"schemaVersion":"visual-hive.hive-repair-request-envelope.v1","readiness":{"blockedReasons":["token=abc123"]}}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "repair-request-envelope.md"), "Repair request token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "trusted-repair-consumer-summary.json"), '{"schemaVersion":"visual-hive.hive-trusted-repair-consumer-summary.v1","readiness":{"blockedReasons":["token=abc123"]}}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "trusted-repair-consumer-summary.md"), "Trusted repair consumer token=abc123", "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "trusted-repair-workflow-dry-run.json"), '{"schemaVersion":"visual-hive.hive-trusted-repair-workflow-dry-run.v1","readiness":{"blockedReasons":["token=abc123"]}}', "utf8");
+    await writeFile(path.join(hiveRoot, "hive", "trusted-repair-workflow-dry-run.md"), "Trusted workflow token=abc123", "utf8");
     await writeFile(path.join(hiveRoot, "runbook.json"), '{"runbook":{"commands":[{"id":"doctor","command":"visual-hive doctor token=abc123"}]}}', "utf8");
     await writeFile(
       path.join(hiveRoot, "connections-portfolio.json"),
       '{"schemaVersion":1,"portfolio":{"queues":[{"id":"security_risks","connections":[]}]},"connections":[{"id":"repo","attention":["token=abc123"]}]}',
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "schema-catalog.json"),
+      '{"schemaVersion":"visual-hive.schema-catalog.v1","status":"passed","checks":[{"id":"schema-id","status":"passed","message":"token=abc123"}]}',
       "utf8"
     );
     await writeFile(path.join(hiveRoot, "artifacts-index.json"), '{"schemaVersion":1,"artifactCount":999}', "utf8");
@@ -3888,7 +4044,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(37);
+    expect(index.summary.artifactCount).toBe(60);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -3901,7 +4057,14 @@ describe("artifact index", () => {
     const planLaneSummary = index.artifacts.find((artifact) => artifact.path.endsWith("plans.json"));
     expect(planLaneSummary?.preview).toContain("[REDACTED]");
     expect(planLaneSummary?.labels).toContain("plan-lanes");
+    expect(planLaneSummary?.labels).toContain("evidence-resource");
     expect(planLaneSummary?.schemaPath).toBe("schemas/visual-hive.plans.schema.json");
+    expect(planLaneSummary).toMatchObject({
+      evidenceResourceId: "plan-lanes",
+      evidenceResourceUri: "visual-hive://plan-lanes",
+      evidenceResourceTitle: "Plan Lanes",
+      evidenceReadToolName: "visual_hive_read_plan_lanes"
+    });
     const repoMap = index.artifacts.find((artifact) => artifact.path.endsWith("repo-map.json"));
     expect(repoMap?.preview).toContain("[REDACTED]");
     expect(repoMap?.labels).toContain("repo-map");
@@ -3913,6 +4076,12 @@ describe("artifact index", () => {
     expect(testingLayers?.preview).toContain("[REDACTED]");
     expect(testingLayers?.labels).toContain("testing-layers");
     expect(testingLayers?.schemaPath).toBe("schemas/visual-hive.testing-layers.schema.json");
+    expect(testingLayers).toMatchObject({
+      evidenceResourceId: "testing-layers",
+      evidenceResourceUri: "visual-hive://testing-layers",
+      evidenceResourceTitle: "Testing Layers",
+      evidenceReadToolName: "visual_hive_read_testing_layers"
+    });
     const testingLayersSummary = index.artifacts.find((artifact) => artifact.path.endsWith("testing-layers.md"));
     expect(testingLayersSummary?.preview).toContain("[REDACTED]");
     expect(testingLayersSummary?.labels).toContain("testing-layers-summary");
@@ -3920,6 +4089,12 @@ describe("artifact index", () => {
     expect(testCreationPlan?.preview).toContain("[REDACTED]");
     expect(testCreationPlan?.labels).toContain("test-creation-plan");
     expect(testCreationPlan?.schemaPath).toBe("schemas/visual-hive.test-creation-plan.schema.json");
+    expect(testCreationPlan).toMatchObject({
+      evidenceResourceId: "test-creation-plan",
+      evidenceResourceUri: "visual-hive://test-creation-plan",
+      evidenceResourceTitle: "Test Creation Plan",
+      evidenceReadToolName: "visual_hive_read_test_creation_plan"
+    });
     const testCreationSummary = index.artifacts.find((artifact) => artifact.path.endsWith("test-creation-plan.md"));
     expect(testCreationSummary?.preview).toContain("[REDACTED]");
     expect(testCreationSummary?.labels).toContain("test-creation-summary");
@@ -3927,6 +4102,12 @@ describe("artifact index", () => {
     expect(verdict?.preview).toContain("[REDACTED]");
     expect(verdict?.labels).toContain("verdict");
     expect(verdict?.schemaPath).toBe("schemas/visual-hive.verdict.schema.json");
+    expect(verdict).toMatchObject({
+      evidenceResourceId: "latest-verdict",
+      evidenceResourceUri: "visual-hive://latest-verdict",
+      evidenceResourceTitle: "Latest Visual Hive Verdict",
+      evidenceReadToolName: "visual_hive_read_verdict"
+    });
     const verdictSummary = index.artifacts.find((artifact) => artifact.path.endsWith("verdict.md"));
     expect(verdictSummary?.preview).toContain("[REDACTED]");
     expect(verdictSummary?.labels).toContain("verdict-summary");
@@ -3934,6 +4115,12 @@ describe("artifact index", () => {
     expect(setupPrPlan?.preview).toContain("[REDACTED]");
     expect(setupPrPlan?.labels).toContain("setup-pr-plan");
     expect(setupPrPlan?.schemaPath).toBe("schemas/visual-hive.setup-pr-plan.schema.json");
+    expect(setupPrPlan).toMatchObject({
+      evidenceResourceId: "setup-pr-plan",
+      evidenceResourceUri: "visual-hive://setup-pr-plan",
+      evidenceResourceTitle: "Setup Pull Request Plan",
+      evidenceReadToolName: "visual_hive_read_setup_pr_plan"
+    });
     const triageReport = index.artifacts.find((artifact) => artifact.path.endsWith("triage.json"));
     expect(triageReport?.preview).toContain("[REDACTED]");
     expect(triageReport?.labels).toContain("triage-report");
@@ -3947,6 +4134,43 @@ describe("artifact index", () => {
     expect(baselines?.preview).toContain("[REDACTED]");
     expect(baselines?.labels).toContain("baseline-review");
     expect(baselines?.schemaPath).toBe("schemas/visual-hive.baselines.schema.json");
+    expect(baselines).toMatchObject({
+      evidenceResourceId: "baseline-review",
+      evidenceResourceUri: "visual-hive://baseline-review",
+      evidenceResourceTitle: "Baseline Review Queue",
+      evidenceReadToolName: "visual_hive_read_baseline_review"
+    });
+    const runHistory = index.artifacts.find((artifact) => artifact.path.endsWith("history.json"));
+    expect(runHistory?.preview).toContain("[REDACTED]");
+    expect(runHistory?.labels).toContain("history");
+    expect(runHistory?.labels).toContain("evidence-resource");
+    expect(runHistory?.schemaPath).toBe("schemas/visual-hive.history.schema.json");
+    expect(runHistory).toMatchObject({
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceResourceTitle: "Run History",
+      evidenceReadToolName: "visual_hive_read_run_history"
+    });
+    const baselineApprovals = index.artifacts.find((artifact) => artifact.path.endsWith("baseline-approvals.json"));
+    expect(baselineApprovals?.preview).toContain("[REDACTED]");
+    expect(baselineApprovals?.labels).toContain("baseline-approvals");
+    expect(baselineApprovals?.schemaPath).toBe("schemas/visual-hive.baseline-approvals.schema.json");
+    expect(baselineApprovals).toMatchObject({
+      evidenceResourceId: "baseline-approvals",
+      evidenceResourceUri: "visual-hive://baseline-approvals",
+      evidenceResourceTitle: "Baseline Approval Log",
+      evidenceReadToolName: "visual_hive_read_baseline_approvals"
+    });
+    const baselineRejections = index.artifacts.find((artifact) => artifact.path.endsWith("baseline-rejections.json"));
+    expect(baselineRejections?.preview).toContain("[REDACTED]");
+    expect(baselineRejections?.labels).toContain("baseline-rejections");
+    expect(baselineRejections?.schemaPath).toBe("schemas/visual-hive.baseline-rejections.schema.json");
+    expect(baselineRejections).toMatchObject({
+      evidenceResourceId: "baseline-rejections",
+      evidenceResourceUri: "visual-hive://baseline-rejections",
+      evidenceResourceTitle: "Baseline Rejection Log",
+      evidenceReadToolName: "visual_hive_read_baseline_rejections"
+    });
     const comment = index.artifacts.find((artifact) => artifact.path.endsWith("pr-comment.md"));
     expect(comment?.preview).toContain("[REDACTED]");
     expect(comment?.labels).toContain("pr-comment");
@@ -3958,10 +4182,26 @@ describe("artifact index", () => {
     expect(coverageRecommendations?.labels).toContain("coverage-recommendations");
     expect(coverageRecommendations?.labels).not.toContain("setup-recommendations");
     expect(coverageRecommendations?.schemaPath).toBe("schemas/visual-hive.coverage-recommendations.schema.json");
-    const flowAudit = index.artifacts.find((artifact) => artifact.path.endsWith("flows.json"));
+    expect(coverageRecommendations).toMatchObject({
+      evidenceResourceId: "coverage-recommendations",
+      evidenceResourceUri: "visual-hive://coverage-recommendations",
+      evidenceResourceTitle: "Coverage Recommendations",
+      evidenceReadToolName: "visual_hive_read_coverage_recommendations"
+    });
+    const flowAudit = index.artifacts.find((artifact) => path.basename(artifact.path) === "flows.json");
     expect(flowAudit?.preview).toContain("[REDACTED]");
     expect(flowAudit?.labels).toContain("flow-audit");
     expect(flowAudit?.schemaPath).toBe("schemas/visual-hive.flows.schema.json");
+    const workflowAudit = index.artifacts.find((artifact) => path.basename(artifact.path) === "workflows.json");
+    expect(workflowAudit?.preview).toContain("[REDACTED]");
+    expect(workflowAudit?.labels).toContain("workflow-audit");
+    expect(workflowAudit?.schemaPath).toBe("schemas/visual-hive.workflows.schema.json");
+    expect(workflowAudit).toMatchObject({
+      evidenceResourceId: "workflow-audit",
+      evidenceResourceUri: "visual-hive://workflow-audit",
+      evidenceResourceTitle: "Workflow Audit",
+      evidenceReadToolName: "visual_hive_read_workflow_audit"
+    });
     const securityAudit = index.artifacts.find((artifact) => artifact.path.endsWith("security.json"));
     expect(securityAudit?.preview).toContain("[REDACTED]");
     expect(securityAudit?.labels).toContain("security-audit");
@@ -3972,6 +4212,12 @@ describe("artifact index", () => {
     expect(readinessGate?.preview).toContain("[REDACTED]");
     expect(readinessGate?.labels).toContain("readiness-gate");
     expect(readinessGate?.schemaPath).toBe("schemas/visual-hive.readiness.schema.json");
+    expect(readinessGate).toMatchObject({
+      evidenceResourceId: "readiness-gate",
+      evidenceResourceUri: "visual-hive://readiness-gate",
+      evidenceResourceTitle: "Readiness Gate",
+      evidenceReadToolName: "visual_hive_read_readiness_gate"
+    });
     const providerDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("provider-decisions.json"));
     expect(providerDecisions?.preview).toContain("[REDACTED]");
     expect(providerDecisions?.labels).toContain("provider-decisions");
@@ -3984,6 +4230,21 @@ describe("artifact index", () => {
     expect(providerHandoff?.preview).toContain("[REDACTED]");
     expect(providerHandoff?.labels).toContain("provider-handoff");
     expect(providerHandoff?.schemaPath).toBe("schemas/visual-hive.provider-handoff.schema.json");
+    const providerUpload = index.artifacts.find((artifact) => artifact.path.endsWith("provider-upload/argos/manifest.json"));
+    expect(providerUpload?.preview).toContain("[REDACTED]");
+    expect(providerUpload?.labels).toContain("provider-upload");
+    expect(providerUpload?.labels).toContain("provider-upload-argos-manifest");
+    expect(providerUpload?.labels).toContain("evidence-resource");
+    expect(providerUpload?.schemaPath).toBe("schemas/visual-hive.provider-upload.schema.json");
+    expect(providerUpload).toMatchObject({
+      evidenceResourceId: "provider-upload-argos-manifest",
+      evidenceResourceUri: "visual-hive://provider-upload/argos/manifest",
+      evidenceResourceTitle: "Argos Provider Upload Manifest",
+      evidenceReadToolName: "visual_hive_read_provider_upload_manifest"
+    });
+    for (const artifact of index.artifacts.filter((candidate) => candidate.schemaPath)) {
+      await expect(readFile(path.join(repoRoot, artifact.schemaPath!), "utf8"), artifact.path).resolves.toContain("$schema");
+    }
     const llmDecisions = index.artifacts.find((artifact) => artifact.path.endsWith("llm-decisions.json"));
     expect(llmDecisions?.preview).toContain("[REDACTED]");
     expect(llmDecisions?.labels).toContain("llm-decisions");
@@ -3991,26 +4252,163 @@ describe("artifact index", () => {
     const agentPacket = index.artifacts.find((artifact) => artifact.path.endsWith("agent-packet.json"));
     expect(agentPacket?.preview).toContain("[REDACTED]");
     expect(agentPacket?.labels).toContain("agent-packet");
+    expect(agentPacket?.labels).toContain("evidence-resource");
     expect(agentPacket?.schemaPath).toBe("schemas/visual-hive.agent-packet.schema.json");
+    expect(agentPacket).toMatchObject({
+      evidenceResourceId: "agent-packet",
+      evidenceResourceUri: "visual-hive://agent-packet",
+      evidenceReadToolName: "visual_hive_read_agent_packet"
+    });
+    const providerAgentPacket = index.artifacts.find((artifact) => artifact.path.endsWith("provider-agent-packet.json"));
+    expect(providerAgentPacket?.preview).toContain("[REDACTED]");
+    expect(providerAgentPacket?.labels).toContain("agent-packet");
+    expect(providerAgentPacket?.labels).toContain("provider-agent-packet");
+    expect(providerAgentPacket?.labels).toContain("evidence-resource");
+    expect(providerAgentPacket?.schemaPath).toBe("schemas/visual-hive.agent-packet.schema.json");
+    expect(providerAgentPacket).toMatchObject({
+      evidenceResourceId: "provider-agent-packet",
+      evidenceResourceUri: "visual-hive://provider-agent-packet",
+      evidenceReadToolName: "visual_hive_read_provider_agent_packet"
+    });
+    const handoffAgentPacket = index.artifacts.find((artifact) => artifact.path.endsWith("handoff-agent-packet.json"));
+    expect(handoffAgentPacket?.preview).toContain("[REDACTED]");
+    expect(handoffAgentPacket?.labels).toContain("agent-packet");
+    expect(handoffAgentPacket?.labels).toContain("handoff-agent-packet");
+    expect(handoffAgentPacket?.schemaPath).toBe("schemas/visual-hive.agent-packet.schema.json");
     const toolRegistry = index.artifacts.find((artifact) => artifact.path.endsWith("tool-registry.json"));
     expect(toolRegistry?.preview).toContain("[REDACTED]");
     expect(toolRegistry?.labels).toContain("tool-registry");
+    expect(toolRegistry?.labels).toContain("evidence-resource");
     expect(toolRegistry?.schemaPath).toBe("schemas/visual-hive.tool-registry.schema.json");
+    expect(toolRegistry).toMatchObject({
+      evidenceResourceId: "tool-registry",
+      evidenceResourceUri: "visual-hive://tool-registry",
+      evidenceReadToolName: "visual_hive_read_tool_registry"
+    });
     const toolCards = index.artifacts.find((artifact) => artifact.path.endsWith("tool-cards.md"));
     expect(toolCards?.preview).toContain("[REDACTED]");
     expect(toolCards?.labels).toContain("tool-cards");
+    const mcpManifest = index.artifacts.find((artifact) => artifact.path.endsWith("mcp-manifest.json"));
+    expect(mcpManifest?.preview).toContain("[REDACTED]");
+    expect(mcpManifest?.labels).toContain("mcp-manifest");
+    expect(mcpManifest?.schemaPath).toBe("schemas/visual-hive.mcp.schema.json");
     const contextLedger = index.artifacts.find((artifact) => artifact.path.endsWith("context-ledger.json"));
     expect(contextLedger?.preview).toContain("[REDACTED]");
+    expect(contextLedger?.preview).toContain("evidenceResources");
+    expect(contextLedger?.preview).toContain("visual_hive_read_missing_tests");
     expect(contextLedger?.labels).toContain("context-ledger");
     expect(contextLedger?.schemaPath).toBe("schemas/visual-hive.context-ledger.schema.json");
+    const pipelineStatus = index.artifacts.find((artifact) => artifact.path.endsWith("pipeline.json"));
+    expect(pipelineStatus?.preview).toContain("[REDACTED]");
+    expect(pipelineStatus?.labels).toContain("pipeline-status");
+    expect(pipelineStatus?.labels).toContain("evidence-resource");
+    expect(pipelineStatus?.schemaPath).toBe("schemas/visual-hive.pipeline.schema.json");
+    expect(pipelineStatus).toMatchObject({
+      evidenceResourceId: "pipeline-status",
+      evidenceResourceUri: "visual-hive://pipeline-status",
+      evidenceResourceTitle: "Pipeline Status",
+      evidenceReadToolName: "visual_hive_read_pipeline_status"
+    });
+    const schemaCatalog = index.artifacts.find((artifact) => artifact.path.endsWith("schema-catalog.json"));
+    expect(schemaCatalog?.preview).toContain("[REDACTED]");
+    expect(schemaCatalog?.labels).toContain("schema-catalog");
+    expect(schemaCatalog?.labels).toContain("evidence-resource");
+    expect(schemaCatalog?.schemaPath).toBe("schemas/visual-hive.schema-catalog.schema.json");
+    expect(schemaCatalog).toMatchObject({
+      evidenceResourceId: "schema-catalog",
+      evidenceResourceUri: "visual-hive://schema-catalog",
+      evidenceResourceTitle: "Schema Catalog Verification",
+      evidenceReadToolName: "visual_hive_read_schema_catalog"
+    });
+    for (const artifact of index.artifacts.filter((candidate) => candidate.evidenceResourceId)) {
+      expect(artifact.labels).toContain("evidence-resource");
+      expect(artifact.labels).toContain(artifact.evidenceResourceId);
+    }
     const handoffValidation = index.artifacts.find((artifact) => artifact.path.endsWith("hive-handoff-validation.json"));
     expect(handoffValidation?.preview).toContain("[REDACTED]");
     expect(handoffValidation?.labels).toContain("hive-handoff-validation");
     expect(handoffValidation?.schemaPath).toBe("schemas/visual-hive.handoff-validation.schema.json");
+    const hiveBeads = index.artifacts.find((artifact) => artifact.path.endsWith("hive/beads.json"));
+    expect(hiveBeads?.preview).toContain("[REDACTED]");
+    expect(hiveBeads?.labels).toContain("hive-beads");
+    expect(hiveBeads?.schemaPath).toBe("schemas/visual-hive.hive-beads.schema.json");
+    expect(hiveBeads).toMatchObject({
+      evidenceResourceId: "hive-beads",
+      evidenceResourceUri: "visual-hive://hive/beads",
+      evidenceResourceTitle: "Hive Beads",
+      evidenceReadToolName: "visual_hive_read_hive_beads"
+    });
+    const hiveKnowledgeFacts = index.artifacts.find((artifact) => artifact.path.endsWith("hive/knowledge-facts.json"));
+    expect(hiveKnowledgeFacts?.preview).toContain("[REDACTED]");
+    expect(hiveKnowledgeFacts?.labels).toContain("hive-knowledge");
+    expect(hiveKnowledgeFacts?.schemaPath).toBe("schemas/visual-hive.hive-knowledge-facts.schema.json");
+    expect(hiveKnowledgeFacts).toMatchObject({
+      evidenceResourceId: "hive-knowledge-facts",
+      evidenceResourceUri: "visual-hive://hive/knowledge-facts",
+      evidenceResourceTitle: "Hive Knowledge Facts",
+      evidenceReadToolName: "visual_hive_read_hive_knowledge_facts"
+    });
+    const hiveKnowledgeGraph = index.artifacts.find((artifact) => artifact.path.endsWith("hive/knowledge-graph.json"));
+    expect(hiveKnowledgeGraph?.preview).toContain("[REDACTED]");
+    expect(hiveKnowledgeGraph?.labels).toContain("hive-graph");
+    expect(hiveKnowledgeGraph?.schemaPath).toBe("schemas/visual-hive.hive-knowledge-graph.schema.json");
+    expect(hiveKnowledgeGraph).toMatchObject({
+      evidenceResourceId: "hive-knowledge-graph",
+      evidenceResourceUri: "visual-hive://hive/knowledge-graph",
+      evidenceResourceTitle: "Hive Knowledge Graph",
+      evidenceReadToolName: "visual_hive_read_hive_knowledge_graph"
+    });
+    const hiveRepairWorkOrders = index.artifacts.find((artifact) => artifact.path.endsWith("hive/repair-work-orders.json"));
+    expect(hiveRepairWorkOrders?.preview).toContain("[REDACTED]");
+    expect(hiveRepairWorkOrders?.labels).toContain("hive-repair");
+    expect(hiveRepairWorkOrders?.schemaPath).toBe("schemas/visual-hive.hive-repair-work-orders.schema.json");
+    expect(hiveRepairWorkOrders).toMatchObject({
+      evidenceResourceId: "hive-repair-work-orders",
+      evidenceResourceUri: "visual-hive://hive/repair-work-orders",
+      evidenceResourceTitle: "Hive Repair Work Orders",
+      evidenceReadToolName: "visual_hive_read_hive_repair_work_orders"
+    });
+    const hiveAgentPolicy = index.artifacts.find((artifact) => artifact.path.endsWith("hive/hive-agent-policy.json"));
+    expect(hiveAgentPolicy?.schemaPath).toBe("schemas/visual-hive.hive-agent-policy.schema.json");
+    expect(hiveAgentPolicy?.labels).toContain("hive-agent-policy");
+    expect(hiveAgentPolicy).toMatchObject({
+      evidenceResourceId: "hive-agent-policy",
+      evidenceResourceUri: "visual-hive://hive/agent-policy",
+      evidenceResourceTitle: "Hive Agent Policy",
+      evidenceReadToolName: "visual_hive_read_hive_agent_policy"
+    });
     const hiveModeComparison = index.artifacts.find((artifact) => artifact.path.endsWith("mode-comparison.json"));
     expect(hiveModeComparison?.preview).toContain("[REDACTED]");
     expect(hiveModeComparison?.labels).toContain("hive-mode-comparison");
     expect(hiveModeComparison?.schemaPath).toBe("schemas/visual-hive.hive-mode-comparison.schema.json");
+    const guardedRepairPreview = index.artifacts.find((artifact) => artifact.path.endsWith("guarded-repair-preview.json"));
+    expect(guardedRepairPreview?.preview).toContain("[REDACTED]");
+    expect(guardedRepairPreview?.labels).toContain("hive-guarded-repair-preview");
+    expect(guardedRepairPreview?.schemaPath).toBe("schemas/visual-hive.hive-guarded-repair-preview.schema.json");
+    const guardedRepairPreviewMarkdown = index.artifacts.find((artifact) => artifact.path.endsWith("guarded-repair-preview.md"));
+    expect(guardedRepairPreviewMarkdown?.preview).toContain("[REDACTED]");
+    expect(guardedRepairPreviewMarkdown?.labels).toContain("hive-guarded-repair-preview");
+    const repairRequestEnvelope = index.artifacts.find((artifact) => artifact.path.endsWith("repair-request-envelope.json"));
+    expect(repairRequestEnvelope?.preview).toContain("[REDACTED]");
+    expect(repairRequestEnvelope?.labels).toContain("hive-repair-request-envelope");
+    expect(repairRequestEnvelope?.schemaPath).toBe("schemas/visual-hive.hive-repair-request-envelope.schema.json");
+    const repairRequestEnvelopeMarkdown = index.artifacts.find((artifact) => artifact.path.endsWith("repair-request-envelope.md"));
+    expect(repairRequestEnvelopeMarkdown?.preview).toContain("[REDACTED]");
+    expect(repairRequestEnvelopeMarkdown?.labels).toContain("hive-repair-request-envelope");
+    const trustedRepairConsumerSummary = index.artifacts.find((artifact) => artifact.path.endsWith("trusted-repair-consumer-summary.json"));
+    expect(trustedRepairConsumerSummary?.preview).toContain("[REDACTED]");
+    expect(trustedRepairConsumerSummary?.labels).toContain("hive-trusted-repair-consumer-summary");
+    expect(trustedRepairConsumerSummary?.schemaPath).toBe("schemas/visual-hive.hive-trusted-repair-consumer-summary.schema.json");
+    const trustedRepairConsumerSummaryMarkdown = index.artifacts.find((artifact) => artifact.path.endsWith("trusted-repair-consumer-summary.md"));
+    expect(trustedRepairConsumerSummaryMarkdown?.preview).toContain("[REDACTED]");
+    expect(trustedRepairConsumerSummaryMarkdown?.labels).toContain("hive-trusted-repair-consumer-summary");
+    const trustedRepairWorkflowDryRun = index.artifacts.find((artifact) => artifact.path.endsWith("trusted-repair-workflow-dry-run.json"));
+    expect(trustedRepairWorkflowDryRun?.preview).toContain("[REDACTED]");
+    expect(trustedRepairWorkflowDryRun?.labels).toContain("hive-trusted-repair-workflow-dry-run");
+    expect(trustedRepairWorkflowDryRun?.schemaPath).toBe("schemas/visual-hive.hive-trusted-repair-workflow-dry-run.schema.json");
+    const trustedRepairWorkflowDryRunMarkdown = index.artifacts.find((artifact) => artifact.path.endsWith("trusted-repair-workflow-dry-run.md"));
+    expect(trustedRepairWorkflowDryRunMarkdown?.preview).toContain("[REDACTED]");
+    expect(trustedRepairWorkflowDryRunMarkdown?.labels).toContain("hive-trusted-repair-workflow-dry-run");
     const runbook = index.artifacts.find((artifact) => artifact.path.endsWith("runbook.json"));
     expect(runbook?.preview).toContain("[REDACTED]");
     expect(runbook?.labels).toContain("runbook");
@@ -4021,6 +4419,73 @@ describe("artifact index", () => {
     expect(connectionsPortfolio?.schemaPath).toBe("schemas/visual-hive.connections-portfolio.schema.json");
     const spec = index.artifacts.find((artifact) => artifact.kind === "typescript");
     expect(spec?.labels).toContain("generated-spec");
+  });
+
+  it("keeps artifact evidence-resource schema enums aligned with the core catalog", async () => {
+    type StringEnumProperty = { enum?: string[] };
+    type ArtifactSchema = {
+      properties?: {
+        artifacts?: {
+          items?: {
+            properties?: Record<string, StringEnumProperty>;
+          };
+        };
+      };
+    };
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.artifacts.schema.json"), "utf8")) as ArtifactSchema;
+    const artifactProperties = schema.properties?.artifacts?.items?.properties ?? {};
+
+    expect(artifactProperties.evidenceResourceId?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.id));
+    expect(artifactProperties.evidenceResourceUri?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.uri));
+    expect(artifactProperties.evidenceReadToolName?.enum).toEqual(
+      VISUAL_HIVE_EVIDENCE_RESOURCES.flatMap((resource) => (resource.readTool ? [resource.readTool.name] : []))
+    );
+  });
+
+  it("verifies checked-in schema catalog metadata against the evidence-resource catalog", async () => {
+    const report = await verifySchemaCatalog({ rootDir: repoRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(report.schemaVersion).toBe("visual-hive.schema-catalog.v1");
+    expect(report.status).toBe("passed");
+    expect(report.summary.failed).toBe(0);
+    expect(report.summary.evidenceResources).toBe(VISUAL_HIVE_EVIDENCE_RESOURCES.length);
+    expect(report.summary.evidenceReadTools).toBe(VISUAL_HIVE_EVIDENCE_RESOURCES.filter((resource) => resource.readTool).length);
+    expect(report.checks.find((check) => check.id.includes("visual-hive.agent-packet.schema.json") && check.id.includes("evidenceResourceId"))).toMatchObject({
+      status: "passed"
+    });
+  });
+
+  it("reports schema catalog drift with exact expected and actual enums", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-schema-drift-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "schemas"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "schemas", "visual-hive.bad.schema.json"),
+      JSON.stringify(
+        {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          $id: "https://visual-hive.dev/schemas/visual-hive.bad.schema.json",
+          type: "object",
+          properties: {
+            evidenceResourceId: { type: "string", enum: ["stale-resource"] }
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const report = await verifySchemaCatalog({ rootDir: tempRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const drift = report.checks.find((check) => check.id.includes("evidenceResourceId.enum"));
+
+    expect(report.status).toBe("failed");
+    expect(drift).toMatchObject({
+      status: "failed",
+      actual: ["stale-resource"],
+      expected: VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.id)
+    });
   });
 
   it("refuses to index artifact roots outside the repo", async () => {
@@ -4048,6 +4513,39 @@ describe("artifact index", () => {
 
     expect(paths).toContain(".visual-hive/report.json");
     expect(paths).toContain(".visual-hive/generated/visual-hive.generated.spec.ts");
+    expect(paths.some((artifactPath) => artifactPath.includes(".visual-hive/history/old/"))).toBe(false);
+    expect(artifactIndex.warnings.join(" ")).toContain("Skipped 1 run history directory");
+  });
+
+  it("preserves catalog-backed evidence resources when the artifact cap is reached", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-evidence-priority-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "artifacts", "screenshots"), { recursive: true });
+    await writeFile(
+      path.join(hiveRoot, "schema-catalog.json"),
+      '{"schemaVersion":"visual-hive.schema-catalog.v1","status":"passed","summary":{"failed":0},"checks":[]}',
+      "utf8"
+    );
+    await writeFile(path.join(hiveRoot, "report.json"), '{"schemaVersion":2,"status":"passed"}', "utf8");
+    for (let index = 0; index < 20; index += 1) {
+      await writeFile(path.join(hiveRoot, "artifacts", "screenshots", `aaa-${index}.png`), "png-bytes", "utf8");
+    }
+
+    const artifactIndex = await indexArtifacts({ repoRoot: tempRoot, maxArtifacts: 3 });
+    const schemaCatalog = artifactIndex.artifacts.find((artifact) => artifact.path === ".visual-hive/schema-catalog.json");
+    const report = artifactIndex.artifacts.find((artifact) => artifact.path === ".visual-hive/report.json");
+
+    expect(schemaCatalog).toMatchObject({
+      evidenceResourceId: "schema-catalog",
+      evidenceResourceUri: "visual-hive://schema-catalog",
+      evidenceReadToolName: "visual_hive_read_schema_catalog"
+    });
+    expect(report).toMatchObject({
+      evidenceResourceId: "latest-report",
+      evidenceResourceUri: "visual-hive://latest-report",
+      evidenceReadToolName: "visual_hive_read_latest_report"
+    });
     expect(artifactIndex.warnings.join(" ")).toContain("maxArtifacts=3");
   });
 
@@ -4058,7 +4556,14 @@ describe("artifact index", () => {
 
     const index = await indexArtifacts({ repoRoot: tempRoot });
 
-    expect(index.artifacts.find((artifact) => artifact.path.endsWith("recommendations.json"))?.labels).toContain("setup-recommendations");
+    const setupRecommendations = index.artifacts.find((artifact) => artifact.path.endsWith("recommendations.json"));
+    expect(setupRecommendations?.labels).toContain("setup-recommendations");
+    expect(setupRecommendations).toMatchObject({
+      evidenceResourceId: "setup-recommendations",
+      evidenceResourceUri: "visual-hive://setup-recommendations",
+      evidenceResourceTitle: "Setup Recommendations",
+      evidenceReadToolName: "visual_hive_read_setup_recommendations"
+    });
   });
 });
 
@@ -4123,6 +4628,14 @@ jobs:
     const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
     const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
 
+    expect(recommendation.outputResource).toEqual({
+      artifactPath: ".visual-hive/recommendations.json",
+      evidenceResourceId: "setup-recommendations",
+      evidenceResourceUri: "visual-hive://setup-recommendations",
+      evidenceResourceTitle: "Setup Recommendations",
+      evidenceResourceDescription: "No-network setup recommendation evidence for configuring Visual Hive safely in a repository.",
+      evidenceReadToolName: "visual_hive_read_setup_recommendations"
+    });
     expect(recommendation.project.type).toBe("react-vite");
     expect(recommendation.setupProfile).toBe("free-local");
     expect(recommendation.recommendedTarget.kind).toBe("command");
@@ -4210,7 +4723,17 @@ jobs:
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "pull_request")?.content).toContain("include-hidden-files: true");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_failure_issue")?.content).toContain("workflow_run:");
     expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_hive_handoff")?.content).toContain("hive-bead-request.json");
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_hive_handoff")?.content).toContain("hive/guarded-repair-preview.json");
+    expect(recommendation.workflowPreviews.find((workflow) => workflow.id === "trusted_hive_handoff")?.content).toContain("hive/repair-request-envelope.json");
     const setupPrPlan = buildSetupPullRequestPlan(recommendation, new Date("2026-06-15T00:00:00.000Z"));
+    expect(setupPrPlan.outputResource).toEqual({
+      artifactPath: ".visual-hive/setup-pr-plan.json",
+      evidenceResourceId: "setup-pr-plan",
+      evidenceResourceUri: "visual-hive://setup-pr-plan",
+      evidenceResourceTitle: "Setup Pull Request Plan",
+      evidenceResourceDescription: "No-network setup PR plan with proposed files, workflow safety checks, provider posture, and validation commands.",
+      evidenceReadToolName: "visual_hive_read_setup_pr_plan"
+    });
     expect(setupPrPlan).toMatchObject({
       schemaVersion: 1,
       project: "sample-dashboard",
@@ -4875,7 +5398,7 @@ describe("evidence packets", () => {
     const report = reportFixture(rootDir, actualPath, baselinePath);
     report.results[0]?.errors.push("token=super-secret-value");
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
-    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+    const mutationReport: MutationReport = {
       schemaVersion: 2,
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
@@ -4906,7 +5429,8 @@ describe("evidence packets", () => {
           errors: []
         }
       ]
-    });
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), mutationReport);
 
     const result = await writeEvidencePacket({
       rootDir,
@@ -5031,12 +5555,73 @@ describe("evidence packets", () => {
     });
   });
 
+  it("normalizes provider upload evidence into the Evidence Packet without making supplemental providers authoritative", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-provider-upload-evidence-"));
+    tempDirs.push(rootDir);
+    const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    report.providerResults = [
+      {
+        providerId: "argos",
+        label: "Argos",
+        status: "failed",
+        deterministicRole: "supplemental",
+        message: "Argos upload failed; deterministic Playwright status is unchanged.",
+        requiredEnv: ["ARGOS_TOKEN"],
+        missingEnv: [],
+        artifactCount: 2,
+        externalUploadAllowed: true,
+        estimatedExternalScreenshots: 2,
+        upload: {
+          status: "failed",
+          externalCallsMade: 1,
+          uploadedArtifacts: 0,
+          stagedArtifacts: 2,
+          manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+          uploadDirectory: ".visual-hive/provider-upload/argos",
+          command: "npm exec argos upload --token=secret-token-value",
+          stdout: "Uploaded URL https://app.argos-ci.com/build?token=secret-token-value",
+          stderr: "Authorization: Bearer secret-token-value timed out",
+          providerUrl: "https://app.argos-ci.com/build?access_token=secret-token-value",
+          blockedReasons: ["provider timeout after token=secret-token-value"]
+        },
+        normalizedAt: "2026-06-15T00:01:00.000Z"
+      }
+    ];
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "baseline-fixture",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    const argos = packet.providers.find((provider) => provider.providerId === "argos");
+    expect(packet.verdictSummary.visualHiveVerdict).toBe("passed");
+    expect(packet.verdictSummary.advisoryOnly).toEqual(
+      expect.arrayContaining(["provider.normalized_provider_result.argos", "provider.provider_upload.argos"])
+    );
+    expect(packet.evidenceContributions.find((contribution) => contribution.key === "provider.provider_upload.argos")).toMatchObject({
+      status: "blocked",
+      gating: false,
+      authority: "advisory"
+    });
+    expect(argos?.upload).toMatchObject({
+      status: "failed",
+      externalCallsMade: 1,
+      stagedArtifacts: 2,
+      manifestPath: ".visual-hive/provider-upload/argos/manifest.json"
+    });
+    const serialized = JSON.stringify(packet);
+    expect(serialized).toContain("[REDACTED]");
+    expect(serialized).not.toContain("secret-token-value");
+  });
+
   it("lets mutation adequacy fail the Visual Hive verdict even when deterministic contracts pass", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-mutation-verdict-"));
     tempDirs.push(rootDir);
     const report = passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
-    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+    const mutationReport: MutationReport = {
       schemaVersion: 2,
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
@@ -5069,7 +5654,8 @@ describe("evidence packets", () => {
           artifacts: [".visual-hive/mutation-report.json"]
         }
       ]
-    });
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), mutationReport);
 
     const packet = await buildEvidencePacket({
       rootDir,
@@ -5195,7 +5781,7 @@ describe("verdict reports", () => {
     const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
     report.results[0]?.errors.push("Authorization: Bearer secret-value");
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
-    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+    const mutationReport: MutationReport = {
       schemaVersion: 2,
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
@@ -5217,7 +5803,8 @@ describe("verdict reports", () => {
           artifacts: [".visual-hive/mutation-report.json"]
         }
       ]
-    });
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), mutationReport);
     await writeEvidencePacket({
       rootDir,
       project: "baseline-fixture",
@@ -5448,6 +6035,15 @@ describe("test creation plans", () => {
     });
 
     expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.outputResource).toEqual({
+      artifactPath: ".visual-hive/test-creation-plan.json",
+      evidenceResourceId: "test-creation-plan",
+      evidenceResourceUri: "visual-hive://test-creation-plan",
+      evidenceResourceTitle: "Test Creation Plan",
+      evidenceResourceDescription:
+        "No-write advisory test-creation recommendations from testing layers, mutation survivors, coverage recommendations, and handoff work.",
+      evidenceReadToolName: "visual_hive_read_test_creation_plan"
+    });
     expect(plan.governance.writePolicy).toBe("no_config_or_test_files_written");
     expect(plan.summary.total).toBeGreaterThanOrEqual(4);
     expect(plan.summary.fromTestingLayers).toBeGreaterThan(0);
@@ -5484,7 +6080,9 @@ describe("test creation plans", () => {
 
     expect(result.planPath).toMatch(/test-creation-plan\.json$/);
     expect(result.markdownPath).toMatch(/test-creation-plan\.md$/);
-    expect(await readFile(result.planPath, "utf8")).toContain("visual-hive.test-creation-plan.v1");
+    const writtenPlan = await readFile(result.planPath, "utf8");
+    expect(writtenPlan).toContain("visual-hive.test-creation-plan.v1");
+    expect(writtenPlan).toContain("visual-hive://test-creation-plan");
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Test Creation Plan: test-creation-write");
   });
 });
@@ -5496,7 +6094,7 @@ describe("handoff packets", () => {
     const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
     report.results[0]?.errors.push("authorization: bearer-secret-value");
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
-    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+    const mutationReport: MutationReport = {
       schemaVersion: 2,
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
@@ -5517,7 +6115,8 @@ describe("handoff packets", () => {
           artifacts: [".visual-hive/mutation-report.json"]
         }
       ]
-    });
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), mutationReport);
     const evidence = await writeEvidencePacket({ rootDir, project: "baseline-fixture", now: new Date("2026-06-15T00:02:00.000Z") });
     const handoff = await writeHandoffArtifacts({
       rootDir,
@@ -5562,7 +6161,8 @@ describe("handoff packets", () => {
       now: new Date("2026-06-15T00:04:00.000Z")
     });
     expect(validation.report.schemaVersion).toBe("visual-hive.handoff-validation.v1");
-    expect(validation.report.status).toBe("passed");
+    expect(validation.report.status).not.toBe("blocked");
+    expect(validation.report.blockedReasons).toEqual([]);
     expect(validation.report.summary.externalCallsMade).toBe(0);
     expect(validation.report.hiveReadiness.fullAutomationBlocked).toBe(true);
     expect(validation.report.hiveReadiness.guardedRepairTrustedOnlyOrBlocked).toBe(true);
@@ -5629,6 +6229,86 @@ describe("handoff packets", () => {
     expect(validation.report.blockedReasons.join(" ")).toContain("hive-readiness-schema");
     expect(validation.report.blockedReasons.join(" ")).toContain("hive-recommendation-policy");
     expect(validation.report.blockedReasons.join(" ")).toContain("hive-guarded-policy");
+  });
+
+  it("validates optional Hive trusted repair chain artifacts when they are present", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-validation-hive-chain-"));
+    tempDirs.push(rootDir);
+    const packet = await buildEvidencePacket({
+      rootDir,
+      project: "validation-hive-chain",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), packet);
+    const handoff = await writeHandoffArtifacts({
+      rootDir,
+      evidencePacket: packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:03:00.000Z")
+    });
+    const hiveExport = await writeHiveExportArtifacts({
+      rootDir,
+      evidencePacket: packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      hiveConfig: { mode: "repair_request" },
+      now: new Date("2026-06-15T00:04:00.000Z")
+    });
+    const guardedRepairPreview = await writeHiveGuardedRepairPreview({
+      rootDir,
+      hiveExport: hiveExport.bundle,
+      hiveExportPath: ".visual-hive/hive/hive-export.json",
+      now: new Date("2026-06-15T00:05:00.000Z")
+    });
+    const repairRequestEnvelope = await writeHiveRepairRequestEnvelope({
+      rootDir,
+      guardedRepairPreview: guardedRepairPreview.preview,
+      guardedRepairPreviewPath: ".visual-hive/hive/guarded-repair-preview.json",
+      now: new Date("2026-06-15T00:06:00.000Z")
+    });
+    const trustedRepairConsumerSummary = await writeHiveTrustedRepairConsumerSummary({
+      rootDir,
+      repairRequestEnvelope: repairRequestEnvelope.envelope,
+      repairRequestEnvelopePath: ".visual-hive/hive/repair-request-envelope.json",
+      now: new Date("2026-06-15T00:07:00.000Z")
+    });
+    await writeHiveTrustedRepairWorkflowDryRun({
+      rootDir,
+      trustedRepairConsumerSummary: trustedRepairConsumerSummary.summary,
+      trustedRepairConsumerSummaryPath: ".visual-hive/hive/trusted-repair-consumer-summary.json",
+      now: new Date("2026-06-15T00:08:00.000Z")
+    });
+
+    const validation = await validateHandoffArtifacts({
+      rootDir,
+      now: new Date("2026-06-15T00:09:00.000Z")
+    });
+
+    expect(validation.report.status).not.toBe("blocked");
+    expect(validation.report.blockedReasons).toEqual([]);
+    expect(validation.report.summary.externalCallsMade).toBe(0);
+    expect(validation.report.sourceArtifacts).toMatchObject({
+      hiveExport: ".visual-hive/hive/hive-export.json",
+      guardedRepairPreview: ".visual-hive/hive/guarded-repair-preview.json",
+      repairRequestEnvelope: ".visual-hive/hive/repair-request-envelope.json",
+      trustedRepairConsumerSummary: ".visual-hive/hive/trusted-repair-consumer-summary.json",
+      trustedRepairWorkflowDryRun: ".visual-hive/hive/trusted-repair-workflow-dry-run.json"
+    });
+    expect(validation.report.checks.map((check) => check.id)).toEqual(
+      expect.arrayContaining([
+        "hive-export-schema",
+        "hive-guarded-repair-preview-schema",
+        "hive-repair-request-envelope-schema",
+        "hive-trusted-repair-consumer-summary-schema",
+        "hive-trusted-repair-consumer-policy",
+        "hive-trusted-repair-workflow-dry-run-schema",
+        "hive-trusted-repair-workflow-dry-run-policy",
+        "hive-trusted-repair-chain-consistency"
+      ])
+    );
+    await expectMatchesSchema("visual-hive.handoff-validation.schema.json", validation.report);
+    expect(JSON.stringify(validation.report)).not.toContain("secret-value");
   });
 
   it("blocks Hive handoff validation when artifacts claim external calls", async () => {
@@ -5769,8 +6449,31 @@ describe("agent packets", () => {
     tempDirs.push(rootDir);
     const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
     report.results[0]?.errors.push("token=agent-secret-value");
+    report.providerResults = [
+      {
+        providerId: "argos",
+        label: "Argos",
+        status: "failed",
+        deterministicRole: "supplemental",
+        message: "Argos upload failed without changing the Visual Hive verdict.",
+        requiredEnv: ["ARGOS_TOKEN"],
+        missingEnv: [],
+        artifactCount: 2,
+        upload: {
+          status: "failed",
+          externalCallsMade: 1,
+          stagedArtifacts: 2,
+          uploadedArtifacts: 0,
+          manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+          uploadDirectory: ".visual-hive/provider-upload/argos",
+          providerUrl: "https://app.argos-ci.com/build?token=agent-provider-secret",
+          blockedReasons: ["authorization: Bearer agent-provider-secret"]
+        },
+        normalizedAt: "2026-06-15T00:01:00.000Z"
+      }
+    ];
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
-    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+    const mutationReport: MutationReport = {
       schemaVersion: 2,
       project: "baseline-fixture",
       generatedAt: "2026-06-15T00:01:00.000Z",
@@ -5790,6 +6493,24 @@ describe("agent packets", () => {
           errors: [],
           artifacts: [".visual-hive/mutation-report.json"]
         }
+      ]
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), mutationReport);
+    const runHistory = createRunHistoryReport({
+      project: "baseline-fixture",
+      generatedAt: "2026-06-15T00:01:30.000Z",
+      entries: [
+        createRunHistoryEntry({
+          repoRoot: rootDir,
+          id: "latest",
+          recordedAt: "2026-06-15T00:01:30.000Z",
+          files: {
+            report: ".visual-hive/report.json",
+            mutationReport: ".visual-hive/mutation-report.json"
+          },
+          report,
+          mutationReport
+        })
       ]
     });
 
@@ -5815,17 +6536,185 @@ describe("agent packets", () => {
     expect(result.packet.objective).toContain("Repair Visual Hive failure");
     expect(result.packet.verdict.visualHiveVerdict).toBe("failed");
     expect(result.packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_evidence_packet");
+    expect(result.packet.allowedTools.find((tool) => tool.id === "visual_hive_read_evidence_packet")).toMatchObject({
+      evidenceResourceId: "latest-evidence",
+      evidenceResourceUri: "visual-hive://latest-evidence",
+      evidenceResourceTitle: "Latest Evidence Packet",
+      evidenceReadToolName: "visual_hive_read_evidence_packet",
+      artifactPath: ".visual-hive/evidence-packet.json"
+    });
+    expect(result.packet.allowedTools.find((tool) => tool.id === "visual_hive_read_triage_report")).toMatchObject({
+      evidenceResourceId: "triage-report",
+      evidenceResourceUri: "visual-hive://triage-report",
+      evidenceReadToolName: "visual_hive_read_triage_report",
+      artifactPath: ".visual-hive/triage.json"
+    });
+    expect(result.packet.allowedTools.find((tool) => tool.id === "visual_hive_generate_repair_prompt")).toMatchObject({
+      evidenceResourceId: "repair-prompt",
+      evidenceResourceUri: "visual-hive://repair-prompt",
+      evidenceReadToolName: "visual_hive_generate_repair_prompt",
+      artifactPath: ".visual-hive/repair-prompt.md"
+    });
+    expect(result.packet.allowedTools.find((tool) => tool.id === "visual_hive_read_missing_tests")).toMatchObject({
+      evidenceResourceId: "missing-tests",
+      evidenceResourceUri: "visual-hive://missing-tests",
+      evidenceReadToolName: "visual_hive_read_missing_tests",
+      artifactPath: ".visual-hive/missing-tests.md"
+    });
     expect(result.packet.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(result.packet.governance.verdictAuthority).toBe("visual_hive");
     expect(result.packet.governance.agentAuthority).toBe("advisory_repair_only");
     expect(result.packet.budgets.allowExternalNetwork).toBe(false);
     expect(result.packet.budgets.maxExternalCostUsd).toBe(0);
     expect(result.packet.evidenceSummary.testingLayers.map((layer) => layer.id)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(result.packet.evidenceSummary.providerEvidence[0]).toMatchObject({
+      providerId: "argos",
+      uploadStatus: "failed",
+      externalCallsMade: 1,
+      stagedArtifacts: 2,
+      manifestPath: ".visual-hive/provider-upload/argos/manifest.json"
+    });
     expect(result.packet.artifactPointers).toEqual(expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/handoff.json", ".visual-hive/report.json"]));
     expect(JSON.stringify(result.packet)).not.toContain("agent-secret-value");
     expect(JSON.stringify(result.packet)).not.toContain("agent-mutation-secret");
+    expect(JSON.stringify(result.packet)).not.toContain("agent-provider-secret");
     expect(JSON.stringify(result.packet)).toContain("[REDACTED]");
     expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.agent-packet.v1");
+
+    const handoffPacket = buildAgentPacket({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      profile: "handoff_agent",
+      now: new Date("2026-06-15T00:05:00.000Z")
+    });
+    expect(handoffPacket.profile).toBe("handoff_agent");
+    expect(handoffPacket.objective).toContain("Prepare trusted handoff");
+    expect(handoffPacket.allowedTools.map((tool) => tool.id)).toEqual(
+      expect.arrayContaining([
+        "visual_hive_generate_handoff_dry_run",
+        "visual_hive_validate_handoff",
+        "visual_hive_read_triage_report",
+        "visual_hive_read_issue_body",
+        "visual_hive_read_pr_comment",
+        "visual_hive_read_missing_tests",
+        "visual_hive_read_hive_export",
+        "visual_hive_read_hive_beads",
+        "visual_hive_read_hive_knowledge_facts",
+        "visual_hive_read_hive_knowledge_graph",
+        "visual_hive_read_hive_repair_work_orders",
+        "visual_hive_read_hive_agent_policy",
+        "visual_hive_read_hive_guarded_repair_preview",
+        "visual_hive_read_hive_repair_request_envelope",
+        "visual_hive_read_hive_trusted_repair_consumer_summary",
+        "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+        "visual_hive_read_hive_mode_comparison"
+      ])
+    );
+    expect(handoffPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_hive_trusted_repair_workflow_dry_run")).toMatchObject({
+      evidenceResourceId: "hive-trusted-repair-workflow-dry-run",
+      evidenceResourceUri: "visual-hive://hive-trusted-repair-workflow-dry-run",
+      evidenceReadToolName: "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+      artifactPath: ".visual-hive/hive/trusted-repair-workflow-dry-run.json"
+    });
+    expect(handoffPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_issue_body")).toMatchObject({
+      evidenceResourceId: "issue-body",
+      evidenceResourceUri: "visual-hive://issue-body",
+      evidenceReadToolName: "visual_hive_read_issue_body",
+      artifactPath: ".visual-hive/issue.md"
+    });
+    expect(handoffPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_pr_comment")).toMatchObject({
+      evidenceResourceId: "pr-comment",
+      evidenceResourceUri: "visual-hive://pr-comment",
+      evidenceReadToolName: "visual_hive_read_pr_comment",
+      artifactPath: ".visual-hive/pr-comment.md"
+    });
+    expect(handoffPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_hive_mode_comparison")).toMatchObject({
+      evidenceResourceId: "hive-mode-comparison",
+      evidenceResourceUri: "visual-hive://hive-mode-comparison",
+      evidenceReadToolName: "visual_hive_read_hive_mode_comparison",
+      artifactPath: ".visual-hive/hive/mode-comparison.json"
+    });
+    expect(handoffPacket.forbiddenActions).toEqual(expect.arrayContaining(["create_github_issue_from_untrusted_pr", "create_hive_bead_without_trusted_workflow"]));
+    expect(handoffPacket.budgets.allowExternalNetwork).toBe(false);
+    expect(handoffPacket.budgets.maxExternalCostUsd).toBe(0);
+    await expectMatchesSchema("visual-hive.agent-packet.schema.json", handoffPacket);
+
+    const providerPacket = buildAgentPacket({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      profile: "provider_specialist",
+      now: new Date("2026-06-15T00:06:00.000Z")
+    });
+    expect(providerPacket.profile).toBe("provider_specialist");
+    expect(providerPacket.objective).toContain("Review optional provider evidence");
+    expect(providerPacket.allowedTools.map((tool) => tool.id)).toEqual(
+      expect.arrayContaining([
+        "visual_hive_read_provider_results",
+        "visual_hive_read_provider_upload_manifest",
+        "visual_hive_read_provider_agent_packet",
+        "visual_hive_provider_handoff_dry_run"
+      ])
+    );
+    expect(providerPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_provider_agent_packet")).toMatchObject({
+      evidenceResourceId: "provider-agent-packet",
+      evidenceResourceUri: "visual-hive://provider-agent-packet",
+      evidenceReadToolName: "visual_hive_read_provider_agent_packet",
+      artifactPath: ".visual-hive/provider-agent-packet.json"
+    });
+    expect(providerPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_provider_upload_manifest")).toMatchObject({
+      evidenceResourceId: "provider-upload-argos-manifest",
+      evidenceResourceUri: "visual-hive://provider-upload/argos/manifest",
+      evidenceReadToolName: "visual_hive_read_provider_upload_manifest",
+      artifactPath: ".visual-hive/provider-upload/argos/manifest.json"
+    });
+    expect(providerPacket.forbiddenActions).toEqual(expect.arrayContaining(["make_provider_gating_by_default", "upload_provider_artifacts_without_trusted_policy"]));
+    expect(providerPacket.budgets.allowExternalNetwork).toBe(false);
+    expect(providerPacket.budgets.maxExternalCostUsd).toBe(0);
+    expect(providerPacket.reproductionCommands).toEqual(expect.arrayContaining(["visual-hive providers upload --provider argos --dry-run"]));
+    await expectMatchesSchema("visual-hive.agent-packet.schema.json", providerPacket);
+
+    const reviewPacket = buildAgentPacket({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      handoffPacket: handoff.handoff,
+      handoffPacketPath: ".visual-hive/handoff.json",
+      runHistory,
+      runHistoryPath: ".visual-hive/history.json",
+      profile: "review_agent",
+      now: new Date("2026-06-15T00:07:00.000Z")
+    });
+    expect(reviewPacket.profile).toBe("review_agent");
+    expect(reviewPacket.sourceArtifacts.runHistory).toBe(".visual-hive/history.json");
+    expect(reviewPacket.evidenceSummary.runHistory).toMatchObject({
+      artifactPath: ".visual-hive/history.json",
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceReadToolName: "visual_hive_read_run_history",
+      authority: "trend_evidence_only",
+      runCount: 1,
+      latestStatus: "failed",
+      latestMutationScore: 0.5,
+      trendDirection: "unknown"
+    });
+    expect(reviewPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_run_history")).toMatchObject({
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceReadToolName: "visual_hive_read_run_history",
+      artifactPath: ".visual-hive/history.json"
+    });
+    expect(reviewPacket.allowedTools.find((tool) => tool.id === "visual_hive_read_triage_prompt")).toMatchObject({
+      evidenceResourceId: "triage-prompt",
+      evidenceResourceUri: "visual-hive://triage-prompt",
+      evidenceReadToolName: "visual_hive_read_triage_prompt",
+      artifactPath: ".visual-hive/triage-prompt.md"
+    });
+    expect(reviewPacket.forbiddenActions).toContain("decide_visual_hive_verdict");
+    expect(reviewPacket.budgets.allowExternalNetwork).toBe(false);
+    await expectMatchesSchema("visual-hive.agent-packet.schema.json", reviewPacket);
   });
 
   it("scopes test creator packets to mutation survivors", async () => {
@@ -5864,13 +6753,69 @@ describe("agent packets", () => {
     });
 
     expect(packet.profile).toBe("test_creator");
+    expect(packet.allowedTools.find((tool) => tool.id === "visual_hive_read_missing_tests")).toMatchObject({
+      evidenceResourceId: "missing-tests",
+      evidenceResourceUri: "visual-hive://missing-tests",
+      evidenceReadToolName: "visual_hive_read_missing_tests",
+      artifactPath: ".visual-hive/missing-tests.md"
+    });
+    expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_testing_layers");
+    expect(packet.allowedTools.find((tool) => tool.id === "visual_hive_read_testing_layers")).toMatchObject({
+      evidenceResourceId: "testing-layers",
+      evidenceResourceUri: "visual-hive://testing-layers",
+      evidenceReadToolName: "visual_hive_read_testing_layers",
+      artifactPath: ".visual-hive/testing-layers.json"
+    });
+    expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_coverage_recommendations");
+    expect(packet.allowedTools.find((tool) => tool.id === "visual_hive_read_coverage_recommendations")).toMatchObject({
+      evidenceResourceId: "coverage-recommendations",
+      evidenceResourceUri: "visual-hive://coverage-recommendations",
+      evidenceReadToolName: "visual_hive_read_coverage_recommendations",
+      artifactPath: ".visual-hive/coverage-recommendations.json"
+    });
+    expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_test_creation_plan");
+    expect(packet.allowedTools.find((tool) => tool.id === "visual_hive_read_test_creation_plan")).toMatchObject({
+      evidenceResourceId: "test-creation-plan",
+      evidenceResourceUri: "visual-hive://test-creation-plan",
+      evidenceReadToolName: "visual_hive_read_test_creation_plan",
+      artifactPath: ".visual-hive/test-creation-plan.json"
+    });
     expect(packet.objective).toContain("Improve Visual Hive test adequacy");
     expect(packet.allowedTools.map((tool) => tool.id)).toContain("visual_hive_read_mutation_report");
+    expect(packet.allowedTools.find((tool) => tool.id === "visual_hive_read_mutation_report")).toMatchObject({
+      evidenceResourceId: "mutation-report",
+      evidenceResourceUri: "visual-hive://mutation-report",
+      evidenceReadToolName: "visual_hive_read_mutation_report",
+      artifactPath: ".visual-hive/mutation-report.json"
+    });
     expect(packet.evidenceSummary.workItems[0]).toMatchObject({
       kind: "test_creation",
       title: "Add contract coverage for remove-demo-badge"
     });
     expect(packet.reproductionCommands).toEqual(expect.arrayContaining(["visual-hive mutate", "visual-hive improve-coverage"]));
+  });
+
+  it("keeps Agent Packet evidence-resource schema enums aligned with the core catalog", async () => {
+    type StringEnumProperty = { enum?: string[] };
+    type AgentPacketSchema = {
+      properties?: {
+        allowedTools?: {
+          items?: {
+            properties?: Record<string, StringEnumProperty>;
+          };
+        };
+      };
+    };
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.agent-packet.schema.json"), "utf8")) as AgentPacketSchema;
+    const allowedToolProperties = schema.properties?.allowedTools?.items?.properties ?? {};
+
+    expect(allowedToolProperties.evidenceResourceId?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.id));
+    expect(allowedToolProperties.evidenceResourceUri?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.uri));
+    expect(allowedToolProperties.evidenceReadToolName?.enum).toEqual(
+      VISUAL_HIVE_EVIDENCE_RESOURCES.flatMap((resource) => (resource.readTool ? [resource.readTool.name] : []))
+    );
+    expect(allowedToolProperties.artifactPath?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.relativePath));
   });
 });
 
@@ -5878,9 +6823,19 @@ describe("tool registry", () => {
   it("builds conservative tool policy and role-scoped cards", async () => {
     const registry = buildToolRegistry({ project: "tool-fixture", now: new Date("2026-06-15T00:00:00.000Z") });
     const providerUpload = registry.tools.find((tool) => tool.id === "visual_hive_provider_upload");
+    const providerResults = registry.tools.find((tool) => tool.id === "visual_hive_read_provider_results");
+    const providerUploadManifest = registry.tools.find((tool) => tool.id === "visual_hive_read_provider_upload_manifest");
+    const providerHandoff = registry.tools.find((tool) => tool.id === "visual_hive_provider_handoff_dry_run");
+    const visualHiveMcp = registry.tools.find((tool) => tool.id === "visual_hive_mcp");
+    const controlPlaneSnapshot = registry.tools.find((tool) => tool.id === "visual_hive_read_control_plane_snapshot");
+    const verdictTool = registry.tools.find((tool) => tool.id === "visual_hive_read_verdict");
+    const hiveExportTool = registry.tools.find((tool) => tool.id === "visual_hive_read_hive_export");
     const githubIssue = registry.tools.find((tool) => tool.id === "visual_hive_handoff_github_issue");
     const handoffValidation = registry.tools.find((tool) => tool.id === "visual_hive_validate_handoff");
+    const setupProfile = registry.roleProfiles.find((profile) => profile.role === "setup_agent");
     const repairProfile = registry.roleProfiles.find((profile) => profile.role === "repair_agent");
+    const testCreatorProfile = registry.roleProfiles.find((profile) => profile.role === "test_creator");
+    const reviewProfile = registry.roleProfiles.find((profile) => profile.role === "review_agent");
     const handoffProfile = registry.roleProfiles.find((profile) => profile.role === "handoff_agent");
     const providerProfile = registry.roleProfiles.find((profile) => profile.role === "provider_specialist");
 
@@ -5896,6 +6851,67 @@ describe("tool registry", () => {
       costClass: "paid_provider"
     });
     expect(providerUpload?.requiresHumanApproval).toEqual(expect.arrayContaining(["provider_upload_enablement", "external_network_access"]));
+    expect(providerResults).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      writes: []
+    });
+    expect(providerUploadManifest).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      writes: []
+    });
+    expect(providerHandoff).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      writes: [".visual-hive/provider-handoff.json"]
+    });
+    expect(visualHiveMcp).toMatchObject({
+      enabled: true,
+      kind: "first_party_mcp",
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      forbiddenInPullRequest: false,
+      mcp: {
+        server: "visual-hive",
+        transport: "stdio",
+        status: "available"
+      }
+    });
+    expect(controlPlaneSnapshot).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      writes: [".visual-hive/control-plane-snapshot.json"]
+    });
+    expect(controlPlaneSnapshot?.writeRestrictions).toContain("Read snapshot evidence only. Do not treat UI guidance as a verdict override.");
+    expect(verdictTool).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      reads: [".visual-hive/verdict.json"],
+      writes: []
+    });
+    expect(hiveExportTool).toMatchObject({
+      defaultAccess: "read_only",
+      externalNetwork: false,
+      trustedOnly: false,
+      costClass: "local",
+      reads: [".visual-hive/hive/hive-export.json"],
+      writes: []
+    });
+    expect(providerResults?.allowedRoles).toEqual(expect.arrayContaining(["review_agent", "handoff_agent", "provider_specialist"]));
+    expect(providerUploadManifest?.allowedRoles).toEqual(expect.arrayContaining(["review_agent", "handoff_agent", "provider_specialist"]));
+    expect(providerHandoff?.allowedRoles).toEqual(expect.arrayContaining(["review_agent", "handoff_agent", "provider_specialist"]));
     expect(githubIssue).toMatchObject({
       trustedOnly: true,
       externalNetwork: true,
@@ -5906,11 +6922,131 @@ describe("tool registry", () => {
       externalNetwork: false,
       costClass: "local"
     });
-    expect(repairProfile?.allowedToolIds).toContain("visual_hive_read_evidence_packet");
+    for (const resource of VISUAL_HIVE_EVIDENCE_RESOURCES.filter((item) => item.readTool)) {
+      const tool = registry.tools.find((entry) => entry.id === resource.readTool?.name);
+      expect(tool, `${resource.id} should have a Tool Registry read card`).toBeDefined();
+      expect(tool?.label).toBe(resource.readTool?.title);
+      expect(tool?.description).toBe(resource.readTool?.description);
+      expect([...tool?.reads ?? [], ...tool?.writes ?? [], ...tool?.evidenceArtifacts ?? []]).toContain(resource.relativePath);
+      expect(tool).toMatchObject({
+        evidenceResourceId: resource.id,
+        evidenceResourceUri: resource.uri,
+        evidenceResourceTitle: resource.title,
+        evidenceResourceDescription: resource.description,
+        evidenceReadToolName: resource.readTool?.name
+      });
+      expect(tool?.externalNetwork).toBe(false);
+    }
+    for (const profile of registry.roleProfiles) {
+      expect(profile.allowedToolIds.length).toBeLessThanOrEqual(registry.policy.maxToolDefinitionsPerAgent);
+    }
+    expect(setupProfile?.allowedToolIds).toEqual([
+      "visual_hive_validate_config",
+      "visual_hive_doctor",
+      "visual_hive_recommend_setup",
+      "visual_hive_read_setup_recommendations",
+      "visual_hive_read_setup_pr_plan",
+      "visual_hive_plan",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_agent_packet"
+    ]);
+    expect(repairProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_read_verdict",
+      "visual_hive_read_latest_report",
+      "visual_hive_read_triage_report",
+      "visual_hive_generate_repair_prompt",
+      "visual_hive_read_missing_tests",
+      "visual_hive_list_reproduction_commands"
+    ]);
     expect(repairProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
-    expect(handoffProfile?.allowedToolIds).toContain("visual_hive_validate_handoff");
+    expect(testCreatorProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_read_verdict",
+      "visual_hive_read_missing_tests",
+      "visual_hive_read_testing_layers",
+      "visual_hive_read_coverage_recommendations",
+      "visual_hive_read_test_creation_plan",
+      "visual_hive_read_mutation_report"
+    ]);
+    expect(reviewProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_read_verdict",
+      "visual_hive_read_latest_report",
+      "visual_hive_read_triage_report",
+      "visual_hive_read_baseline_review",
+      "visual_hive_read_run_history",
+      "visual_hive_read_context_ledger"
+    ]);
+    expect(handoffProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_read_verdict",
+      "visual_hive_read_triage_report",
+      "visual_hive_read_issue_body",
+      "visual_hive_read_pr_comment",
+      "visual_hive_generate_handoff_dry_run",
+      "visual_hive_validate_handoff"
+    ]);
+    expect(registry.tools.find((tool) => tool.id === "visual_hive_read_triage_report")).toMatchObject({
+      evidenceResourceId: "triage-report",
+      evidenceResourceUri: "visual-hive://triage-report",
+      evidenceReadToolName: "visual_hive_read_triage_report",
+      writes: []
+    });
+    expect(registry.tools.find((tool) => tool.id === "visual_hive_read_issue_body")).toMatchObject({
+      evidenceResourceId: "issue-body",
+      evidenceResourceUri: "visual-hive://issue-body",
+      evidenceReadToolName: "visual_hive_read_issue_body",
+      writes: []
+    });
+    expect(registry.tools.find((tool) => tool.id === "visual_hive_read_pr_comment")).toMatchObject({
+      evidenceResourceId: "pr-comment",
+      evidenceResourceUri: "visual-hive://pr-comment",
+      evidenceReadToolName: "visual_hive_read_pr_comment",
+      writes: []
+    });
+    expect(registry.tools.find((tool) => tool.id === "visual_hive_read_missing_tests")).toMatchObject({
+      evidenceResourceId: "missing-tests",
+      evidenceResourceUri: "visual-hive://missing-tests",
+      evidenceReadToolName: "visual_hive_read_missing_tests",
+      writes: []
+    });
     expect(providerProfile?.trustedOnly).toBe(true);
-    expect(providerProfile?.allowedToolIds).toContain("visual_hive_provider_upload");
+    expect(providerProfile?.allowedToolIds).toEqual([
+      "visual_hive_read_provider_results",
+      "visual_hive_read_provider_upload_manifest",
+      "visual_hive_read_provider_agent_packet",
+      "visual_hive_provider_handoff_dry_run",
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_control_plane_snapshot",
+      "visual_hive_read_verdict",
+      "visual_hive_read_context_ledger"
+    ]);
+    expect(providerProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
+  });
+
+  it("keeps Tool Registry evidence-resource schema enums aligned with the core catalog", async () => {
+    type StringEnumProperty = { enum?: string[] };
+    type ToolRegistrySchema = {
+      $defs?: {
+        tool?: {
+          properties?: Record<string, StringEnumProperty>;
+        };
+      };
+    };
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.tool-registry.schema.json"), "utf8")) as ToolRegistrySchema;
+    const toolProperties = schema.$defs?.tool?.properties ?? {};
+
+    expect(toolProperties.evidenceResourceId?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.id));
+    expect(toolProperties.evidenceResourceUri?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.uri));
+    expect(toolProperties.evidenceReadToolName?.enum).toEqual(
+      VISUAL_HIVE_EVIDENCE_RESOURCES.flatMap((resource) => (resource.readTool ? [resource.readTool.name] : []))
+    );
   });
 
   it("writes registry and sanitized tool cards", async () => {
@@ -5925,7 +7061,14 @@ describe("tool registry", () => {
     expect(result.registryPath).toMatch(/tool-registry\.json$/);
     expect(result.cardsPath).toMatch(/tool-cards\.md$/);
     expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_evidence_packet");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_control_plane_snapshot");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_verdict");
     expect(result.cardsMarkdown).toContain("Tool: visual_hive_validate_handoff");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_hive_export");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_hive_mode_comparison");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_provider_results");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_read_provider_upload_manifest");
+    expect(result.cardsMarkdown).toContain("Tool: visual_hive_provider_handoff_dry_run");
     expect(result.cardsMarkdown).toContain("Third-party MCP exposed by default: false");
     expect(await readFile(result.registryPath, "utf8")).toContain("visual-hive.tool-registry.v1");
     expect(await readFile(result.cardsPath, "utf8")).toContain("Visual Hive Tool Cards");
@@ -5975,11 +7118,26 @@ describe("context ledger", () => {
           message: "Authorization: Bearer provider-secret"
         },
         {
+          id: "hive-trusted-repair-workflow-dry-run",
+          label: "Hive Trusted Repair Workflow Dry Run",
+          status: "passed",
+          exitCode: 0,
+          artifacts: [".visual-hive/hive/trusted-repair-workflow-dry-run.json", ".visual-hive/hive/trusted-repair-workflow-dry-run.md"],
+          message: "No-network dry run"
+        },
+        {
           id: "triage",
           label: "Triage",
           status: "passed",
           exitCode: 0,
-          artifacts: [".visual-hive/triage.json"],
+          artifacts: [
+            ".visual-hive/triage.json",
+            ".visual-hive/issue.md",
+            ".visual-hive/pr-comment.md",
+            ".visual-hive/triage-prompt.md",
+            ".visual-hive/repair-prompt.md",
+            ".visual-hive/missing-tests.md"
+          ],
           message: "token=abc123"
         }
       ]
@@ -6016,11 +7174,16 @@ describe("context ledger", () => {
     await writeJson(path.join(rootDir, ".visual-hive", "provider-upload", "argos", "manifest.json"), {
       providerId: "argos",
       status: "dry_run",
+      dryRun: true,
       externalCallsMade: 0,
       summary: {
         stagedArtifacts: 4,
         uploadedArtifacts: 0
       },
+      command: "npm exec argos upload --token=hidden-token",
+      stdout: "staged https://app.argos-ci.com/build?token=hidden-token",
+      stderr: "authorization: Bearer hidden-token",
+      providerUrl: "https://app.argos-ci.com/build?client_secret=hidden-token",
       blockedReasons: ["Cookie: session=secret"]
     });
     await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), {
@@ -6063,7 +7226,7 @@ describe("context ledger", () => {
 
     expect(ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
     expect(ledger.budgets.maxToolCalls).toBe(2);
-    expect(ledger.usage.toolCallsUsed).toBe(3);
+    expect(ledger.usage.toolCallsUsed).toBe(4);
     expect(ledger.remaining.toolCalls).toBe(0);
     expect(ledger.usage.estimatedPromptTokens).toBe(1200);
     expect(ledger.usage.providerScreenshots).toBe(4);
@@ -6073,12 +7236,54 @@ describe("context ledger", () => {
     expect(ledger.sourceArtifacts.hiveHandoffResult).toBe(".visual-hive/hive-handoff-result.json");
     expect(ledger.sourceArtifacts.hiveHandoffValidation).toBe(".visual-hive/hive-handoff-validation.json");
     expect(ledger.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
+    expect(ledger.toolCalls.find((call) => call.toolId === "visual_hive_provider_upload")).toMatchObject({
+      evidenceResourceId: "provider-results",
+      evidenceResourceUri: "visual-hive://provider-results",
+      evidenceResourceTitle: "Provider Results",
+      evidenceReadToolName: "visual_hive_read_provider_results"
+    });
+    expect(ledger.toolCalls.find((call) => call.id === "hive-trusted-repair-workflow-dry-run")).toMatchObject({
+      evidenceResourceId: "hive-trusted-repair-workflow-dry-run",
+      evidenceResourceUri: "visual-hive://hive-trusted-repair-workflow-dry-run",
+      evidenceResourceTitle: "Hive Trusted Repair Workflow Dry Run",
+      evidenceReadToolName: "visual_hive_read_hive_trusted_repair_workflow_dry_run"
+    });
+    const triageCall = ledger.toolCalls.find((call) => call.id === "triage");
+    expect(triageCall).toMatchObject({
+      evidenceResourceId: "triage-report",
+      evidenceResourceUri: "visual-hive://triage-report",
+      evidenceResourceTitle: "Triage Report",
+      evidenceReadToolName: "visual_hive_read_triage_report"
+    });
+    expect(triageCall?.evidenceResources?.map((resource) => resource.evidenceResourceId)).toEqual([
+      "triage-report",
+      "issue-body",
+      "pr-comment",
+      "triage-prompt",
+      "repair-prompt",
+      "missing-tests"
+    ]);
+    expect(triageCall?.evidenceResources?.find((resource) => resource.evidenceResourceId === "missing-tests")).toMatchObject({
+      evidenceResourceUri: "visual-hive://missing-tests",
+      evidenceReadToolName: "visual_hive_read_missing_tests",
+      artifactPath: ".visual-hive/missing-tests.md"
+    });
     expect(ledger.providerUsage[0]).toMatchObject({
       providerId: "argos",
+      uploadStatus: "dry_run",
       artifactCount: 4,
+      stagedArtifacts: 4,
+      uploadedArtifacts: 0,
       estimatedExternalScreenshots: 4,
-      externalCallsMade: 0
+      externalCallsMade: 0,
+      manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+      uploadDirectory: ".visual-hive/provider-upload/argos",
+      dryRun: true
     });
+    expect(ledger.providerUsage[0]?.command).toContain("[REDACTED]");
+    expect(ledger.providerUsage[0]?.stdout).toContain("[REDACTED]");
+    expect(ledger.providerUsage[0]?.stderr).toContain("[REDACTED]");
+    expect(ledger.providerUsage[0]?.providerUrl).toContain("[REDACTED]");
     expect(ledger.providerUsage[0]?.missingEnv).toEqual(["ARGOS_TOKEN"]);
     expect(ledger.policyViolations.map((violation) => violation.policy)).toEqual(expect.arrayContaining(["maxToolCalls", "maxProviderScreenshots"]));
     expect(ledger.escalations.map((escalation) => escalation.kind)).toContain("provider");
@@ -6097,6 +7302,41 @@ describe("context ledger", () => {
     expect(serialized).not.toContain("hive-secret");
     expect(serialized).not.toContain("abc123");
     expect(serialized).not.toContain("session=secret");
+    expect(serialized).not.toContain("hidden-token");
+  });
+
+  it("allows explicit Context Ledger budget overrides for bounded acceptance pipelines", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-context-budget-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "pipeline.json"), {
+      schemaVersion: 1,
+      steps: Array.from({ length: 37 }, (_, index) => ({
+        id: `step-${index + 1}`,
+        label: `Step ${index + 1}`,
+        status: "passed",
+        exitCode: 0,
+        artifacts: []
+      }))
+    });
+
+    const strictLedger = await buildContextLedger({
+      rootDir,
+      project: "context-budget",
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const acceptanceLedger = await buildContextLedger({
+      rootDir,
+      project: "context-budget",
+      now: new Date("2026-06-15T00:00:00.000Z"),
+      budgets: { maxToolCalls: 40 }
+    });
+
+    expect(strictLedger.usage.toolCallsUsed).toBe(37);
+    expect(strictLedger.policyViolations.map((violation) => violation.policy)).toContain("maxToolCalls");
+    expect(acceptanceLedger.budgets.maxToolCalls).toBe(40);
+    expect(acceptanceLedger.remaining.toolCalls).toBe(3);
+    expect(acceptanceLedger.policyViolations.map((violation) => violation.policy)).not.toContain("maxToolCalls");
   });
 
   it("writes context-ledger.json as a schema-versioned artifact", async () => {
@@ -6112,6 +7352,26 @@ describe("context ledger", () => {
     expect(result.ledgerPath).toBe(path.join(rootDir, ".visual-hive", "context-ledger.json"));
     expect(result.ledger.schemaVersion).toBe("visual-hive.context-ledger.v1");
     expect(await readFile(result.ledgerPath, "utf8")).toContain("visual-hive.context-ledger.v1");
+  });
+
+  it("keeps Context Ledger tool-call evidence-resource schema enums aligned with the core catalog", async () => {
+    type StringEnumProperty = { enum?: string[] };
+    type ContextLedgerSchema = {
+      $defs?: {
+        toolCall?: {
+          properties?: Record<string, StringEnumProperty>;
+        };
+      };
+    };
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", "visual-hive.context-ledger.schema.json"), "utf8")) as ContextLedgerSchema;
+    const toolCallProperties = schema.$defs?.toolCall?.properties ?? {};
+
+    expect(toolCallProperties.evidenceResourceId?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.id));
+    expect(toolCallProperties.evidenceResourceUri?.enum).toEqual(VISUAL_HIVE_EVIDENCE_RESOURCES.map((resource) => resource.uri));
+    expect(toolCallProperties.evidenceReadToolName?.enum).toEqual(
+      VISUAL_HIVE_EVIDENCE_RESOURCES.flatMap((resource) => (resource.readTool ? [resource.readTool.name] : []))
+    );
   });
 });
 

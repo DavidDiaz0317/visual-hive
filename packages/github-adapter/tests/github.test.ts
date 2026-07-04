@@ -26,7 +26,8 @@ describe("sanitizeText", () => {
       "Cookie: session=abc; password=secret",
       "Set-Cookie: session=abc",
       "{\"client_secret\":\"json-secret\"}",
-      "secret=my-secret password=hunter2 bearer=abc"
+      "secret=my-secret password=hunter2 bearer=abc",
+      "argos upload --token cli-token --client-secret cli-secret --access_token=cli-access-token"
     ].join("\n");
     const output = sanitizeText(input);
 
@@ -38,6 +39,9 @@ describe("sanitizeText", () => {
     expect(output).not.toContain("hunter2");
     expect(output).not.toContain("secret-value");
     expect(output).not.toContain("json-secret");
+    expect(output).not.toContain("cli-token");
+    expect(output).not.toContain("cli-secret");
+    expect(output).not.toContain("cli-access-token");
   });
 
   it("redacts report-visible strings", () => {
@@ -194,11 +198,44 @@ describe("buildIssueBody", () => {
       recommendations: ["Keep PR workflows read-only and secret-free."]
     };
 
+    const providerRunReport = sampleProviderRunReport();
+    const argos = providerRunReport.providers[0]!;
+    argos.availability = "available";
+    argos.missingEnv = [];
+    argos.result = {
+      ...argos.result,
+      status: "failed",
+      message: "Argos upload command failed; deterministic Playwright status is unchanged.",
+      missingEnv: [],
+      upload: {
+        status: "failed",
+        externalCallsMade: 1,
+        uploadedArtifacts: 0,
+        stagedArtifacts: 1,
+        manifestPath: ".visual-hive/provider-upload/argos/manifest.json",
+        uploadDirectory: ".visual-hive/provider-upload/argos",
+        command: "npm exec --yes --package @argos-ci/cli@^5 -- argos upload .visual-hive/provider-upload/argos/screenshots",
+        stderr: "Provider upload command timed out after 50ms. Authorization: Bearer secret-value",
+        stdout: "",
+        blockedReasons: []
+      }
+    };
+    argos.normalized = {
+      ...argos.normalized,
+      status: "failed",
+      networkMode: "external",
+      externalCallsMade: 1,
+      artifactSummary: {
+        ...argos.normalized.artifactSummary,
+        uploadMode: "blocked"
+      }
+    };
+
     const body = buildIssueBody({
       report,
       mutationReport,
       readinessReport: sampleReadinessReport(),
-      providerRunReport: sampleProviderRunReport(),
+      providerRunReport,
       workflowAudit,
       findings: [finding],
       reproductionCommands: ["visual-hive run --ci"]
@@ -215,8 +252,8 @@ describe("buildIssueBody", () => {
     expect(body).toContain("Suggested files to inspect");
     expect(body).toContain("Provider results");
     expect(body).toContain("Provider adapter evidence");
-    expect(body).toContain("Missing credential providers: 1");
-    expect(body).toContain("availability=missing_credentials");
+    expect(body).toContain("uploadStatus=failed");
+    expect(body).toContain("Provider upload command timed out after 50ms.");
     expect(body).toContain("Playwright built-in");
     expect(body).toContain("Workflow safety");
     expect(body).toContain("Readiness gate");

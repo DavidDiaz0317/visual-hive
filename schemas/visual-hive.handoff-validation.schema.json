@@ -17,32 +17,96 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.handoff-validation.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
-    "status": { "enum": ["passed", "warning", "blocked"] },
+    "schemaVersion": {
+      "const": "visual-hive.handoff-validation.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "warning",
+        "blocked"
+      ]
+    },
     "sourceArtifacts": {
       "type": "object",
-      "required": ["evidencePacket", "handoff", "issue", "beadRequest", "result"],
+      "required": [
+        "evidencePacket",
+        "handoff",
+        "issue",
+        "beadRequest",
+        "result"
+      ],
       "additionalProperties": false,
       "properties": {
-        "evidencePacket": { "type": "string" },
-        "handoff": { "type": "string" },
-        "issue": { "type": "string" },
-        "beadRequest": { "type": "string" },
-        "result": { "type": "string" }
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoff": {
+          "type": "string"
+        },
+        "issue": {
+          "type": "string"
+        },
+        "beadRequest": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "hiveExport": {
+          "type": "string"
+        },
+        "guardedRepairPreview": {
+          "type": "string"
+        },
+        "repairRequestEnvelope": {
+          "type": "string"
+        },
+        "trustedRepairConsumerSummary": {
+          "type": "string"
+        },
+        "trustedRepairWorkflowDryRun": {
+          "type": "string"
+        }
       }
     },
     "summary": {
       "type": "object",
-      "required": ["checksPassed", "warnings", "blocked", "externalCallsMade", "workItems"],
+      "required": [
+        "checksPassed",
+        "warnings",
+        "blocked",
+        "externalCallsMade",
+        "workItems"
+      ],
       "additionalProperties": false,
       "properties": {
-        "checksPassed": { "type": "integer", "minimum": 0 },
-        "warnings": { "type": "integer", "minimum": 0 },
-        "blocked": { "type": "integer", "minimum": 0 },
-        "externalCallsMade": { "type": "integer", "minimum": 0 },
-        "workItems": { "type": "integer", "minimum": 0 }
+        "checksPassed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsMade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workItems": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "hiveReadiness": {
@@ -59,35 +123,118 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "recommendedMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "missing"] },
-        "recommendedStatus": { "enum": ["ready", "blocked", "trusted_only", "missing"] },
-        "readyModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
-        "trustedOnlyModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
-        "blockedModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
-        "trustedWorkflowRequiredModes": { "type": "array", "items": { "$ref": "#/$defs/hiveMode" } },
-        "fullAutomationBlocked": { "type": "boolean" },
-        "guardedRepairTrustedOnlyOrBlocked": { "type": "boolean" }
+        "recommendedMode": {
+          "enum": [
+            "advisory",
+            "measured",
+            "repair_request",
+            "guarded_repair",
+            "full",
+            "missing"
+          ]
+        },
+        "recommendedStatus": {
+          "enum": [
+            "ready",
+            "blocked",
+            "trusted_only",
+            "missing"
+          ]
+        },
+        "readyModes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hiveMode"
+          }
+        },
+        "trustedOnlyModes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hiveMode"
+          }
+        },
+        "blockedModes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hiveMode"
+          }
+        },
+        "trustedWorkflowRequiredModes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hiveMode"
+          }
+        },
+        "fullAutomationBlocked": {
+          "type": "boolean"
+        },
+        "guardedRepairTrustedOnlyOrBlocked": {
+          "type": "boolean"
+        }
       }
     },
     "checks": {
       "type": "array",
-      "items": { "$ref": "#/$defs/check" }
+      "items": {
+        "$ref": "#/$defs/check"
+      }
     },
-    "blockedReasons": { "type": "array", "items": { "type": "string" } },
-    "warnings": { "type": "array", "items": { "type": "string" } }
+    "blockedReasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "$defs": {
-    "hiveMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
+    "hiveMode": {
+      "enum": [
+        "advisory",
+        "measured",
+        "repair_request",
+        "guarded_repair",
+        "full"
+      ]
+    },
     "check": {
       "type": "object",
-      "required": ["id", "label", "status", "evidence", "message"],
+      "required": [
+        "id",
+        "label",
+        "status",
+        "evidence",
+        "message"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "status": { "enum": ["passed", "warning", "blocked"] },
-        "evidence": { "type": "array", "items": { "type": "string" } },
-        "message": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "warning",
+            "blocked"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "message": {
+          "type": "string"
+        }
       }
     }
   }

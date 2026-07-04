@@ -87,6 +87,9 @@ export interface ProviderHandoffCommandResult {
 
 export type ProviderUploadCommandResult = ProviderUploadResult;
 
+const DEFAULT_PROVIDER_COMMAND_TIMEOUT_MS = 180_000;
+const PROVIDER_COMMAND_TIMEOUT_ENV = "VISUAL_HIVE_PROVIDER_COMMAND_TIMEOUT_MS";
+
 export async function runProvidersCommand(options: ProvidersCommandOptions = {}): Promise<ProviderInspection[]> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config ?? "visual-hive.config.yaml", cwd);
@@ -440,15 +443,44 @@ function mockExternalPolicyLabel(provider: MockProviderRunReport["providers"][nu
 function defaultProviderUploadCommandRunner(input: ProviderUploadCommandInput): Promise<ProviderUploadCommandOutput> {
   return new Promise((resolve) => {
     const command = process.platform === "win32" && input.command === "npm" ? "npm.cmd" : input.command;
-    const child = spawn(command, input.args, {
-      cwd: input.cwd,
-      env: input.env,
-      windowsHide: true,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
+    const timeoutMs = providerCommandTimeoutMs(input.env);
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    let killFallback: NodeJS.Timeout | undefined;
+    let timeoutOutput: ProviderUploadCommandOutput | undefined;
+    const finish = (output: ProviderUploadCommandOutput): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (killFallback) clearTimeout(killFallback);
+      resolve(output);
+    };
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, input.args, {
+        cwd: input.cwd,
+        env: input.env,
+        windowsHide: true,
+        shell: process.platform === "win32",
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+    } catch (error) {
+      stderr += error instanceof Error ? error.message : String(error);
+      settled = true;
+      resolve({ exitCode: 1, stdout, stderr });
+      return;
+    }
+    const timeout = setTimeout(() => {
+      stderr += `${stderr ? "\n" : ""}Provider upload command timed out after ${timeoutMs}ms.`;
+      timeoutOutput = { exitCode: 124, stdout, stderr };
+      killProviderUploadProcess(child.pid);
+      killFallback = setTimeout(() => {
+        finish(timeoutOutput ?? { exitCode: 124, stdout, stderr });
+      }, 2_000);
+      killFallback.unref?.();
+    }, timeoutMs);
+    timeout.unref?.();
     child.stdout?.on("data", (chunk) => {
       stdout += String(chunk);
     });
@@ -457,10 +489,47 @@ function defaultProviderUploadCommandRunner(input: ProviderUploadCommandInput): 
     });
     child.on("error", (error) => {
       stderr += error.message;
-      resolve({ exitCode: 1, stdout, stderr });
+      finish({ exitCode: 1, stdout, stderr });
     });
     child.on("close", (code) => {
-      resolve({ exitCode: code ?? 1, stdout, stderr });
+      if (timeoutOutput) {
+        finish(timeoutOutput);
+        return;
+      }
+      finish({ exitCode: code ?? 1, stdout, stderr });
     });
   });
+}
+
+function providerCommandTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = env[PROVIDER_COMMAND_TIMEOUT_ENV];
+  if (!raw) return DEFAULT_PROVIDER_COMMAND_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PROVIDER_COMMAND_TIMEOUT_MS;
+}
+
+function killProviderUploadProcess(pid: number | undefined): void {
+  if (!pid) return;
+  if (process.platform === "win32") {
+    const killer = spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      windowsHide: true,
+      stdio: "ignore"
+    });
+    killer.on("error", () => {
+      // Best effort cleanup; the timeout result is still recorded for the provider run.
+    });
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return;
+  }
+  setTimeout(() => {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Process already exited.
+    }
+  }, 1_000).unref?.();
 }

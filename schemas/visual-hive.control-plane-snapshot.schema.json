@@ -1,0 +1,915 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.control-plane-snapshot.schema.json",
+  "title": "Visual Hive Control Plane Snapshot",
+  "description": "Local-first Control Plane API snapshot. This schema locks the public guidance, runbook, artifact, and navigation surface used by the UI, agents, and smoke tests while allowing nested Visual Hive artifacts to keep their own schemas.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "repoRoot",
+    "configPath",
+    "configRoot",
+    "readOnly",
+    "demo",
+    "overview",
+    "guidanceState",
+    "navigationBadges",
+    "failures",
+    "runbook",
+    "runProfiles",
+    "setupProgress",
+    "screenshots",
+    "coverage",
+    "targets",
+    "contracts",
+    "providers",
+    "workflowTemplates",
+    "artifacts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "repoRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "configPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "configRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "readOnly": {
+      "type": "boolean"
+    },
+    "demo": {
+      "type": "boolean"
+    },
+    "overview": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "healthScore",
+        "healthGrade",
+        "deterministicStatus",
+        "gatingContributions",
+        "advisoryContributions",
+        "failedContributions",
+        "blockedContributions",
+        "failedContracts",
+        "createdBaselines",
+        "missingBaselines",
+        "visualDiffs",
+        "consoleErrors",
+        "pageErrors",
+        "nextActions",
+        "explanations"
+      ],
+      "properties": {
+        "healthScore": {
+          "type": "number"
+        },
+        "healthGrade": {
+          "enum": [
+            "unknown",
+            "poor",
+            "fair",
+            "good",
+            "excellent"
+          ]
+        },
+        "deterministicStatus": {
+          "enum": [
+            "missing",
+            "passed",
+            "failed"
+          ]
+        },
+        "visualHiveVerdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "warning",
+            "blocked",
+            "inconclusive"
+          ]
+        },
+        "gatingContributions": {
+          "type": "number"
+        },
+        "advisoryContributions": {
+          "type": "number"
+        },
+        "failedContributions": {
+          "type": "number"
+        },
+        "blockedContributions": {
+          "type": "number"
+        },
+        "mutationScore": {
+          "type": "number"
+        },
+        "failedContracts": {
+          "type": "number"
+        },
+        "createdBaselines": {
+          "type": "number"
+        },
+        "missingBaselines": {
+          "type": "number"
+        },
+        "visualDiffs": {
+          "type": "number"
+        },
+        "consoleErrors": {
+          "type": "number"
+        },
+        "pageErrors": {
+          "type": "number"
+        },
+        "pipelineStatus": {
+          "enum": [
+            "passed",
+            "failed",
+            "blocked"
+          ]
+        },
+        "pipelineSteps": {
+          "type": "number"
+        },
+        "pipelineFailedSteps": {
+          "type": "number"
+        },
+        "nextActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "guidanceState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "title",
+        "summary",
+        "primaryAction",
+        "secondaryActions",
+        "blockedReasons",
+        "progress",
+        "adoptionChecklist"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "no_config",
+            "config_error",
+            "plan_needed",
+            "run_needed",
+            "failures_need_triage",
+            "baselines_need_review",
+            "mutation_needs_work",
+            "readiness_blocked",
+            "ready"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "primaryAction": {
+          "$ref": "#/$defs/guidanceAction"
+        },
+        "secondaryActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guidanceAction"
+          }
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guidanceStep"
+          }
+        },
+        "adoptionChecklist": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/adoptionChecklistItem"
+          }
+        }
+      }
+    },
+    "navigationBadges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "run",
+        "review",
+        "configure",
+        "expert",
+        "failures",
+        "baselines",
+        "risks",
+        "setup",
+        "providerBlocks"
+      ],
+      "properties": {
+        "start": {
+          "type": "number"
+        },
+        "run": {
+          "type": "number"
+        },
+        "review": {
+          "type": "number"
+        },
+        "configure": {
+          "type": "number"
+        },
+        "expert": {
+          "type": "number"
+        },
+        "failures": {
+          "type": "number"
+        },
+        "baselines": {
+          "type": "number"
+        },
+        "risks": {
+          "type": "number"
+        },
+        "setup": {
+          "type": "number"
+        },
+        "providerBlocks": {
+          "type": "number"
+        }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/failure"
+      }
+    },
+    "runbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAt",
+        "configPath",
+        "commands",
+        "notes"
+      ],
+      "properties": {
+        "generatedAt": {
+          "type": "string"
+        },
+        "configPath": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/runbookCommand"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runProfile"
+      }
+    },
+    "setupProgress": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "schemaCatalog": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional schema/catalog verification evidence from .visual-hive/schema-catalog.json. The artifact has its own schema and is surfaced here so the Control Plane can show drift health without rerunning maintenance checks."
+    },
+    "contextLedger": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional Context Ledger evidence from .visual-hive/context-ledger.json. Tool calls may include evidenceResources[] so agents can follow every catalog-backed artifact produced by a pipeline step without scraping raw paths."
+    },
+    "workflowTemplates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "kind",
+        "contentType",
+        "bytes",
+        "safeToRender",
+        "previewTruncated",
+        "previewRedacted",
+        "labels"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "json",
+            "markdown",
+            "image",
+            "text",
+            "typescript",
+            "yaml",
+            "log",
+            "other"
+          ]
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "number"
+        },
+        "safeToRender": {
+          "type": "boolean"
+        },
+        "preview": {
+          "type": "string"
+        },
+        "previewTruncated": {
+          "type": "boolean"
+        },
+        "previewRedacted": {
+          "type": "boolean"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schemaPath": {
+          "type": "string"
+        },
+        "schemaId": {
+          "type": "string"
+        },
+        "evidenceResourceId": {
+          "type": "string",
+          "enum": [
+            "config",
+            "latest-plan",
+              "plan-lanes",
+            "setup-recommendations",
+            "setup-pr-plan",
+            "latest-report",
+            "latest-evidence",
+            "control-plane-snapshot",
+            "latest-verdict",
+            "readiness-gate",
+            "run-history",
+            "workflow-audit",
+            "baseline-review",
+            "baseline-approvals",
+            "baseline-rejections",
+            "testing-layers",
+            "test-creation-plan",
+            "latest-handoff",
+            "handoff-validation",
+            "hive-export",
+            "hive-beads",
+            "hive-knowledge-facts",
+            "hive-knowledge-graph",
+            "hive-repair-work-orders",
+            "hive-agent-policy",
+            "hive-guarded-repair-preview",
+            "hive-repair-request-envelope",
+            "hive-trusted-repair-consumer-summary",
+            "hive-trusted-repair-workflow-dry-run",
+            "hive-mode-comparison",
+            "coverage-map",
+            "coverage-recommendations",
+            "mutation-report",
+            "triage-report",
+            "issue-body",
+            "pr-comment",
+            "triage-prompt",
+            "repair-prompt",
+            "missing-tests",
+            "provider-results",
+            "provider-upload-argos-manifest",
+            "artifacts-index",
+            "agent-packet",
+            "handoff-agent-packet",
+            "provider-agent-packet",
+            "tool-registry",
+            "context-ledger",
+            "pipeline-status",
+            "schema-catalog"
+          ]
+        },
+        "evidenceResourceUri": {
+          "type": "string",
+          "enum": [
+            "visual-hive://config",
+            "visual-hive://latest-plan",
+              "visual-hive://plan-lanes",
+            "visual-hive://setup-recommendations",
+            "visual-hive://setup-pr-plan",
+            "visual-hive://latest-report",
+            "visual-hive://latest-evidence",
+            "visual-hive://control-plane-snapshot",
+            "visual-hive://latest-verdict",
+            "visual-hive://readiness-gate",
+            "visual-hive://run-history",
+            "visual-hive://workflow-audit",
+            "visual-hive://baseline-review",
+            "visual-hive://baseline-approvals",
+            "visual-hive://baseline-rejections",
+            "visual-hive://testing-layers",
+            "visual-hive://test-creation-plan",
+            "visual-hive://latest-handoff",
+            "visual-hive://handoff-validation",
+            "visual-hive://hive-export",
+            "visual-hive://hive/beads",
+            "visual-hive://hive/knowledge-facts",
+            "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/repair-work-orders",
+            "visual-hive://hive/agent-policy",
+            "visual-hive://hive-guarded-repair-preview",
+            "visual-hive://hive-repair-request-envelope",
+            "visual-hive://hive-trusted-repair-consumer-summary",
+            "visual-hive://hive-trusted-repair-workflow-dry-run",
+            "visual-hive://hive-mode-comparison",
+            "visual-hive://coverage-map",
+            "visual-hive://coverage-recommendations",
+            "visual-hive://mutation-report",
+            "visual-hive://triage-report",
+            "visual-hive://issue-body",
+            "visual-hive://pr-comment",
+            "visual-hive://triage-prompt",
+            "visual-hive://repair-prompt",
+            "visual-hive://missing-tests",
+            "visual-hive://provider-results",
+            "visual-hive://provider-upload/argos/manifest",
+            "visual-hive://artifacts/index",
+            "visual-hive://agent-packet",
+            "visual-hive://handoff-agent-packet",
+            "visual-hive://provider-agent-packet",
+            "visual-hive://tool-registry",
+            "visual-hive://context-ledger",
+            "visual-hive://pipeline-status",
+            "visual-hive://schema-catalog"
+          ]
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "type": "string",
+          "enum": [
+            "visual_hive_read_plan_lanes",
+            "visual_hive_read_setup_recommendations",
+            "visual_hive_read_setup_pr_plan",
+            "visual_hive_read_latest_report",
+            "visual_hive_read_evidence_packet",
+            "visual_hive_read_control_plane_snapshot",
+            "visual_hive_read_verdict",
+            "visual_hive_read_readiness_gate",
+            "visual_hive_read_run_history",
+            "visual_hive_read_workflow_audit",
+            "visual_hive_read_baseline_review",
+            "visual_hive_read_baseline_approvals",
+            "visual_hive_read_baseline_rejections",
+            "visual_hive_read_testing_layers",
+            "visual_hive_read_test_creation_plan",
+            "visual_hive_generate_handoff_dry_run",
+            "visual_hive_validate_handoff",
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_beads",
+            "visual_hive_read_hive_knowledge_facts",
+            "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_repair_work_orders",
+            "visual_hive_read_hive_agent_policy",
+            "visual_hive_read_hive_guarded_repair_preview",
+            "visual_hive_read_hive_repair_request_envelope",
+            "visual_hive_read_hive_trusted_repair_consumer_summary",
+            "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+            "visual_hive_read_hive_mode_comparison",
+            "visual_hive_read_coverage_recommendations",
+            "visual_hive_read_mutation_report",
+            "visual_hive_read_triage_report",
+            "visual_hive_read_issue_body",
+            "visual_hive_read_pr_comment",
+            "visual_hive_read_triage_prompt",
+            "visual_hive_generate_repair_prompt",
+            "visual_hive_read_missing_tests",
+            "visual_hive_read_provider_results",
+            "visual_hive_read_provider_upload_manifest",
+            "visual_hive_read_artifacts_index",
+            "visual_hive_read_agent_packet",
+            "visual_hive_read_handoff_agent_packet",
+            "visual_hive_read_provider_agent_packet",
+            "visual_hive_read_tool_registry",
+            "visual_hive_read_context_ledger",
+            "visual_hive_read_pipeline_status",
+            "visual_hive_read_schema_catalog"
+          ]
+        }
+      }
+    },
+    "guidanceAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "description",
+        "area"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "area": {
+          "enum": [
+            "start",
+            "run",
+            "review",
+            "configure"
+          ]
+        },
+        "commandId": {
+          "type": "string"
+        },
+        "tone": {
+          "enum": [
+            "neutral",
+            "success",
+            "warning",
+            "danger",
+            "info",
+            "amber"
+          ]
+        },
+        "disabledReason": {
+          "type": "string"
+        }
+      }
+    },
+    "guidanceStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "status",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "current",
+            "review",
+            "blocked",
+            "pending"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "commandId": {
+          "type": "string"
+        }
+      }
+    },
+    "adoptionChecklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "step",
+        "status",
+        "why",
+        "nextAction",
+        "area",
+        "commandRunnable",
+        "expectedArtifacts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "current",
+            "review",
+            "blocked",
+            "pending"
+          ]
+        },
+        "why": {
+          "type": "string"
+        },
+        "nextAction": {
+          "type": "string"
+        },
+        "area": {
+          "enum": [
+            "start",
+            "run",
+            "review",
+            "configure"
+          ]
+        },
+        "commandId": {
+          "type": "string"
+        },
+        "commandLabel": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "commandSafety": {
+          "enum": [
+            "pr_safe",
+            "trusted_only",
+            "local_only"
+          ]
+        },
+        "commandRunnable": {
+          "type": "boolean"
+        },
+        "commandBlockedReason": {
+          "type": "string"
+        },
+        "expectedArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runbookCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "lane",
+        "command",
+        "cwd",
+        "safety",
+        "description",
+        "requiredSecrets",
+        "expectedArtifacts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "lane": {
+          "enum": [
+            "local",
+            "pull_request",
+            "ci",
+            "schedule",
+            "protected",
+            "triage",
+            "ui"
+          ]
+        },
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "safety": {
+          "enum": [
+            "pr_safe",
+            "trusted_only",
+            "local_only"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "requiredSecrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expectedArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "description",
+        "commandIds",
+        "safety",
+        "enabled",
+        "blockedReasons",
+        "expectedArtifacts",
+        "requiredSecrets"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "commandIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "safety": {
+          "enum": [
+            "pr_safe",
+            "trusted_only",
+            "local_only"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expectedArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredSecrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "contractId",
+        "targetId",
+        "status",
+        "classification",
+        "errorExcerpt",
+        "artifacts"
+      ],
+      "properties": {
+        "contractId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "classification": {
+          "type": "string"
+        },
+        "errorExcerpt": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,18 @@
 # Report Schemas
 
-Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `hive-export.json`, `hive-mode-comparison.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, `hive-issue.md`, and `.visual-hive/hive/issue-context.md` are sanitized human-review artifacts, not verdict authorities.
+Visual Hive writes stable machine-readable JSON artifacts. `plan.json`, `plans.json`, `pipeline.json`, `repo-map.json`, `testing-layers.json`, `recommendations.json`, `setup-pr-plan.json`, `setup-progress.json`, `control-plane-snapshot.json`, `coverage.json`, `coverage-recommendations.json`, `contracts.json`, `flows.json`, `targets.json`, `schedules.json`, `workflows.json`, `risk.json`, `readiness.json`, `security.json`, `costs.json`, `history.json`, `triage.json`, `llm-usage.json`, `llm-decisions.json`, `connections.json`, `connections-portfolio.json`, `provider-results.json`, `provider-decisions.json`, `provider-setup-plan.json`, `provider-handoff.json`, `provider-upload/argos/manifest.json`, `artifacts-index.json`, `baseline-approvals.json`, and `baseline-rejections.json` use `schemaVersion: 1`; deterministic and mutation reports use `schemaVersion: 2`; `evidence-packet.json` uses `schemaVersion: "visual-hive.evidence-packet.v2"` because contribution `key` and `authority` fields are required; `verdict.json`, `handoff.json`, `test-creation-plan.json`, `agent-packet.json`, `handoff-agent-packet.json`, `provider-agent-packet.json`, `tool-registry.json`, `context-ledger.json`, `mcp-manifest.json`, `schema-catalog.json`, `hive-export.json`, `hive-guarded-repair-preview.json`, `hive-repair-request-envelope.json`, `hive-trusted-repair-consumer-summary.json`, `hive-trusted-repair-workflow-dry-run.json`, `hive-mode-comparison.json`, `hive-bead-request.json`, `hive-handoff-result.json`, and `hive-handoff-validation.json` use versioned string schema IDs. Hive bridge sub-artifacts such as `beads.json`, `knowledge-facts.json`, `knowledge-graph.json`, `repair-work-orders.json`, and `hive-agent-policy.json` have standalone schemas so Hive/MCP consumers can read individual files without parsing the full export bundle. Markdown artifacts such as `repo-context.md`, `testing-layers.md`, `test-creation-plan.md`, `triage-prompt.md`, `repair-prompt.md`, `missing-tests.md`, `baseline-review.md`, `evidence-summary.md`, `verdict.md`, `tool-cards.md`, `hive-issue.md`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/guarded-repair-preview.md`, `.visual-hive/hive/repair-request-envelope.md`, `.visual-hive/hive/trusted-repair-consumer-summary.md`, and `.visual-hive/hive/trusted-repair-workflow-dry-run.md` are sanitized human-review artifacts, not verdict authorities.
 
 The Evidence Packet is the preferred agent-facing contract. It composes plan, report, mutation, provider, readiness, coverage, and triage artifacts into a sanitized Visual Hive verdict summary without making Playwright, LLMs, or providers the final authority.
+
+## Pipeline Report
+
+Path: `.visual-hive/pipeline.json`
+
+Schema: `schemas/visual-hive.pipeline.schema.json`
+
+The pipeline report is written by `visual-hive pipeline` and records the end-to-end operational acceptance sequence: doctor, analysis, planning, deterministic run, baselines, mutation adequacy when selected, governance audits, triage, evidence packet, verdict, Hive exports, handoff validation, agent packets, tool registry, context ledger, and artifact indexing. It is read by the Context Ledger, Control Plane, and `visual-hive://pipeline-status` MCP evidence resource. It is an execution summary, not an override of the Visual Hive verdict; the verdict remains in `.visual-hive/verdict.json` and the deterministic report remains in `.visual-hive/report.json`.
+
+The run history report is written by `visual-hive history --record` and is catalog-backed as `visual-hive://run-history` / `visual_hive_read_run_history`. It records longitudinal local evidence such as deterministic status, mutation score, baseline review, runtime, and cost trend data. It is trend evidence only: reading `.visual-hive/history.json` does not rerun checks, approve baselines, infer a fresh verdict, or change gating policy.
 
 ## Plan
 
@@ -20,7 +30,7 @@ Path: `.visual-hive/plans.json`
 
 Schema: `schemas/visual-hive.plans.schema.json`
 
-The plan lane summary is written by `visual-hive plans`. It scans `.visual-hive/plan*.json`, then records one row per lane with mode, status, selected contract/target IDs, ignored changed-file counts, unsafe exclusions, expensive targets, mutation operators, provider policy blocks, external calls planned, and recommendations. It lets maintainers compare PR, canary, full, scheduled, mutation, and docs-only plans without replacing the active `.visual-hive/plan.json` used by `visual-hive run`.
+The plan lane summary is written by `visual-hive plans`. It scans `.visual-hive/plan*.json`, then records one row per lane with mode, status, selected contract/target IDs, ignored changed-file counts, unsafe exclusions, expensive targets, mutation operators, provider policy blocks, external calls planned, and recommendations. It lets maintainers compare PR, canary, full, scheduled, mutation, and docs-only plans without replacing the active `.visual-hive/plan.json` used by `visual-hive run`. The artifact is catalog-backed as `.visual-hive/plans.json`, `visual-hive://plan-lanes`, and `visual_hive_read_plan_lanes`; reading it is lane evidence only and does not run targets, change plan policy, or override a verdict.
 
 ## Repo Map
 
@@ -40,7 +50,7 @@ Path: `.visual-hive/recommendations.json`
 
 Schema: `schemas/visual-hive.recommendations.schema.json`
 
-The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, static route hints, detected Storybook story files and iframe routes, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview or Storybook target, starter contracts, a structured onboarding checklist, guarded setup actions, next commands, findings, and warnings. New reports include `onboardingChecklist` rows with `ready | review | blocked` status, evidence, operator action, optional command, and related artifact paths. They also include `setupActions` rows with command, files written, confirmation requirement, safety notes, and expected outcome, so the CLI and Control Plane can show beginner-friendly setup choices without hiding writes or provider-governance boundaries.
+The setup recommendation report is written by `visual-hive recommend`. It records detected framework/package-manager signals, visible `data-testid` selectors, static route hints, detected Storybook story files and iframe routes, setup profile, provider recommendations, CI/runtime and external screenshot cost estimates, PR/scheduled permission guidance, setup PR guidance, a validated starter config object, YAML for `visual-hive.config.yaml`, a recommended local preview or Storybook target, starter contracts, a structured onboarding checklist, guarded setup actions, next commands, findings, and warnings. New reports include `onboardingChecklist` rows with `ready | review | blocked` status, evidence, operator action, optional command, and related artifact paths. They also include `setupActions` rows with command, files written, confirmation requirement, safety notes, and expected outcome, so the CLI and Control Plane can show beginner-friendly setup choices without hiding writes or provider-governance boundaries. `outputResource` identifies the catalog-backed evidence resource as `.visual-hive/recommendations.json`, `visual-hive://setup-recommendations`, and `visual_hive_read_setup_recommendations`.
 
 ## Setup PR Plan
 
@@ -48,7 +58,7 @@ Path: `.visual-hive/setup-pr-plan.json`
 
 Schema: `schemas/visual-hive.setup-pr-plan.schema.json`
 
-`visual-hive recommend` also writes a no-network setup PR plan. It records the planned config, docs, workflow, and audit files; workflow preview metadata; validation commands; provider posture records; PR workflow security checks; setup steps; blocked/review reasons; and `externalCallsMade: 0`. It does not create a GitHub PR. It gives beginners and the Control Plane a reviewable setup PR surface before anyone runs `visual-hive recommend --write-setup-bundle` or opens a real PR.
+`visual-hive recommend` also writes a no-network setup PR plan. It records the planned config, docs, workflow, and audit files; workflow preview metadata; validation commands; provider posture records; PR workflow security checks; setup steps; blocked/review reasons; and `externalCallsMade: 0`. It does not create a GitHub PR. It gives beginners and the Control Plane a reviewable setup PR surface before anyone runs `visual-hive recommend --write-setup-bundle` or opens a real PR. `outputResource` identifies the catalog-backed evidence resource as `.visual-hive/setup-pr-plan.json`, `visual-hive://setup-pr-plan`, and `visual_hive_read_setup_pr_plan`.
 
 ## Setup Progress
 
@@ -72,7 +82,7 @@ Path: `.visual-hive/coverage-recommendations.json`
 
 Schema: `schemas/visual-hive.coverage-recommendations.schema.json`
 
-The coverage improvement report is written by `visual-hive improve-coverage`. It combines `.visual-hive/coverage.json`, optional `.visual-hive/flows.json`, and optional `.visual-hive/mutation-report.json` into deterministic config recommendations. Summary counters separate recommendations from coverage gaps, flow gaps, and mutation survivors. Recommendation kinds include starter contracts, screenshots, selector assertions, flow steps, changed-file rules, and mutation mappings. Recommendations may include `lane` and `trustedOnly` so protected or secret-bearing work is not presented as PR-safe beginner work. `visual-hive improve-coverage --apply <id>` previews a validated diff; `--yes` is required before writing `visual-hive.config.yaml`.
+The coverage improvement report is written by `visual-hive improve-coverage`. It combines `.visual-hive/coverage.json`, optional `.visual-hive/flows.json`, and optional `.visual-hive/mutation-report.json` into deterministic config recommendations. Summary counters separate recommendations from coverage gaps, flow gaps, and mutation survivors. Recommendation kinds include starter contracts, screenshots, selector assertions, flow steps, changed-file rules, and mutation mappings. Recommendations may include `lane` and `trustedOnly` so protected or secret-bearing work is not presented as PR-safe beginner work. The `outputResource` field points at `visual-hive://coverage-recommendations` and `visual_hive_read_coverage_recommendations`; this is read-only evidence and does not authorize edits. `visual-hive improve-coverage --apply <id>` previews a validated diff; `--yes` is required before writing `visual-hive.config.yaml`.
 
 ## Deterministic Report
 
@@ -80,7 +90,7 @@ Path: `.visual-hive/report.json`
 
 Schema: `schemas/visual-hive.report.schema.json`
 
-The report records deterministic Playwright contract results. `status` is `failed` if any selected contract failed.
+The report records deterministic Playwright contract results. `status` is `failed` if any selected contract failed. Contract results may include `mutationOperator` when the result was produced by the mutation adequacy runner; normal deterministic runs omit it.
 
 Top-level fields include project, repository metadata, mode, generated time, changed files, selected targets, selected contracts, excluded contracts, generated spec path, target lifecycle events, summary counts, aggregate console/page errors, artifacts, provider results, reproduction commands, and optional `noContractsReason` for intentional ignored-file no-op runs. Summary counts include passed/failed contracts, screenshot pass/fail counts, created baselines, missing baselines, visual diffs, flow step pass/fail counts, and console/page errors.
 
@@ -197,7 +207,7 @@ Related artifacts:
 - `.visual-hive/hive-issue.md`: sanitized GitHub/Hive issue body for trusted workflows.
 - `.visual-hive/hive-bead-request.json`: dry-run Hive Bead request object with allowed and forbidden agent actions plus safe target metadata: configured mode, optional redacted bead API URL, token environment variable name, token-present boolean, and missing token env name when applicable.
 - `.visual-hive/hive-handoff-result.json`: command result summary and artifact paths.
-- `.visual-hive/hive-handoff-validation.json`: local no-network validation report from `visual-hive handoff-validate`; it checks schema versions, artifact path consistency, verdict consistency, issue-body sanitization, dry-run policy, `externalCallsMade: 0`, and Evidence Packet Hive readiness policy. The report includes `hiveReadiness` with the recommended mode/status, ready/trusted-only/blocked mode lists, trusted-workflow-required modes, `fullAutomationBlocked`, and `guardedRepairTrustedOnlyOrBlocked`.
+- `.visual-hive/hive-handoff-validation.json`: local no-network validation report from `visual-hive handoff-validate`; it checks schema versions, artifact path consistency, verdict consistency, issue-body sanitization, dry-run policy, `externalCallsMade: 0`, and Evidence Packet Hive readiness policy. When Hive repair-chain artifacts are present, it also validates Hive export, guarded repair preview, repair request envelope, trusted repair consumer summary, and trusted repair workflow dry-run schema/policy/source-chain safety. The report includes `hiveReadiness` with the recommended mode/status, ready/trusted-only/blocked mode lists, trusted-workflow-required modes, `fullAutomationBlocked`, and `guardedRepairTrustedOnlyOrBlocked`.
 
 The command does not create issues, create Hive Beads, call Hive APIs, or execute PR code. `github_issue` and `bead_api` modes are represented for future trusted workflows, but local dry-run remains the default. Token values are never written; only environment variable names and presence/absence evidence may appear.
 
@@ -214,10 +224,71 @@ The Hive export is written by `visual-hive hive export --dry-run` after an Evide
 - `knowledge-graph.json`: nodes and edges connecting evidence, contracts, facts, beads, and repair work orders.
 - `wiki/*.md`: markdown wiki-vault pages with YAML frontmatter for project knowledge ingestion.
 - `issue-context.md`: Hive-oriented agent work order for trusted issue creation or queueing.
+- `providerEvidence`: compact provider status and upload posture rows copied from the Evidence Packet, including upload status, external calls made, staged/uploaded artifacts, manifest path, upload directory, provider URL, and blocked reasons. Hive may route or explain this evidence, but provider output is not a verdict authority unless explicitly configured as trusted/gating.
 - `repair-work-orders.json`: guarded PR-only repair requests when `integrations.hive.mode` is `repair_request`, `guarded_repair`, or repair is explicitly enabled.
 - `hive-agent-policy.json`: allowed/forbidden agent actions, ACMM level, and Visual Hive rerun requirements.
+- `guarded-repair-preview.json`: preview-only repair readiness gate over repair work orders and agent policy.
+- `repair-request-envelope.json`: no-network trusted-workflow request package over a guarded repair preview.
+- `trusted-repair-consumer-summary.json`: no-network dry-run consumer summary over a repair request envelope.
+- `trusted-repair-workflow-dry-run.json`: no-network future trusted workflow plan over a trusted repair consumer summary.
+
+The bundle keeps the legacy `outputArtifacts` path map and also exposes `outputResources`, a catalog-backed list for the JSON artifacts that have first-party read-only evidence resources: `hive-export`, `hive-beads`, `hive-knowledge-facts`, `hive-knowledge-graph`, `hive-repair-work-orders`, and `hive-agent-policy`. Each row includes the artifact key, actual artifact path, evidence-resource ID, URI, title, description, and MCP read-tool name so Hive, agents, MCP clients, the artifact index, and the Control Plane can refer to the same evidence without guessing from paths.
 
 `advisory` mode emits issue context only. `measured` emits beads, knowledge facts, and graph data. Repair modes emit work orders, but Hive still cannot mark a finding resolved; a fresh Visual Hive verdict must pass after the repair PR.
+
+Standalone Hive bridge schemas:
+
+- `schemas/visual-hive.hive-beads.schema.json`
+- `schemas/visual-hive.hive-knowledge-facts.schema.json`
+- `schemas/visual-hive.hive-knowledge-graph.schema.json`
+- `schemas/visual-hive.hive-repair-work-orders.schema.json`
+- `schemas/visual-hive.hive-agent-policy.schema.json`
+
+## Hive Guarded Repair Preview
+
+Path: `.visual-hive/hive/guarded-repair-preview.json`
+
+Schema: `schemas/visual-hive.hive-guarded-repair-preview.schema.json`
+
+The guarded repair preview is written by `visual-hive hive guarded-repair-preview` after `.visual-hive/hive/hive-export.json` exists. It is a no-network, preview-only policy gate for future Hive repair execution. It records source Hive export paths, output paths, policy flags, readiness, required approvals, required commands, and per-work-order branch names, max attempts, allowed actions, forbidden actions, artifacts, reproduction commands, acceptance criteria, and blocked reasons.
+
+Its `outputResource` field points at the shared `hive-guarded-repair-preview` evidence resource and `visual_hive_read_hive_guarded_repair_preview` read-only MCP tool.
+
+`status: "ready"` means the exported repair work orders satisfy Visual Hive's current guarded repair constraints. `status: "blocked"` is still a successful artifact generation state: it means repair execution should not be requested until missing work orders, PR-only policy, human review, Visual Hive rerun, forbidden-action, or governance requirements are satisfied. The command performs no repair and makes no Hive API calls.
+
+## Hive Repair Request Envelope
+
+Path: `.visual-hive/hive/repair-request-envelope.json`
+
+Schema: `schemas/visual-hive.hive-repair-request-envelope.schema.json`
+
+The repair request envelope is written by `visual-hive hive repair-request-envelope` after `.visual-hive/hive/guarded-repair-preview.json` exists. It is a no-network, trusted-workflow-only package for future Hive or GitHub repair execution. It records source artifact paths, output paths, policy flags, readiness, branch and label conventions, dedupe keys, selected work orders, required commands, acceptance criteria, blocked reasons, and sanitized artifact references. It does not execute repair, create branches, open pull requests, create issues, call Hive, or decide the Visual Hive verdict.
+
+Its `outputResource` field points at the shared `hive-repair-request-envelope` evidence resource and `visual_hive_read_hive_repair_request_envelope` read-only MCP tool.
+
+## Hive Trusted Repair Consumer Summary
+
+Path: `.visual-hive/hive/trusted-repair-consumer-summary.json`
+
+Schema: `schemas/visual-hive.hive-trusted-repair-consumer-summary.schema.json`
+
+The trusted repair consumer summary is written by `visual-hive hive trusted-repair-consumer-summary` after `.visual-hive/hive/repair-request-envelope.json` exists. It is a no-network, dry-run consumer artifact for a future trusted Hive or GitHub repair workflow. It records source artifact paths, output paths, Visual Hive verdict-authority policy, dry-run consumer policy, readiness, required approvals, required commands, ready/blocked repair counts, preview branch names, preview pull request titles, labels, allowed files, artifacts, reproduction commands, acceptance criteria, and blocked reasons.
+
+Its `outputResource` field points at the shared `hive-trusted-repair-consumer-summary` evidence resource and `visual_hive_read_hive_trusted_repair_consumer_summary` read-only MCP tool.
+
+The command does not checkout code, execute repair, create branches, open pull requests, create issues, call Hive, call providers, or rerun Visual Hive. `consumerActions` is intentionally all false; `summary.branchesToCreate` and `summary.pullRequestsToOpen` preview what a future trusted workflow would do, not actions Visual Hive performed.
+
+## Hive Trusted Repair Workflow Dry Run
+
+Path: `.visual-hive/hive/trusted-repair-workflow-dry-run.json`
+
+Schema: `schemas/visual-hive.hive-trusted-repair-workflow-dry-run.schema.json`
+
+The trusted repair workflow dry-run is written by `visual-hive hive trusted-repair-workflow-dry-run` after `.visual-hive/hive/trusted-repair-consumer-summary.json` exists. It is a no-network, no-write future workflow plan for a trusted Hive or GitHub repair lane. It records source artifacts, output paths, Visual Hive verdict-authority policy, readiness, required approvals, required commands, ready/blocked repair counts, current action flags, and per-repair planned future actions such as artifact download, policy validation, trusted checkout, branch creation, bounded Hive repair-agent execution, final Visual Hive validation, and pull request creation.
+
+Its `outputResource` field points at the shared `hive-trusted-repair-workflow-dry-run` evidence resource and `visual_hive_read_hive_trusted_repair_workflow_dry_run` read-only MCP tool.
+
+The command does not checkout code, execute repair, create branches, open pull requests, create issues, call Hive, call providers, or rerun Visual Hive. `currentActions` is intentionally all false; `items[].plannedActions[]` describes what a later trusted workflow may do after validation and approval.
 
 ## Hive Export Mode Comparison
 
@@ -226,6 +297,8 @@ Path: `.visual-hive/hive/mode-comparison.json`
 Schema: `schemas/visual-hive.hive-mode-comparison.schema.json`
 
 The mode comparison is written by `visual-hive hive compare-modes` after an Evidence Packet exists. It is a no-network side-by-side preview of the safe Hive export levels. The command writes `.visual-hive/hive/mode-comparison.json`, `.visual-hive/hive/mode-comparison.md`, and per-mode export previews under `.visual-hive/hive/modes/`.
+
+Its `outputResource` field points at the shared `hive-mode-comparison` evidence resource and `visual_hive_read_hive_mode_comparison` read-only MCP tool.
 
 Key fields:
 
@@ -246,6 +319,7 @@ The test-creation plan is written by `visual-hive test-creation-plan` after an E
 
 Key fields:
 
+- `outputResource`: catalog-backed identity for this artifact, including `.visual-hive/test-creation-plan.json`, `visual-hive://test-creation-plan`, and `visual_hive_read_test_creation_plan`.
 - `governance`: declares Visual Hive as verdict authority, agents as advisory test-generation helpers, and `writePolicy: no_config_or_test_files_written`.
 - `summary`: counts recommendations by priority and source.
 - `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`.
@@ -258,14 +332,15 @@ Path: `.visual-hive/agent-packet.json`
 
 Schema: `schemas/visual-hive.agent-packet.schema.json`
 
-The Agent Packet is written by `visual-hive agent-packet` after an Evidence Packet exists. It optionally consumes `.visual-hive/handoff.json` and `.visual-hive/test-creation-plan.json`, then creates a profile-specific envelope for `repair_agent`, `test_creator`, `review_agent`, or `handoff_agent`.
+The Agent Packet is written by `visual-hive agent-packet` after an Evidence Packet exists. It optionally consumes `.visual-hive/handoff.json` and `.visual-hive/test-creation-plan.json`, then creates a profile-specific envelope for `repair_agent`, `test_creator`, `review_agent`, `handoff_agent`, or `provider_specialist`. The default path is `.visual-hive/agent-packet.json`; the demo and agent-handoff Control Plane path write the handoff-agent envelope to `.visual-hive/handoff-agent-packet.json`, and the provider-governance path writes the provider-specialist envelope to `.visual-hive/provider-agent-packet.json`.
 
 Key fields:
 
 - `objective`: a bounded task derived from the current evidence and profile.
 - `verdict`: Visual Hive's deterministic verdict summary.
-- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts/targets, mutation score, testing layers, and optional test-creation recommendations.
-- `allowedTools`: role-scoped read-only or local-only tool affordances.
+- `evidenceSummary`: compact gating/advisory evidence, work items, selected contracts/targets, mutation score, provider evidence summaries, testing layers, and optional test-creation recommendations.
+- `evidenceSummary.providerEvidence`: provider posture rows copied from the Evidence Packet, including provider status, deterministic role, upload status, external calls made, staged/uploaded artifact counts, missing credential names, blocked reasons, manifest path, upload directory, and provider URL. These rows guide agents but do not grant provider upload authority.
+- `allowedTools`: role-scoped read-only or local-only tool affordances. Read-only tools that map to known Visual Hive artifacts carry shared evidence-resource metadata (`evidenceResourceId`, `evidenceResourceUri`, `evidenceResourceTitle`, `evidenceResourceDescription`, `evidenceReadToolName`, and `artifactPath`) so agents, MCP clients, the Tool Registry, the artifact index, and the Control Plane resolve the same resource consistently.
 - `forbiddenActions`: actions that must remain human/trusted-workflow controlled.
 - `budgets`: tool-call/token budgets with `allowExternalNetwork: false` and `maxExternalCostUsd: 0`.
 - `artifactPointers`: exact artifacts the agent should read before broader context.
@@ -284,7 +359,7 @@ Key fields:
 
 - `policy`: default gated tool policy, token/call budgets, external cost budget, PR write restrictions, and human approval requirements.
 - `tools`: tool IDs, descriptions, access class, cost class, trusted-only status, allowed roles, allowed modes, write restrictions, and evidence artifacts.
-- `roleProfiles`: compact allowed tool lists and forbidden actions for setup, repair, test creation, review, handoff, and provider-specialist agents.
+- `roleProfiles`: compact policy-ranked allowed tool lists and forbidden actions for setup, repair, test creation, review, handoff, and provider-specialist agents. Each list is capped by `policy.maxToolDefinitionsPerAgent` and prioritizes stable evidence reads before optional execution or external tools.
 
 The companion `.visual-hive/tools/tool-cards.md` is a compact Markdown view intended for agents and reviewers. The registry does not execute tools or grant permissions by itself.
 
@@ -299,8 +374,8 @@ The MCP manifest is written by `visual-hive mcp --describe --output .visual-hive
 Key fields:
 
 - `server`: identifies Visual Hive's `stdio` MCP server, read-only default access, and `externalCallsMade: 0`.
-- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://latest-verdict`, `visual-hive://agent-packet`, `visual-hive://tool-registry`, `visual-hive://context-ledger`, `visual-hive://pipeline-status`, and `visual-hive://artifacts/index`.
-- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_read_verdict`, `visual_hive_read_agent_packet`, `visual_hive_read_context_ledger`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`.
+- `resources`: artifact-backed resources such as `visual-hive://latest-evidence`, `visual-hive://control-plane-snapshot`, `visual-hive://latest-verdict`, `visual-hive://agent-packet`, `visual-hive://tool-registry`, `visual-hive://context-ledger`, `visual-hive://provider-results`, `visual-hive://provider-upload/argos/manifest`, `visual-hive://pipeline-status`, `visual-hive://schema-catalog`, and `visual-hive://artifacts/index`.
+- `tools`: default read-only tools such as `visual_hive_doctor`, `visual_hive_recommend_setup`, `visual_hive_plan`, `visual_hive_read_evidence_packet`, `visual_hive_read_control_plane_snapshot`, `visual_hive_read_verdict`, `visual_hive_read_agent_packet`, `visual_hive_read_context_ledger`, `visual_hive_read_mutation_report`, `visual_hive_read_provider_results`, `visual_hive_read_provider_upload_manifest`, `visual_hive_read_artifacts_index`, `visual_hive_explain_failure`, and `visual_hive_list_reproduction_commands`. Planning through MCP is an in-memory summary and does not write `plan.json`; artifact, mutation, provider, and snapshot reads expose existing sanitized artifacts and do not enable provider upload, workflow writes, or UI actions.
 - `disabledExecutionTools`: write-capable or execution-capable tools that are intentionally not registered by default.
 - `policy`: enterprise defaults that keep third-party MCPs, PR writes, external uploads, baseline approval, and LLM verdict authority disabled.
 
@@ -317,11 +392,11 @@ The Context Ledger is written by `visual-hive context`. It is a governance artif
 Key fields:
 
 - `sourceArtifacts`: existing artifacts consumed to derive the ledger, such as the Agent Packet, Tool Registry, LLM usage report, provider results, provider upload manifest, pipeline report, artifact index, Hive handoff packet, Hive bead request, Hive handoff result, Hive handoff validation, and test-creation plan.
-- `budgets`: maximum tool calls, tool-result tokens, external cost, and provider screenshots for the task.
+- `budgets`: maximum tool calls, tool-result tokens, external cost, and provider screenshots for the task. Defaults stay strict for ordinary agent work, but bounded acceptance pipelines may pass explicit `visual-hive context` budget overrides so known demo/CI suites do not appear as accidental agent overreach.
 - `usage`: inferred tool calls used, estimated tool-result tokens, estimated prompt tokens, estimated external cost, provider screenshot count, and external calls made.
 - `remaining`: remaining budget after the current evidence set.
-- `toolCalls`: pipeline steps or available registry tools with access class, trusted-only status, external-network status, artifacts, and estimated result tokens.
-- `providerUsage`: provider upload/readiness posture, staged screenshot counts, external calls made, missing credential names, and blocked reasons.
+- `toolCalls`: pipeline steps or available registry tools with access class, trusted-only status, external-network status, artifacts, estimated result tokens, and catalog-backed evidence metadata (`evidenceResourceId`, `evidenceResourceUri`, `evidenceResourceTitle`, `evidenceResourceDescription`, and `evidenceReadToolName`) when the tool maps to a known read-only artifact.
+- `providerUsage`: provider upload/readiness posture, upload status, dry-run state, staged/uploaded artifact counts, external calls made, missing credential names, blocked reasons, sanitized command/output excerpts, provider URL, manifest path, and upload directory.
 - `llmUsage`: prompt-only LLM governance records, token estimates, cost estimates, and call counts.
 - `escalations` and `policyViolations`: reasons an agent should avoid broad context loading, external tools, provider upload, or trusted actions without human/trusted-workflow approval.
 
@@ -350,6 +425,8 @@ Path: `.visual-hive/workflows.json`
 Schema: `schemas/visual-hive.workflows.schema.json`
 
 The workflow safety audit scans GitHub Actions YAML and records actual workflow evidence: triggers, permissions, PR secret usage, `pull_request_target`, artifact upload, hidden-file upload settings, step-summary usage, baseline review queue generation, issue creation, artifact download, checkout usage, trusted issue `issue.md` artifact discovery, defensive issue-body redaction, external action references, action pinning posture, and Visual Hive command usage. It flags unsafe PR workflows, trusted issue workflows that checkout code, missing artifact upload, missing `.visual-hive/baselines.json` generation, brittle fixed-path issue artifact reads, missing trusted issue redaction, missing dedupe patterns, and low-severity tag/unpinned external actions that should be full-SHA pinned for production hardening.
+
+The JSON artifact is catalog-backed as `visual-hive://workflow-audit` / `visual_hive_read_workflow_audit` for read-only agent, MCP, and trusted workflow review. Reading it does not authorize writing workflows, granting secrets, creating issues, or executing untrusted PR code.
 
 When `.visual-hive/workflows.json` exists before `visual-hive triage` runs, `.visual-hive/issue.md` includes a sanitized "Workflow safety" section with the audit summary and highest-priority findings. `.visual-hive/pr-comment.md` also records the workflow finding count for PR review context. This keeps trusted issue workflows focused on uploaded artifacts and avoids checking out or executing untrusted PR code.
 
@@ -437,6 +514,8 @@ Schema: `schemas/visual-hive.artifacts.schema.json`
 
 The artifact index inventories files under `.visual-hive`, classifies renderable artifacts, and stores sanitized previews for text-like files. Image files are linked for rendering through the Control Plane image endpoint, while JSON, Markdown, logs, YAML, text, and generated specs receive redacted previews.
 
+Known evidence artifacts also carry shared resource metadata from the core evidence-resource catalog: `evidenceResourceId`, `evidenceResourceUri`, `evidenceResourceTitle`, `evidenceResourceDescription`, and `evidenceReadToolName`. These entries include the labels `evidence-resource` and the catalog resource ID, such as `latest-evidence`, `provider-results`, or `provider-upload-argos-manifest`, while preserving existing path-derived labels for compatibility. These fields keep the artifact index, Control Plane artifact browser, MCP manifest, MCP read tools, Agent Packet, and Tool Registry aligned around the same resource identity instead of duplicating path and tool names in each package.
+
 ## Local Repository Connections
 
 Path: `.visual-hive/connections.json`
@@ -460,6 +539,8 @@ Schemas: `schemas/visual-hive.baselines.schema.json`, `schemas/visual-hive.basel
 `visual-hive baselines list --write` writes `.visual-hive/baselines.json`, a machine-readable review queue derived from `report.json`, `.visual-hive/baseline-approvals.json`, and `.visual-hive/baseline-rejections.json`. It includes total/passed/failed/created/missing/pending/approved/rejected counts plus per-screenshot baseline, actual, diff, threshold, and review-decision metadata.
 
 Baseline approvals are explicit review decisions that copy the actual screenshot listed in `report.json` to the baseline path and record the source status, route, viewport, paths, byte count, and review timestamp. Baseline rejections are explicit review decisions that leave the baseline image unchanged and record the actual/baseline/diff paths plus an optional sanitized reason. These artifacts are local review evidence used by the Control Plane and CLI; none of them changes the historical deterministic report result.
+
+The baseline queue and decision logs are catalog-backed read-only evidence resources: `.visual-hive/baselines.json` is `visual-hive://baseline-review` / `visual_hive_read_baseline_review`, `.visual-hive/baseline-approvals.json` is `visual-hive://baseline-approvals` / `visual_hive_read_baseline_approvals`, and `.visual-hive/baseline-rejections.json` is `visual-hive://baseline-rejections` / `visual_hive_read_baseline_rejections`. Reading these resources does not authorize approving, rejecting, copying, or updating baselines; baseline changes remain explicit trusted write actions with human review.
 
 ## Mutation Report
 

@@ -4,9 +4,14 @@
   "title": "Visual Hive Baseline Rejection Log",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "rejections"],
+  "required": [
+    "schemaVersion",
+    "rejections"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
     "rejections": {
       "type": "array",
       "items": {
@@ -24,17 +29,49 @@
           "baselinePath"
         ],
         "properties": {
-          "schemaVersion": { "const": 1 },
-          "rejectedAt": { "type": "string" },
-          "contractId": { "type": "string", "minLength": 1 },
-          "screenshotName": { "type": "string", "minLength": 1 },
-          "route": { "type": "string" },
-          "viewport": { "type": "string", "minLength": 1 },
-          "sourceStatus": { "enum": ["passed", "failed", "created", "missing_baseline"] },
-          "actualPath": { "type": "string", "minLength": 1 },
-          "baselinePath": { "type": "string", "minLength": 1 },
-          "diffPath": { "type": "string" },
-          "reason": { "type": "string" }
+          "schemaVersion": {
+            "const": 1
+          },
+          "rejectedAt": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "screenshotName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "route": {
+            "type": "string"
+          },
+          "viewport": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceStatus": {
+            "enum": [
+              "passed",
+              "failed",
+              "created",
+              "missing_baseline"
+            ]
+          },
+          "actualPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "baselinePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "diffPath": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
         }
       }
     }

@@ -4,12 +4,28 @@
   "title": "Visual Hive Artifact Index",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "root", "summary", "artifacts", "warnings"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "root",
+    "summary",
+    "artifacts",
+    "warnings"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "root": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "root": {
+      "type": "string"
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -44,20 +60,202 @@
         ],
         "properties": {
           "kind": {
-            "enum": ["json", "markdown", "image", "text", "typescript", "yaml", "log", "other"]
+            "enum": [
+              "json",
+              "markdown",
+              "image",
+              "text",
+              "typescript",
+              "yaml",
+              "log",
+              "other"
+            ]
           },
           "labels": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "schemaPath": { "type": "string" },
-          "schemaId": { "type": "string" }
+          "evidenceResourceId": {
+            "type": "string",
+            "enum": [
+              "config",
+              "latest-plan",
+              "plan-lanes",
+              "setup-recommendations",
+              "setup-pr-plan",
+              "latest-report",
+              "latest-evidence",
+              "control-plane-snapshot",
+              "latest-verdict",
+              "readiness-gate",
+              "run-history",
+              "workflow-audit",
+              "baseline-review",
+              "baseline-approvals",
+              "baseline-rejections",
+              "testing-layers",
+              "test-creation-plan",
+              "latest-handoff",
+              "handoff-validation",
+              "hive-export",
+              "hive-beads",
+              "hive-knowledge-facts",
+              "hive-knowledge-graph",
+              "hive-repair-work-orders",
+              "hive-agent-policy",
+              "hive-guarded-repair-preview",
+              "hive-repair-request-envelope",
+              "hive-trusted-repair-consumer-summary",
+              "hive-trusted-repair-workflow-dry-run",
+              "hive-mode-comparison",
+              "coverage-map",
+              "coverage-recommendations",
+              "mutation-report",
+              "triage-report",
+              "issue-body",
+              "pr-comment",
+              "triage-prompt",
+              "repair-prompt",
+              "missing-tests",
+              "provider-results",
+              "provider-upload-argos-manifest",
+              "artifacts-index",
+              "agent-packet",
+              "handoff-agent-packet",
+              "provider-agent-packet",
+              "tool-registry",
+              "context-ledger",
+              "pipeline-status",
+              "schema-catalog"
+            ]
+          },
+          "evidenceResourceUri": {
+            "type": "string",
+            "enum": [
+              "visual-hive://config",
+              "visual-hive://latest-plan",
+              "visual-hive://plan-lanes",
+              "visual-hive://setup-recommendations",
+              "visual-hive://setup-pr-plan",
+              "visual-hive://latest-report",
+              "visual-hive://latest-evidence",
+              "visual-hive://control-plane-snapshot",
+              "visual-hive://latest-verdict",
+              "visual-hive://readiness-gate",
+              "visual-hive://run-history",
+              "visual-hive://workflow-audit",
+              "visual-hive://baseline-review",
+              "visual-hive://baseline-approvals",
+              "visual-hive://baseline-rejections",
+              "visual-hive://testing-layers",
+              "visual-hive://test-creation-plan",
+              "visual-hive://latest-handoff",
+              "visual-hive://handoff-validation",
+              "visual-hive://hive-export",
+              "visual-hive://hive/beads",
+              "visual-hive://hive/knowledge-facts",
+              "visual-hive://hive/knowledge-graph",
+              "visual-hive://hive/repair-work-orders",
+              "visual-hive://hive/agent-policy",
+              "visual-hive://hive-guarded-repair-preview",
+              "visual-hive://hive-repair-request-envelope",
+              "visual-hive://hive-trusted-repair-consumer-summary",
+              "visual-hive://hive-trusted-repair-workflow-dry-run",
+              "visual-hive://hive-mode-comparison",
+              "visual-hive://coverage-map",
+              "visual-hive://coverage-recommendations",
+              "visual-hive://mutation-report",
+              "visual-hive://triage-report",
+              "visual-hive://issue-body",
+              "visual-hive://pr-comment",
+              "visual-hive://triage-prompt",
+              "visual-hive://repair-prompt",
+              "visual-hive://missing-tests",
+              "visual-hive://provider-results",
+              "visual-hive://provider-upload/argos/manifest",
+              "visual-hive://artifacts/index",
+              "visual-hive://agent-packet",
+              "visual-hive://handoff-agent-packet",
+              "visual-hive://provider-agent-packet",
+              "visual-hive://tool-registry",
+              "visual-hive://context-ledger",
+              "visual-hive://pipeline-status",
+              "visual-hive://schema-catalog"
+            ]
+          },
+          "evidenceResourceTitle": {
+            "type": "string"
+          },
+          "evidenceResourceDescription": {
+            "type": "string"
+          },
+          "evidenceReadToolName": {
+            "type": "string",
+            "enum": [
+              "visual_hive_read_plan_lanes",
+            "visual_hive_read_setup_recommendations",
+              "visual_hive_read_setup_pr_plan",
+              "visual_hive_read_latest_report",
+              "visual_hive_read_evidence_packet",
+              "visual_hive_read_control_plane_snapshot",
+              "visual_hive_read_verdict",
+              "visual_hive_read_readiness_gate",
+              "visual_hive_read_run_history",
+              "visual_hive_read_workflow_audit",
+              "visual_hive_read_baseline_review",
+              "visual_hive_read_baseline_approvals",
+              "visual_hive_read_baseline_rejections",
+              "visual_hive_read_testing_layers",
+              "visual_hive_read_test_creation_plan",
+              "visual_hive_generate_handoff_dry_run",
+              "visual_hive_validate_handoff",
+              "visual_hive_read_hive_export",
+              "visual_hive_read_hive_beads",
+              "visual_hive_read_hive_knowledge_facts",
+              "visual_hive_read_hive_knowledge_graph",
+              "visual_hive_read_hive_repair_work_orders",
+              "visual_hive_read_hive_agent_policy",
+              "visual_hive_read_hive_guarded_repair_preview",
+              "visual_hive_read_hive_repair_request_envelope",
+              "visual_hive_read_hive_trusted_repair_consumer_summary",
+              "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+              "visual_hive_read_hive_mode_comparison",
+              "visual_hive_read_coverage_recommendations",
+              "visual_hive_read_mutation_report",
+              "visual_hive_read_triage_report",
+              "visual_hive_read_issue_body",
+              "visual_hive_read_pr_comment",
+              "visual_hive_read_triage_prompt",
+              "visual_hive_generate_repair_prompt",
+              "visual_hive_read_missing_tests",
+              "visual_hive_read_provider_results",
+              "visual_hive_read_provider_upload_manifest",
+              "visual_hive_read_artifacts_index",
+              "visual_hive_read_agent_packet",
+              "visual_hive_read_handoff_agent_packet",
+              "visual_hive_read_provider_agent_packet",
+              "visual_hive_read_tool_registry",
+              "visual_hive_read_context_ledger",
+              "visual_hive_read_pipeline_status",
+              "visual_hive_read_schema_catalog"
+            ]
+          },
+          "schemaPath": {
+            "type": "string"
+          },
+          "schemaId": {
+            "type": "string"
+          }
         }
       }
     },
     "warnings": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   }
 }

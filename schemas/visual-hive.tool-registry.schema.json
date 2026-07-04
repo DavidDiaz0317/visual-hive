@@ -3,12 +3,26 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.tool-registry.schema.json",
   "title": "Visual Hive Tool Registry",
   "type": "object",
-  "required": ["schemaVersion", "generatedAt", "project", "policy", "tools", "roleProfiles", "notes"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "policy",
+    "tools",
+    "roleProfiles",
+    "notes"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.tool-registry.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": "visual-hive.tool-registry.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
     "policy": {
       "type": "object",
       "required": [
@@ -27,23 +41,65 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "defaultPolicy": { "const": "gated" },
-        "exposeThirdPartyMcp": { "const": false },
-        "maxToolDefinitionsPerAgent": { "type": "number" },
-        "maxToolCallsPerTask": { "type": "number" },
-        "maxToolResultTokensPerTask": { "type": "number" },
-        "maxExternalCostUsdPerTask": { "const": 0 },
-        "requireTrustedModeForWrites": { "const": true },
-        "requireTrustedModeForProviderMcp": { "const": true },
-        "githubWritesFromPr": { "const": false },
-        "externalUploadsFromPr": { "const": false },
-        "baselineApprovalByAgent": { "const": false },
-        "requireHumanApprovalFor": { "type": "array", "items": { "type": "string" } }
+        "defaultPolicy": {
+          "const": "gated"
+        },
+        "exposeThirdPartyMcp": {
+          "const": false
+        },
+        "maxToolDefinitionsPerAgent": {
+          "type": "number"
+        },
+        "maxToolCallsPerTask": {
+          "type": "number"
+        },
+        "maxToolResultTokensPerTask": {
+          "type": "number"
+        },
+        "maxExternalCostUsdPerTask": {
+          "const": 0
+        },
+        "requireTrustedModeForWrites": {
+          "const": true
+        },
+        "requireTrustedModeForProviderMcp": {
+          "const": true
+        },
+        "githubWritesFromPr": {
+          "const": false
+        },
+        "externalUploadsFromPr": {
+          "const": false
+        },
+        "baselineApprovalByAgent": {
+          "const": false
+        },
+        "requireHumanApprovalFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-    "tools": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
-    "roleProfiles": { "type": "array", "items": { "$ref": "#/$defs/roleProfile" } },
-    "notes": { "type": "array", "items": { "type": "string" } }
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tool"
+      }
+    },
+    "roleProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/roleProfile"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "$defs": {
     "tool": {
@@ -70,55 +126,358 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "description": { "type": "string" },
-        "kind": { "enum": ["first_party_cli", "first_party_mcp", "local_mcp", "github_mcp", "provider_mcp", "external_provider"] },
-        "enabled": { "type": "boolean" },
-        "defaultAccess": { "enum": ["read_only", "local_execution", "trusted_write", "external_upload"] },
-        "costClass": { "enum": ["local", "external_api", "paid_provider"] },
-        "trustedOnly": { "type": "boolean" },
-        "externalNetwork": { "type": "boolean" },
-        "forbiddenInPullRequest": { "type": "boolean" },
-        "requiresHumanApproval": { "type": "array", "items": { "type": "string" } },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "first_party_cli",
+            "first_party_mcp",
+            "local_mcp",
+            "github_mcp",
+            "provider_mcp",
+            "external_provider"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "defaultAccess": {
+          "enum": [
+            "read_only",
+            "local_execution",
+            "trusted_write",
+            "external_upload"
+          ]
+        },
+        "costClass": {
+          "enum": [
+            "local",
+            "external_api",
+            "paid_provider"
+          ]
+        },
+        "trustedOnly": {
+          "type": "boolean"
+        },
+        "externalNetwork": {
+          "type": "boolean"
+        },
+        "forbiddenInPullRequest": {
+          "type": "boolean"
+        },
+        "requiresHumanApproval": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "allowedRoles": {
           "type": "array",
-          "items": { "enum": ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"] }
+          "items": {
+            "enum": [
+              "setup_agent",
+              "repair_agent",
+              "test_creator",
+              "review_agent",
+              "handoff_agent",
+              "provider_specialist"
+            ]
+          }
         },
         "allowedModes": {
           "type": "array",
-          "items": { "enum": ["local", "pr", "pr_debug", "schedule", "manual", "protected", "trusted"] }
-        },
-        "command": { "type": "string" },
-        "mcp": {
-          "type": "object",
-          "required": ["server", "status"],
-          "additionalProperties": false,
-          "properties": {
-            "server": { "type": "string" },
-            "tool": { "type": "string" },
-            "transport": { "enum": ["stdio", "http", "remote"] },
-            "status": { "enum": ["available", "planned", "disabled"] }
+          "items": {
+            "enum": [
+              "local",
+              "pr",
+              "pr_debug",
+              "schedule",
+              "manual",
+              "protected",
+              "trusted"
+            ]
           }
         },
-        "reads": { "type": "array", "items": { "type": "string" } },
-        "writes": { "type": "array", "items": { "type": "string" } },
-        "writeRestrictions": { "type": "array", "items": { "type": "string" } },
-        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } },
-        "notes": { "type": "array", "items": { "type": "string" } }
+        "command": {
+          "type": "string"
+        },
+        "mcp": {
+          "type": "object",
+          "required": [
+            "server",
+            "status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "server": {
+              "type": "string"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "transport": {
+              "enum": [
+                "stdio",
+                "http",
+                "remote"
+              ]
+            },
+            "status": {
+              "enum": [
+                "available",
+                "planned",
+                "disabled"
+              ]
+            }
+          }
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writeRestrictions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidenceArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidenceResourceId": {
+          "type": "string",
+          "enum": [
+            "config",
+            "latest-plan",
+              "plan-lanes",
+            "setup-recommendations",
+            "setup-pr-plan",
+            "latest-report",
+            "latest-evidence",
+            "control-plane-snapshot",
+            "latest-verdict",
+            "readiness-gate",
+            "run-history",
+            "workflow-audit",
+            "baseline-review",
+            "baseline-approvals",
+            "baseline-rejections",
+            "testing-layers",
+            "test-creation-plan",
+            "latest-handoff",
+            "handoff-validation",
+            "hive-export",
+            "hive-beads",
+            "hive-knowledge-facts",
+            "hive-knowledge-graph",
+            "hive-repair-work-orders",
+            "hive-agent-policy",
+            "hive-guarded-repair-preview",
+            "hive-repair-request-envelope",
+            "hive-trusted-repair-consumer-summary",
+            "hive-trusted-repair-workflow-dry-run",
+            "hive-mode-comparison",
+            "coverage-map",
+            "coverage-recommendations",
+            "mutation-report",
+            "triage-report",
+            "issue-body",
+            "pr-comment",
+            "triage-prompt",
+            "repair-prompt",
+            "missing-tests",
+            "provider-results",
+            "provider-upload-argos-manifest",
+            "artifacts-index",
+            "agent-packet",
+            "handoff-agent-packet",
+            "provider-agent-packet",
+            "tool-registry",
+            "context-ledger",
+            "pipeline-status",
+            "schema-catalog"
+          ]
+        },
+        "evidenceResourceUri": {
+          "type": "string",
+          "enum": [
+            "visual-hive://config",
+            "visual-hive://latest-plan",
+              "visual-hive://plan-lanes",
+            "visual-hive://setup-recommendations",
+            "visual-hive://setup-pr-plan",
+            "visual-hive://latest-report",
+            "visual-hive://latest-evidence",
+            "visual-hive://control-plane-snapshot",
+            "visual-hive://latest-verdict",
+            "visual-hive://readiness-gate",
+            "visual-hive://run-history",
+            "visual-hive://workflow-audit",
+            "visual-hive://baseline-review",
+            "visual-hive://baseline-approvals",
+            "visual-hive://baseline-rejections",
+            "visual-hive://testing-layers",
+            "visual-hive://test-creation-plan",
+            "visual-hive://latest-handoff",
+            "visual-hive://handoff-validation",
+            "visual-hive://hive-export",
+            "visual-hive://hive/beads",
+            "visual-hive://hive/knowledge-facts",
+            "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/repair-work-orders",
+            "visual-hive://hive/agent-policy",
+            "visual-hive://hive-guarded-repair-preview",
+            "visual-hive://hive-repair-request-envelope",
+            "visual-hive://hive-trusted-repair-consumer-summary",
+            "visual-hive://hive-trusted-repair-workflow-dry-run",
+            "visual-hive://hive-mode-comparison",
+            "visual-hive://coverage-map",
+            "visual-hive://coverage-recommendations",
+            "visual-hive://mutation-report",
+            "visual-hive://triage-report",
+            "visual-hive://issue-body",
+            "visual-hive://pr-comment",
+            "visual-hive://triage-prompt",
+            "visual-hive://repair-prompt",
+            "visual-hive://missing-tests",
+            "visual-hive://provider-results",
+            "visual-hive://provider-upload/argos/manifest",
+            "visual-hive://artifacts/index",
+            "visual-hive://agent-packet",
+            "visual-hive://handoff-agent-packet",
+            "visual-hive://provider-agent-packet",
+            "visual-hive://tool-registry",
+            "visual-hive://context-ledger",
+            "visual-hive://pipeline-status",
+            "visual-hive://schema-catalog"
+          ]
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "type": "string",
+          "enum": [
+            "visual_hive_read_plan_lanes",
+            "visual_hive_read_setup_recommendations",
+            "visual_hive_read_setup_pr_plan",
+            "visual_hive_read_latest_report",
+            "visual_hive_read_evidence_packet",
+            "visual_hive_read_control_plane_snapshot",
+            "visual_hive_read_verdict",
+            "visual_hive_read_readiness_gate",
+            "visual_hive_read_run_history",
+            "visual_hive_read_workflow_audit",
+            "visual_hive_read_baseline_review",
+            "visual_hive_read_baseline_approvals",
+            "visual_hive_read_baseline_rejections",
+            "visual_hive_read_testing_layers",
+            "visual_hive_read_test_creation_plan",
+            "visual_hive_generate_handoff_dry_run",
+            "visual_hive_validate_handoff",
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_beads",
+            "visual_hive_read_hive_knowledge_facts",
+            "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_repair_work_orders",
+            "visual_hive_read_hive_agent_policy",
+            "visual_hive_read_hive_guarded_repair_preview",
+            "visual_hive_read_hive_repair_request_envelope",
+            "visual_hive_read_hive_trusted_repair_consumer_summary",
+            "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+            "visual_hive_read_hive_mode_comparison",
+            "visual_hive_read_coverage_recommendations",
+            "visual_hive_read_mutation_report",
+            "visual_hive_read_triage_report",
+            "visual_hive_read_issue_body",
+            "visual_hive_read_pr_comment",
+            "visual_hive_read_triage_prompt",
+            "visual_hive_generate_repair_prompt",
+            "visual_hive_read_missing_tests",
+            "visual_hive_read_provider_results",
+            "visual_hive_read_provider_upload_manifest",
+            "visual_hive_read_artifacts_index",
+            "visual_hive_read_agent_packet",
+            "visual_hive_read_handoff_agent_packet",
+            "visual_hive_read_provider_agent_packet",
+            "visual_hive_read_tool_registry",
+            "visual_hive_read_context_ledger",
+            "visual_hive_read_pipeline_status",
+            "visual_hive_read_schema_catalog"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "roleProfile": {
       "type": "object",
-      "required": ["role", "purpose", "trustedOnly", "requiresBudget", "allowedToolIds", "forbiddenActions"],
+      "required": [
+        "role",
+        "purpose",
+        "trustedOnly",
+        "requiresBudget",
+        "allowedToolIds",
+        "forbiddenActions"
+      ],
       "additionalProperties": false,
       "properties": {
-        "role": { "enum": ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"] },
-        "purpose": { "type": "string" },
-        "trustedOnly": { "type": "boolean" },
-        "requiresBudget": { "type": "boolean" },
-        "allowedToolIds": { "type": "array", "items": { "type": "string" } },
-        "forbiddenActions": { "type": "array", "items": { "type": "string" } }
+        "role": {
+          "enum": [
+            "setup_agent",
+            "repair_agent",
+            "test_creator",
+            "review_agent",
+            "handoff_agent",
+            "provider_specialist"
+          ]
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "trustedOnly": {
+          "type": "boolean"
+        },
+        "requiresBudget": {
+          "type": "boolean"
+        },
+        "allowedToolIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

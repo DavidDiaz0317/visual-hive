@@ -6,6 +6,10 @@ export interface ContextCommandOptions {
   cwd?: string;
   output?: string;
   format?: "markdown" | "json";
+  maxToolCalls?: number;
+  maxToolResultTokens?: number;
+  maxExternalCostUsd?: number;
+  maxProviderScreenshots?: number;
 }
 
 export interface ContextCommandResult {
@@ -18,7 +22,13 @@ export async function runContextCommand(options: ContextCommandOptions = {}): Pr
   return writeContextLedger({
     rootDir: loaded.rootDir,
     project: loaded.config.project.name,
-    outputPath: options.output ?? path.join(".visual-hive", "context-ledger.json")
+    outputPath: options.output ?? path.join(".visual-hive", "context-ledger.json"),
+    budgets: {
+      maxToolCalls: options.maxToolCalls,
+      maxToolResultTokens: options.maxToolResultTokens,
+      maxExternalCostUsd: options.maxExternalCostUsd,
+      maxProviderScreenshots: options.maxProviderScreenshots
+    }
   });
 }
 

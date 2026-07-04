@@ -22,97 +22,281 @@
     "warnings"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "sourceRecommendationGeneratedAt": { "type": "string" },
-    "setupProfile": {
-      "enum": ["free-local", "hosted-review", "component-storybook", "enterprise-visual-ai", "complex-app"]
+    "schemaVersion": {
+      "const": 1
     },
-    "status": { "enum": ["ready", "review", "blocked"] },
-    "title": { "type": "string" },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
+    "sourceRecommendationGeneratedAt": {
+      "type": "string"
+    },
+    "setupProfile": {
+      "enum": [
+        "free-local",
+        "hosted-review",
+        "component-storybook",
+        "enterprise-visual-ai",
+        "complex-app"
+      ]
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "review",
+        "blocked"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
     "summary": {
       "type": "object",
-      "required": ["filesPlanned", "workflowsPlanned", "validationCommands", "externalCallsMade", "requiresReview", "blockedReasons"],
+      "required": [
+        "filesPlanned",
+        "workflowsPlanned",
+        "validationCommands",
+        "externalCallsMade",
+        "requiresReview",
+        "blockedReasons"
+      ],
       "properties": {
-        "filesPlanned": { "type": "number" },
-        "workflowsPlanned": { "type": "number" },
-        "validationCommands": { "type": "number" },
-        "externalCallsMade": { "const": 0 },
-        "requiresReview": { "type": "boolean" },
-        "blockedReasons": { "type": "array", "items": { "type": "string" } }
+        "filesPlanned": {
+          "type": "number"
+        },
+        "workflowsPlanned": {
+          "type": "number"
+        },
+        "validationCommands": {
+          "type": "number"
+        },
+        "externalCallsMade": {
+          "const": 0
+        },
+        "requiresReview": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "files": {
       "type": "array",
-      "items": { "$ref": "#/$defs/file" }
+      "items": {
+        "$ref": "#/$defs/file"
+      }
     },
     "workflowPreviews": {
       "type": "array",
-      "items": { "$ref": "#/$defs/workflowPreview" }
+      "items": {
+        "$ref": "#/$defs/workflowPreview"
+      }
     },
     "providerDecisions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/providerDecision" }
+      "items": {
+        "$ref": "#/$defs/providerDecision"
+      }
     },
     "validationCommands": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "steps": {
       "type": "array",
-      "items": { "$ref": "#/$defs/step" }
+      "items": {
+        "$ref": "#/$defs/step"
+      }
     },
-    "security": { "$ref": "#/$defs/security" },
+    "security": {
+      "$ref": "#/$defs/security"
+    },
     "warnings": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/setup-pr-plan.json"
+        },
+        "evidenceResourceId": {
+          "const": "setup-pr-plan"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://setup-pr-plan"
+        },
+        "evidenceResourceTitle": {
+          "const": "Setup Pull Request Plan"
+        },
+        "evidenceResourceDescription": {
+          "const": "No-network setup PR plan with proposed files, workflow safety checks, provider posture, and validation commands."
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_setup_pr_plan"
+        }
+      }
+    },
     "file": {
       "type": "object",
-      "required": ["path", "kind", "action", "source", "requiresOverwriteReview"],
+      "required": [
+        "path",
+        "kind",
+        "action",
+        "source",
+        "requiresOverwriteReview"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "kind": { "enum": ["config", "docs", "workflow", "audit"] },
-        "action": { "enum": ["create", "review", "audit"] },
-        "source": { "type": "string" },
-        "requiresOverwriteReview": { "type": "boolean" }
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "config",
+            "docs",
+            "workflow",
+            "audit"
+          ]
+        },
+        "action": {
+          "enum": [
+            "create",
+            "review",
+            "audit"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "requiresOverwriteReview": {
+          "type": "boolean"
+        }
       }
     },
     "workflowPreview": {
       "type": "object",
-      "required": ["id", "label", "path", "description", "safetyNotes"],
+      "required": [
+        "id",
+        "label",
+        "path",
+        "description",
+        "safetyNotes"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "path": { "type": "string" },
-        "description": { "type": "string" },
-        "safetyNotes": { "type": "array", "items": { "type": "string" } }
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "safetyNotes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "providerDecision": {
       "type": "object",
-      "required": ["providerId", "label", "recommendation", "requiredEnv", "externalUploadAllowedByDefault"],
+      "required": [
+        "providerId",
+        "label",
+        "recommendation",
+        "requiredEnv",
+        "externalUploadAllowedByDefault"
+      ],
       "properties": {
-        "providerId": { "type": "string" },
-        "label": { "type": "string" },
-        "recommendation": { "type": "string" },
-        "requiredEnv": { "type": "array", "items": { "type": "string" } },
-        "externalUploadAllowedByDefault": { "type": "boolean" }
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "requiredEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalUploadAllowedByDefault": {
+          "type": "boolean"
+        }
       }
     },
     "step": {
       "type": "object",
-      "required": ["id", "title", "status", "writes", "safetyNotes"],
+      "required": [
+        "id",
+        "title",
+        "status",
+        "writes",
+        "safetyNotes"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "status": { "enum": ["ready", "review", "blocked"] },
-        "command": { "type": "string" },
-        "writes": { "type": "array", "items": { "type": "string" } },
-        "safetyNotes": { "type": "array", "items": { "type": "string" } }
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "review",
+            "blocked"
+          ]
+        },
+        "command": {
+          "type": "string"
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "safetyNotes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "security": {
@@ -128,14 +312,42 @@
         "notes"
       ],
       "properties": {
-        "pullRequestPermissions": { "type": "array", "items": { "type": "string" } },
-        "pullRequestSecretsRequired": { "type": "array", "items": { "type": "string" } },
-        "scheduledSecretsRequired": { "type": "array", "items": { "type": "string" } },
-        "generatedWorkflowsUsePullRequestTarget": { "type": "boolean" },
-        "generatedPrWorkflowUsesSecrets": { "type": "boolean" },
-        "externalUploadsInPullRequest": { "type": "boolean" },
-        "issueCreationFromUntrustedPr": { "type": "boolean" },
-        "notes": { "type": "array", "items": { "type": "string" } }
+        "pullRequestPermissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pullRequestSecretsRequired": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scheduledSecretsRequired": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generatedWorkflowsUsePullRequestTarget": {
+          "type": "boolean"
+        },
+        "generatedPrWorkflowUsesSecrets": {
+          "type": "boolean"
+        },
+        "externalUploadsInPullRequest": {
+          "type": "boolean"
+        },
+        "issueCreationFromUntrustedPr": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

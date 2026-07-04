@@ -1,4 +1,3 @@
-import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   auditWorkflows,
@@ -6,9 +5,9 @@ import {
   writeWorkflowTemplates,
   writeJson,
   type WorkflowTemplateWriteResult,
-  type WorkflowAuditInputFile,
   type WorkflowAuditReport
 } from "@visual-hive/core";
+import { readWorkflowFiles, resolveWorkflowRoot } from "./workflowAuditInput.js";
 
 export interface WorkflowsCommandOptions {
   config?: string;
@@ -31,7 +30,11 @@ export interface WorkflowTemplatesWriteCommandResult {
 export async function runWorkflowsCommand(options: WorkflowsCommandOptions = {}): Promise<{ audit: WorkflowAuditReport; auditPath: string }> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config, cwd);
-  const workflowRoot = path.resolve(loaded.rootDir, options.workflowDir ?? path.join(".github", "workflows"));
+  const { workflowRoot } = await resolveWorkflowRoot({
+    configRoot: loaded.rootDir,
+    cwd,
+    workflowDir: options.workflowDir
+  });
   const files = await readWorkflowFiles(workflowRoot);
   const audit = auditWorkflows(loaded.config, files, { workflowRoot });
   const auditPath = path.join(loaded.rootDir, ".visual-hive", "workflows.json");
@@ -67,6 +70,7 @@ export function formatWorkflowsAudit(audit: WorkflowAuditReport, auditPath: stri
     `Wrote ${auditPath}`,
     `# Workflow Safety Audit: ${audit.project}`,
     "",
+    `- Scanned directory: ${audit.workflowRoot}`,
     `- Workflows: ${audit.summary.workflowCount}`,
     `- PR workflows: ${audit.summary.pullRequestWorkflows}`,
     `- Scheduled workflows: ${audit.summary.scheduledWorkflows}`,
@@ -124,23 +128,4 @@ export function formatWorkflowTemplateWrite(result: WorkflowTemplatesWriteComman
   }
   lines.push("", formatWorkflowsAudit(result.audit, result.auditPath, "markdown"));
   return lines.join("\n");
-}
-
-async function readWorkflowFiles(workflowRoot: string): Promise<WorkflowAuditInputFile[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(workflowRoot);
-  } catch {
-    return [];
-  }
-  const workflowFiles = entries.filter((entry) => entry.endsWith(".yml") || entry.endsWith(".yaml")).sort();
-  return Promise.all(
-    workflowFiles.map(async (entry) => {
-      const filePath = path.join(workflowRoot, entry);
-      return {
-        path: filePath,
-        content: await readFile(filePath, "utf8")
-      };
-    })
-  );
 }

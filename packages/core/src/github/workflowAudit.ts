@@ -153,7 +153,8 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     downloadsArtifacts: /actions\/download-artifact@/i.test(content),
     checksOutCode: /actions\/checkout@/i.test(content),
     readsIssueArtifact: /issue\.md/i.test(content),
-    readsHiveHandoffArtifacts: /evidence-packet\.json|handoff\.json|hive-bead-request\.json|hive-handoff-result\.json/i.test(content),
+    readsHiveHandoffArtifacts:
+      /evidence-packet\.json|handoff\.json|hive-bead-request\.json|hive-handoff-result\.json|hive-export\.json|guarded-repair-preview\.json|repair-request-envelope\.json|trusted-repair-consumer-summary\.json|trusted-repair-workflow-dry-run\.json/i.test(content),
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
     reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
     runsVisualHive:
@@ -315,7 +316,7 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
         "missing_handoff_artifacts",
         "high",
         "Trusted handoff workflow should read Evidence Packet and Hive handoff artifacts from uploaded .visual-hive output.",
-        "evidence-packet.json/hive-bead-request.json"
+        "evidence-packet.json/hive-export.json/guarded-repair-preview.json/repair-request-envelope.json/trusted-repair-consumer-summary.json/trusted-repair-workflow-dry-run.json"
       );
     }
     if (workflow.downloadsArtifacts && workflow.readsHiveHandoffArtifacts && !workflow.usesRecursiveArtifactDiscovery) {

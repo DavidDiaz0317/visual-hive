@@ -1,6 +1,7 @@
 import path from "node:path";
 import { sanitizeText } from "../utils/sanitize.js";
 import { writeJson, writeText } from "../utils/files.js";
+import { getEvidenceResourceById, type EvidenceResourceDefinition } from "./evidenceResources.js";
 import type { ToolAccess, ToolCostClass, ToolKind, ToolMode, ToolRegistry, ToolRegistryEntry, ToolRole, ToolRoleProfile } from "./types.js";
 
 const HUMAN_APPROVAL = [
@@ -13,6 +14,72 @@ const HUMAN_APPROVAL = [
   "workflow_write",
   "external_network_access"
 ];
+
+const MAX_TOOL_DEFINITIONS_PER_AGENT = 8;
+
+const ROLE_TOOL_PRIORITY: Record<ToolRole, string[]> = {
+  setup_agent: [
+    "visual_hive_validate_config",
+    "visual_hive_doctor",
+    "visual_hive_recommend_setup",
+    "visual_hive_read_setup_recommendations",
+    "visual_hive_read_setup_pr_plan",
+    "visual_hive_plan",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_agent_packet"
+  ],
+  repair_agent: [
+    "visual_hive_read_evidence_packet",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_read_verdict",
+    "visual_hive_read_latest_report",
+    "visual_hive_read_triage_report",
+    "visual_hive_generate_repair_prompt",
+    "visual_hive_read_missing_tests",
+    "visual_hive_list_reproduction_commands",
+    "visual_hive_read_agent_packet"
+  ],
+  test_creator: [
+    "visual_hive_read_evidence_packet",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_read_verdict",
+    "visual_hive_read_missing_tests",
+    "visual_hive_read_testing_layers",
+    "visual_hive_read_coverage_recommendations",
+    "visual_hive_read_test_creation_plan",
+    "visual_hive_read_mutation_report"
+  ],
+  review_agent: [
+    "visual_hive_read_evidence_packet",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_read_verdict",
+    "visual_hive_read_latest_report",
+    "visual_hive_read_triage_report",
+    "visual_hive_read_baseline_review",
+    "visual_hive_read_run_history",
+    "visual_hive_read_context_ledger"
+  ],
+  handoff_agent: [
+    "visual_hive_read_evidence_packet",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_read_verdict",
+    "visual_hive_read_triage_report",
+    "visual_hive_read_issue_body",
+    "visual_hive_read_pr_comment",
+    "visual_hive_generate_handoff_dry_run",
+    "visual_hive_validate_handoff"
+  ],
+  provider_specialist: [
+    "visual_hive_read_provider_results",
+    "visual_hive_read_provider_upload_manifest",
+    "visual_hive_read_provider_agent_packet",
+    "visual_hive_provider_handoff_dry_run",
+    "visual_hive_read_evidence_packet",
+    "visual_hive_read_control_plane_snapshot",
+    "visual_hive_read_verdict",
+    "visual_hive_read_context_ledger"
+  ]
+};
 
 export interface BuildToolRegistryOptions {
   project: string;
@@ -34,7 +101,7 @@ export function buildToolRegistry(options: BuildToolRegistryOptions): ToolRegist
     policy: {
       defaultPolicy: "gated",
       exposeThirdPartyMcp: false,
-      maxToolDefinitionsPerAgent: 8,
+      maxToolDefinitionsPerAgent: MAX_TOOL_DEFINITIONS_PER_AGENT,
       maxToolCallsPerTask: 20,
       maxToolResultTokensPerTask: 12000,
       maxExternalCostUsdPerTask: 0,
@@ -127,15 +194,78 @@ function allTools(): ToolRegistryEntry[] {
     cli("visual_hive_doctor", "Doctor", "Validate config and local prerequisites.", "read_only", "local", ["setup_agent", "review_agent"], ["local", "pr", "schedule", "manual"], "visual-hive doctor", [".visual-hive/readiness.json"]),
     cli("visual_hive_validate_config", "Validate config", "Validate Visual Hive config without executing target code.", "read_only", "local", ["setup_agent", "review_agent"], ["local", "pr", "schedule", "manual"], "visual-hive doctor", []),
     cli("visual_hive_recommend_setup", "Recommend setup", "Inspect repository hints and generate no-network setup recommendations.", "read_only", "local", ["setup_agent", "review_agent"], ["local", "pr"], "visual-hive recommend", [".visual-hive/recommendations.json", ".visual-hive/setup-pr-plan.json"]),
+    evidenceCli("setup-recommendations", ["setup_agent", "review_agent"], ["local", "pr", "manual"], { writes: [] }),
+    evidenceCli("setup-pr-plan", ["setup_agent", "review_agent"], ["local", "pr", "manual"], { writes: [] }),
     cli("visual_hive_plan", "Plan checks", "Plan contracts from changed files, risk, target safety, and cost.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent"], ["local", "pr", "schedule", "manual"], "visual-hive plan", [".visual-hive/plan.json"]),
-    cli("visual_hive_read_latest_report", "Read latest report", "Read deterministic report evidence without scraping CI logs.", "read_only", "local", ["repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], "visual-hive report", [".visual-hive/report.json"]),
-    cli("visual_hive_read_evidence_packet", "Read Evidence Packet", "Read the canonical sanitized evidence contract.", "read_only", "local", ["repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], "visual-hive evidence", [".visual-hive/evidence-packet.json"]),
+    evidenceCli("plan-lanes", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("latest-report", ["repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"]),
+    evidenceCli("latest-evidence", ["repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"]),
+    evidenceCli(
+      "control-plane-snapshot",
+      ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"],
+      ["local", "pr", "schedule", "manual"]
+    ),
+    evidenceCli("latest-verdict", ["repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], {
+      writes: []
+    }),
+    evidenceCli("readiness-gate", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("run-history", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("workflow-audit", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("baseline-review", ["repair_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("baseline-approvals", ["review_agent", "handoff_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("baseline-rejections", ["review_agent", "handoff_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("testing-layers", ["test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("coverage-recommendations", ["test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("test-creation-plan", ["test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     cli("visual_hive_explain_failure", "Explain failure", "Use triage and report artifacts to explain likely deterministic failure causes.", "read_only", "local", ["repair_agent", "review_agent"], ["local", "pr", "schedule", "manual"], "visual-hive triage", [".visual-hive/triage.json", ".visual-hive/issue.md"]),
     cli("visual_hive_list_reproduction_commands", "List reproduction commands", "List focused commands from reports and Agent Packets.", "read_only", "local", ["repair_agent", "test_creator", "review_agent"], ["local", "pr_debug", "schedule", "manual"], "visual-hive report", [".visual-hive/report.json"]),
-    cli("visual_hive_generate_repair_prompt", "Generate repair prompt", "Generate sanitized repair guidance from deterministic evidence.", "read_only", "local", ["repair_agent"], ["local", "pr", "schedule", "manual"], "visual-hive triage", [".visual-hive/repair-prompt.md"]),
-    cli("visual_hive_generate_handoff_dry_run", "Generate handoff dry run", "Write local GitHub/Hive handoff artifacts with zero external calls.", "read_only", "local", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], "visual-hive handoff --dry-run", [".visual-hive/handoff.json", ".visual-hive/hive-issue.md"]),
-    cli("visual_hive_validate_handoff", "Validate handoff artifacts", "Validate Evidence Packet and Hive handoff artifacts before trusted workflow consumption; no external calls are made.", "read_only", "local", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], "visual-hive handoff-validate", [".visual-hive/hive-handoff-validation.json"]),
-    cli("visual_hive_agent_packet", "Generate Agent Packet", "Write a bounded role-specific packet for an agent.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], "visual-hive agent-packet", [".visual-hive/agent-packet.json"]),
+    evidenceCli("triage-report", ["repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("issue-body", ["repair_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("pr-comment", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("triage-prompt", ["repair_agent", "review_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("repair-prompt", ["repair_agent"], ["local", "pr", "schedule", "manual"]),
+    evidenceCli("missing-tests", ["test_creator", "repair_agent", "review_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("mutation-report", ["repair_agent", "test_creator", "review_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("latest-handoff", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], {
+      writes: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md"],
+      evidenceArtifacts: [".visual-hive/handoff.json"]
+    }),
+    evidenceCli("handoff-validation", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"]),
+    evidenceCli("hive-export", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-beads", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-knowledge-facts", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-knowledge-graph", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-repair-work-orders", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-agent-policy", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-guarded-repair-preview", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-repair-request-envelope", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-trusted-repair-consumer-summary", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-trusted-repair-workflow-dry-run", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-mode-comparison", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("agent-packet", ["repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], {
+      writes: []
+    }),
+    evidenceCli("handoff-agent-packet", ["handoff_agent", "review_agent"], ["local", "pr", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("provider-agent-packet", ["provider_specialist", "review_agent"], ["local", "pr", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("tool-registry", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("context-ledger", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("artifacts-index", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    cli("visual_hive_agent_packet", "Generate Agent Packet", "Write a bounded role-specific packet for an agent.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], "visual-hive agent-packet", [".visual-hive/agent-packet.json"]),
+    evidenceCli("provider-results", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("provider-upload-argos-manifest", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("pipeline-status", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("schema-catalog", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    cli("visual_hive_provider_handoff_dry_run", "Provider handoff dry run", "Review provider upload eligibility, blocked reasons, required credential names, and trusted workflow steps without making external calls.", "read_only", "local", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], "visual-hive providers handoff --provider argos", [".visual-hive/provider-handoff.json"], {
+      writeRestrictions: ["Writes local provider handoff evidence only. Does not upload screenshots or enable provider gating."]
+    }),
     cli("visual_hive_run", "Run deterministic checks", "Run Playwright-backed deterministic checks; execution must be explicit.", "local_execution", "local", ["repair_agent"], ["local", "pr_debug", "schedule", "manual"], "visual-hive run", [".visual-hive/report.json"], { trustedOnly: false, writeRestrictions: ["Do not run protected targets from untrusted PRs.", "Do not approve baselines."] }),
     cli("visual_hive_mutate", "Run mutation checks", "Run mutation adequacy checks to verify contracts catch intentional breakage.", "local_execution", "local", ["test_creator", "repair_agent"], ["local", "schedule", "manual"], "visual-hive mutate", [".visual-hive/mutation-report.json"], { trustedOnly: false }),
     cli("visual_hive_update_baseline", "Update baseline", "Approve or reject screenshot baselines after human review.", "trusted_write", "local", ["review_agent"], ["manual", "trusted"], "visual-hive baselines approve|reject", [".visual-hive/baseline-approvals.json", ".visual-hive/baseline-rejections.json"], {
@@ -162,7 +292,9 @@ function allTools(): ToolRegistryEntry[] {
       forbiddenInPullRequest: true,
       writeRestrictions: ["Disabled by default.", "Requires explicit credentials, cost policy, and trusted lane."]
     }),
-    mcp("visual_hive_mcp", "Visual Hive MCP", "Planned first-party MCP adapter over the same CLI/JSON artifacts.", "first_party_mcp", "local", true, ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr_debug", "schedule", "manual"], "visual-hive", "planned"),
+    mcp("visual_hive_mcp", "Visual Hive MCP", "First-party MCP adapter over the same CLI/JSON artifacts.", "first_party_mcp", "local", false, ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent"], ["local", "pr_debug", "schedule", "manual"], "visual-hive", "available", {
+      enabled: true
+    }),
     mcp("playwright_accessibility_snapshot", "Playwright accessibility snapshot", "Optional local MCP for scoped DOM/accessibility inspection when authoring or repairing contracts.", "local_mcp", "local", false, ["repair_agent", "test_creator"], ["local", "pr_debug", "schedule"], "playwright", "disabled"),
     mcp("storybook_component_index", "Storybook component index", "Optional local component/story context for Storybook-heavy repos.", "local_mcp", "local", false, ["test_creator", "review_agent"], ["local", "pr_debug"], "storybook", "disabled"),
     mcp("github_read_only", "GitHub read-only", "Optional read-only PR/check/issue context when local artifacts are insufficient.", "github_mcp", "external_api", false, ["review_agent", "handoff_agent"], ["trusted", "manual"], "github", "disabled", { externalNetwork: true }),
@@ -177,6 +309,70 @@ function allTools(): ToolRegistryEntry[] {
   ];
 }
 
+type EvidenceCliOptions = Partial<
+  Pick<ToolRegistryEntry, "trustedOnly" | "externalNetwork" | "requiresHumanApproval" | "forbiddenInPullRequest" | "writeRestrictions" | "reads" | "evidenceArtifacts" | "notes">
+> & {
+  writes?: string[];
+};
+
+function evidenceCli(resourceId: string, roles: ToolRole[], modes: ToolMode[], options: EvidenceCliOptions = {}): ToolRegistryEntry {
+  const resource = getRequiredEvidenceReadResource(resourceId);
+  const writes = options.writes ?? [resource.relativePath];
+  const reads = options.reads ?? (writes.length ? undefined : [resource.relativePath]);
+  const cliOptions: Partial<
+    Pick<
+      ToolRegistryEntry,
+      | "trustedOnly"
+      | "externalNetwork"
+      | "requiresHumanApproval"
+      | "forbiddenInPullRequest"
+      | "writeRestrictions"
+      | "reads"
+      | "evidenceArtifacts"
+      | "evidenceResourceId"
+      | "evidenceResourceUri"
+      | "evidenceResourceTitle"
+      | "evidenceResourceDescription"
+      | "evidenceReadToolName"
+      | "notes"
+    >
+  > = {
+    evidenceArtifacts: options.evidenceArtifacts ?? [resource.relativePath],
+    evidenceResourceId: resource.id,
+    evidenceResourceUri: resource.uri,
+    evidenceResourceTitle: resource.title,
+    evidenceResourceDescription: resource.description,
+    evidenceReadToolName: resource.readTool.name,
+    writeRestrictions: options.writeRestrictions ?? resource.readTool.writeRestrictions,
+    trustedOnly: options.trustedOnly,
+    externalNetwork: options.externalNetwork,
+    requiresHumanApproval: options.requiresHumanApproval,
+    forbiddenInPullRequest: options.forbiddenInPullRequest,
+    notes: options.notes ?? [`Catalog resource: ${resource.uri}`]
+  };
+  if (reads) cliOptions.reads = reads;
+  return cli(
+    resource.readTool.name,
+    resource.readTool.title,
+    resource.readTool.description,
+    "read_only",
+    "local",
+    roles,
+    modes,
+    resource.readTool.command ?? `visual-hive mcp/read ${resource.name}`,
+    writes,
+    cliOptions
+  );
+}
+
+function getRequiredEvidenceReadResource(resourceId: string): EvidenceResourceDefinition & { readTool: NonNullable<EvidenceResourceDefinition["readTool"]> } {
+  const resource = getEvidenceResourceById(resourceId);
+  if (!resource?.readTool) {
+    throw new Error(`Evidence resource ${resourceId} is missing read-tool metadata.`);
+  }
+  return resource as EvidenceResourceDefinition & { readTool: NonNullable<EvidenceResourceDefinition["readTool"]> };
+}
+
 function cli(
   id: string,
   label: string,
@@ -187,7 +383,24 @@ function cli(
   modes: ToolMode[],
   command: string,
   writes: string[],
-  options: Partial<Pick<ToolRegistryEntry, "trustedOnly" | "externalNetwork" | "requiresHumanApproval" | "forbiddenInPullRequest" | "writeRestrictions">> = {}
+  options: Partial<
+    Pick<
+      ToolRegistryEntry,
+      | "trustedOnly"
+      | "externalNetwork"
+      | "requiresHumanApproval"
+      | "forbiddenInPullRequest"
+      | "writeRestrictions"
+      | "reads"
+      | "evidenceArtifacts"
+      | "evidenceResourceId"
+      | "evidenceResourceUri"
+      | "evidenceResourceTitle"
+      | "evidenceResourceDescription"
+      | "evidenceReadToolName"
+      | "notes"
+    >
+  > = {}
 ): ToolRegistryEntry {
   return entry({
     id,
@@ -216,15 +429,15 @@ function mcp(
   roles: ToolRole[],
   modes: ToolMode[],
   server: string,
-  status: "planned" | "disabled",
-  options: Partial<Pick<ToolRegistryEntry, "externalNetwork" | "requiresHumanApproval" | "forbiddenInPullRequest" | "writeRestrictions">> = {}
+  status: "available" | "planned" | "disabled",
+  options: Partial<Pick<ToolRegistryEntry, "enabled" | "externalNetwork" | "requiresHumanApproval" | "forbiddenInPullRequest" | "writeRestrictions">> = {}
 ): ToolRegistryEntry {
   return entry({
     id,
     label,
     description,
     kind,
-    enabled: false,
+    enabled: options.enabled ?? false,
     defaultAccess: "read_only",
     costClass,
     trustedOnly,
@@ -240,7 +453,7 @@ function mcp(
 function entry(input: Partial<ToolRegistryEntry> & Pick<ToolRegistryEntry, "id" | "label" | "description" | "kind" | "enabled" | "defaultAccess" | "costClass" | "allowedRoles" | "allowedModes">): ToolRegistryEntry {
   const trustedOnly = input.trustedOnly ?? (input.defaultAccess === "trusted_write" || input.defaultAccess === "external_upload");
   const externalNetwork = input.externalNetwork ?? (input.costClass !== "local");
-  return {
+  const result: ToolRegistryEntry = {
     id: input.id,
     label: input.label,
     description: input.description,
@@ -259,9 +472,15 @@ function entry(input: Partial<ToolRegistryEntry> & Pick<ToolRegistryEntry, "id" 
     reads: input.reads ?? [],
     writes: input.writes ?? [],
     writeRestrictions: input.writeRestrictions ?? ["Use only when the current Agent Packet allows this tool."],
-    evidenceArtifacts: input.writes ?? [],
+    evidenceArtifacts: input.evidenceArtifacts ?? input.writes ?? [],
     notes: input.notes ?? []
   };
+  if (input.evidenceResourceId) result.evidenceResourceId = input.evidenceResourceId;
+  if (input.evidenceResourceUri) result.evidenceResourceUri = input.evidenceResourceUri;
+  if (input.evidenceResourceTitle) result.evidenceResourceTitle = input.evidenceResourceTitle;
+  if (input.evidenceResourceDescription) result.evidenceResourceDescription = input.evidenceResourceDescription;
+  if (input.evidenceReadToolName) result.evidenceReadToolName = input.evidenceReadToolName;
+  return result;
 }
 
 function roleProfiles(tools: ToolRegistryEntry[]): ToolRoleProfile[] {
@@ -270,11 +489,7 @@ function roleProfiles(tools: ToolRegistryEntry[]): ToolRoleProfile[] {
     purpose,
     trustedOnly,
     requiresBudget,
-    allowedToolIds: tools
-      .filter((tool) => tool.allowedRoles.includes(role))
-      .filter((tool) => !tool.trustedOnly || trustedOnly)
-      .slice(0, 8)
-      .map((tool) => tool.id),
+    allowedToolIds: selectRoleToolIds(tools, role, trustedOnly),
     forbiddenActions
   });
   return [
@@ -285,6 +500,24 @@ function roleProfiles(tools: ToolRegistryEntry[]): ToolRoleProfile[] {
     profile("handoff_agent", "Prepare trusted GitHub/Hive handoff from sanitized artifacts.", ["execute.prCode", "read.secrets"], true),
     profile("provider_specialist", "Review optional provider setup/results under explicit budget and trusted policy.", ["run.untrustedPrUpload", "make.provider.gating.by.default"], true, true)
   ];
+}
+
+function selectRoleToolIds(tools: ToolRegistryEntry[], role: ToolRole, includeTrustedTools: boolean): string[] {
+  const priority = new Map(ROLE_TOOL_PRIORITY[role].map((id, index) => [id, index]));
+  const declarationOrder = new Map(tools.map((tool, index) => [tool.id, index]));
+  return tools
+    .filter((tool) => tool.allowedRoles.includes(role))
+    .filter((tool) => !tool.trustedOnly || includeTrustedTools)
+    .sort((left, right) => {
+      const leftRank = priority.get(left.id);
+      const rightRank = priority.get(right.id);
+      if (leftRank !== undefined || rightRank !== undefined) {
+        return (leftRank ?? Number.MAX_SAFE_INTEGER) - (rightRank ?? Number.MAX_SAFE_INTEGER);
+      }
+      return (declarationOrder.get(left.id) ?? 0) - (declarationOrder.get(right.id) ?? 0);
+    })
+    .slice(0, MAX_TOOL_DEFINITIONS_PER_AGENT)
+    .map((tool) => tool.id);
 }
 
 function resolve(rootDir: string, artifactPath: string): string {

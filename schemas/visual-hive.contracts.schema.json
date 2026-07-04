@@ -4,12 +4,33 @@
   "title": "Visual Hive Contract Audit",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "summary", "contracts"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "summary",
+    "contracts"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "pr",
+        "schedule",
+        "manual",
+        "canary",
+        "mutation",
+        "full"
+      ]
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -25,16 +46,36 @@
         "contractsWithHighSeverityGaps"
       ],
       "properties": {
-        "contractCount": { "type": "number" },
-        "selectedContracts": { "type": "number" },
-        "notRunContracts": { "type": "number" },
-        "failedContracts": { "type": "number" },
-        "assertionFreeContracts": { "type": "number" },
-        "screenshotlessContracts": { "type": "number" },
-        "contractsWithoutWaitFor": { "type": "number" },
-        "contractsWithoutChangedFileRules": { "type": "number" },
-        "mutationMappedContracts": { "type": "number" },
-        "contractsWithHighSeverityGaps": { "type": "number" }
+        "contractCount": {
+          "type": "number"
+        },
+        "selectedContracts": {
+          "type": "number"
+        },
+        "notRunContracts": {
+          "type": "number"
+        },
+        "failedContracts": {
+          "type": "number"
+        },
+        "assertionFreeContracts": {
+          "type": "number"
+        },
+        "screenshotlessContracts": {
+          "type": "number"
+        },
+        "contractsWithoutWaitFor": {
+          "type": "number"
+        },
+        "contractsWithoutChangedFileRules": {
+          "type": "number"
+        },
+        "mutationMappedContracts": {
+          "type": "number"
+        },
+        "contractsWithHighSeverityGaps": {
+          "type": "number"
+        }
       }
     },
     "contracts": {
@@ -66,13 +107,27 @@
           "recommendations"
         ],
         "properties": {
-          "flowStepCount": { "type": "number" },
-          "latestStatus": { "enum": ["passed", "failed", "created", "skipped", "not_run"] },
+          "flowStepCount": {
+            "type": "number"
+          },
+          "latestStatus": {
+            "enum": [
+              "passed",
+              "failed",
+              "created",
+              "skipped",
+              "not_run"
+            ]
+          },
           "gaps": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kind", "severity", "message"],
+              "required": [
+                "kind",
+                "severity",
+                "message"
+              ],
               "properties": {
                 "kind": {
                   "enum": [
@@ -86,8 +141,16 @@
                     "no_mutation_mapping"
                   ]
                 },
-                "severity": { "enum": ["low", "medium", "high"] },
-                "message": { "type": "string" }
+                "severity": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
               }
             }
           }

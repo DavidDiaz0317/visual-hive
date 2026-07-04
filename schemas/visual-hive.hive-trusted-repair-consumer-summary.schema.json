@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-trusted-repair-consumer-summary.schema.json",
+  "title": "Visual Hive Hive Trusted Repair Consumer Summary",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "outputResource",
+    "policy",
+    "readiness",
+    "summary",
+    "consumerActions",
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "visual-hive.hive-trusted-repair-consumer-summary.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": [
+        "repairRequestEnvelope",
+        "guardedRepairPreview",
+        "hiveExport",
+        "repairWorkOrders",
+        "agentPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repairRequestEnvelope": {
+          "type": "string"
+        },
+        "guardedRepairPreview": {
+          "type": "string"
+        },
+        "hiveExport": {
+          "type": "string"
+        },
+        "repairWorkOrders": {
+          "type": "string"
+        },
+        "agentPolicy": {
+          "type": "string"
+        },
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": [
+        "summary",
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      }
+    },
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactKey",
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactKey": {
+          "const": "summary"
+        },
+        "artifactPath": {
+          "const": ".visual-hive/hive/trusted-repair-consumer-summary.json"
+        },
+        "evidenceResourceId": {
+          "const": "hive-trusted-repair-consumer-summary"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://hive-trusted-repair-consumer-summary"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_hive_trusted_repair_consumer_summary"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "verdictAuthority",
+        "consumerExecution",
+        "repairExecution",
+        "checkoutCode",
+        "branchCreation",
+        "pullRequestCreation",
+        "issueCreation",
+        "hiveNetworkCalls",
+        "providerCalls",
+        "visualHiveRerun",
+        "requiresTrustedWorkflow",
+        "secretsPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "consumerExecution": {
+          "const": "dry_run_summary_only"
+        },
+        "repairExecution": {
+          "const": "not_executed_by_visual_hive"
+        },
+        "checkoutCode": {
+          "const": false
+        },
+        "branchCreation": {
+          "const": false
+        },
+        "pullRequestCreation": {
+          "const": false
+        },
+        "issueCreation": {
+          "const": false
+        },
+        "hiveNetworkCalls": {
+          "const": false
+        },
+        "providerCalls": {
+          "const": false
+        },
+        "visualHiveRerun": {
+          "const": false
+        },
+        "requiresTrustedWorkflow": {
+          "const": true
+        },
+        "secretsPolicy": {
+          "const": "names_only_values_redacted"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "canStartTrustedRepairWorkflow",
+        "blockedReasons",
+        "requiredApprovals",
+        "requiredCommands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canStartTrustedRepairWorkflow": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredApprovals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "requestedRepairs",
+        "readyRepairs",
+        "blockedRepairs",
+        "branchesToCreate",
+        "pullRequestsToOpen",
+        "externalCallsMade"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requestedRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readyRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedRepairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "branchesToCreate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pullRequestsToOpen": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsMade": {
+          "const": 0
+        }
+      }
+    },
+    "consumerActions": {
+      "type": "object",
+      "required": [
+        "wouldCheckoutCode",
+        "wouldExecuteRepair",
+        "wouldCreateBranches",
+        "wouldOpenPullRequests",
+        "wouldCreateIssues",
+        "wouldCallHiveApi",
+        "wouldCallProviders",
+        "wouldRunVisualHive"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "wouldCheckoutCode": {
+          "const": false
+        },
+        "wouldExecuteRepair": {
+          "const": false
+        },
+        "wouldCreateBranches": {
+          "const": false
+        },
+        "wouldOpenPullRequests": {
+          "const": false
+        },
+        "wouldCreateIssues": {
+          "const": false
+        },
+        "wouldCallHiveApi": {
+          "const": false
+        },
+        "wouldCallProviders": {
+          "const": false
+        },
+        "wouldRunVisualHive": {
+          "const": false
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "actor",
+        "status",
+        "branchName",
+        "pullRequestTitle",
+        "labels",
+        "allowedFiles",
+        "artifacts",
+        "reproductionCommands",
+        "acceptanceCriteria",
+        "finalValidationCommand",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "branchName": {
+          "type": "string"
+        },
+        "pullRequestTitle": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "finalValidationCommand": {
+          "type": "string"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

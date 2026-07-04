@@ -18,50 +18,103 @@
     "steps"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
-      "enum": ["not_started", "in_progress", "attention", "ready"]
+      "enum": [
+        "not_started",
+        "in_progress",
+        "attention",
+        "ready"
+      ]
     },
-    "phase": { "type": "string" },
+    "phase": {
+      "type": "string"
+    },
     "percentComplete": {
       "type": "integer",
       "minimum": 0,
       "maximum": 100
     },
-    "completedSteps": { "type": "integer", "minimum": 0 },
-    "totalSteps": { "type": "integer", "minimum": 0 },
-    "reviewSteps": { "type": "integer", "minimum": 0 },
-    "blockedSteps": { "type": "integer", "minimum": 0 },
-    "nextStep": { "$ref": "#/$defs/step" },
+    "completedSteps": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "totalSteps": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reviewSteps": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blockedSteps": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nextStep": {
+      "$ref": "#/$defs/step"
+    },
     "steps": {
       "type": "array",
-      "items": { "$ref": "#/$defs/step" }
+      "items": {
+        "$ref": "#/$defs/step"
+      }
     }
   },
   "$defs": {
     "step": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "status", "description", "evidence", "artifacts"],
+      "required": [
+        "id",
+        "label",
+        "status",
+        "description",
+        "evidence",
+        "artifacts"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
         "status": {
           "type": "string",
-          "enum": ["complete", "pending", "review", "blocked"]
+          "enum": [
+            "complete",
+            "pending",
+            "review",
+            "blocked"
+          ]
         },
-        "description": { "type": "string" },
+        "description": {
+          "type": "string"
+        },
         "evidence": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "command": { "type": "string" },
+        "command": {
+          "type": "string"
+        },
         "artifacts": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

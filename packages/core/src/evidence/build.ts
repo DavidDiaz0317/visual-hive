@@ -216,7 +216,26 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
         message: provider.message,
         requiredEnv: provider.requiredEnv,
         missingEnv: provider.missingEnv,
-        artifactCount: provider.artifactCount
+        artifactCount: provider.artifactCount,
+        externalUrl: provider.externalUrl,
+        externalUploadAllowed: provider.externalUploadAllowed,
+        externalUploadBlockedReasons: provider.externalUploadBlockedReasons,
+        estimatedExternalScreenshots: provider.estimatedExternalScreenshots,
+        upload: provider.upload
+          ? {
+              status: provider.upload.status,
+              externalCallsMade: provider.upload.externalCallsMade,
+              uploadedArtifacts: provider.upload.uploadedArtifacts,
+              stagedArtifacts: provider.upload.stagedArtifacts,
+              manifestPath: provider.upload.manifestPath,
+              uploadDirectory: provider.upload.uploadDirectory,
+              command: provider.upload.command,
+              stdout: provider.upload.stdout,
+              stderr: provider.upload.stderr,
+              providerUrl: provider.upload.providerUrl,
+              blockedReasons: provider.upload.blockedReasons ?? []
+            }
+          : undefined
       }))
     ) as EvidencePacket["providers"],
     triage: triageReport
@@ -522,10 +541,10 @@ function contributionsFromMutation(mutationReport?: MutationReport): EvidenceCon
 }
 
 function contributionsFromProviders(providers: ProviderResult[], mode?: string): EvidenceContributionInput[] {
-  return providers.map((provider) => {
+  return providers.flatMap((provider) => {
     const gating = provider.deterministicRole === "oracle";
     const status = provider.status === "failed" ? "failed" : provider.status === "passed" ? "passed" : gating ? "blocked" : "skipped";
-    return {
+    const contributions: EvidenceContributionInput[] = [{
       source: "provider",
       kind: "normalized_provider_result",
       status,
@@ -534,8 +553,40 @@ function contributionsFromProviders(providers: ProviderResult[], mode?: string):
       providerId: provider.providerId,
       reason: provider.message,
       artifacts: []
-    };
+    }];
+    if (provider.upload) {
+      const uploadStatus = provider.upload.status;
+      const uploadContributionStatus =
+        uploadStatus === "uploaded"
+          ? "warning"
+          : uploadStatus === "failed" || uploadStatus === "blocked" || uploadStatus === "missing_credentials"
+            ? "blocked"
+            : "skipped";
+      contributions.push({
+        source: "provider",
+        kind: "provider_upload",
+        status: uploadContributionStatus,
+        gating: gating && uploadContributionStatus === "blocked",
+        mode,
+        providerId: provider.providerId,
+        reason: providerUploadReason(provider),
+        artifacts: [provider.upload.manifestPath, provider.upload.uploadDirectory].filter((artifact): artifact is string => Boolean(artifact))
+      });
+    }
+    return contributions;
   });
+}
+
+function providerUploadReason(provider: ProviderResult): string {
+  const upload = provider.upload;
+  if (!upload) return `${provider.label} upload evidence is not available.`;
+  const detail = upload.blockedReasons?.length ? ` ${upload.blockedReasons.join("; ")}` : "";
+  if (upload.status === "uploaded") return `${provider.label} uploaded ${upload.uploadedArtifacts} artifact(s); provider evidence remains policy-gated.`;
+  if (upload.status === "dry_run") return `${provider.label} dry run staged ${upload.stagedArtifacts} artifact(s) without external calls.`;
+  if (upload.status === "failed") return `${provider.label} upload command failed.${detail}`;
+  if (upload.status === "missing_credentials") return `${provider.label} upload is missing required credential name(s).${detail}`;
+  if (upload.status === "blocked") return `${provider.label} upload is blocked by policy.${detail}`;
+  return `${provider.label} upload was skipped.${detail}`;
 }
 
 function contributionsFromReadiness(readiness?: { status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }): EvidenceContributionInput[] {

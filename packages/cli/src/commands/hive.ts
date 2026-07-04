@@ -3,14 +3,30 @@ import {
   loadConfig,
   readEvidencePacket,
   readJson,
+  renderHiveGuardedRepairPreviewSummary,
   renderHiveModeComparisonSummary,
+  renderHiveRepairRequestEnvelopeSummary,
+  renderHiveTrustedRepairConsumerSummary,
+  renderHiveTrustedRepairWorkflowDryRun,
   renderHiveExportSummary,
+  writeHiveGuardedRepairPreview,
   writeHiveModeComparison,
+  writeHiveRepairRequestEnvelope,
+  writeHiveTrustedRepairConsumerSummary,
+  writeHiveTrustedRepairWorkflowDryRun,
   writeHiveExportArtifacts,
   type HandoffPacket,
+  type HiveExportBundle,
+  type HiveGuardedRepairPreview,
+  type HiveRepairRequestEnvelope,
+  type HiveTrustedRepairConsumerSummary,
   type HiveConfiguredMode,
   type HiveAutomationMode,
+  type WriteHiveGuardedRepairPreviewResult,
   type WriteHiveModeComparisonResult,
+  type WriteHiveRepairRequestEnvelopeResult,
+  type WriteHiveTrustedRepairConsumerSummaryResult,
+  type WriteHiveTrustedRepairWorkflowDryRunResult,
   type WriteHiveExportResult
 } from "@visual-hive/core";
 
@@ -27,6 +43,10 @@ export interface HiveExportCommandOptions {
 
 export type HiveExportCommandResult = WriteHiveExportResult;
 export type HiveModeComparisonCommandResult = WriteHiveModeComparisonResult;
+export type HiveGuardedRepairPreviewCommandResult = WriteHiveGuardedRepairPreviewResult;
+export type HiveRepairRequestEnvelopeCommandResult = WriteHiveRepairRequestEnvelopeResult;
+export type HiveTrustedRepairConsumerSummaryCommandResult = WriteHiveTrustedRepairConsumerSummaryResult;
+export type HiveTrustedRepairWorkflowDryRunCommandResult = WriteHiveTrustedRepairWorkflowDryRunResult;
 
 export async function runHiveExportCommand(options: HiveExportCommandOptions = {}): Promise<HiveExportCommandResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -61,6 +81,166 @@ export async function runHiveExportCommand(options: HiveExportCommandOptions = {
 
 export function formatHiveExport(result: HiveExportCommandResult, format: "markdown" | "json" = "markdown"): string {
   return renderHiveExportSummary(result, format);
+}
+
+export interface HiveGuardedRepairPreviewCommandOptions {
+  config?: string;
+  cwd?: string;
+  hiveExport?: string;
+  outputDir?: string;
+  format?: "markdown" | "json";
+}
+
+export async function runHiveGuardedRepairPreviewCommand(options: HiveGuardedRepairPreviewCommandOptions = {}): Promise<HiveGuardedRepairPreviewCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  const hiveExportArtifactPath = options.hiveExport ?? path.join(".visual-hive", "hive", "hive-export.json");
+  const hiveExportPath = path.resolve(loaded.rootDir, hiveExportArtifactPath);
+  let hiveExport;
+  try {
+    hiveExport = await readJson<HiveExportBundle>(hiveExportPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Missing or invalid Hive export at ${hiveExportPath}. Run "visual-hive hive export --dry-run --mode repair_request" before "visual-hive hive guarded-repair-preview". Details: ${message}`);
+  }
+  if (hiveExport.schemaVersion !== "visual-hive.hive-export.v1") {
+    throw new Error(`Invalid Hive export schemaVersion at ${hiveExportPath}. Expected visual-hive.hive-export.v1.`);
+  }
+
+  return writeHiveGuardedRepairPreview({
+    rootDir: loaded.rootDir,
+    hiveExport,
+    hiveExportPath: hiveExportArtifactPath.replaceAll(path.sep, "/"),
+    outputDir: options.outputDir ?? path.join(".visual-hive", "hive")
+  });
+}
+
+export function formatHiveGuardedRepairPreview(result: HiveGuardedRepairPreviewCommandResult, format: "markdown" | "json" = "markdown"): string {
+  return renderHiveGuardedRepairPreviewSummary(result, format);
+}
+
+export interface HiveRepairRequestEnvelopeCommandOptions {
+  config?: string;
+  cwd?: string;
+  guardedRepairPreview?: string;
+  outputDir?: string;
+  format?: "markdown" | "json";
+}
+
+export async function runHiveRepairRequestEnvelopeCommand(options: HiveRepairRequestEnvelopeCommandOptions = {}): Promise<HiveRepairRequestEnvelopeCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  const previewArtifactPath = options.guardedRepairPreview ?? path.join(".visual-hive", "hive", "guarded-repair-preview.json");
+  const previewPath = path.resolve(loaded.rootDir, previewArtifactPath);
+  let guardedRepairPreview;
+  try {
+    guardedRepairPreview = await readJson<HiveGuardedRepairPreview>(previewPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Missing or invalid guarded repair preview at ${previewPath}. Run "visual-hive hive guarded-repair-preview" before "visual-hive hive repair-request-envelope". Details: ${message}`
+    );
+  }
+  if (guardedRepairPreview.schemaVersion !== "visual-hive.hive-guarded-repair-preview.v1") {
+    throw new Error(`Invalid guarded repair preview schemaVersion at ${previewPath}. Expected visual-hive.hive-guarded-repair-preview.v1.`);
+  }
+
+  return writeHiveRepairRequestEnvelope({
+    rootDir: loaded.rootDir,
+    guardedRepairPreview,
+    guardedRepairPreviewPath: previewArtifactPath.replaceAll(path.sep, "/"),
+    outputDir: options.outputDir ?? path.join(".visual-hive", "hive")
+  });
+}
+
+export function formatHiveRepairRequestEnvelope(result: HiveRepairRequestEnvelopeCommandResult, format: "markdown" | "json" = "markdown"): string {
+  return renderHiveRepairRequestEnvelopeSummary(result, format);
+}
+
+export interface HiveTrustedRepairConsumerSummaryCommandOptions {
+  config?: string;
+  cwd?: string;
+  repairRequestEnvelope?: string;
+  outputDir?: string;
+  format?: "markdown" | "json";
+}
+
+export async function runHiveTrustedRepairConsumerSummaryCommand(
+  options: HiveTrustedRepairConsumerSummaryCommandOptions = {}
+): Promise<HiveTrustedRepairConsumerSummaryCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  const envelopeArtifactPath = options.repairRequestEnvelope ?? path.join(".visual-hive", "hive", "repair-request-envelope.json");
+  const envelopePath = path.resolve(loaded.rootDir, envelopeArtifactPath);
+  let repairRequestEnvelope;
+  try {
+    repairRequestEnvelope = await readJson<HiveRepairRequestEnvelope>(envelopePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Missing or invalid repair request envelope at ${envelopePath}. Run "visual-hive hive repair-request-envelope" before "visual-hive hive trusted-repair-consumer-summary". Details: ${message}`
+    );
+  }
+  if (repairRequestEnvelope.schemaVersion !== "visual-hive.hive-repair-request-envelope.v1") {
+    throw new Error(`Invalid repair request envelope schemaVersion at ${envelopePath}. Expected visual-hive.hive-repair-request-envelope.v1.`);
+  }
+
+  return writeHiveTrustedRepairConsumerSummary({
+    rootDir: loaded.rootDir,
+    repairRequestEnvelope,
+    repairRequestEnvelopePath: envelopeArtifactPath.replaceAll(path.sep, "/"),
+    outputDir: options.outputDir ?? path.join(".visual-hive", "hive")
+  });
+}
+
+export function formatHiveTrustedRepairConsumerSummary(
+  result: HiveTrustedRepairConsumerSummaryCommandResult,
+  format: "markdown" | "json" = "markdown"
+): string {
+  return renderHiveTrustedRepairConsumerSummary(result, format);
+}
+
+export interface HiveTrustedRepairWorkflowDryRunCommandOptions {
+  config?: string;
+  cwd?: string;
+  trustedRepairConsumerSummary?: string;
+  outputDir?: string;
+  format?: "markdown" | "json";
+}
+
+export async function runHiveTrustedRepairWorkflowDryRunCommand(
+  options: HiveTrustedRepairWorkflowDryRunCommandOptions = {}
+): Promise<HiveTrustedRepairWorkflowDryRunCommandResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const loaded = await loadConfig(options.config, cwd);
+  const summaryArtifactPath = options.trustedRepairConsumerSummary ?? path.join(".visual-hive", "hive", "trusted-repair-consumer-summary.json");
+  const summaryPath = path.resolve(loaded.rootDir, summaryArtifactPath);
+  let trustedRepairConsumerSummary;
+  try {
+    trustedRepairConsumerSummary = await readJson<HiveTrustedRepairConsumerSummary>(summaryPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Missing or invalid trusted repair consumer summary at ${summaryPath}. Run "visual-hive hive trusted-repair-consumer-summary" before "visual-hive hive trusted-repair-workflow-dry-run". Details: ${message}`
+    );
+  }
+  if (trustedRepairConsumerSummary.schemaVersion !== "visual-hive.hive-trusted-repair-consumer-summary.v1") {
+    throw new Error(`Invalid trusted repair consumer summary schemaVersion at ${summaryPath}. Expected visual-hive.hive-trusted-repair-consumer-summary.v1.`);
+  }
+
+  return writeHiveTrustedRepairWorkflowDryRun({
+    rootDir: loaded.rootDir,
+    trustedRepairConsumerSummary,
+    trustedRepairConsumerSummaryPath: summaryArtifactPath.replaceAll(path.sep, "/"),
+    outputDir: options.outputDir ?? path.join(".visual-hive", "hive")
+  });
+}
+
+export function formatHiveTrustedRepairWorkflowDryRun(
+  result: HiveTrustedRepairWorkflowDryRunCommandResult,
+  format: "markdown" | "json" = "markdown"
+): string {
+  return renderHiveTrustedRepairWorkflowDryRun(result, format);
 }
 
 export interface HiveCompareModesCommandOptions {

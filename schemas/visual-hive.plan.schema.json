@@ -19,56 +19,129 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] },
-    "generatedAt": { "type": "string" },
-    "changedFiles": { "type": "array", "items": { "type": "string" } },
-    "effectiveChangedFiles": { "type": "array", "items": { "type": "string" } },
-    "ignoredChangedFiles": { "type": "array", "items": { "$ref": "#/$defs/ignoredChangedFile" } },
-    "targets": { "type": "array" },
-    "items": { "type": "array" },
-    "excluded": { "type": "array" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "pr",
+        "schedule",
+        "manual",
+        "canary",
+        "mutation",
+        "full"
+      ]
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "effectiveChangedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ignoredChangedFiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ignoredChangedFile"
+      }
+    },
+    "targets": {
+      "type": "array"
+    },
+    "items": {
+      "type": "array"
+    },
+    "excluded": {
+      "type": "array"
+    },
     "providerPolicy": {
       "type": "array",
-      "items": { "$ref": "#/$defs/providerPolicy" }
+      "items": {
+        "$ref": "#/$defs/providerPolicy"
+      }
     },
     "mutation": {
       "type": "object",
-      "required": ["enabled", "operators", "minScore", "reasons"],
+      "required": [
+        "enabled",
+        "operators",
+        "minScore",
+        "reasons"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "operators": {
           "type": "array",
           "items": {
             "oneOf": [
-              { "$ref": "#/$defs/mutationOperator" },
+              {
+                "$ref": "#/$defs/mutationOperator"
+              },
               {
                 "type": "object",
-                "required": ["id"],
+                "required": [
+                  "id"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "id": { "$ref": "#/$defs/mutationOperator" },
-                  "contracts": { "type": "array", "items": { "type": "string" } }
+                  "id": {
+                    "$ref": "#/$defs/mutationOperator"
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             ]
           }
         },
-        "minScore": { "type": "number" },
-        "reasons": { "type": "array", "items": { "type": "string" } }
+        "minScore": {
+          "type": "number"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   },
   "$defs": {
     "ignoredChangedFile": {
       "type": "object",
-      "required": ["file", "pattern", "reason"],
+      "required": [
+        "file",
+        "pattern",
+        "reason"
+      ],
       "additionalProperties": false,
       "properties": {
-        "file": { "type": "string" },
-        "pattern": { "type": "string" },
-        "reason": { "type": "string" }
+        "file": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "mutationOperator": {
@@ -106,19 +179,70 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "providerId": { "type": "string" },
-        "label": { "type": "string" },
-        "enabled": { "type": "boolean" },
-        "mode": { "enum": ["mock", "external"] },
-        "availability": { "enum": ["available", "disabled", "missing_credentials", "mock", "policy_blocked"] },
-        "deterministicRole": { "enum": ["oracle", "supplemental"] },
-        "requiredEnv": { "type": "array", "items": { "type": "string" } },
-        "missingEnv": { "type": "array", "items": { "type": "string" } },
-        "externalUploadAllowed": { "type": "boolean" },
-        "externalUploadBlockedReasons": { "type": "array", "items": { "type": "string" } },
-        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
-        "externalCallsPlanned": { "const": 0 },
-        "reasons": { "type": "array", "items": { "type": "string" } }
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "mock",
+            "external"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "disabled",
+            "missing_credentials",
+            "mock",
+            "policy_blocked"
+          ]
+        },
+        "deterministicRole": {
+          "enum": [
+            "oracle",
+            "supplemental"
+          ]
+        },
+        "requiredEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missingEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalUploadAllowed": {
+          "type": "boolean"
+        },
+        "externalUploadBlockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "estimatedExternalScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsPlanned": {
+          "const": 0
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

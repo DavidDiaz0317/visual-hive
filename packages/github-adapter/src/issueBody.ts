@@ -231,6 +231,15 @@ function appendProviderAdapterEvidence(lines: string[], providerRunReport?: Mock
     if (upload?.blockedReasons?.length) {
       lines.push(`  - Blocked: ${upload.blockedReasons.join(" ")}`);
     }
+    if (upload?.command) {
+      lines.push(`  - Command: ${upload.command}`);
+    }
+    if (upload?.stderr) {
+      lines.push(`  - Stderr: ${upload.stderr}`);
+    }
+    if (upload?.stdout) {
+      lines.push(`  - Stdout: ${upload.stdout}`);
+    }
   }
   if (providerRunReport.providers.length > 8) {
     lines.push(`- ${providerRunReport.providers.length - 8} additional provider rows omitted from issue summary.`);

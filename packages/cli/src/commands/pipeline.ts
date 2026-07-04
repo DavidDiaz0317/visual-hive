@@ -11,6 +11,13 @@ import { runDoctor } from "./doctor.js";
 import { runFlowsCommand } from "./flows.js";
 import { runHandoffCommand, runHandoffValidateCommand } from "./handoff.js";
 import { runHistoryCommand } from "./history.js";
+import {
+  runHiveExportCommand,
+  runHiveGuardedRepairPreviewCommand,
+  runHiveRepairRequestEnvelopeCommand,
+  runHiveTrustedRepairConsumerSummaryCommand,
+  runHiveTrustedRepairWorkflowDryRunCommand
+} from "./hive.js";
 import { runImproveCoverageCommand } from "./improve.js";
 import { runLayersCommand } from "./layers.js";
 import { runMutateCommand } from "./mutate.js";
@@ -275,6 +282,7 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
       artifacts: [
         ".visual-hive/triage.json",
         ".visual-hive/triage-prompt.md",
+        ".visual-hive/repair-prompt.md",
         ".visual-hive/issue.md",
         ".visual-hive/pr-comment.md",
         ".visual-hive/missing-tests.md"
@@ -305,6 +313,36 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
     await runHandoffCommand({ config: options.config, cwd, mode: "dry_run" });
     return { artifacts: [".visual-hive/handoff.json", ".visual-hive/hive-issue.md", ".visual-hive/hive-bead-request.json", ".visual-hive/hive-handoff-result.json"] };
   });
+  await runStep(context, "hive-export", "Hive Native Export", async () => {
+    await runHiveExportCommand({ config: options.config, cwd, dryRun: true });
+    return {
+      artifacts: [
+        ".visual-hive/hive/hive-export.json",
+        ".visual-hive/hive/beads.json",
+        ".visual-hive/hive/knowledge-facts.json",
+        ".visual-hive/hive/knowledge-graph.json",
+        ".visual-hive/hive/issue-context.md",
+        ".visual-hive/hive/repair-work-orders.json",
+        ".visual-hive/hive/hive-agent-policy.json"
+      ]
+    };
+  });
+  await runStep(context, "hive-guarded-repair-preview", "Hive Guarded Repair Preview", async () => {
+    await runHiveGuardedRepairPreviewCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/hive/guarded-repair-preview.json", ".visual-hive/hive/guarded-repair-preview.md"] };
+  });
+  await runStep(context, "hive-repair-request-envelope", "Hive Repair Request Envelope", async () => {
+    await runHiveRepairRequestEnvelopeCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/hive/repair-request-envelope.json", ".visual-hive/hive/repair-request-envelope.md"] };
+  });
+  await runStep(context, "hive-trusted-repair-consumer-summary", "Hive Trusted Repair Consumer Summary", async () => {
+    await runHiveTrustedRepairConsumerSummaryCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/hive/trusted-repair-consumer-summary.json", ".visual-hive/hive/trusted-repair-consumer-summary.md"] };
+  });
+  await runStep(context, "hive-trusted-repair-workflow-dry-run", "Hive Trusted Repair Workflow Dry Run", async () => {
+    await runHiveTrustedRepairWorkflowDryRunCommand({ config: options.config, cwd });
+    return { artifacts: [".visual-hive/hive/trusted-repair-workflow-dry-run.json", ".visual-hive/hive/trusted-repair-workflow-dry-run.md"] };
+  });
   await runStep(context, "handoff-validate", "Hive Handoff Validation", async () => {
     const result = await runHandoffValidateCommand({ config: options.config, cwd });
     return { exitCode: result.exitCode, artifacts: [".visual-hive/hive-handoff-validation.json"] };
@@ -316,6 +354,24 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
   await runStep(context, "agent-packet", "Agent Packet", async () => {
     await runAgentPacketCommand({ config: options.config, cwd, profile: "repair_agent" });
     return { artifacts: [".visual-hive/agent-packet.json"] };
+  });
+  await runStep(context, "handoff-agent-packet", "Handoff Agent Packet", async () => {
+    await runAgentPacketCommand({
+      config: options.config,
+      cwd,
+      profile: "handoff_agent",
+      output: ".visual-hive/handoff-agent-packet.json"
+    });
+    return { artifacts: [".visual-hive/handoff-agent-packet.json"] };
+  });
+  await runStep(context, "provider-agent-packet", "Provider Specialist Agent Packet", async () => {
+    await runAgentPacketCommand({
+      config: options.config,
+      cwd,
+      profile: "provider_specialist",
+      output: ".visual-hive/provider-agent-packet.json"
+    });
+    return { artifacts: [".visual-hive/provider-agent-packet.json"] };
   });
   await runStep(context, "tools", "Tool Registry", async () => {
     await runToolsCommand({ config: options.config, cwd });

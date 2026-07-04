@@ -19,7 +19,7 @@ visual-hive coverage --changed-files changed-files.txt
 visual-hive improve-coverage
 ```
 
-`visual-hive improve-coverage` writes `.visual-hive/coverage-recommendations.json`. It is deterministic: it reads coverage gaps, flow gaps, and mutation survivors, then emits concrete recommendations such as starter contracts, screenshot additions, changed-file rules, selector assertions, flow steps, or mutation mappings. It also includes YAML snippets for humans to review before editing `visual-hive.config.yaml`. Flow recommendations include lane/trusted-only context so protected targets stay in scheduled or manual trusted lanes. The artifact schema is tracked at `schemas/visual-hive.coverage-recommendations.schema.json`.
+`visual-hive improve-coverage` writes `.visual-hive/coverage-recommendations.json`. It is deterministic: it reads coverage gaps, flow gaps, and mutation survivors, then emits concrete recommendations such as starter contracts, screenshot additions, changed-file rules, selector assertions, flow steps, or mutation mappings. It also includes YAML snippets for humans to review before editing `visual-hive.config.yaml`. Flow recommendations include lane/trusted-only context so protected targets stay in scheduled or manual trusted lanes. The artifact schema is tracked at `schemas/visual-hive.coverage-recommendations.schema.json`, and the JSON includes the read-only catalog identity `visual-hive://coverage-recommendations` / `visual_hive_read_coverage_recommendations` for agents and MCP consumers.
 
 To turn one recommendation into a guarded config edit, copy its `ID` and preview the diff first:
 

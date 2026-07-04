@@ -18,6 +18,7 @@ import type {
   RiskRegisterReport,
   ReadinessReport,
   SecurityAuditReport,
+  SchemaCatalogReport,
   RunHistoryReport,
   ScheduleAuditReport,
   TargetAuditReport,
@@ -26,12 +27,17 @@ import type {
   TargetConfig,
   HandoffPacket,
   HiveExportBundle,
+  HiveGuardedRepairPreview,
   HiveModeComparison,
+  HiveRepairRequestEnvelope,
+  HiveTrustedRepairConsumerSummary,
+  HiveTrustedRepairWorkflowDryRun,
   VisualHiveVerdict,
   VerdictReport,
   VisualHiveConfig,
   ArtifactIndexEntry,
   BaselineSummary,
+  ContextLedger,
   GitHubWorkflowTemplate,
   LLMDecisionLog,
   ProviderDecisionLog,
@@ -133,6 +139,22 @@ export interface ControlPlaneGuidanceStep {
   commandId?: string;
 }
 
+export interface ControlPlaneAdoptionChecklistItem {
+  id: string;
+  step: string;
+  status: "complete" | "current" | "review" | "blocked" | "pending";
+  why: string;
+  nextAction: string;
+  area: ControlPlaneGuidanceAction["area"];
+  commandId?: string;
+  commandLabel?: string;
+  command?: string;
+  commandSafety?: ControlPlaneRunbookCommand["safety"];
+  commandRunnable: boolean;
+  commandBlockedReason?: string;
+  expectedArtifacts: string[];
+}
+
 export interface ControlPlaneGuidanceState {
   state: ControlPlaneGuidanceStateId;
   title: string;
@@ -141,6 +163,7 @@ export interface ControlPlaneGuidanceState {
   secondaryActions: ControlPlaneGuidanceAction[];
   blockedReasons: string[];
   progress: ControlPlaneGuidanceStep[];
+  adoptionChecklist: ControlPlaneAdoptionChecklistItem[];
 }
 
 export interface ControlPlaneNavigationBadges {
@@ -156,7 +179,13 @@ export interface ControlPlaneNavigationBadges {
   providerBlocks: number;
 }
 
-export type ControlPlaneArtifact = ArtifactIndexEntry;
+export type ControlPlaneArtifact = ArtifactIndexEntry & {
+  evidenceResourceId?: string;
+  evidenceResourceUri?: string;
+  evidenceResourceTitle?: string;
+  evidenceResourceDescription?: string;
+  evidenceReadToolName?: string;
+};
 
 export interface ControlPlaneScreenshot {
   contractId: string;
@@ -312,6 +341,7 @@ export interface ControlPlaneSnapshot {
   report?: Report;
   triageReport?: TriageReport;
   runHistory?: RunHistoryReport;
+  contextLedger?: ContextLedger;
   riskReport?: RiskRegisterReport;
   readinessReport?: ReadinessReport;
   securityAudit?: SecurityAuditReport;
@@ -320,13 +350,20 @@ export interface ControlPlaneSnapshot {
   verdictReport?: VerdictReport;
   handoffPacket?: HandoffPacket;
   hiveExport?: HiveExportBundle;
+  hiveGuardedRepairPreview?: HiveGuardedRepairPreview;
+  hiveRepairRequestEnvelope?: HiveRepairRequestEnvelope;
+  hiveTrustedRepairConsumerSummary?: HiveTrustedRepairConsumerSummary;
+  hiveTrustedRepairWorkflowDryRun?: HiveTrustedRepairWorkflowDryRun;
   hiveModeComparison?: HiveModeComparison;
   agentPacket?: AgentPacket;
+  handoffAgentPacket?: AgentPacket;
+  providerAgentPacket?: AgentPacket;
   mutationReport?: MutationReport;
   providerRunReport?: MockProviderRunReport;
   providerDecisionLog?: ProviderDecisionLog;
   providerSetupPlan?: ProviderSetupPlan;
   providerHandoff?: ProviderHandoffManifest;
+  schemaCatalog?: SchemaCatalogReport;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
   flowAudit?: FlowAuditReport;

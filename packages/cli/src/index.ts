@@ -46,9 +46,23 @@ import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
-import { formatHiveExport, formatHiveModeComparison, runHiveCompareModesCommand, runHiveExportCommand } from "./commands/hive.js";
+import {
+  formatHiveExport,
+  formatHiveGuardedRepairPreview,
+  formatHiveModeComparison,
+  formatHiveRepairRequestEnvelope,
+  formatHiveTrustedRepairConsumerSummary,
+  formatHiveTrustedRepairWorkflowDryRun,
+  runHiveCompareModesCommand,
+  runHiveExportCommand,
+  runHiveGuardedRepairPreviewCommand,
+  runHiveRepairRequestEnvelopeCommand,
+  runHiveTrustedRepairConsumerSummaryCommand,
+  runHiveTrustedRepairWorkflowDryRunCommand
+} from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
+import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
@@ -56,6 +70,7 @@ import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
 import { formatSetupProgress, runSetupStatusCommand } from "./commands/setupStatus.js";
 import { formatRunbookReport, runRunbookCommand } from "./commands/runbook.js";
+import { formatSnapshotResult, runSnapshotCommand } from "./commands/snapshot.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatAnalyzeSummary, runAnalyzeCommand } from "./commands/analyze.js";
@@ -652,6 +667,90 @@ hiveCommand
     }
   });
 
+hiveCommand
+  .command("guarded-repair-preview")
+  .description("Write a no-network guarded repair preview from Hive repair work orders and agent policy")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
+  .option("--output-dir <path>", "Hive repair-chain artifact output directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveGuardedRepairPreviewCommand({
+        config: options.config,
+        hiveExport: options.hiveExport,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveGuardedRepairPreview(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("repair-request-envelope")
+  .description("Write a no-network trusted repair request envelope from the guarded repair preview")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--guarded-repair-preview <path>", "guarded repair preview artifact path", ".visual-hive/hive/guarded-repair-preview.json")
+  .option("--output-dir <path>", "Hive repair-chain artifact output directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveRepairRequestEnvelopeCommand({
+        config: options.config,
+        guardedRepairPreview: options.guardedRepairPreview,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveRepairRequestEnvelope(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("trusted-repair-consumer-summary")
+  .description("Write a no-network trusted repair consumer summary from the repair request envelope")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--repair-request-envelope <path>", "repair request envelope artifact path", ".visual-hive/hive/repair-request-envelope.json")
+  .option("--output-dir <path>", "Hive repair-chain artifact output directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveTrustedRepairConsumerSummaryCommand({
+        config: options.config,
+        repairRequestEnvelope: options.repairRequestEnvelope,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveTrustedRepairConsumerSummary(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("trusted-repair-workflow-dry-run")
+  .description("Write a no-network dry-run plan for a future trusted repair workflow")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--trusted-repair-consumer-summary <path>", "trusted repair consumer summary artifact path", ".visual-hive/hive/trusted-repair-consumer-summary.json")
+  .option("--output-dir <path>", "Hive repair-chain artifact output directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveTrustedRepairWorkflowDryRunCommand({
+        config: options.config,
+        trustedRepairConsumerSummary: options.trustedRepairConsumerSummary,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveTrustedRepairWorkflowDryRun(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 program
   .command("agent-packet")
   .description("Write a role-specific agent packet from Evidence/Handoff artifacts")
@@ -659,7 +758,7 @@ program
   .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
   .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
   .option("--test-creation-plan <path>", "test creation plan path", ".visual-hive/test-creation-plan.json")
-  .option("--profile <profile>", "repair_agent, test_creator, review_agent, or handoff_agent", "repair_agent")
+  .option("--profile <profile>", "repair_agent, test_creator, review_agent, handoff_agent, or provider_specialist", "repair_agent")
   .option("--output <path>", "agent packet output path", ".visual-hive/agent-packet.json")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
@@ -700,18 +799,50 @@ program
     }
   });
 
+const schemas = program.command("schemas").description("Verify checked-in Visual Hive JSON Schemas against core catalog metadata");
+
+schemas
+  .command("verify")
+  .description("Check schema IDs and evidence-resource enum parity")
+  .option("--schemas-dir <path>", "schemas directory", "schemas")
+  .option("--output <path>", "optional JSON report path")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runSchemasVerifyCommand({
+        schemasDir: options.schemasDir,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatSchemasVerifyResult(result, options.format));
+      if (result.report.status !== "passed") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 program
   .command("context")
   .description("Write the agent-facing Context Ledger for tool, token, provider, and escalation budgets")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
   .option("--output <path>", "context ledger output path", ".visual-hive/context-ledger.json")
+  .option("--max-tool-calls <number>", "override max tool-call budget for this ledger", parseIntegerOption)
+  .option("--max-tool-result-tokens <number>", "override max tool-result-token budget for this ledger", parseIntegerOption)
+  .option("--max-external-cost-usd <number>", "override max external-cost budget for this ledger", parseNumberOption)
+  .option("--max-provider-screenshots <number>", "override max provider screenshot budget for this ledger", parseIntegerOption)
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
       const result = await runContextCommand({
         config: options.config,
         output: options.output,
-        format: options.format
+        format: options.format,
+        maxToolCalls: options.maxToolCalls,
+        maxToolResultTokens: options.maxToolResultTokens,
+        maxExternalCostUsd: options.maxExternalCostUsd,
+        maxProviderScreenshots: options.maxProviderScreenshots
       });
       console.log(formatContextLedger(result, options.format));
     } catch (error) {
@@ -1127,6 +1258,29 @@ program
   });
 
 program
+  .command("snapshot")
+  .description("Write the local Control Plane snapshot as a schema-validated artifact")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--repo <path>", "target repository path")
+  .option("--output <path>", "snapshot output path relative to the config root", ".visual-hive/control-plane-snapshot.json")
+  .option("--read-only", "build the snapshot in read-only mode", true)
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runSnapshotCommand({
+        config: options.config,
+        repo: options.repo,
+        output: options.output,
+        readOnly: options.readOnly,
+        format: options.format
+      });
+      console.log(formatSnapshotResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
   .command("security")
   .description("Audit Visual Hive security posture, workflow safety, provider/LLM governance, and optional npm audit evidence")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
@@ -1416,6 +1570,22 @@ function fail(error: unknown): void {
 function collectRepeatable(value: string, previous: string[]): string[] {
   const trimmed = value.trim();
   return trimmed ? [...previous, trimmed] : previous;
+}
+
+function parseIntegerOption(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== value.trim()) {
+    throw new Error(`Expected a non-negative integer, received "${value}".`);
+  }
+  return parsed;
+}
+
+function parseNumberOption(value: string): number {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Expected a non-negative number, received "${value}".`);
+  }
+  return parsed;
 }
 
 async function waitForShutdown(close: () => Promise<void>): Promise<void> {

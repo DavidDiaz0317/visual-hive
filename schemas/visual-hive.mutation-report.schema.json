@@ -3,34 +3,111 @@
   "$id": "https://visual-hive.dev/schemas/visual-hive.mutation-report.schema.json",
   "title": "Visual Hive Mutation Report",
   "type": "object",
-  "required": ["schemaVersion", "project", "generatedAt", "minScore", "score", "killed", "total", "results"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "minScore",
+    "score",
+    "killed",
+    "total",
+    "results"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 2 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "minScore": { "type": "number", "minimum": 0, "maximum": 1 },
-    "score": { "type": "number", "minimum": 0, "maximum": 1 },
-    "killed": { "type": "integer", "minimum": 0 },
-    "total": { "type": "integer", "minimum": 0 },
+    "schemaVersion": {
+      "const": 2
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "minScore": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "killed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
     "results": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["operator", "status", "killed", "applicable", "contractIds", "durationMs", "errors"],
+        "required": [
+          "operator",
+          "status",
+          "killed",
+          "applicable",
+          "contractIds",
+          "durationMs",
+          "errors"
+        ],
         "additionalProperties": false,
         "properties": {
-          "operator": { "type": "string" },
-          "status": { "enum": ["killed", "survived", "not_applicable", "error"] },
-          "killed": { "type": "boolean" },
-          "applicable": { "type": "boolean" },
-          "contractIds": { "type": "array", "items": { "type": "string" } },
-          "expectedFailureKinds": { "type": "array", "items": { "type": "string" } },
-          "failureKind": { "type": "string" },
-          "failedAssertion": { "type": "string" },
-          "durationMs": { "type": "number", "minimum": 0 },
-          "errors": { "type": "array", "items": { "type": "string" } },
-          "artifacts": { "type": "array", "items": { "type": "string" } }
+          "operator": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "killed",
+              "survived",
+              "not_applicable",
+              "error"
+            ]
+          },
+          "killed": {
+            "type": "boolean"
+          },
+          "applicable": {
+            "type": "boolean"
+          },
+          "contractIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expectedFailureKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failureKind": {
+            "type": "string"
+          },
+          "failedAssertion": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     }

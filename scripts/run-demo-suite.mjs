@@ -12,7 +12,7 @@ const TIMEOUTS_BY_SCRIPT = {
   "demo:run": 180_000,
   "demo:run:seed": 180_000,
   "demo:mutate": 240_000,
-  "demo:pipeline": 300_000,
+  "demo:pipeline": 420_000,
   "demo:ui": 120_000,
   "demo:kubestellar": 180_000
 };
@@ -61,11 +61,17 @@ const agentSteps = [
   script("demo:layers"),
   script("demo:verdict"),
   script("demo:handoff"),
-  script("demo:handoff-validate"),
   script("demo:hive-export"),
+  script("demo:hive-guarded-preview"),
+  script("demo:hive-repair-envelope"),
+  script("demo:hive-repair-consumer"),
+  script("demo:hive-repair-workflow"),
+  script("demo:handoff-validate"),
   script("demo:hive-modes"),
   script("demo:test-creation"),
   script("demo:agent-packet"),
+  script("demo:agent-packet:handoff"),
+  script("demo:agent-packet:provider"),
   script("demo:tools"),
   script("demo:mcp")
 ];
@@ -74,7 +80,10 @@ const portfolioSteps = [
   script("demo:kubestellar"),
   script("demo:pipeline"),
   script("demo:context"),
+  script("demo:schemas"),
+  script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:evidence-resources"),
   script("demo:ui")
 ];
 
@@ -101,16 +110,25 @@ const acceptanceSteps = [
   script("demo:layers"),
   script("demo:verdict"),
   script("demo:handoff"),
-  script("demo:handoff-validate"),
   script("demo:hive-export"),
+  script("demo:hive-guarded-preview"),
+  script("demo:hive-repair-envelope"),
+  script("demo:hive-repair-consumer"),
+  script("demo:hive-repair-workflow"),
+  script("demo:handoff-validate"),
   script("demo:hive-modes"),
   script("demo:test-creation"),
   script("demo:agent-packet"),
+  script("demo:agent-packet:handoff"),
+  script("demo:agent-packet:provider"),
   script("demo:tools"),
   script("demo:mcp"),
   script("demo:kubestellar"),
   script("demo:context"),
+  script("demo:schemas"),
+  script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:evidence-resources"),
   script("demo:ui")
 ];
 

@@ -57,9 +57,24 @@ export interface ContextToolCall {
   status: string;
   trustedOnly: boolean;
   externalNetwork: boolean;
+  evidenceResourceId?: string;
+  evidenceResourceUri?: string;
+  evidenceResourceTitle?: string;
+  evidenceResourceDescription?: string;
+  evidenceReadToolName?: string;
+  evidenceResources?: ContextEvidenceResourceLink[];
   estimatedResultTokens: number;
   artifacts: string[];
   reason: string;
+}
+
+export interface ContextEvidenceResourceLink {
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+  artifactPath: string;
 }
 
 export interface ContextProviderUsage {
@@ -67,12 +82,21 @@ export interface ContextProviderUsage {
   status: string;
   uploadStatus?: string;
   artifactCount: number;
+  stagedArtifacts?: number;
+  uploadedArtifacts?: number;
   estimatedExternalScreenshots: number;
   externalCallsMade: number;
   estimatedCostUsd: number;
   missingEnv: string[];
   blockedReasons: string[];
   artifacts: string[];
+  manifestPath?: string;
+  uploadDirectory?: string;
+  command?: string;
+  stdout?: string;
+  stderr?: string;
+  providerUrl?: string;
+  dryRun?: boolean;
 }
 
 export interface ContextLlmUsage {

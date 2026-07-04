@@ -148,6 +148,7 @@ export interface ReportSummary {
 
 export interface ContractResult {
   contractId: string;
+  mutationOperator?: string;
   targetId: string;
   status: ContractStatus;
   durationMs: number;

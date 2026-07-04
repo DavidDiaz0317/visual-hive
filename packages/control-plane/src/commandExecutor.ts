@@ -15,35 +15,8 @@ import type {
   ControlPlaneRunbookCommand,
   ResolvedControlPlaneOptions
 } from "./types.js";
+import { isControlPlaneExecutableCommandId } from "./runbookPolicy.js";
 
-const EXECUTABLE_COMMAND_IDS = new Set([
-  "doctor",
-  "plan-pr",
-  "run-ci",
-  "baselines",
-  "coverage",
-  "improve-coverage",
-  "test-creation-plan",
-  "triage-report",
-  "mutate",
-  "security",
-  "costs",
-  "providers",
-  "provider-plan",
-  "provider-handoff",
-  "readiness",
-  "evidence",
-  "verdict",
-  "handoff",
-  "hive-export",
-  "hive-export-advisory",
-  "hive-export-measured",
-  "hive-export-repair-request",
-  "hive-compare-modes",
-  "agent-packet",
-  "pipeline",
-  "connections-portfolio"
-]);
 const OUTPUT_TAIL_CHARS = 12_000;
 const MAX_OUTPUT_BYTES = 2_000_000;
 
@@ -177,7 +150,7 @@ function blockReason(resolved: ResolvedControlPlaneOptions, command: ControlPlan
   if (resolved.readOnly) {
     return "Control Plane is read-only. Restart without --read-only before executing local runbook commands.";
   }
-  if (!EXECUTABLE_COMMAND_IDS.has(command.id)) {
+  if (!isControlPlaneExecutableCommandId(command.id)) {
     return `Runbook command "${command.id}" is guidance-only and cannot be executed from the Control Plane.`;
   }
   if (command.safety === "trusted_only") {
@@ -193,6 +166,8 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
   switch (command.id) {
     case "doctor":
       return [{ stepId: "doctor", args: ["doctor", "--config", configPath] }];
+    case "recommend":
+      return [{ stepId: "recommend", args: ["recommend", "--repo", path.dirname(configPath)] }];
     case "plan-pr":
       return [{ stepId: "plan-pr", args: ["plan", "--config", configPath, "--mode", "pr", "--base", "origin/main", "--ci"] }];
     case "run-ci":
@@ -222,6 +197,20 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "provider-plan", args: ["providers", "plan", "--config", configPath, "--provider", providerIdFromCommand(command)] }];
     case "provider-handoff":
       return [{ stepId: "provider-handoff", args: ["providers", "handoff", "--config", configPath, "--provider", providerIdFromCommand(command)] }];
+    case "provider-agent-packet":
+      return [
+        {
+          stepId: "provider-agent-packet",
+          args: ["agent-packet", "--config", configPath, "--profile", "provider_specialist", "--output", ".visual-hive/provider-agent-packet.json"]
+        }
+      ];
+    case "handoff-agent-packet":
+      return [
+        {
+          stepId: "handoff-agent-packet",
+          args: ["agent-packet", "--config", configPath, "--profile", "handoff_agent", "--output", ".visual-hive/handoff-agent-packet.json"]
+        }
+      ];
     case "readiness":
       return [{ stepId: "readiness", args: ["readiness", "--config", configPath] }];
     case "evidence":
@@ -238,6 +227,14 @@ function commandSteps(command: ControlPlaneRunbookCommand, configPath: string): 
       return [{ stepId: "hive-export-measured", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "measured"] }];
     case "hive-export-repair-request":
       return [{ stepId: "hive-export-repair-request", args: ["hive", "export", "--config", configPath, "--dry-run", "--mode", "repair_request"] }];
+    case "hive-guarded-repair-preview":
+      return [{ stepId: "hive-guarded-repair-preview", args: ["hive", "guarded-repair-preview", "--config", configPath] }];
+    case "hive-repair-request-envelope":
+      return [{ stepId: "hive-repair-request-envelope", args: ["hive", "repair-request-envelope", "--config", configPath] }];
+    case "hive-trusted-repair-consumer-summary":
+      return [{ stepId: "hive-trusted-repair-consumer-summary", args: ["hive", "trusted-repair-consumer-summary", "--config", configPath] }];
+    case "hive-trusted-repair-workflow-dry-run":
+      return [{ stepId: "hive-trusted-repair-workflow-dry-run", args: ["hive", "trusted-repair-workflow-dry-run", "--config", configPath] }];
     case "hive-compare-modes":
       return [{ stepId: "hive-compare-modes", args: ["hive", "compare-modes", "--config", configPath] }];
     case "agent-packet":

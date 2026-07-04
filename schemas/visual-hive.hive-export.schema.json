@@ -14,9 +14,11 @@
     "acmmLevel",
     "sourceArtifacts",
     "outputArtifacts",
+    "outputResources",
     "governance",
     "summary",
     "labels",
+    "providerEvidence",
     "beads",
     "knowledgeFacts",
     "knowledgeGraph",
@@ -26,142 +28,581 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": "visual-hive.hive-export.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
-    "status": { "enum": ["ready", "blocked"] },
-    "externalCallsMade": { "const": 0 },
-    "mode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
-    "configuredMode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full", "dry_run", "github_issue", "bead_api"] },
-    "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "schemaVersion": {
+      "const": "visual-hive.hive-export.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "mode": {
+      "enum": [
+        "advisory",
+        "measured",
+        "repair_request",
+        "guarded_repair",
+        "full"
+      ]
+    },
+    "configuredMode": {
+      "enum": [
+        "advisory",
+        "measured",
+        "repair_request",
+        "guarded_repair",
+        "full",
+        "dry_run",
+        "github_issue",
+        "bead_api"
+      ]
+    },
+    "acmmLevel": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6
+    },
     "sourceArtifacts": {
       "type": "object",
-      "required": ["evidencePacket"],
+      "required": [
+        "evidencePacket"
+      ],
       "additionalProperties": false,
       "properties": {
-        "evidencePacket": { "type": "string" },
-        "handoffPacket": { "type": "string" }
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
       }
     },
     "outputArtifacts": {
       "type": "object",
-      "required": ["export", "beads", "knowledgeFacts", "knowledgeGraph", "issueContext", "repairWorkOrders", "agentPolicy", "wikiVaultDir"],
+      "required": [
+        "export",
+        "beads",
+        "knowledgeFacts",
+        "knowledgeGraph",
+        "issueContext",
+        "repairWorkOrders",
+        "agentPolicy",
+        "wikiVaultDir"
+      ],
       "additionalProperties": false,
       "properties": {
-        "export": { "type": "string" },
-        "beads": { "type": "string" },
-        "knowledgeFacts": { "type": "string" },
-        "knowledgeGraph": { "type": "string" },
-        "issueContext": { "type": "string" },
-        "repairWorkOrders": { "type": "string" },
-        "agentPolicy": { "type": "string" },
-        "wikiVaultDir": { "type": "string" }
+        "export": {
+          "type": "string"
+        },
+        "beads": {
+          "type": "string"
+        },
+        "knowledgeFacts": {
+          "type": "string"
+        },
+        "knowledgeGraph": {
+          "type": "string"
+        },
+        "issueContext": {
+          "type": "string"
+        },
+        "repairWorkOrders": {
+          "type": "string"
+        },
+        "agentPolicy": {
+          "type": "string"
+        },
+        "wikiVaultDir": {
+          "type": "string"
+        }
       }
+    },
+    "outputResources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/outputResource"
+      },
+      "minItems": 6
     },
     "governance": {
       "type": "object",
-      "required": ["verdictAuthority", "defaultMode", "repairAuthority", "validationRequired", "secretPolicy"],
+      "required": [
+        "verdictAuthority",
+        "defaultMode",
+        "repairAuthority",
+        "validationRequired",
+        "secretPolicy"
+      ],
       "additionalProperties": false,
       "properties": {
-        "verdictAuthority": { "const": "visual_hive" },
-        "defaultMode": { "const": "advisory_no_network" },
-        "repairAuthority": { "const": "hive_may_open_pr_only_when_trusted_policy_allows" },
-        "validationRequired": { "const": "visual_hive_must_rerun_after_repair" },
-        "secretPolicy": { "const": "redacted_values_names_only" }
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "defaultMode": {
+          "const": "advisory_no_network"
+        },
+        "repairAuthority": {
+          "const": "hive_may_open_pr_only_when_trusted_policy_allows"
+        },
+        "validationRequired": {
+          "const": "visual_hive_must_rerun_after_repair"
+        },
+        "secretPolicy": {
+          "const": "redacted_values_names_only"
+        }
       }
     },
     "summary": {
       "type": "object",
-      "required": ["beads", "knowledgeFacts", "graphNodes", "graphEdges", "repairWorkOrders", "blockedReasons"],
+      "required": [
+        "beads",
+        "knowledgeFacts",
+        "graphNodes",
+        "graphEdges",
+        "repairWorkOrders",
+        "blockedReasons"
+      ],
       "additionalProperties": false,
       "properties": {
-        "beads": { "type": "integer", "minimum": 0 },
-        "knowledgeFacts": { "type": "integer", "minimum": 0 },
-        "graphNodes": { "type": "integer", "minimum": 0 },
-        "graphEdges": { "type": "integer", "minimum": 0 },
-        "repairWorkOrders": { "type": "integer", "minimum": 0 },
-        "blockedReasons": { "type": "integer", "minimum": 0 }
+        "beads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "knowledgeFacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "graphNodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "graphEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repairWorkOrders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedReasons": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "labels": { "type": "array", "items": { "type": "string" } },
-    "beads": { "type": "array", "items": { "$ref": "#/$defs/bead" } },
-    "knowledgeFacts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
-    "knowledgeGraph": { "$ref": "#/$defs/graph" },
-    "repairWorkOrders": { "type": "array", "items": { "$ref": "#/$defs/repairWorkOrder" } },
-    "agentPolicy": { "$ref": "#/$defs/agentPolicy" },
-    "blockedReasons": { "type": "array", "items": { "type": "string" } }
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "providerEvidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/providerEvidence"
+      }
+    },
+    "beads": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/bead"
+      }
+    },
+    "knowledgeFacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "knowledgeGraph": {
+      "$ref": "#/$defs/graph"
+    },
+    "repairWorkOrders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repairWorkOrder"
+      }
+    },
+    "agentPolicy": {
+      "$ref": "#/$defs/agentPolicy"
+    },
+    "blockedReasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "$defs": {
-    "bead": {
+    "outputResource": {
       "type": "object",
-      "required": ["id", "title", "type", "status", "priority", "actor", "external_ref", "metadata", "notes", "created_at", "updated_at", "depends_on"],
+      "required": [
+        "artifactKey",
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "type": { "enum": ["bug", "feature", "task", "epic", "chore", "decision", "advisory"] },
-        "status": { "enum": ["open", "in_progress", "blocked", "done", "closed"] },
-        "priority": { "type": "integer", "minimum": 0 },
-        "actor": { "type": "string" },
-        "external_ref": { "type": "string" },
-        "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
-        "notes": { "type": "string" },
-        "created_at": { "type": "string" },
-        "updated_at": { "type": "string" },
-        "closed_at": { "type": "string" },
-        "depends_on": { "type": "array", "items": { "type": "string" } }
+        "artifactKey": {
+          "enum": [
+            "export",
+            "beads",
+            "knowledgeFacts",
+            "knowledgeGraph",
+            "repairWorkOrders",
+            "agentPolicy"
+          ]
+        },
+        "artifactPath": {
+          "enum": [
+            ".visual-hive/hive/hive-export.json",
+            ".visual-hive/hive/beads.json",
+            ".visual-hive/hive/knowledge-facts.json",
+            ".visual-hive/hive/knowledge-graph.json",
+            ".visual-hive/hive/repair-work-orders.json",
+            ".visual-hive/hive/hive-agent-policy.json"
+          ]
+        },
+        "evidenceResourceId": {
+          "enum": [
+            "hive-export",
+            "hive-beads",
+            "hive-knowledge-facts",
+            "hive-knowledge-graph",
+            "hive-repair-work-orders",
+            "hive-agent-policy"
+          ]
+        },
+        "evidenceResourceUri": {
+          "enum": [
+            "visual-hive://hive-export",
+            "visual-hive://hive/beads",
+            "visual-hive://hive/knowledge-facts",
+            "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/repair-work-orders",
+            "visual-hive://hive/agent-policy"
+          ]
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "enum": [
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_beads",
+            "visual_hive_read_hive_knowledge_facts",
+            "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_repair_work_orders",
+            "visual_hive_read_hive_agent_policy"
+          ]
+        }
+      }
+    },
+    "bead": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "type",
+        "status",
+        "priority",
+        "actor",
+        "external_ref",
+        "metadata",
+        "notes",
+        "created_at",
+        "updated_at",
+        "depends_on"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "bug",
+            "feature",
+            "task",
+            "epic",
+            "chore",
+            "decision",
+            "advisory"
+          ]
+        },
+        "status": {
+          "enum": [
+            "open",
+            "in_progress",
+            "blocked",
+            "done",
+            "closed"
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actor": {
+          "type": "string"
+        },
+        "external_ref": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "closed_at": {
+          "type": "string"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "providerEvidence": {
+      "type": "object",
+      "required": [
+        "providerId",
+        "status",
+        "deterministicRole",
+        "externalCallsMade",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "deterministicRole": {
+          "type": "string"
+        },
+        "uploadStatus": {
+          "type": "string"
+        },
+        "externalCallsMade": {
+          "type": "number",
+          "minimum": 0
+        },
+        "stagedArtifacts": {
+          "type": "number",
+          "minimum": 0
+        },
+        "uploadedArtifacts": {
+          "type": "number",
+          "minimum": 0
+        },
+        "manifestPath": {
+          "type": "string"
+        },
+        "uploadDirectory": {
+          "type": "string"
+        },
+        "providerUrl": {
+          "type": "string"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "fact": {
       "type": "object",
-      "required": ["slug", "title", "type", "layer", "confidence", "tags", "source", "body", "relatedEvidenceKeys", "artifacts"],
+      "required": [
+        "slug",
+        "title",
+        "type",
+        "layer",
+        "confidence",
+        "tags",
+        "source",
+        "body",
+        "relatedEvidenceKeys",
+        "artifacts"
+      ],
       "additionalProperties": false,
       "properties": {
-        "slug": { "type": "string" },
-        "title": { "type": "string" },
-        "type": { "enum": ["pattern", "gotcha", "decision", "regression", "test_scaffold", "integration", "coverage_rule"] },
-        "layer": { "const": "project" },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "tags": { "type": "array", "items": { "type": "string" } },
-        "source": { "type": "string" },
-        "body": { "type": "string" },
-        "relatedEvidenceKeys": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "pattern",
+            "gotcha",
+            "decision",
+            "regression",
+            "test_scaffold",
+            "integration",
+            "coverage_rule"
+          ]
+        },
+        "layer": {
+          "const": "project"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "relatedEvidenceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "graph": {
       "type": "object",
-      "required": ["schemaVersion", "nodes", "edges"],
+      "required": [
+        "schemaVersion",
+        "nodes",
+        "edges"
+      ],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "const": "visual-hive.hive-knowledge-graph.v1" },
-        "nodes": { "type": "array", "items": { "$ref": "#/$defs/graphNode" } },
-        "edges": { "type": "array", "items": { "$ref": "#/$defs/graphEdge" } }
+        "schemaVersion": {
+          "const": "visual-hive.hive-knowledge-graph.v1"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/graphNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/graphEdge"
+          }
+        }
       }
     },
     "graphNode": {
       "type": "object",
-      "required": ["id", "slug", "title", "type", "tags"],
+      "required": [
+        "id",
+        "slug",
+        "title",
+        "type",
+        "tags"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "slug": { "type": "string" },
-        "title": { "type": "string" },
-        "type": { "type": "string" },
-        "layer": { "type": "string" },
-        "confidence": { "type": "number" },
-        "tags": { "type": "array", "items": { "type": "string" } },
-        "artifactPath": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifactPath": {
+          "type": "string"
+        }
       }
     },
     "graphEdge": {
       "type": "object",
-      "required": ["from", "to", "predicate"],
+      "required": [
+        "from",
+        "to",
+        "predicate"
+      ],
       "additionalProperties": false,
       "properties": {
-        "from": { "type": "string" },
-        "to": { "type": "string" },
-        "predicate": { "enum": ["related_to", "supersedes", "depends_on", "derived_from", "shared_tag"] }
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "predicate": {
+          "enum": [
+            "related_to",
+            "supersedes",
+            "depends_on",
+            "derived_from",
+            "shared_tag"
+          ]
+        }
       }
     },
     "repairWorkOrder": {
@@ -187,23 +628,82 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "actor": { "type": "string" },
-        "title": { "type": "string" },
-        "objective": { "type": "string" },
-        "sourceBeadIds": { "type": "array", "items": { "type": "string" } },
-        "evidenceKeys": { "type": "array", "items": { "type": "string" } },
-        "likelyFiles": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } },
-        "reproductionCommands": { "type": "array", "items": { "type": "string" } },
-        "acceptanceCriteria": { "type": "array", "items": { "type": "string" } },
-        "allowedActions": { "type": "array", "items": { "type": "string" } },
-        "forbiddenActions": { "type": "array", "items": { "type": "string" } },
-        "maxAttempts": { "type": "integer", "minimum": 1 },
-        "branchPrefix": { "type": "string" },
-        "prOnly": { "type": "boolean" },
-        "requireHumanReview": { "type": "boolean" },
-        "rerunVisualHive": { "type": "boolean" }
+        "id": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "sourceBeadIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidenceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "likelyFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "branchPrefix": {
+          "type": "string"
+        },
+        "prOnly": {
+          "type": "boolean"
+        },
+        "requireHumanReview": {
+          "type": "boolean"
+        },
+        "rerunVisualHive": {
+          "type": "boolean"
+        }
       }
     },
     "agentPolicy": {
@@ -224,25 +724,74 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "const": "visual-hive.hive-agent-policy.v1" },
-        "mode": { "enum": ["advisory", "measured", "repair_request", "guarded_repair", "full"] },
-        "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
-        "enabled": { "type": "boolean" },
-        "externalCallsMade": { "const": 0 },
-        "verdictAuthority": { "const": "visual_hive" },
-        "hiveAuthority": { "const": "advisory_or_guarded_repair" },
-        "repair": { "type": "object" },
-        "allowedActions": { "type": "array", "items": { "type": "string" } },
-        "forbiddenActions": { "type": "array", "items": { "type": "string" } },
-        "trustedWorkflowRequiredFor": { "type": "array", "items": { "type": "string" } },
+        "schemaVersion": {
+          "const": "visual-hive.hive-agent-policy.v1"
+        },
+        "mode": {
+          "enum": [
+            "advisory",
+            "measured",
+            "repair_request",
+            "guarded_repair",
+            "full"
+          ]
+        },
+        "acmmLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "externalCallsMade": {
+          "const": 0
+        },
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "hiveAuthority": {
+          "const": "advisory_or_guarded_repair"
+        },
+        "repair": {
+          "type": "object"
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trustedWorkflowRequiredFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "finalValidation": {
           "type": "object",
-          "required": ["required", "command", "passFailOwnedBy"],
+          "required": [
+            "required",
+            "command",
+            "passFailOwnedBy"
+          ],
           "additionalProperties": false,
           "properties": {
-            "required": { "const": true },
-            "command": { "type": "string" },
-            "passFailOwnedBy": { "const": "visual_hive_verdict_engine" }
+            "required": {
+              "const": true
+            },
+            "command": {
+              "type": "string"
+            },
+            "passFailOwnedBy": {
+              "const": "visual_hive_verdict_engine"
+            }
           }
         }
       }

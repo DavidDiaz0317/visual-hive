@@ -22,6 +22,7 @@ export interface TestCreationPlan {
   schemaVersion: "visual-hive.test-creation-plan.v1";
   generatedAt: string;
   project: string;
+  outputResource?: TestCreationPlanOutputResource;
   sourceArtifacts: {
     evidencePacket?: string;
     coverageRecommendations?: string;
@@ -44,6 +45,15 @@ export interface TestCreationPlan {
     fromHandoffWorkItems: number;
   };
   recommendations: TestCreationRecommendation[];
+}
+
+export interface TestCreationPlanOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface TestCreationRecommendation {

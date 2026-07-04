@@ -71,6 +71,30 @@ export interface EvidencePacketHiveModeReadiness {
   blockedReasons: string[];
 }
 
+export interface EvidencePacketProviderEvidence
+  extends Pick<
+    ProviderResult,
+    "providerId" | "label" | "status" | "deterministicRole" | "message" | "requiredEnv" | "missingEnv" | "artifactCount"
+  > {
+  externalUrl?: string;
+  externalUploadAllowed?: boolean;
+  externalUploadBlockedReasons?: string[];
+  estimatedExternalScreenshots?: number;
+  upload?: {
+    status: "uploaded" | "skipped" | "blocked" | "missing_credentials" | "failed" | "dry_run";
+    externalCallsMade: number;
+    uploadedArtifacts: number;
+    stagedArtifacts: number;
+    manifestPath?: string;
+    uploadDirectory?: string;
+    command?: string;
+    stdout?: string;
+    stderr?: string;
+    providerUrl?: string;
+    blockedReasons: string[];
+  };
+}
+
 export interface EvidencePacket {
   schemaVersion: "visual-hive.evidence-packet.v2";
   generatedAt: string;
@@ -144,7 +168,7 @@ export interface EvidencePacket {
     survivedOperators: Array<{ operator: string; contractIds: string[]; failedAssertion?: string; artifacts: string[] }>;
     notApplicableOperators: string[];
   };
-  providers: Array<Pick<ProviderResult, "providerId" | "label" | "status" | "deterministicRole" | "message" | "requiredEnv" | "missingEnv" | "artifactCount">>;
+  providers: EvidencePacketProviderEvidence[];
   triage?: Pick<TriageReport, "schemaVersion" | "project" | "generatedAt" | "summary"> & {
     findings: Array<{
       classification: string;

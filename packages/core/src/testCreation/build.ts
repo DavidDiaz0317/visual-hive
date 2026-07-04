@@ -4,7 +4,15 @@ import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageImprovementReport, CoverageImprovementRecommendation } from "../coverage/improve.js";
 import type { EvidencePacket, EvidencePacketTestingLayer } from "../evidence/types.js";
 import type { HandoffPacket, HandoffWorkItem } from "../handoff/types.js";
-import type { BuildTestCreationPlanOptions, TestCreationKind, TestCreationPlan, TestCreationPriority, TestCreationRecommendation } from "./types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
+import type {
+  BuildTestCreationPlanOptions,
+  TestCreationKind,
+  TestCreationPlan,
+  TestCreationPlanOutputResource,
+  TestCreationPriority,
+  TestCreationRecommendation
+} from "./types.js";
 
 export interface WriteTestCreationPlanOptions extends BuildTestCreationPlanOptions {
   rootDir: string;
@@ -29,6 +37,7 @@ export async function buildTestCreationPlan(options: BuildTestCreationPlanOption
     schemaVersion: "visual-hive.test-creation-plan.v1",
     generatedAt: (options.now ?? new Date()).toISOString(),
     project: options.project,
+    outputResource: catalogedOutputResource("test-creation-plan", ".visual-hive/test-creation-plan.json"),
     sourceArtifacts: sanitizeValue({
       evidencePacket: normalizeArtifactPath(options.evidencePacketPath),
       coverageRecommendations: normalizeArtifactPath(options.coverageRecommendationsPath),
@@ -303,6 +312,18 @@ function resolve(rootDir: string, artifactPath: string): string {
 
 function normalizeArtifactPath(value: string | undefined): string | undefined {
   return value?.replaceAll("\\", "/");
+}
+
+function catalogedOutputResource(resourceId: string, artifactPath: string): TestCreationPlanOutputResource {
+  const resource = getEvidenceResourceById(resourceId);
+  return {
+    artifactPath,
+    evidenceResourceId: resource?.id ?? resourceId,
+    evidenceResourceUri: resource?.uri ?? `visual-hive://${resourceId}`,
+    evidenceResourceTitle: resource?.title ?? resourceId,
+    evidenceResourceDescription: resource?.description ?? "Visual Hive evidence artifact.",
+    evidenceReadToolName: resource?.readTool?.name
+  };
 }
 
 async function readOptional<T>(filePath: string): Promise<T | undefined> {

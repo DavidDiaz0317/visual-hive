@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { VISUAL_HIVE_EVIDENCE_RESOURCES, type EvidenceResourceDefinition } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type ArtifactKind = "json" | "markdown" | "image" | "text" | "typescript" | "yaml" | "log" | "other";
@@ -36,6 +37,11 @@ export interface ArtifactIndexEntry {
   contentType: string;
   bytes: number;
   safeToRender: boolean;
+  evidenceResourceId?: string;
+  evidenceResourceUri?: string;
+  evidenceResourceTitle?: string;
+  evidenceResourceDescription?: string;
+  evidenceReadToolName?: string;
   schemaPath?: string;
   schemaId?: string;
   preview?: string;
@@ -68,16 +74,28 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
   const maxPreviewBytes = options.maxPreviewBytes ?? DEFAULT_MAX_PREVIEW_BYTES;
   const warnings: string[] = [];
   const artifacts: ArtifactIndexEntry[] = [];
+  let skippedHistoryDirectories = 0;
 
-  await walk(hiveRoot, async (filePath) => {
-    const repoRelativePath = toRepoRelativePath(repoRoot, filePath);
-    if (isGeneratedArtifactIndex(repoRelativePath)) return;
-    const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) return;
-    artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
-  });
+  await walk(
+    hiveRoot,
+    async (filePath) => {
+      const repoRelativePath = toRepoRelativePath(repoRoot, filePath);
+      if (isGeneratedArtifactIndex(repoRelativePath)) return;
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile()) return;
+      artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
+    },
+    (dirPath) => {
+      if (!isRunHistoryDirectory(hiveRoot, dirPath)) return false;
+      skippedHistoryDirectories += 1;
+      return true;
+    }
+  );
 
   const sorted = artifacts.sort(compareArtifactEntries).slice(0, maxArtifacts);
+  if (skippedHistoryDirectories > 0) {
+    warnings.push(`Skipped ${skippedHistoryDirectories} run history director${skippedHistoryDirectories === 1 ? "y" : "ies"}; use history.json for summarized run history.`);
+  }
   if (artifacts.length > maxArtifacts) {
     warnings.push(`Artifact listing reached maxArtifacts=${maxArtifacts}; some files may be omitted.`);
   }
@@ -99,8 +117,9 @@ function compareArtifactEntries(a: ArtifactIndexEntry, b: ArtifactIndexEntry): n
 }
 
 function artifactRank(artifact: ArtifactIndexEntry): number {
-  if (!artifact.labels.includes("history")) return 0;
-  return 1;
+  if (artifact.labels.includes("evidence-resource")) return 0;
+  if (!artifact.labels.includes("history")) return 1;
+  return 2;
 }
 
 export function artifactKind(filePath: string): ArtifactKind {
@@ -155,22 +174,43 @@ async function artifactEntry(input: {
 }): Promise<ArtifactIndexEntry> {
   const kind = artifactKind(input.filePath);
   const contentType = artifactContentType(kind, input.filePath);
+  const repoRelativePath = toRepoRelativePath(input.repoRoot, input.filePath);
+  const evidenceResource = evidenceResourceFor(repoRelativePath);
   const preview = await previewFor(input.filePath, kind, input.maxPreviewBytes);
   const labels = labelsFor(input.filePath, kind);
+  if (evidenceResource) labels.push(evidenceResource.id, "evidence-resource");
   const schemaPath = schemaPathFor(input.filePath, kind);
-  return {
-    path: toRepoRelativePath(input.repoRoot, input.filePath),
+  const entry: ArtifactIndexEntry = {
+    path: repoRelativePath,
     kind,
     contentType,
     bytes: input.bytes,
     safeToRender: kind !== "other",
-    schemaPath,
-    schemaId: schemaPath ? `${SCHEMA_ID_BASE}${path.basename(schemaPath)}` : undefined,
-    preview: preview?.text,
     previewTruncated: Boolean(preview?.truncated),
     previewRedacted: Boolean(preview?.redacted),
-    labels
+    labels: [...new Set(labels)].sort()
   };
+  if (evidenceResource) {
+    entry.evidenceResourceId = evidenceResource.id;
+    entry.evidenceResourceUri = evidenceResource.uri;
+    entry.evidenceResourceTitle = evidenceResource.title;
+    entry.evidenceResourceDescription = evidenceResource.description;
+    if (evidenceResource.readTool) entry.evidenceReadToolName = evidenceResource.readTool.name;
+  }
+  if (schemaPath) {
+    entry.schemaPath = schemaPath;
+    entry.schemaId = `${SCHEMA_ID_BASE}${path.basename(schemaPath)}`;
+  }
+  if (preview) entry.preview = preview.text;
+  return entry;
+}
+
+function evidenceResourceFor(repoRelativePath: string): EvidenceResourceDefinition | undefined {
+  const normalized = repoRelativePath.replaceAll("\\", "/").toLowerCase();
+  return VISUAL_HIVE_EVIDENCE_RESOURCES.find((resource) => {
+    const resourcePath = resource.relativePath.toLowerCase();
+    return normalized === resourcePath || normalized.endsWith(`/${resourcePath}`);
+  });
 }
 
 async function previewFor(
@@ -198,6 +238,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.includes("/screenshots/")) labels.add("screenshot");
   if (normalized.includes("/snapshots/")) labels.add("baseline");
   if (normalized.includes("/history/")) labels.add("history");
+  if (normalized.endsWith("history.json")) labels.add("history");
   if (normalized.endsWith("triage-prompt.md") || normalized.endsWith("repair-prompt.md") || normalized.endsWith("baseline-review.md")) {
     labels.add("prompt");
   }
@@ -213,9 +254,11 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("setup-pr-plan.json")) labels.add("setup-pr-plan");
   if (normalized.endsWith("runbook.json")) labels.add("runbook");
   if (normalized.endsWith("plans.json")) labels.add("plan-lanes");
+  if (normalized.endsWith("workflows.json")) labels.add("workflow-audit");
   if (normalized.endsWith("security.json")) labels.add("security-audit");
   if (normalized.endsWith("costs.json")) labels.add("cost-audit");
   if (normalized.endsWith("control-plane-actions.json")) labels.add("control-plane-actions");
+  if (normalized.endsWith("control-plane-snapshot.json")) labels.add("control-plane-snapshot");
   if (normalized.endsWith("report.json")) labels.add("report");
   if (normalized.endsWith("mutation-report.json")) labels.add("mutation");
   if (normalized.endsWith("flows.json")) labels.add("flow-audit");
@@ -223,6 +266,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("provider-decisions.json")) labels.add("provider-decisions");
   if (normalized.endsWith("provider-setup-plan.json")) labels.add("provider-setup-plan");
   if (normalized.endsWith("provider-handoff.json")) labels.add("provider-handoff");
+  if (normalized.endsWith("/provider-upload/argos/manifest.json")) labels.add("provider-upload");
   if (normalized.endsWith("llm-decisions.json")) labels.add("llm-decisions");
   if (normalized.endsWith("connections-portfolio.json")) labels.add("connections-portfolio");
   if (normalized.endsWith("repo-map.json")) labels.add("repo-map");
@@ -236,22 +280,35 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("test-creation-plan.json")) labels.add("test-creation-plan");
   if (normalized.endsWith("test-creation-plan.md")) labels.add("test-creation-summary");
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
+  if (normalized.endsWith("handoff-agent-packet.json")) labels.add("handoff-agent-packet");
+  if (normalized.endsWith("provider-agent-packet.json")) labels.add("provider-agent-packet");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
+  if (normalized.endsWith("mcp-manifest.json")) labels.add("mcp-manifest");
   if (normalized.endsWith("context-ledger.json")) labels.add("context-ledger");
+  if (normalized.endsWith("pipeline.json")) labels.add("pipeline-status");
+  if (normalized.endsWith("schema-catalog.json")) labels.add("schema-catalog");
   if (normalized.endsWith("/handoff.json")) labels.add("handoff-packet");
   if (normalized.endsWith("hive-issue.md")) labels.add("hive-issue");
   if (normalized.endsWith("hive-bead-request.json")) labels.add("hive-bead-request");
   if (normalized.endsWith("hive-handoff-result.json")) labels.add("hive-handoff-result");
   if (normalized.endsWith("hive-handoff-validation.json")) labels.add("hive-handoff-validation");
   if (normalized.endsWith("/hive/hive-export.json")) labels.add("hive-export");
+  if (normalized.endsWith("/hive/guarded-repair-preview.json")) labels.add("hive-guarded-repair-preview");
+  if (normalized.endsWith("/hive/guarded-repair-preview.md")) labels.add("hive-guarded-repair-preview");
+  if (normalized.endsWith("/hive/repair-request-envelope.json")) labels.add("hive-repair-request-envelope");
+  if (normalized.endsWith("/hive/repair-request-envelope.md")) labels.add("hive-repair-request-envelope");
+  if (normalized.endsWith("/hive/trusted-repair-consumer-summary.json")) labels.add("hive-trusted-repair-consumer-summary");
+  if (normalized.endsWith("/hive/trusted-repair-consumer-summary.md")) labels.add("hive-trusted-repair-consumer-summary");
+  if (normalized.endsWith("/hive/trusted-repair-workflow-dry-run.json")) labels.add("hive-trusted-repair-workflow-dry-run");
+  if (normalized.endsWith("/hive/trusted-repair-workflow-dry-run.md")) labels.add("hive-trusted-repair-workflow-dry-run");
   if (normalized.endsWith("/hive/mode-comparison.json")) labels.add("hive-mode-comparison");
   if (normalized.endsWith("/hive/mode-comparison.md")) labels.add("hive-mode-comparison");
-  if (normalized.endsWith("/hive/beads.json")) labels.add("hive-beads");
-  if (normalized.endsWith("/hive/knowledge-facts.json")) labels.add("hive-knowledge");
-  if (normalized.endsWith("/hive/knowledge-graph.json")) labels.add("hive-graph");
-  if (normalized.endsWith("/hive/repair-work-orders.json")) labels.add("hive-repair");
-  if (normalized.endsWith("/hive/hive-agent-policy.json")) labels.add("hive-agent-policy");
+  if (normalized.includes("/hive/") && normalized.endsWith("/beads.json")) labels.add("hive-beads");
+  if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-facts.json")) labels.add("hive-knowledge");
+  if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-graph.json")) labels.add("hive-graph");
+  if (normalized.includes("/hive/") && normalized.endsWith("/repair-work-orders.json")) labels.add("hive-repair");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-agent-policy.json")) labels.add("hive-agent-policy");
   if (normalized.endsWith("/hive/issue-context.md")) labels.add("hive-issue");
   if (normalized.includes("/hive/wiki/")) labels.add("hive-wiki");
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
@@ -261,7 +318,9 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
 
 function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined {
   if (kind !== "json") return undefined;
-  const fileName = path.basename(filePath.replaceAll("\\", "/").toLowerCase());
+  const normalized = filePath.replaceAll("\\", "/").toLowerCase();
+  if (normalized.endsWith("/provider-upload/argos/manifest.json")) return "schemas/visual-hive.provider-upload.schema.json";
+  const fileName = path.basename(normalized);
   const mapping: Record<string, string> = {
     "plan.json": "visual-hive.plan.schema.json",
     "recommendations.json": "visual-hive.recommendations.schema.json",
@@ -277,6 +336,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "setup-progress.json": "visual-hive.setup-progress.schema.json",
     "setup-pr-plan.json": "visual-hive.setup-pr-plan.schema.json",
     "runbook.json": "visual-hive.runbook.schema.json",
+    "control-plane-snapshot.json": "visual-hive.control-plane-snapshot.schema.json",
     "plans.json": "visual-hive.plans.schema.json",
     "security.json": "visual-hive.security.schema.json",
     "costs.json": "visual-hive.costs.schema.json",
@@ -292,13 +352,27 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "testing-layers.json": "visual-hive.testing-layers.schema.json",
     "test-creation-plan.json": "visual-hive.test-creation-plan.schema.json",
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
+    "handoff-agent-packet.json": "visual-hive.agent-packet.schema.json",
+    "provider-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
+    "mcp-manifest.json": "visual-hive.mcp.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",
+    "pipeline.json": "visual-hive.pipeline.schema.json",
+    "schema-catalog.json": "visual-hive.schema-catalog.schema.json",
     "handoff.json": "visual-hive.handoff.schema.json",
     "hive-bead-request.json": "visual-hive.hive-bead-request.schema.json",
     "hive-handoff-result.json": "visual-hive.hive-handoff-result.schema.json",
     "hive-handoff-validation.json": "visual-hive.handoff-validation.schema.json",
     "hive-export.json": "visual-hive.hive-export.schema.json",
+    "beads.json": "visual-hive.hive-beads.schema.json",
+    "knowledge-facts.json": "visual-hive.hive-knowledge-facts.schema.json",
+    "knowledge-graph.json": "visual-hive.hive-knowledge-graph.schema.json",
+    "repair-work-orders.json": "visual-hive.hive-repair-work-orders.schema.json",
+    "hive-agent-policy.json": "visual-hive.hive-agent-policy.schema.json",
+    "guarded-repair-preview.json": "visual-hive.hive-guarded-repair-preview.schema.json",
+    "repair-request-envelope.json": "visual-hive.hive-repair-request-envelope.schema.json",
+    "trusted-repair-consumer-summary.json": "visual-hive.hive-trusted-repair-consumer-summary.schema.json",
+    "trusted-repair-workflow-dry-run.json": "visual-hive.hive-trusted-repair-workflow-dry-run.schema.json",
     "mode-comparison.json": "visual-hive.hive-mode-comparison.schema.json",
     "provider-results.json": "visual-hive.provider-results.schema.json",
     "provider-decisions.json": "visual-hive.provider-decisions.schema.json",
@@ -315,7 +389,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
   return schemaFile ? `schemas/${schemaFile}` : undefined;
 }
 
-async function walk(dir: string, visit: (filePath: string) => Promise<void>): Promise<void> {
+async function walk(dir: string, visit: (filePath: string) => Promise<void>, shouldSkipDirectory?: (dirPath: string) => boolean): Promise<void> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -325,7 +399,8 @@ async function walk(dir: string, visit: (filePath: string) => Promise<void>): Pr
   for (const entry of entries) {
     const child = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      await walk(child, visit);
+      if (shouldSkipDirectory?.(child)) continue;
+      await walk(child, visit, shouldSkipDirectory);
     } else if (entry.isFile()) {
       await visit(child);
     }
@@ -343,4 +418,10 @@ function isInsideOrEqual(parent: string, child: string): boolean {
 
 function isGeneratedArtifactIndex(repoRelativePath: string): boolean {
   return repoRelativePath.replaceAll("\\", "/") === GENERATED_ARTIFACT_INDEX;
+}
+
+function isRunHistoryDirectory(hiveRoot: string, dirPath: string): boolean {
+  const relative = path.relative(hiveRoot, dirPath).replaceAll("\\", "/");
+  const parts = relative.split("/").filter(Boolean);
+  return parts.length >= 2 && parts[0] === "history";
 }

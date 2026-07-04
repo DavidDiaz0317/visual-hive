@@ -4,26 +4,57 @@
   "title": "Visual Hive Local Repository Connection Store",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "connections"],
+  "required": [
+    "schemaVersion",
+    "connections"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
     "connections": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "label", "repoRoot", "configPath", "tags", "addedAt", "updatedAt"],
+        "required": [
+          "id",
+          "label",
+          "repoRoot",
+          "configPath",
+          "tags",
+          "addedAt",
+          "updatedAt"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "label": { "type": "string", "minLength": 1 },
-          "repoRoot": { "type": "string", "minLength": 1 },
-          "configPath": { "type": "string", "minLength": 1 },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "configPath": {
+            "type": "string",
+            "minLength": 1
+          },
           "tags": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "addedAt": { "type": "string" },
-          "updatedAt": { "type": "string" }
+          "addedAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
         }
       }
     }

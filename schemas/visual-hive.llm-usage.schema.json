@@ -4,32 +4,86 @@
   "title": "Visual Hive LLM Usage",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "governance", "summary", "records", "warnings", "recommendations"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "governance",
+    "summary",
+    "records",
+    "warnings",
+    "recommendations"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
     "governance": {
       "type": "object",
-      "required": ["enabled", "provider", "model", "neverSoleOracle", "maxDailyRuns", "maxPromptTokens", "maxEstimatedCostUsd", "callsMade"],
+      "required": [
+        "enabled",
+        "provider",
+        "model",
+        "neverSoleOracle",
+        "maxDailyRuns",
+        "maxPromptTokens",
+        "maxEstimatedCostUsd",
+        "callsMade"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "provider": { "type": "string" },
-        "model": { "type": "string" },
-        "neverSoleOracle": { "const": true },
-        "maxDailyRuns": { "type": "integer" },
-        "maxPromptTokens": { "type": "integer" },
-        "maxEstimatedCostUsd": { "type": "number" },
-        "callsMade": { "const": 0 }
+        "enabled": {
+          "type": "boolean"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "neverSoleOracle": {
+          "const": true
+        },
+        "maxDailyRuns": {
+          "type": "integer"
+        },
+        "maxPromptTokens": {
+          "type": "integer"
+        },
+        "maxEstimatedCostUsd": {
+          "type": "number"
+        },
+        "callsMade": {
+          "const": 0
+        }
       }
     },
     "summary": {
       "type": "object",
-      "required": ["promptCount", "totalEstimatedTokens", "totalEstimatedCostUsd", "blockedPrompts", "promptOnly", "advisoryOnly", "callsMade"],
+      "required": [
+        "promptCount",
+        "totalEstimatedTokens",
+        "totalEstimatedCostUsd",
+        "blockedPrompts",
+        "promptOnly",
+        "advisoryOnly",
+        "callsMade"
+      ],
       "properties": {
-        "promptOnly": { "const": true },
-        "advisoryOnly": { "const": true },
-        "callsMade": { "const": 0 }
+        "promptOnly": {
+          "const": true
+        },
+        "advisoryOnly": {
+          "const": true
+        },
+        "callsMade": {
+          "const": 0
+        }
       }
     },
     "records": {
@@ -64,16 +118,38 @@
               "baseline_review_summary"
             ]
           },
-          "promptOnly": { "const": true },
-          "advisoryOnly": { "const": true },
-          "callsMade": { "const": 0 },
+          "promptOnly": {
+            "const": true
+          },
+          "advisoryOnly": {
+            "const": true
+          },
+          "callsMade": {
+            "const": 0
+          },
           "status": {
-            "enum": ["prompt_only", "disabled", "blocked_by_token_budget", "blocked_by_cost_budget", "policy_violation"]
+            "enum": [
+              "prompt_only",
+              "disabled",
+              "blocked_by_token_budget",
+              "blocked_by_cost_budget",
+              "policy_violation"
+            ]
           }
         }
       }
     },
-    "warnings": { "type": "array", "items": { "type": "string" } },
-    "recommendations": { "type": "array", "items": { "type": "string" } }
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

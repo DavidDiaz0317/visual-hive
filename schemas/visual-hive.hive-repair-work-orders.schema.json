@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-repair-work-orders.schema.json",
+  "title": "Visual Hive Hive Repair Work Orders",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "actor",
+      "title",
+      "objective",
+      "sourceBeadIds",
+      "evidenceKeys",
+      "likelyFiles",
+      "artifacts",
+      "reproductionCommands",
+      "acceptanceCriteria",
+      "allowedActions",
+      "forbiddenActions",
+      "maxAttempts",
+      "branchPrefix",
+      "prOnly",
+      "requireHumanReview",
+      "rerunVisualHive"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "actor": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "objective": {
+        "type": "string"
+      },
+      "sourceBeadIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "evidenceKeys": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "likelyFiles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "artifacts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "reproductionCommands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "allowedActions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "forbiddenActions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "maxAttempts": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "branchPrefix": {
+        "type": "string"
+      },
+      "prOnly": {
+        "type": "boolean"
+      },
+      "requireHumanReview": {
+        "type": "boolean"
+      },
+      "rerunVisualHive": {
+        "type": "boolean"
+      }
+    }
+  }
+}

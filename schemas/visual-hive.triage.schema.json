@@ -4,36 +4,80 @@
   "title": "Visual Hive Triage Report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "project", "generatedAt", "sourceArtifacts", "summary", "findings"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "sourceArtifacts",
+    "summary",
+    "findings"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "report": { "type": "string" },
-        "mutationReport": { "type": "string" },
-        "coverageReport": { "type": "string" },
-        "providerResults": { "type": "string" },
-        "baselineApprovals": { "type": "string" },
-        "baselineRejections": { "type": "string" }
+        "report": {
+          "type": "string"
+        },
+        "mutationReport": {
+          "type": "string"
+        },
+        "coverageReport": {
+          "type": "string"
+        },
+        "providerResults": {
+          "type": "string"
+        },
+        "baselineApprovals": {
+          "type": "string"
+        },
+        "baselineRejections": {
+          "type": "string"
+        }
       }
     },
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["findingCount", "critical", "high", "medium", "low", "classifications"],
+      "required": [
+        "findingCount",
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "classifications"
+      ],
       "properties": {
-        "findingCount": { "type": "number" },
-        "critical": { "type": "number" },
-        "high": { "type": "number" },
-        "medium": { "type": "number" },
-        "low": { "type": "number" },
+        "findingCount": {
+          "type": "number"
+        },
+        "critical": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "medium": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
         "classifications": {
           "type": "object",
-          "additionalProperties": { "type": "number" }
+          "additionalProperties": {
+            "type": "number"
+          }
         }
       }
     },
@@ -42,7 +86,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["classification", "severity", "title", "evidence", "suggestedNextTests"],
+        "required": [
+          "classification",
+          "severity",
+          "title",
+          "evidence",
+          "suggestedNextTests"
+        ],
         "properties": {
           "classification": {
             "enum": [
@@ -69,13 +119,47 @@
               "external_upload_blocked"
             ]
           },
-          "severity": { "enum": ["low", "medium", "high", "critical"] },
-          "title": { "type": "string" },
-          "evidence": { "type": "array", "items": { "type": "string" } },
-          "contractIds": { "type": "array", "items": { "type": "string" } },
-          "targetIds": { "type": "array", "items": { "type": "string" } },
-          "suggestedFiles": { "type": "array", "items": { "type": "string" } },
-          "suggestedNextTests": { "type": "array", "items": { "type": "string" } }
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contractIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "targetIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestedFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestedNextTests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     }

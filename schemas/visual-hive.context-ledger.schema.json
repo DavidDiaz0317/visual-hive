@@ -20,63 +20,133 @@
     "notes"
   ],
   "properties": {
-    "schemaVersion": { "const": "visual-hive.context-ledger.v1" },
-    "generatedAt": { "type": "string" },
-    "project": { "type": "string" },
+    "schemaVersion": {
+      "const": "visual-hive.context-ledger.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "toolRegistry": { "type": "string" },
-        "agentPacket": { "type": "string" },
-        "evidencePacket": { "type": "string" },
-        "llmUsage": { "type": "string" },
-        "providerResults": { "type": "string" },
-        "providerUploadManifest": { "type": "string" },
-        "pipeline": { "type": "string" },
-        "artifactsIndex": { "type": "string" },
-        "handoffPacket": { "type": "string" },
-        "hiveBeadRequest": { "type": "string" },
-        "hiveHandoffResult": { "type": "string" },
-        "hiveHandoffValidation": { "type": "string" },
-        "testCreationPlan": { "type": "string" }
+        "toolRegistry": {
+          "type": "string"
+        },
+        "agentPacket": {
+          "type": "string"
+        },
+        "evidencePacket": {
+          "type": "string"
+        },
+        "llmUsage": {
+          "type": "string"
+        },
+        "providerResults": {
+          "type": "string"
+        },
+        "providerUploadManifest": {
+          "type": "string"
+        },
+        "pipeline": {
+          "type": "string"
+        },
+        "artifactsIndex": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        },
+        "hiveBeadRequest": {
+          "type": "string"
+        },
+        "hiveHandoffResult": {
+          "type": "string"
+        },
+        "hiveHandoffValidation": {
+          "type": "string"
+        },
+        "testCreationPlan": {
+          "type": "string"
+        }
       }
     },
-    "budgets": { "$ref": "#/$defs/budgets" },
-    "usage": { "$ref": "#/$defs/usage" },
-    "remaining": { "$ref": "#/$defs/remaining" },
+    "budgets": {
+      "$ref": "#/$defs/budgets"
+    },
+    "usage": {
+      "$ref": "#/$defs/usage"
+    },
+    "remaining": {
+      "$ref": "#/$defs/remaining"
+    },
     "toolCalls": {
       "type": "array",
-      "items": { "$ref": "#/$defs/toolCall" }
+      "items": {
+        "$ref": "#/$defs/toolCall"
+      }
     },
     "providerUsage": {
       "type": "array",
-      "items": { "$ref": "#/$defs/providerUsage" }
+      "items": {
+        "$ref": "#/$defs/providerUsage"
+      }
     },
     "llmUsage": {
       "type": "array",
-      "items": { "$ref": "#/$defs/llmUsage" }
+      "items": {
+        "$ref": "#/$defs/llmUsage"
+      }
     },
     "escalations": {
       "type": "array",
-      "items": { "$ref": "#/$defs/escalation" }
+      "items": {
+        "$ref": "#/$defs/escalation"
+      }
     },
     "policyViolations": {
       "type": "array",
-      "items": { "$ref": "#/$defs/policyViolation" }
+      "items": {
+        "$ref": "#/$defs/policyViolation"
+      }
     },
-    "notes": { "type": "array", "items": { "type": "string" } }
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "$defs": {
     "budgets": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxToolCalls", "maxToolResultTokens", "maxExternalCostUsd", "maxProviderScreenshots"],
+      "required": [
+        "maxToolCalls",
+        "maxToolResultTokens",
+        "maxExternalCostUsd",
+        "maxProviderScreenshots"
+      ],
       "properties": {
-        "maxToolCalls": { "type": "integer", "minimum": 0 },
-        "maxToolResultTokens": { "type": "integer", "minimum": 0 },
-        "maxExternalCostUsd": { "type": "number", "minimum": 0 },
-        "maxProviderScreenshots": { "type": "integer", "minimum": 0 }
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxToolResultTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxExternalCostUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxProviderScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "usage": {
@@ -91,23 +161,58 @@
         "externalCallsMade"
       ],
       "properties": {
-        "toolCallsUsed": { "type": "integer", "minimum": 0 },
-        "estimatedToolResultTokens": { "type": "integer", "minimum": 0 },
-        "estimatedPromptTokens": { "type": "integer", "minimum": 0 },
-        "estimatedExternalCostUsd": { "type": "number", "minimum": 0 },
-        "providerScreenshots": { "type": "integer", "minimum": 0 },
-        "externalCallsMade": { "type": "integer", "minimum": 0 }
+        "toolCallsUsed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedToolResultTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedPromptTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedExternalCostUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "providerScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsMade": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "remaining": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["toolCalls", "toolResultTokens", "externalCostUsd", "providerScreenshots"],
+      "required": [
+        "toolCalls",
+        "toolResultTokens",
+        "externalCostUsd",
+        "providerScreenshots"
+      ],
       "properties": {
-        "toolCalls": { "type": "integer", "minimum": 0 },
-        "toolResultTokens": { "type": "integer", "minimum": 0 },
-        "externalCostUsd": { "type": "number", "minimum": 0 },
-        "providerScreenshots": { "type": "integer", "minimum": 0 }
+        "toolCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolResultTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCostUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "providerScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "toolCall": {
@@ -127,17 +232,222 @@
         "reason"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "source": { "enum": ["pipeline", "tool-registry", "agent-packet", "handoff", "manual"] },
-        "toolId": { "type": "string" },
-        "label": { "type": "string" },
-        "access": { "type": "string" },
-        "status": { "type": "string" },
-        "trustedOnly": { "type": "boolean" },
-        "externalNetwork": { "type": "boolean" },
-        "estimatedResultTokens": { "type": "integer", "minimum": 0 },
-        "artifacts": { "type": "array", "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "pipeline",
+            "tool-registry",
+            "agent-packet",
+            "handoff-agent-packet",
+            "provider-agent-packet",
+            "handoff",
+            "manual"
+          ]
+        },
+        "toolId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "access": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "trustedOnly": {
+          "type": "boolean"
+        },
+        "externalNetwork": {
+          "type": "boolean"
+        },
+        "evidenceResourceId": {
+          "type": "string",
+          "enum": [
+            "config",
+            "latest-plan",
+              "plan-lanes",
+            "setup-recommendations",
+            "setup-pr-plan",
+            "latest-report",
+            "latest-evidence",
+            "control-plane-snapshot",
+            "latest-verdict",
+            "readiness-gate",
+            "run-history",
+            "workflow-audit",
+            "baseline-review",
+            "baseline-approvals",
+            "baseline-rejections",
+            "testing-layers",
+            "test-creation-plan",
+            "latest-handoff",
+            "handoff-validation",
+            "hive-export",
+            "hive-beads",
+            "hive-knowledge-facts",
+            "hive-knowledge-graph",
+            "hive-repair-work-orders",
+            "hive-agent-policy",
+            "hive-guarded-repair-preview",
+            "hive-repair-request-envelope",
+            "hive-trusted-repair-consumer-summary",
+            "hive-trusted-repair-workflow-dry-run",
+            "hive-mode-comparison",
+            "coverage-map",
+            "coverage-recommendations",
+            "mutation-report",
+            "triage-report",
+            "issue-body",
+            "pr-comment",
+            "triage-prompt",
+            "repair-prompt",
+            "missing-tests",
+            "provider-results",
+            "provider-upload-argos-manifest",
+            "artifacts-index",
+            "agent-packet",
+            "handoff-agent-packet",
+            "provider-agent-packet",
+            "tool-registry",
+            "context-ledger",
+            "pipeline-status",
+            "schema-catalog"
+          ]
+        },
+        "evidenceResourceUri": {
+          "type": "string",
+          "enum": [
+            "visual-hive://config",
+            "visual-hive://latest-plan",
+              "visual-hive://plan-lanes",
+            "visual-hive://setup-recommendations",
+            "visual-hive://setup-pr-plan",
+            "visual-hive://latest-report",
+            "visual-hive://latest-evidence",
+            "visual-hive://control-plane-snapshot",
+            "visual-hive://latest-verdict",
+            "visual-hive://readiness-gate",
+            "visual-hive://run-history",
+            "visual-hive://workflow-audit",
+            "visual-hive://baseline-review",
+            "visual-hive://baseline-approvals",
+            "visual-hive://baseline-rejections",
+            "visual-hive://testing-layers",
+            "visual-hive://test-creation-plan",
+            "visual-hive://latest-handoff",
+            "visual-hive://handoff-validation",
+            "visual-hive://hive-export",
+            "visual-hive://hive/beads",
+            "visual-hive://hive/knowledge-facts",
+            "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/repair-work-orders",
+            "visual-hive://hive/agent-policy",
+            "visual-hive://hive-guarded-repair-preview",
+            "visual-hive://hive-repair-request-envelope",
+            "visual-hive://hive-trusted-repair-consumer-summary",
+            "visual-hive://hive-trusted-repair-workflow-dry-run",
+            "visual-hive://hive-mode-comparison",
+            "visual-hive://coverage-map",
+            "visual-hive://coverage-recommendations",
+            "visual-hive://mutation-report",
+            "visual-hive://triage-report",
+            "visual-hive://issue-body",
+            "visual-hive://pr-comment",
+            "visual-hive://triage-prompt",
+            "visual-hive://repair-prompt",
+            "visual-hive://missing-tests",
+            "visual-hive://provider-results",
+            "visual-hive://provider-upload/argos/manifest",
+            "visual-hive://artifacts/index",
+            "visual-hive://agent-packet",
+            "visual-hive://handoff-agent-packet",
+            "visual-hive://provider-agent-packet",
+            "visual-hive://tool-registry",
+            "visual-hive://context-ledger",
+            "visual-hive://pipeline-status",
+            "visual-hive://schema-catalog"
+          ]
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "type": "string",
+          "enum": [
+            "visual_hive_read_plan_lanes",
+            "visual_hive_read_setup_recommendations",
+            "visual_hive_read_setup_pr_plan",
+            "visual_hive_read_latest_report",
+            "visual_hive_read_evidence_packet",
+            "visual_hive_read_control_plane_snapshot",
+            "visual_hive_read_verdict",
+            "visual_hive_read_readiness_gate",
+            "visual_hive_read_run_history",
+            "visual_hive_read_workflow_audit",
+            "visual_hive_read_baseline_review",
+            "visual_hive_read_baseline_approvals",
+            "visual_hive_read_baseline_rejections",
+            "visual_hive_read_testing_layers",
+            "visual_hive_read_test_creation_plan",
+            "visual_hive_generate_handoff_dry_run",
+            "visual_hive_validate_handoff",
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_beads",
+            "visual_hive_read_hive_knowledge_facts",
+            "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_repair_work_orders",
+            "visual_hive_read_hive_agent_policy",
+            "visual_hive_read_hive_guarded_repair_preview",
+            "visual_hive_read_hive_repair_request_envelope",
+            "visual_hive_read_hive_trusted_repair_consumer_summary",
+            "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+            "visual_hive_read_hive_mode_comparison",
+            "visual_hive_read_coverage_recommendations",
+            "visual_hive_read_mutation_report",
+            "visual_hive_read_triage_report",
+            "visual_hive_read_issue_body",
+            "visual_hive_read_pr_comment",
+            "visual_hive_read_triage_prompt",
+            "visual_hive_generate_repair_prompt",
+            "visual_hive_read_missing_tests",
+            "visual_hive_read_provider_results",
+            "visual_hive_read_provider_upload_manifest",
+            "visual_hive_read_artifacts_index",
+            "visual_hive_read_agent_packet",
+            "visual_hive_read_handoff_agent_packet",
+            "visual_hive_read_provider_agent_packet",
+            "visual_hive_read_tool_registry",
+            "visual_hive_read_context_ledger",
+            "visual_hive_read_pipeline_status",
+            "visual_hive_read_schema_catalog"
+          ]
+        },
+        "estimatedResultTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        },
+        "evidenceResources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceResourceLink"
+          }
+        }
       }
     },
     "providerUsage": {
@@ -155,56 +465,427 @@
         "artifacts"
       ],
       "properties": {
-        "providerId": { "type": "string" },
-        "status": { "type": "string" },
-        "uploadStatus": { "type": "string" },
-        "artifactCount": { "type": "integer", "minimum": 0 },
-        "estimatedExternalScreenshots": { "type": "integer", "minimum": 0 },
-        "externalCallsMade": { "type": "integer", "minimum": 0 },
-        "estimatedCostUsd": { "type": "number", "minimum": 0 },
-        "missingEnv": { "type": "array", "items": { "type": "string" } },
-        "blockedReasons": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "providerId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "uploadStatus": {
+          "type": "string"
+        },
+        "artifactCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stagedArtifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uploadedArtifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedExternalScreenshots": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalCallsMade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedCostUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "missingEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manifestPath": {
+          "type": "string"
+        },
+        "uploadDirectory": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "providerUrl": {
+          "type": "string"
+        },
+        "dryRun": {
+          "type": "boolean"
+        }
       }
     },
     "llmUsage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["task", "promptOnly", "callsMade", "estimatedPromptTokens", "estimatedCostUsd"],
+      "required": [
+        "task",
+        "promptOnly",
+        "callsMade",
+        "estimatedPromptTokens",
+        "estimatedCostUsd"
+      ],
       "properties": {
-        "task": { "type": "string" },
-        "promptOnly": { "type": "boolean" },
-        "callsMade": { "type": "integer", "minimum": 0 },
-        "estimatedPromptTokens": { "type": "integer", "minimum": 0 },
-        "estimatedCompletionTokens": { "type": "integer", "minimum": 0 },
-        "estimatedCostUsd": { "type": "number", "minimum": 0 },
-        "budgetStatus": { "type": "string" },
-        "artifact": { "type": "string" }
+        "task": {
+          "type": "string"
+        },
+        "promptOnly": {
+          "type": "boolean"
+        },
+        "callsMade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedPromptTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedCompletionTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedCostUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "budgetStatus": {
+          "type": "string"
+        },
+        "artifact": {
+          "type": "string"
+        }
       }
     },
     "escalation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "severity", "reason", "relatedToolIds", "artifacts"],
+      "required": [
+        "kind",
+        "severity",
+        "reason",
+        "relatedToolIds",
+        "artifacts"
+      ],
       "properties": {
         "kind": {
-          "enum": ["trusted_tool", "external_network", "provider", "llm", "baseline", "protected_target", "budget"]
+          "enum": [
+            "trusted_tool",
+            "external_network",
+            "provider",
+            "llm",
+            "baseline",
+            "protected_target",
+            "budget"
+          ]
         },
-        "severity": { "enum": ["info", "warning", "blocked"] },
-        "reason": { "type": "string" },
-        "relatedToolIds": { "type": "array", "items": { "type": "string" } },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "relatedToolIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "policyViolation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["policy", "severity", "reason", "artifacts"],
+      "required": [
+        "policy",
+        "severity",
+        "reason",
+        "artifacts"
+      ],
       "properties": {
-        "policy": { "type": "string" },
-        "severity": { "enum": ["warning", "blocked"] },
-        "reason": { "type": "string" },
-        "artifacts": { "type": "array", "items": { "type": "string" } }
+        "policy": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "warning",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidenceResourceLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "artifactPath"
+      ],
+      "properties": {
+        "evidenceResourceId": {
+          "type": "string",
+          "enum": [
+            "config",
+            "latest-plan",
+              "plan-lanes",
+            "setup-recommendations",
+            "setup-pr-plan",
+            "latest-report",
+            "latest-evidence",
+            "control-plane-snapshot",
+            "latest-verdict",
+            "readiness-gate",
+            "run-history",
+            "workflow-audit",
+            "baseline-review",
+            "baseline-approvals",
+            "baseline-rejections",
+            "testing-layers",
+            "test-creation-plan",
+            "latest-handoff",
+            "handoff-validation",
+            "hive-export",
+            "hive-beads",
+            "hive-knowledge-facts",
+            "hive-knowledge-graph",
+            "hive-repair-work-orders",
+            "hive-agent-policy",
+            "hive-guarded-repair-preview",
+            "hive-repair-request-envelope",
+            "hive-trusted-repair-consumer-summary",
+            "hive-trusted-repair-workflow-dry-run",
+            "hive-mode-comparison",
+            "coverage-map",
+            "coverage-recommendations",
+            "mutation-report",
+            "triage-report",
+            "issue-body",
+            "pr-comment",
+            "triage-prompt",
+            "repair-prompt",
+            "missing-tests",
+            "provider-results",
+            "provider-upload-argos-manifest",
+            "artifacts-index",
+            "agent-packet",
+            "handoff-agent-packet",
+            "provider-agent-packet",
+            "tool-registry",
+            "context-ledger",
+            "pipeline-status",
+            "schema-catalog"
+          ]
+        },
+        "evidenceResourceUri": {
+          "type": "string",
+          "enum": [
+            "visual-hive://config",
+            "visual-hive://latest-plan",
+              "visual-hive://plan-lanes",
+            "visual-hive://setup-recommendations",
+            "visual-hive://setup-pr-plan",
+            "visual-hive://latest-report",
+            "visual-hive://latest-evidence",
+            "visual-hive://control-plane-snapshot",
+            "visual-hive://latest-verdict",
+            "visual-hive://readiness-gate",
+            "visual-hive://run-history",
+            "visual-hive://workflow-audit",
+            "visual-hive://baseline-review",
+            "visual-hive://baseline-approvals",
+            "visual-hive://baseline-rejections",
+            "visual-hive://testing-layers",
+            "visual-hive://test-creation-plan",
+            "visual-hive://latest-handoff",
+            "visual-hive://handoff-validation",
+            "visual-hive://hive-export",
+            "visual-hive://hive/beads",
+            "visual-hive://hive/knowledge-facts",
+            "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/repair-work-orders",
+            "visual-hive://hive/agent-policy",
+            "visual-hive://hive-guarded-repair-preview",
+            "visual-hive://hive-repair-request-envelope",
+            "visual-hive://hive-trusted-repair-consumer-summary",
+            "visual-hive://hive-trusted-repair-workflow-dry-run",
+            "visual-hive://hive-mode-comparison",
+            "visual-hive://coverage-map",
+            "visual-hive://coverage-recommendations",
+            "visual-hive://mutation-report",
+            "visual-hive://triage-report",
+            "visual-hive://issue-body",
+            "visual-hive://pr-comment",
+            "visual-hive://triage-prompt",
+            "visual-hive://repair-prompt",
+            "visual-hive://missing-tests",
+            "visual-hive://provider-results",
+            "visual-hive://provider-upload/argos/manifest",
+            "visual-hive://artifacts/index",
+            "visual-hive://agent-packet",
+            "visual-hive://handoff-agent-packet",
+            "visual-hive://provider-agent-packet",
+            "visual-hive://tool-registry",
+            "visual-hive://context-ledger",
+            "visual-hive://pipeline-status",
+            "visual-hive://schema-catalog"
+          ]
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "type": "string",
+          "enum": [
+            "visual_hive_read_plan_lanes",
+            "visual_hive_read_setup_recommendations",
+            "visual_hive_read_setup_pr_plan",
+            "visual_hive_read_latest_report",
+            "visual_hive_read_evidence_packet",
+            "visual_hive_read_control_plane_snapshot",
+            "visual_hive_read_verdict",
+            "visual_hive_read_readiness_gate",
+            "visual_hive_read_run_history",
+            "visual_hive_read_workflow_audit",
+            "visual_hive_read_baseline_review",
+            "visual_hive_read_baseline_approvals",
+            "visual_hive_read_baseline_rejections",
+            "visual_hive_read_testing_layers",
+            "visual_hive_read_test_creation_plan",
+            "visual_hive_generate_handoff_dry_run",
+            "visual_hive_validate_handoff",
+            "visual_hive_read_hive_export",
+            "visual_hive_read_hive_beads",
+            "visual_hive_read_hive_knowledge_facts",
+            "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_repair_work_orders",
+            "visual_hive_read_hive_agent_policy",
+            "visual_hive_read_hive_guarded_repair_preview",
+            "visual_hive_read_hive_repair_request_envelope",
+            "visual_hive_read_hive_trusted_repair_consumer_summary",
+            "visual_hive_read_hive_trusted_repair_workflow_dry_run",
+            "visual_hive_read_hive_mode_comparison",
+            "visual_hive_read_coverage_recommendations",
+            "visual_hive_read_mutation_report",
+            "visual_hive_read_triage_report",
+            "visual_hive_read_issue_body",
+            "visual_hive_read_pr_comment",
+            "visual_hive_read_triage_prompt",
+            "visual_hive_generate_repair_prompt",
+            "visual_hive_read_missing_tests",
+            "visual_hive_read_provider_results",
+            "visual_hive_read_provider_upload_manifest",
+            "visual_hive_read_artifacts_index",
+            "visual_hive_read_agent_packet",
+            "visual_hive_read_handoff_agent_packet",
+            "visual_hive_read_provider_agent_packet",
+            "visual_hive_read_tool_registry",
+            "visual_hive_read_context_ledger",
+            "visual_hive_read_pipeline_status",
+            "visual_hive_read_schema_catalog"
+          ]
+        },
+        "artifactPath": {
+          "type": "string",
+          "enum": [
+            "visual-hive.config.yaml",
+            ".visual-hive/plan.json",
+            ".visual-hive/plans.json",
+            ".visual-hive/recommendations.json",
+            ".visual-hive/setup-pr-plan.json",
+            ".visual-hive/report.json",
+            ".visual-hive/evidence-packet.json",
+            ".visual-hive/control-plane-snapshot.json",
+            ".visual-hive/verdict.json",
+            ".visual-hive/readiness.json",
+            ".visual-hive/history.json",
+            ".visual-hive/workflows.json",
+            ".visual-hive/baselines.json",
+            ".visual-hive/baseline-approvals.json",
+            ".visual-hive/baseline-rejections.json",
+            ".visual-hive/testing-layers.json",
+            ".visual-hive/test-creation-plan.json",
+            ".visual-hive/handoff.json",
+            ".visual-hive/hive-handoff-validation.json",
+            ".visual-hive/hive/hive-export.json",
+            ".visual-hive/hive/beads.json",
+            ".visual-hive/hive/knowledge-facts.json",
+            ".visual-hive/hive/knowledge-graph.json",
+            ".visual-hive/hive/repair-work-orders.json",
+            ".visual-hive/hive/hive-agent-policy.json",
+            ".visual-hive/hive/guarded-repair-preview.json",
+            ".visual-hive/hive/repair-request-envelope.json",
+            ".visual-hive/hive/trusted-repair-consumer-summary.json",
+            ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
+            ".visual-hive/hive/mode-comparison.json",
+            ".visual-hive/coverage.json",
+            ".visual-hive/coverage-recommendations.json",
+            ".visual-hive/mutation-report.json",
+            ".visual-hive/triage.json",
+            ".visual-hive/issue.md",
+            ".visual-hive/pr-comment.md",
+            ".visual-hive/triage-prompt.md",
+            ".visual-hive/repair-prompt.md",
+            ".visual-hive/missing-tests.md",
+            ".visual-hive/provider-results.json",
+            ".visual-hive/provider-upload/argos/manifest.json",
+            ".visual-hive/artifacts-index.json",
+            ".visual-hive/agent-packet.json",
+            ".visual-hive/handoff-agent-packet.json",
+            ".visual-hive/provider-agent-packet.json",
+            ".visual-hive/tools/tool-registry.json",
+            ".visual-hive/context-ledger.json",
+            ".visual-hive/pipeline.json",
+            ".visual-hive/schema-catalog.json"
+          ]
+        }
       }
     }
   }

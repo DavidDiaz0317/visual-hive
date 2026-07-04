@@ -7,10 +7,11 @@ import {
   writeAgentPacket,
   type AgentPacket,
   type AgentPacketProfile,
+  type RunHistoryReport,
   type TestCreationPlan
 } from "@visual-hive/core";
 
-const AGENT_PACKET_PROFILES: AgentPacketProfile[] = ["repair_agent", "test_creator", "review_agent", "handoff_agent"];
+const AGENT_PACKET_PROFILES: AgentPacketProfile[] = ["repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"];
 
 export interface AgentPacketCommandOptions {
   config?: string;
@@ -29,6 +30,7 @@ export interface AgentPacketCommandResult {
   evidencePath: string;
   handoffPath?: string;
   testCreationPlanPath?: string;
+  runHistoryPath?: string;
 }
 
 export async function runAgentPacketCommand(options: AgentPacketCommandOptions = {}): Promise<AgentPacketCommandResult> {
@@ -37,6 +39,7 @@ export async function runAgentPacketCommand(options: AgentPacketCommandOptions =
   const evidencePath = path.resolve(loaded.rootDir, options.evidence ?? path.join(".visual-hive", "evidence-packet.json"));
   const handoffPath = path.resolve(loaded.rootDir, options.handoff ?? path.join(".visual-hive", "handoff.json"));
   const testCreationPlanPath = path.resolve(loaded.rootDir, options.testCreationPlan ?? path.join(".visual-hive", "test-creation-plan.json"));
+  const runHistoryPath = path.resolve(loaded.rootDir, path.join(".visual-hive", "history.json"));
   const profile = parseAgentPacketProfile(options.profile ?? "repair_agent");
 
   let evidencePacket;
@@ -69,6 +72,18 @@ export async function runAgentPacketCommand(options: AgentPacketCommandOptions =
     resolvedTestCreationPlanPath = undefined;
   }
 
+  let runHistory: RunHistoryReport | undefined;
+  let resolvedRunHistoryPath: string | undefined;
+  try {
+    runHistory = await readJson<RunHistoryReport>(runHistoryPath);
+    if (runHistory.schemaVersion === 1) {
+      resolvedRunHistoryPath = path.relative(loaded.rootDir, runHistoryPath).replaceAll(path.sep, "/");
+    }
+  } catch {
+    runHistory = undefined;
+    resolvedRunHistoryPath = undefined;
+  }
+
   const result = await writeAgentPacket({
     rootDir: loaded.rootDir,
     evidencePacket,
@@ -77,6 +92,8 @@ export async function runAgentPacketCommand(options: AgentPacketCommandOptions =
     handoffPacketPath: resolvedHandoffPath,
     testCreationRecommendations: testCreationPlan?.recommendations,
     testCreationPlanPath: resolvedTestCreationPlanPath,
+    runHistory,
+    runHistoryPath: resolvedRunHistoryPath,
     profile,
     outputPath: options.output ?? path.join(".visual-hive", "agent-packet.json")
   });
@@ -85,7 +102,8 @@ export async function runAgentPacketCommand(options: AgentPacketCommandOptions =
     ...result,
     evidencePath,
     handoffPath: resolvedHandoffPath ? handoffPath : undefined,
-    testCreationPlanPath: resolvedTestCreationPlanPath ? testCreationPlanPath : undefined
+    testCreationPlanPath: resolvedTestCreationPlanPath ? testCreationPlanPath : undefined,
+    runHistoryPath: resolvedRunHistoryPath ? runHistoryPath : undefined
   };
 }
 
@@ -114,6 +132,7 @@ export function formatAgentPacketResult(result: AgentPacketCommandResult, format
     `- Max external cost: $${result.packet.budgets.maxExternalCostUsd}`,
     `- Evidence source: ${result.packet.sourceArtifacts.evidencePacket}`,
     ...(result.packet.sourceArtifacts.handoffPacket ? [`- Handoff source: ${result.packet.sourceArtifacts.handoffPacket}`] : []),
-    ...(result.packet.sourceArtifacts.testCreationPlan ? [`- Test creation plan: ${result.packet.sourceArtifacts.testCreationPlan}`] : [])
+    ...(result.packet.sourceArtifacts.testCreationPlan ? [`- Test creation plan: ${result.packet.sourceArtifacts.testCreationPlan}`] : []),
+    ...(result.packet.sourceArtifacts.runHistory ? [`- Run history: ${result.packet.sourceArtifacts.runHistory}`] : [])
   ].join("\n");
 }

@@ -4,12 +4,33 @@
   "title": "Visual Hive Schedule Audit",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "project", "generatedAt", "changedFiles", "summary", "lanes", "targetSchedules", "gaps", "recommendations"],
+  "required": [
+    "schemaVersion",
+    "project",
+    "generatedAt",
+    "changedFiles",
+    "summary",
+    "lanes",
+    "targetSchedules",
+    "gaps",
+    "recommendations"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "generatedAt": { "type": "string" },
-    "changedFiles": { "type": "array", "items": { "type": "string" } },
+    "schemaVersion": {
+      "const": 1
+    },
+    "project": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "summary": {
       "type": "object",
       "required": [
@@ -46,8 +67,25 @@
           "recommendations"
         ],
         "properties": {
-          "id": { "enum": ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] },
-          "mode": { "enum": ["pr", "schedule", "manual", "canary", "mutation", "full"] }
+          "id": {
+            "enum": [
+              "pull_request",
+              "scheduled",
+              "protected",
+              "mutation",
+              "trusted_issue"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "pr",
+              "schedule",
+              "manual",
+              "canary",
+              "mutation",
+              "full"
+            ]
+          }
         }
       }
     },
@@ -55,10 +93,34 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["targetId", "kind", "prSafe", "cost", "contractIds", "scheduledContractIds", "requiresSecrets", "missingSecrets"],
+        "required": [
+          "targetId",
+          "kind",
+          "prSafe",
+          "cost",
+          "contractIds",
+          "scheduledContractIds",
+          "requiresSecrets",
+          "missingSecrets"
+        ],
         "properties": {
-          "kind": { "enum": ["url", "command", "commandGroup", "deployPreview", "storybook", "protected"] },
-          "cost": { "enum": ["cheap", "medium", "expensive"] }
+          "kind": {
+            "enum": [
+              "url",
+              "command",
+              "commandGroup",
+              "deployPreview",
+              "storybook",
+              "protected"
+            ]
+          },
+          "cost": {
+            "enum": [
+              "cheap",
+              "medium",
+              "expensive"
+            ]
+          }
         }
       }
     },
@@ -66,7 +128,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["kind", "severity", "message"],
+        "required": [
+          "kind",
+          "severity",
+          "message"
+        ],
         "properties": {
           "kind": {
             "enum": [
@@ -80,11 +146,30 @@
               "target_schedule_without_contracts"
             ]
           },
-          "severity": { "enum": ["low", "medium", "high"] },
-          "laneId": { "enum": ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] }
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "laneId": {
+            "enum": [
+              "pull_request",
+              "scheduled",
+              "protected",
+              "mutation",
+              "trusted_issue"
+            ]
+          }
         }
       }
     },
-    "recommendations": { "type": "array", "items": { "type": "string" } }
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

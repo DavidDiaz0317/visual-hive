@@ -91,18 +91,124 @@ jobs:
             const beadRequest = readJsonArtifact("hive-bead-request.json");
             const handoffResult = readJsonArtifact("hive-handoff-result.json");
             const handoffValidation = readJsonArtifact("hive-handoff-validation.json");
+            const hiveExport = readJsonArtifact("hive/hive-export.json");
+            const guardedRepairPreview = readJsonArtifact("hive/guarded-repair-preview.json");
+            const repairRequestEnvelope = readJsonArtifact("hive/repair-request-envelope.json");
+            const trustedRepairConsumerSummary = readJsonArtifact("hive/trusted-repair-consumer-summary.json");
+            const trustedRepairWorkflowDryRun = readJsonArtifact("hive/trusted-repair-workflow-dry-run.json");
             const issueBody = readTextArtifact("hive-issue.md");
             const blocking = [];
             if (!evidence) blocking.push("Missing .visual-hive/evidence-packet.json artifact.");
             if (!handoff) blocking.push("Missing .visual-hive/handoff.json artifact.");
             if (!beadRequest) blocking.push("Missing .visual-hive/hive-bead-request.json artifact.");
             if (!handoffValidation) blocking.push("Missing .visual-hive/hive-handoff-validation.json artifact.");
+            if (!hiveExport) blocking.push("Missing .visual-hive/hive/hive-export.json artifact.");
+            if (!guardedRepairPreview) blocking.push("Missing .visual-hive/hive/guarded-repair-preview.json artifact.");
+            if (!repairRequestEnvelope) blocking.push("Missing .visual-hive/hive/repair-request-envelope.json artifact.");
+            if (!trustedRepairConsumerSummary) blocking.push("Missing .visual-hive/hive/trusted-repair-consumer-summary.json artifact.");
+            if (!trustedRepairWorkflowDryRun) blocking.push("Missing .visual-hive/hive/trusted-repair-workflow-dry-run.json artifact.");
             if (!issueBody) blocking.push("Missing .visual-hive/hive-issue.md artifact.");
 
-            const externalCalls = Number(handoffValidation?.summary?.externalCallsMade ?? beadRequest?.externalCallsMade ?? handoffResult?.externalCallsMade ?? 0);
-            const mode = String(beadRequest?.mode ?? handoff?.integration?.mode ?? "unknown");
+            const externalCalls = Math.max(
+              Number(handoffValidation?.summary?.externalCallsMade ?? 0),
+              Number(beadRequest?.externalCallsMade ?? 0),
+              Number(handoffResult?.externalCallsMade ?? 0),
+              Number(hiveExport?.externalCallsMade ?? 0),
+              Number(guardedRepairPreview?.externalCallsMade ?? 0),
+              Number(repairRequestEnvelope?.externalCallsMade ?? 0),
+              Number(trustedRepairConsumerSummary?.externalCallsMade ?? 0),
+              Number(trustedRepairWorkflowDryRun?.externalCallsMade ?? 0)
+            );
+            const mode = String(hiveExport?.mode ?? beadRequest?.mode ?? handoff?.integration?.mode ?? "unknown");
             if (externalCalls !== 0) {
               blocking.push("Hive handoff artifact claims externalCallsMade=" + externalCalls + "; trusted template expects dry-run artifacts only.");
+            }
+            if (hiveExport && hiveExport.schemaVersion !== "visual-hive.hive-export.v1") {
+              blocking.push("Hive export artifact has unexpected schemaVersion=" + redactSecretValues(hiveExport.schemaVersion ?? "missing") + ".");
+            }
+            if (guardedRepairPreview && guardedRepairPreview.schemaVersion !== "visual-hive.hive-guarded-repair-preview.v1") {
+              blocking.push("Guarded repair preview artifact has unexpected schemaVersion=" + redactSecretValues(guardedRepairPreview.schemaVersion ?? "missing") + ".");
+            }
+            if (guardedRepairPreview?.policy?.verdictAuthority !== "visual_hive") {
+              blocking.push("Guarded repair preview does not preserve Visual Hive as verdict authority.");
+            }
+            if (guardedRepairPreview?.policy?.repairExecution !== "preview_only_no_execution") {
+              blocking.push("Guarded repair preview is not preview-only.");
+            }
+            if (guardedRepairPreview?.policy?.externalNetworkCalls !== false) {
+              blocking.push("Guarded repair preview allows external network calls.");
+            }
+            if (Array.isArray(guardedRepairPreview?.policy?.forbiddenActions) && !guardedRepairPreview.policy.forbiddenActions.includes("decide_visual_hive_verdict")) {
+              blocking.push("Guarded repair preview does not forbid agents from deciding the Visual Hive verdict.");
+            }
+            if (repairRequestEnvelope && repairRequestEnvelope.schemaVersion !== "visual-hive.hive-repair-request-envelope.v1") {
+              blocking.push("Repair request envelope artifact has unexpected schemaVersion=" + redactSecretValues(repairRequestEnvelope.schemaVersion ?? "missing") + ".");
+            }
+            if (repairRequestEnvelope?.policy?.verdictAuthority !== "visual_hive") {
+              blocking.push("Repair request envelope does not preserve Visual Hive as verdict authority.");
+            }
+            if (repairRequestEnvelope?.policy?.requestExecution !== "trusted_workflow_request_only") {
+              blocking.push("Repair request envelope is not trusted-workflow-only.");
+            }
+            if (repairRequestEnvelope?.policy?.repairExecution !== "not_executed_by_visual_hive") {
+              blocking.push("Repair request envelope incorrectly claims Visual Hive executed repair.");
+            }
+            if (repairRequestEnvelope?.policy?.requiresTrustedWorkflow !== true) {
+              blocking.push("Repair request envelope does not require a trusted workflow.");
+            }
+            if (repairRequestEnvelope?.policy?.externalNetworkCalls !== false) {
+              blocking.push("Repair request envelope allows external network calls.");
+            }
+            if (trustedRepairConsumerSummary && trustedRepairConsumerSummary.schemaVersion !== "visual-hive.hive-trusted-repair-consumer-summary.v1") {
+              blocking.push("Trusted repair consumer summary artifact has unexpected schemaVersion=" + redactSecretValues(trustedRepairConsumerSummary.schemaVersion ?? "missing") + ".");
+            }
+            if (trustedRepairConsumerSummary?.policy?.verdictAuthority !== "visual_hive") {
+              blocking.push("Trusted repair consumer summary does not preserve Visual Hive as verdict authority.");
+            }
+            if (trustedRepairConsumerSummary?.policy?.consumerExecution !== "dry_run_summary_only") {
+              blocking.push("Trusted repair consumer summary is not dry-run only.");
+            }
+            if (trustedRepairConsumerSummary?.policy?.repairExecution !== "not_executed_by_visual_hive") {
+              blocking.push("Trusted repair consumer summary incorrectly claims Visual Hive executed repair.");
+            }
+            if (trustedRepairConsumerSummary?.policy?.branchCreation !== false || trustedRepairConsumerSummary?.policy?.pullRequestCreation !== false || trustedRepairConsumerSummary?.policy?.issueCreation !== false) {
+              blocking.push("Trusted repair consumer summary permits write actions.");
+            }
+            if (trustedRepairConsumerSummary?.policy?.hiveNetworkCalls !== false) {
+              blocking.push("Trusted repair consumer summary permits Hive network calls.");
+            }
+            if (trustedRepairConsumerSummary?.policy?.requiresTrustedWorkflow !== true) {
+              blocking.push("Trusted repair consumer summary does not require a trusted workflow.");
+            }
+            if (trustedRepairWorkflowDryRun && trustedRepairWorkflowDryRun.schemaVersion !== "visual-hive.hive-trusted-repair-workflow-dry-run.v1") {
+              blocking.push("Trusted repair workflow dry-run artifact has unexpected schemaVersion=" + redactSecretValues(trustedRepairWorkflowDryRun.schemaVersion ?? "missing") + ".");
+            }
+            if (trustedRepairWorkflowDryRun?.policy?.verdictAuthority !== "visual_hive") {
+              blocking.push("Trusted repair workflow dry-run does not preserve Visual Hive as verdict authority.");
+            }
+            if (trustedRepairWorkflowDryRun?.policy?.workflowExecution !== "dry_run_only") {
+              blocking.push("Trusted repair workflow dry-run is not dry-run only.");
+            }
+            if (trustedRepairWorkflowDryRun?.policy?.repairExecution !== "not_executed_by_visual_hive") {
+              blocking.push("Trusted repair workflow dry-run incorrectly claims Visual Hive executed repair.");
+            }
+            if (
+              trustedRepairWorkflowDryRun?.policy?.checkoutCode !== false ||
+              trustedRepairWorkflowDryRun?.policy?.branchCreation !== false ||
+              trustedRepairWorkflowDryRun?.policy?.pullRequestCreation !== false ||
+              trustedRepairWorkflowDryRun?.policy?.issueCreation !== false
+            ) {
+              blocking.push("Trusted repair workflow dry-run permits checkout or write actions.");
+            }
+            if (
+              trustedRepairWorkflowDryRun?.policy?.hiveNetworkCalls !== false ||
+              trustedRepairWorkflowDryRun?.policy?.providerCalls !== false ||
+              trustedRepairWorkflowDryRun?.policy?.visualHiveRerun !== false
+            ) {
+              blocking.push("Trusted repair workflow dry-run permits external calls or reruns.");
+            }
+            if (trustedRepairWorkflowDryRun?.policy?.requiresTrustedWorkflow !== true) {
+              blocking.push("Trusted repair workflow dry-run does not require a trusted workflow.");
             }
             if (handoffValidation?.status === "blocked") {
               blocking.push("Hive handoff validation is blocked; refusing trusted issue creation.");
@@ -129,6 +235,15 @@ jobs:
                 "Handoff packet: " + (handoff ? "found" : "missing"),
                 "Hive bead request: " + (beadRequest ? "found" : "missing"),
                 "Handoff validation: " + (handoffValidation?.status ?? "missing"),
+                "Hive native export: " + (hiveExport?.schemaVersion ?? "missing"),
+                "Guarded repair preview: " + (guardedRepairPreview?.status ?? "missing"),
+                "Guarded repair ready: " + String(guardedRepairPreview?.readiness?.canRequestGuardedRepair ?? false),
+                "Repair request envelope: " + (repairRequestEnvelope?.status ?? "missing"),
+                "Trusted repair request ready: " + String(repairRequestEnvelope?.readiness?.canOpenTrustedRepairRequest ?? false),
+                "Trusted repair consumer summary: " + (trustedRepairConsumerSummary?.status ?? "missing"),
+                "Trusted repair consumer ready: " + String(trustedRepairConsumerSummary?.readiness?.canStartTrustedRepairWorkflow ?? false),
+                "Trusted repair workflow dry-run: " + (trustedRepairWorkflowDryRun?.status ?? "missing"),
+                "Trusted repair workflow ready: " + String(trustedRepairWorkflowDryRun?.readiness?.canRunTrustedRepairWorkflow ?? false),
                 "Recommended Hive mode: " + redactSecretValues(readiness?.recommendedMode ?? "missing") + " (" + redactSecretValues(readiness?.recommendedStatus ?? "missing") + ")",
                 "Hive readiness: " + String(readiness?.readyModes?.length ?? 0) + " ready / " + String(readiness?.trustedOnlyModes?.length ?? 0) + " trusted-only / " + String(readiness?.blockedModes?.length ?? 0) + " blocked",
                 "Hive issue body: " + (issueBody ? "found" : "missing"),
@@ -148,6 +263,11 @@ jobs:
               workflow: context.payload.workflow_run.name,
               project,
               verdict,
+              hiveMode: mode,
+              guardedRepairStatus: guardedRepairPreview?.status ?? "missing",
+              repairRequestEnvelopeStatus: repairRequestEnvelope?.status ?? "missing",
+              trustedRepairConsumerSummaryStatus: trustedRepairConsumerSummary?.status ?? "missing",
+              trustedRepairWorkflowDryRunStatus: trustedRepairWorkflowDryRun?.status ?? "missing",
               workItemKeys
             });
             const signature = crypto.createHash("sha256").update(signatureSource).digest("hex").slice(0, 16);
@@ -159,6 +279,15 @@ jobs:
               "- Visual Hive verdict: " + verdict,
               "- External calls made: " + externalCalls,
               "- Recommended Hive mode: " + redactSecretValues(handoffValidation.hiveReadiness?.recommendedMode ?? "missing"),
+              "- Hive export mode: " + redactSecretValues(mode),
+              "- Guarded repair preview: " + redactSecretValues(guardedRepairPreview?.status ?? "missing"),
+              "- Guarded repair ready: " + String(guardedRepairPreview?.readiness?.canRequestGuardedRepair ?? false),
+              "- Repair request envelope: " + redactSecretValues(repairRequestEnvelope?.status ?? "missing"),
+              "- Trusted repair request ready: " + String(repairRequestEnvelope?.readiness?.canOpenTrustedRepairRequest ?? false),
+              "- Trusted repair consumer summary: " + redactSecretValues(trustedRepairConsumerSummary?.status ?? "missing"),
+              "- Trusted repair consumer ready: " + String(trustedRepairConsumerSummary?.readiness?.canStartTrustedRepairWorkflow ?? false),
+              "- Trusted repair workflow dry-run: " + redactSecretValues(trustedRepairWorkflowDryRun?.status ?? "missing"),
+              "- Trusted repair workflow ready: " + String(trustedRepairWorkflowDryRun?.readiness?.canRunTrustedRepairWorkflow ?? false),
               "- Full automation blocked: " + String(handoffValidation.hiveReadiness?.fullAutomationBlocked ?? false),
               "- Trusted workflow: workflow_run artifact consumer",
               "- PR code checkout: false",

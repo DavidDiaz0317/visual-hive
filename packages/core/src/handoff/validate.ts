@@ -4,6 +4,13 @@ import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { EvidencePacket, EvidencePacketHiveMode, EvidencePacketHiveModeReadiness, VerdictSummary } from "../evidence/types.js";
 import type { HandoffPacket, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
+import type {
+  HiveExportBundle,
+  HiveGuardedRepairPreview,
+  HiveRepairRequestEnvelope,
+  HiveTrustedRepairConsumerSummary,
+  HiveTrustedRepairWorkflowDryRun
+} from "../hive/types.js";
 
 export type HandoffValidationStatus = "passed" | "warning" | "blocked";
 
@@ -26,6 +33,11 @@ export interface HandoffValidationReport {
     issue: string;
     beadRequest: string;
     result: string;
+    hiveExport?: string;
+    guardedRepairPreview?: string;
+    repairRequestEnvelope?: string;
+    trustedRepairConsumerSummary?: string;
+    trustedRepairWorkflowDryRun?: string;
   };
   summary: {
     checksPassed: number;
@@ -56,6 +68,11 @@ export interface ValidateHandoffArtifactsOptions {
   issuePath?: string;
   beadRequestPath?: string;
   resultPath?: string;
+  hiveExportPath?: string;
+  guardedRepairPreviewPath?: string;
+  repairRequestEnvelopePath?: string;
+  trustedRepairConsumerSummaryPath?: string;
+  trustedRepairWorkflowDryRunPath?: string;
   outputPath?: string;
   now?: Date;
 }
@@ -66,6 +83,11 @@ const DEFAULT_PATHS = {
   issue: ".visual-hive/hive-issue.md",
   beadRequest: ".visual-hive/hive-bead-request.json",
   result: ".visual-hive/hive-handoff-result.json",
+  hiveExport: ".visual-hive/hive/hive-export.json",
+  guardedRepairPreview: ".visual-hive/hive/guarded-repair-preview.json",
+  repairRequestEnvelope: ".visual-hive/hive/repair-request-envelope.json",
+  trustedRepairConsumerSummary: ".visual-hive/hive/trusted-repair-consumer-summary.json",
+  trustedRepairWorkflowDryRun: ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
   output: ".visual-hive/hive-handoff-validation.json"
 };
 const REQUIRED_HIVE_MODES: EvidencePacketHiveMode[] = ["advisory", "measured", "repair_request", "guarded_repair", "full"];
@@ -79,7 +101,12 @@ export async function validateHandoffArtifacts(
     handoff: normalizeArtifactPath(options.handoffPath ?? DEFAULT_PATHS.handoff),
     issue: normalizeArtifactPath(options.issuePath ?? DEFAULT_PATHS.issue),
     beadRequest: normalizeArtifactPath(options.beadRequestPath ?? DEFAULT_PATHS.beadRequest),
-    result: normalizeArtifactPath(options.resultPath ?? DEFAULT_PATHS.result)
+    result: normalizeArtifactPath(options.resultPath ?? DEFAULT_PATHS.result),
+    hiveExport: normalizeArtifactPath(options.hiveExportPath ?? DEFAULT_PATHS.hiveExport),
+    guardedRepairPreview: normalizeArtifactPath(options.guardedRepairPreviewPath ?? DEFAULT_PATHS.guardedRepairPreview),
+    repairRequestEnvelope: normalizeArtifactPath(options.repairRequestEnvelopePath ?? DEFAULT_PATHS.repairRequestEnvelope),
+    trustedRepairConsumerSummary: normalizeArtifactPath(options.trustedRepairConsumerSummaryPath ?? DEFAULT_PATHS.trustedRepairConsumerSummary),
+    trustedRepairWorkflowDryRun: normalizeArtifactPath(options.trustedRepairWorkflowDryRunPath ?? DEFAULT_PATHS.trustedRepairWorkflowDryRun)
   };
   const outputPath = normalizeArtifactPath(options.outputPath ?? DEFAULT_PATHS.output);
   const checks: HandoffValidationCheck[] = [];
@@ -89,6 +116,21 @@ export async function validateHandoffArtifacts(
   const beadRequest = await readArtifact<HiveBeadDryRunRequest>(rootDir, sourceArtifacts.beadRequest, "hive-bead-request", checks);
   const result = await readArtifact<HiveHandoffResult>(rootDir, sourceArtifacts.result, "hive-handoff-result", checks);
   const issueBody = await readTextArtifact(rootDir, sourceArtifacts.issue, checks);
+  const hiveExport = await readOptionalArtifact<HiveExportBundle>(rootDir, sourceArtifacts.hiveExport, "hive-export", checks);
+  const guardedRepairPreview = await readOptionalArtifact<HiveGuardedRepairPreview>(rootDir, sourceArtifacts.guardedRepairPreview, "hive-guarded-repair-preview", checks);
+  const repairRequestEnvelope = await readOptionalArtifact<HiveRepairRequestEnvelope>(rootDir, sourceArtifacts.repairRequestEnvelope, "hive-repair-request-envelope", checks);
+  const trustedRepairConsumerSummary = await readOptionalArtifact<HiveTrustedRepairConsumerSummary>(
+    rootDir,
+    sourceArtifacts.trustedRepairConsumerSummary,
+    "hive-trusted-repair-consumer-summary",
+    checks
+  );
+  const trustedRepairWorkflowDryRun = await readOptionalArtifact<HiveTrustedRepairWorkflowDryRun>(
+    rootDir,
+    sourceArtifacts.trustedRepairWorkflowDryRun,
+    "hive-trusted-repair-workflow-dry-run",
+    checks
+  );
 
   if (evidence) {
     addCheck(
@@ -171,7 +213,153 @@ export async function validateHandoffArtifacts(
     );
   }
 
-  const externalCallsMade = sumExternalCalls(handoff, beadRequest, result);
+  if (hiveExport) {
+    addCheck(
+      checks,
+      "hive-export-schema",
+      "Hive export schema",
+      hiveExport.schemaVersion === "visual-hive.hive-export.v1" ? "passed" : "blocked",
+      [`schemaVersion=${String(hiveExport.schemaVersion)}`, `externalCallsMade=${String(hiveExport.externalCallsMade)}`],
+      "Hive export must be schema version visual-hive.hive-export.v1 and remain no-network evidence."
+    );
+  }
+  if (guardedRepairPreview) {
+    addCheck(
+      checks,
+      "hive-guarded-repair-preview-schema",
+      "Hive guarded repair preview schema",
+      guardedRepairPreview.schemaVersion === "visual-hive.hive-guarded-repair-preview.v1" ? "passed" : "blocked",
+      [`schemaVersion=${String(guardedRepairPreview.schemaVersion)}`, `externalCallsMade=${String(guardedRepairPreview.externalCallsMade)}`],
+      "Guarded repair preview must be schema version visual-hive.hive-guarded-repair-preview.v1 and remain preview-only."
+    );
+  }
+  if (repairRequestEnvelope) {
+    addCheck(
+      checks,
+      "hive-repair-request-envelope-schema",
+      "Hive repair request envelope schema",
+      repairRequestEnvelope.schemaVersion === "visual-hive.hive-repair-request-envelope.v1" ? "passed" : "blocked",
+      [`schemaVersion=${String(repairRequestEnvelope.schemaVersion)}`, `externalCallsMade=${String(repairRequestEnvelope.externalCallsMade)}`],
+      "Repair request envelope must be schema version visual-hive.hive-repair-request-envelope.v1 and remain trusted-workflow-only."
+    );
+  }
+  if (trustedRepairConsumerSummary) {
+    addCheck(
+      checks,
+      "hive-trusted-repair-consumer-summary-schema",
+      "Hive trusted repair consumer summary schema",
+      trustedRepairConsumerSummary.schemaVersion === "visual-hive.hive-trusted-repair-consumer-summary.v1" ? "passed" : "blocked",
+      [`schemaVersion=${String(trustedRepairConsumerSummary.schemaVersion)}`, `externalCallsMade=${String(trustedRepairConsumerSummary.externalCallsMade)}`],
+      "Trusted repair consumer summary must be schema version visual-hive.hive-trusted-repair-consumer-summary.v1 and remain no-network."
+    );
+    addCheck(
+      checks,
+      "hive-trusted-repair-consumer-policy",
+      "Hive trusted repair consumer policy",
+        trustedRepairConsumerSummary.policy.verdictAuthority === "visual_hive" &&
+        trustedRepairConsumerSummary.policy.consumerExecution === "dry_run_summary_only" &&
+        trustedRepairConsumerSummary.policy.repairExecution === "not_executed_by_visual_hive" &&
+        trustedRepairConsumerSummary.policy.checkoutCode === false &&
+        trustedRepairConsumerSummary.policy.branchCreation === false &&
+        trustedRepairConsumerSummary.policy.pullRequestCreation === false &&
+        trustedRepairConsumerSummary.policy.issueCreation === false &&
+        trustedRepairConsumerSummary.policy.hiveNetworkCalls === false &&
+        trustedRepairConsumerSummary.policy.providerCalls === false &&
+        trustedRepairConsumerSummary.policy.visualHiveRerun === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldCheckoutCode === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldExecuteRepair === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldCreateBranches === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldOpenPullRequests === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldCreateIssues === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldCallHiveApi === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldCallProviders === false &&
+        trustedRepairConsumerSummary.consumerActions.wouldRunVisualHive === false
+        ? "passed"
+        : "blocked",
+      [
+        `verdictAuthority=${trustedRepairConsumerSummary.policy.verdictAuthority}`,
+        `consumerExecution=${trustedRepairConsumerSummary.policy.consumerExecution}`,
+        `checkoutCode=${String(trustedRepairConsumerSummary.policy.checkoutCode)}`,
+        `branchCreation=${String(trustedRepairConsumerSummary.policy.branchCreation)}`,
+        `pullRequestCreation=${String(trustedRepairConsumerSummary.policy.pullRequestCreation)}`,
+        `hiveNetworkCalls=${String(trustedRepairConsumerSummary.policy.hiveNetworkCalls)}`,
+        `providerCalls=${String(trustedRepairConsumerSummary.policy.providerCalls)}`,
+        `visualHiveRerun=${String(trustedRepairConsumerSummary.policy.visualHiveRerun)}`
+      ],
+      "Trusted repair consumer summary must not perform checkout, repair, branch, pull request, issue, Hive, provider, or Visual Hive rerun actions."
+    );
+  }
+  if (trustedRepairWorkflowDryRun) {
+    addCheck(
+      checks,
+      "hive-trusted-repair-workflow-dry-run-schema",
+      "Hive trusted repair workflow dry-run schema",
+      trustedRepairWorkflowDryRun.schemaVersion === "visual-hive.hive-trusted-repair-workflow-dry-run.v1" ? "passed" : "blocked",
+      [`schemaVersion=${String(trustedRepairWorkflowDryRun.schemaVersion)}`, `externalCallsMade=${String(trustedRepairWorkflowDryRun.externalCallsMade)}`],
+      "Trusted repair workflow dry-run must be schema version visual-hive.hive-trusted-repair-workflow-dry-run.v1."
+    );
+    addCheck(
+      checks,
+      "hive-trusted-repair-workflow-dry-run-policy",
+      "Hive trusted repair workflow dry-run policy",
+      trustedRepairWorkflowDryRun.policy.verdictAuthority === "visual_hive" &&
+        trustedRepairWorkflowDryRun.policy.workflowExecution === "dry_run_only" &&
+        trustedRepairWorkflowDryRun.policy.repairExecution === "not_executed_by_visual_hive" &&
+        trustedRepairWorkflowDryRun.policy.checkoutCode === false &&
+        trustedRepairWorkflowDryRun.policy.branchCreation === false &&
+        trustedRepairWorkflowDryRun.policy.pullRequestCreation === false &&
+        trustedRepairWorkflowDryRun.policy.issueCreation === false &&
+        trustedRepairWorkflowDryRun.policy.hiveNetworkCalls === false &&
+        trustedRepairWorkflowDryRun.policy.providerCalls === false &&
+        trustedRepairWorkflowDryRun.policy.visualHiveRerun === false &&
+        trustedRepairWorkflowDryRun.currentActions.checkedOutCode === false &&
+        trustedRepairWorkflowDryRun.currentActions.createdBranches === false &&
+        trustedRepairWorkflowDryRun.currentActions.openedPullRequests === false &&
+        trustedRepairWorkflowDryRun.currentActions.createdIssues === false &&
+        trustedRepairWorkflowDryRun.currentActions.calledHiveApi === false &&
+        trustedRepairWorkflowDryRun.currentActions.calledProviders === false &&
+        trustedRepairWorkflowDryRun.currentActions.ranVisualHive === false &&
+        trustedRepairWorkflowDryRun.currentActions.executedRepair === false
+        ? "passed"
+        : "blocked",
+      [
+        `workflowExecution=${trustedRepairWorkflowDryRun.policy.workflowExecution}`,
+        `checkoutCode=${String(trustedRepairWorkflowDryRun.policy.checkoutCode)}`,
+        `branchCreation=${String(trustedRepairWorkflowDryRun.policy.branchCreation)}`,
+        `pullRequestCreation=${String(trustedRepairWorkflowDryRun.policy.pullRequestCreation)}`,
+        `hiveNetworkCalls=${String(trustedRepairWorkflowDryRun.policy.hiveNetworkCalls)}`,
+        `providerCalls=${String(trustedRepairWorkflowDryRun.policy.providerCalls)}`,
+        `visualHiveRerun=${String(trustedRepairWorkflowDryRun.policy.visualHiveRerun)}`
+      ],
+      "Trusted repair workflow dry-run must remain no-checkout, no-write, no-network, no-provider, and no-rerun."
+    );
+  }
+  if (trustedRepairWorkflowDryRun || trustedRepairConsumerSummary || repairRequestEnvelope || guardedRepairPreview) {
+    addCheck(
+      checks,
+      "hive-trusted-repair-chain-consistency",
+      "Hive trusted repair chain consistency",
+      validateTrustedRepairChain({
+        hiveExport,
+        guardedRepairPreview,
+        repairRequestEnvelope,
+        trustedRepairConsumerSummary,
+        trustedRepairWorkflowDryRun
+      })
+        ? "passed"
+        : "blocked",
+      [
+        `hiveExport=${hiveExport?.schemaVersion ?? "missing"}`,
+        `guardedRepairPreview=${guardedRepairPreview?.schemaVersion ?? "missing"}`,
+        `repairRequestEnvelope=${repairRequestEnvelope?.schemaVersion ?? "missing"}`,
+        `trustedRepairConsumerSummary=${trustedRepairConsumerSummary?.schemaVersion ?? "missing"}`,
+        `trustedRepairWorkflowDryRun=${trustedRepairWorkflowDryRun?.schemaVersion ?? "missing"}`
+      ],
+      "If trusted repair chain artifacts are present, they must appear as a complete no-network chain before any future branch, PR, issue, or Hive action."
+    );
+  }
+
+  const externalCallsMade = sumExternalCalls(handoff, beadRequest, result, hiveExport, guardedRepairPreview, repairRequestEnvelope, trustedRepairConsumerSummary, trustedRepairWorkflowDryRun);
   addCheck(
     checks,
     "no-external-calls",
@@ -362,8 +550,84 @@ function addCheck(
   });
 }
 
-function sumExternalCalls(handoff?: HandoffPacket, beadRequest?: HiveBeadDryRunRequest, result?: HiveHandoffResult): number {
-  return Number(handoff?.externalCallsMade ?? 0) + Number(beadRequest?.externalCallsMade ?? 0) + Number(result?.externalCallsMade ?? 0);
+function sumExternalCalls(
+  handoff?: HandoffPacket,
+  beadRequest?: HiveBeadDryRunRequest,
+  result?: HiveHandoffResult,
+  hiveExport?: HiveExportBundle,
+  guardedRepairPreview?: HiveGuardedRepairPreview,
+  repairRequestEnvelope?: HiveRepairRequestEnvelope,
+  trustedRepairConsumerSummary?: HiveTrustedRepairConsumerSummary,
+  trustedRepairWorkflowDryRun?: HiveTrustedRepairWorkflowDryRun
+): number {
+  return (
+    Number(handoff?.externalCallsMade ?? 0) +
+    Number(beadRequest?.externalCallsMade ?? 0) +
+    Number(result?.externalCallsMade ?? 0) +
+    Number(hiveExport?.externalCallsMade ?? 0) +
+    Number(guardedRepairPreview?.externalCallsMade ?? 0) +
+    Number(repairRequestEnvelope?.externalCallsMade ?? 0) +
+    Number(trustedRepairConsumerSummary?.externalCallsMade ?? 0) +
+    Number(trustedRepairWorkflowDryRun?.externalCallsMade ?? 0)
+  );
+}
+
+async function readOptionalArtifact<T>(
+  rootDir: string,
+  artifactPath: string,
+  label: string,
+  checks: HandoffValidationCheck[]
+): Promise<T | undefined> {
+  try {
+    return JSON.parse(await readFile(resolveArtifact(rootDir, artifactPath), "utf8")) as T;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    addCheck(checks, `artifact-${label}`, `Read ${label}`, "blocked", [artifactPath], sanitizeText(error instanceof Error ? error.message : String(error)));
+    return undefined;
+  }
+}
+
+function validateTrustedRepairChain(input: {
+  hiveExport?: HiveExportBundle;
+  guardedRepairPreview?: HiveGuardedRepairPreview;
+  repairRequestEnvelope?: HiveRepairRequestEnvelope;
+  trustedRepairConsumerSummary?: HiveTrustedRepairConsumerSummary;
+  trustedRepairWorkflowDryRun?: HiveTrustedRepairWorkflowDryRun;
+}): boolean {
+  const { hiveExport, guardedRepairPreview, repairRequestEnvelope, trustedRepairConsumerSummary, trustedRepairWorkflowDryRun } = input;
+  if (trustedRepairWorkflowDryRun && !trustedRepairConsumerSummary) return false;
+  if (trustedRepairConsumerSummary && !repairRequestEnvelope) return false;
+  if (repairRequestEnvelope && !guardedRepairPreview) return false;
+  if (guardedRepairPreview && !hiveExport) return false;
+  if (guardedRepairPreview && hiveExport && normalizeArtifactPath(guardedRepairPreview.sourceArtifacts.hiveExport) !== normalizeArtifactPath(hiveExport.outputArtifacts.export)) {
+    return false;
+  }
+  if (
+    repairRequestEnvelope &&
+    guardedRepairPreview &&
+    normalizeArtifactPath(repairRequestEnvelope.sourceArtifacts.guardedRepairPreview) !== normalizeArtifactPath(guardedRepairPreview.outputArtifacts.preview)
+  ) {
+    return false;
+  }
+  if (
+    trustedRepairConsumerSummary &&
+    repairRequestEnvelope &&
+    normalizeArtifactPath(trustedRepairConsumerSummary.sourceArtifacts.repairRequestEnvelope) !== normalizeArtifactPath(repairRequestEnvelope.outputArtifacts.envelope)
+  ) {
+    return false;
+  }
+  if (
+    trustedRepairWorkflowDryRun &&
+    trustedRepairConsumerSummary &&
+    normalizeArtifactPath(trustedRepairWorkflowDryRun.sourceArtifacts.trustedRepairConsumerSummary) !== normalizeArtifactPath(trustedRepairConsumerSummary.outputArtifacts.summary)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isNotFound(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "ENOENT");
 }
 
 function sameVerdict(left: VerdictSummary, right: VerdictSummary): boolean {

@@ -211,7 +211,7 @@ Hive:
   Open PRs under governance.
 ```
 
-The safest first integration is GitHub issue handoff from a trusted workflow. The direct Hive Bead API should be optional and disabled by default.
+The safest first integration is GitHub issue handoff from a trusted workflow. The next safe repair-capable bridge is a no-network Hive-native export, followed by a guarded repair preview, a trusted repair request envelope, and a trusted repair consumer summary. These artifacts let humans and future Hive workflows inspect exactly what would be repaired, which branches and pull requests would be created, what approvals are required, and which commands must pass before any actual write action exists. The direct Hive Bead API should remain optional and disabled by default.
 
 ### Proposed Handoff Flow
 
@@ -221,11 +221,15 @@ flowchart TD
   B --> C["Playwright deterministic contracts"]
   C --> D["Mutation adequacy when configured"]
   D --> E["Evidence packet and sanitized artifacts"]
-  E --> F["Trusted workflow_run issue handoff"]
-  F --> G["GitHub issue with Hive labels"]
-  G --> H["Hive scanner or quality agent queue"]
-  E --> I["Optional Hive Bead API handoff"]
-  I --> H
+  E --> F["Hive-native dry-run export"]
+  F --> G["Guarded repair preview"]
+  G --> H["Trusted repair request envelope"]
+  H --> I["Trusted repair consumer summary"]
+  I --> J["Trusted workflow_run issue handoff"]
+  J --> K["GitHub issue with Hive labels"]
+  K --> L["Hive scanner or quality agent queue"]
+  I --> M["Optional future Hive Bead or repair API"]
+  M --> L
 ```
 
 ### Suggested Future Config
@@ -268,6 +272,10 @@ visual-hive handoff --dry-run
 visual-hive hive export --dry-run
 visual-hive hive export --mode measured
 visual-hive hive export --mode repair_request
+visual-hive hive guarded-repair-preview
+visual-hive hive repair-request-envelope
+visual-hive hive trusted-repair-consumer-summary
+visual-hive hive trusted-repair-workflow-dry-run
 ```
 
 ### Suggested Future Artifacts
@@ -283,9 +291,17 @@ visual-hive hive export --mode repair_request
 - `.visual-hive/hive/issue-context.md`
 - `.visual-hive/hive/repair-work-orders.json`
 - `.visual-hive/hive/hive-agent-policy.json`
+- `.visual-hive/hive/guarded-repair-preview.json`
+- `.visual-hive/hive/guarded-repair-preview.md`
+- `.visual-hive/hive/repair-request-envelope.json`
+- `.visual-hive/hive/repair-request-envelope.md`
+- `.visual-hive/hive/trusted-repair-consumer-summary.json`
+- `.visual-hive/hive/trusted-repair-consumer-summary.md`
+- `.visual-hive/hive/trusted-repair-workflow-dry-run.json`
+- `.visual-hive/hive/trusted-repair-workflow-dry-run.md`
 - `.visual-hive/hive/wiki/*.md`
 
-The first integration should fit Hive's bead, wiki, and graph model without requiring Hive to run Visual Hive or trust untrusted PR code. Direct Hive API calls can remain a later trusted adapter; the safer first path is to export a Hive-native bundle and let a trusted workflow or Hive operator consume it.
+The first integration should fit Hive's bead, wiki, and graph model without requiring Hive to run Visual Hive or trust untrusted PR code. Direct Hive API calls can remain a later trusted adapter; the safer first path is to export a Hive-native bundle and let a trusted workflow or Hive operator consume it. Guarded repair, trusted consumer, and workflow dry-run artifacts are the bridge from advice to repair: they describe what a trusted repair workflow may eventually do while proving that Visual Hive itself did not checkout code, create branches, open pull requests, create issues, call Hive, call providers, rerun itself, or execute repair.
 
 ## Automation Maturity Model
 
@@ -354,17 +370,18 @@ Track:
 
 ### Formal Evidence Packet Schema
 
-Add a schema such as `schemas/visual-hive.evidence-packet.schema.json`. This becomes the stable contract between Visual Hive, GitHub issue creation, Hive Beads, Control Plane views, and future LLM workflows.
+Visual Hive now includes a formal Evidence Packet schema and writer. This is the stable contract between Visual Hive, GitHub issue creation, Hive Beads, Control Plane views, MCP resources, and future LLM workflows.
 
 ### Hive Native Export Adapter
 
-Implement Hive integration in phases:
+Hive integration should continue in phases, with the first no-network phases already present:
 
 1. Handoff dry run: write sanitized compact handoff artifacts only.
 2. Hive native export: write issue context, beads, project knowledge facts, graph data, wiki pages, agent policy, and guarded repair work orders.
-3. Trusted GitHub issue mode: create/update issues from sanitized artifacts without checking out or executing PR code.
-4. Bead/API mode: post to Hive only when explicitly enabled in trusted environments.
-5. Control Plane visibility: show Hive readiness, bead/fact/graph counts, repair-work-order status, missing token names, and latest handoff result.
+3. Guarded repair preview: consume repair work orders and agent policy, but perform no repair and make no Hive network calls.
+4. Trusted GitHub issue mode: create/update issues from sanitized artifacts without checking out or executing PR code.
+5. Bead/API mode: post to Hive only when explicitly enabled in trusted environments.
+6. Control Plane visibility: show Hive readiness, bead/fact/graph counts, repair-work-order status, guarded repair preview status, missing token names, and latest handoff result.
 
 ### AI-Authored PR Risk Signal
 
@@ -410,16 +427,15 @@ The project should preserve these safety limits:
 ### Near Term
 
 - Publish this research rationale.
-- Add Evidence Packet schema and artifact writer.
-- Improve `triage` and `report` to reference the evidence packet.
-- Add Hive-friendly labels, issue body sections, and no-network Hive native export artifacts.
+- Keep the Evidence Packet, Verdict, Handoff Packet, Hive-native export, guarded repair preview, and trusted repair request envelope schemas aligned as the operational beta evolves.
+- Improve `triage`, `report`, and the Control Plane to explain the evidence packet without forcing users into raw JSON.
+- Keep Hive-friendly labels, issue body sections, no-network Hive-native export artifacts, guarded repair preview artifacts, and trusted repair request envelope artifacts in the default demo acceptance path.
 
 ### Next
 
-- Add `integrations.hive` config validation with default disabled posture.
-- Add and harden `visual-hive hive export --dry-run` around beads, project wiki facts, graph data, and guarded repair work orders.
-- Add trusted GitHub issue handoff workflow using evidence packets.
-- Add Control Plane "Agent handoff" readiness panel.
+- Harden the trusted GitHub issue and Hive handoff workflow around Evidence Packet, Hive-native export, guarded repair preview, repair request envelope, trusted repair consumer summary, and trusted repair workflow dry-run artifacts.
+- Add the first trusted workflow consumer for the repair request envelope, still without executing untrusted PR code.
+- Expand Control Plane guidance that explains when guarded repair is blocked, trusted-only, ready for a trusted workflow, or waiting for Hive/API integration.
 
 ### Later
 

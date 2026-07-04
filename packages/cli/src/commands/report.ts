@@ -98,6 +98,9 @@ export function renderMarkdownReport(
       );
       if (upload?.providerUrl) lines.push(`  - Provider URL: ${upload.providerUrl}`);
       if (upload?.blockedReasons?.length) lines.push(`  - Blocked: ${upload.blockedReasons.join(" ")}`);
+      if (upload?.command) lines.push(`  - Command: ${upload.command}`);
+      if (upload?.stderr) lines.push(`  - Stderr: ${upload.stderr}`);
+      if (upload?.stdout) lines.push(`  - Stdout: ${upload.stdout}`);
     }
     lines.push("");
   }

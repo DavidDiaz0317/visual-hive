@@ -1,9 +1,11 @@
 import path from "node:path";
 import { rm } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
 import {
   buildMutationReport,
   loadConfig,
   readJson,
+  sanitizeText,
   writeJson,
   selectContractsForMutation,
   MUTATION_OPERATOR_METADATA,
@@ -14,7 +16,7 @@ import {
   type Report,
   type VisualHiveConfig
 } from "@visual-hive/core";
-import { runPlaywrightContracts } from "@visual-hive/playwright-adapter";
+import { runPlaywrightContracts, startManagedServer, type ManagedServer } from "@visual-hive/playwright-adapter";
 
 export type MutationRunner = (options: {
   config: VisualHiveConfig;
@@ -22,6 +24,9 @@ export type MutationRunner = (options: {
   rootDir: string;
   ci?: boolean;
   mutationOperator?: string;
+  mutationOperators?: string[];
+  mutationMatrix?: Record<string, string[]>;
+  runTargetCommands?: boolean;
   skipInstall?: boolean;
   skipBuild?: boolean;
 }) => Promise<{ report: Report; exitCode: number }>;
@@ -36,6 +41,18 @@ export interface MutateCommandOptions {
   skipBuild?: boolean;
 }
 
+interface MutationTargetSession {
+  stop: () => Promise<void>;
+}
+
+interface ApplicableMutationMapping {
+  operatorId: string;
+  selectedItems: Plan["items"];
+  expectedFailureKinds: string[];
+}
+
+const MUTATION_LIFECYCLE_COMMAND_TIMEOUT_MS = 300_000;
+
 export async function runMutateCommand(options: MutateCommandOptions = {}): Promise<{ exitCode: number; reportPath: string; report: MutationReport }> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config, cwd);
@@ -49,8 +66,26 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
   }
   const results: MutationResult[] = [];
   const runner = options.runner ?? runPlaywrightContracts;
+  const manageTargetLifecycle = !options.runner;
+  let targetSession: MutationTargetSession | undefined;
   const deterministicReportPath = path.join(loaded.rootDir, ".visual-hive", "report.json");
   const previousDeterministicReport = await readOptionalReport(deterministicReportPath);
+
+  if (manageTargetLifecycle) {
+    try {
+      return await runDefaultMutationBatch({
+        config: loaded.config,
+        plan,
+        rootDir: loaded.rootDir,
+        operators,
+        enforceMinScore: options.enforceMinScore,
+        skipInstall: options.skipInstall,
+        skipBuild: options.skipBuild
+      });
+    } finally {
+      await restoreDeterministicReport(deterministicReportPath, previousDeterministicReport);
+    }
+  }
 
   try {
     for (const operator of operators) {
@@ -82,12 +117,22 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
         items: selectedItems,
         targets: plan.targets.filter((target) => selectedTargetIds.includes(target.id))
       };
+      if (manageTargetLifecycle && !targetSession) {
+        targetSession = await startMutationTargetSession({
+          config: loaded.config,
+          plan,
+          rootDir: loaded.rootDir,
+          skipInstall: options.skipInstall,
+          skipBuild: options.skipBuild
+        });
+      }
       const { report, exitCode } = await runner({
         config: loaded.config,
         plan: mutationPlan,
         rootDir: loaded.rootDir,
         ci: true,
         mutationOperator: mapping.operatorId,
+        runTargetCommands: !manageTargetLifecycle,
         skipInstall: options.skipInstall,
         skipBuild: options.skipBuild
       });
@@ -118,7 +163,133 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
     const exitCode = options.enforceMinScore && report.score < report.minScore ? 1 : 0;
     return { exitCode, reportPath, report };
   } finally {
+    await targetSession?.stop();
     await restoreDeterministicReport(deterministicReportPath, previousDeterministicReport);
+  }
+}
+
+async function startMutationTargetSession(input: {
+  config: VisualHiveConfig;
+  plan: Plan;
+  rootDir: string;
+  skipInstall?: boolean;
+  skipBuild?: boolean;
+}): Promise<MutationTargetSession> {
+  const startedServers: Array<{ server: ManagedServer }> = [];
+  const teardownCommands: Array<{ command: string; cwd: string }> = [];
+  try {
+    for (const target of input.plan.targets) {
+      const targetConfig = input.config.targets[target.id];
+      if (targetConfig.kind === "url") {
+        continue;
+      }
+      if (targetConfig.kind === "command" || targetConfig.kind === "storybook") {
+        if (targetConfig.install && !input.skipInstall) {
+          await runMutationLifecycleCommand(targetConfig.install, input.rootDir);
+        }
+        if (targetConfig.build && !input.skipBuild) {
+          await runMutationLifecycleCommand(targetConfig.build, input.rootDir);
+        }
+        const serveCommand = targetConfig.kind === "command" ? targetConfig.serve : targetConfig.serve;
+        if (serveCommand) {
+          const server = await startManagedServer({
+            command: serveCommand,
+            cwd: input.rootDir,
+            url: targetConfig.url
+          });
+          startedServers.push({ server });
+        }
+      }
+      if (targetConfig.kind === "commandGroup" || targetConfig.kind === "protected") {
+        for (const setupCommand of targetConfig.setup ?? []) {
+          await runMutationLifecycleCommand(setupCommand, input.rootDir);
+        }
+        for (const service of targetConfig.services ?? []) {
+          const serviceUrl = service.healthPath ? new URL(service.healthPath, service.url).toString() : service.url;
+          const server = await startManagedServer({
+            command: service.command,
+            cwd: input.rootDir,
+            url: serviceUrl,
+            timeoutMs: service.readinessTimeoutMs
+          });
+          startedServers.push({ server });
+        }
+        for (const teardownCommand of targetConfig.teardown ?? []) {
+          teardownCommands.push({ command: teardownCommand, cwd: input.rootDir });
+        }
+      }
+    }
+    return {
+      stop: async () => {
+        for (const started of startedServers.reverse()) {
+          await started.server.stop();
+        }
+        for (const teardown of teardownCommands.reverse()) {
+          await runMutationLifecycleCommand(teardown.command, teardown.cwd, true);
+        }
+      }
+    };
+  } catch (error) {
+    for (const started of startedServers.reverse()) {
+      await started.server.stop();
+    }
+    for (const teardown of teardownCommands.reverse()) {
+      await runMutationLifecycleCommand(teardown.command, teardown.cwd, true);
+    }
+    throw error;
+  }
+}
+
+function runMutationLifecycleCommand(command: string, cwd: string, allowFailure = false): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      if (child.pid) {
+        killProcessTree(child.pid);
+      }
+      reject(new Error(`Mutation target lifecycle command timed out after ${MUTATION_LIFECYCLE_COMMAND_TIMEOUT_MS}ms: ${sanitizeText(command)}`));
+    }, MUTATION_LIFECYCLE_COMMAND_TIMEOUT_MS);
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+      if (stderr.length > 4000) {
+        stderr = stderr.slice(-4000);
+      }
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      const exitCode = code ?? 1;
+      if (exitCode !== 0 && !allowFailure) {
+        reject(new Error(sanitizeText(stderr || `Mutation target lifecycle command exited with code ${exitCode}: ${command}`)));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function killProcessTree(pid: number): void {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+    return;
+  }
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Process already exited.
+    }
   }
 }
 
@@ -127,6 +298,116 @@ async function readOptionalReport(reportPath: string): Promise<Report | undefine
     return await readJson<Report>(reportPath);
   } catch {
     return undefined;
+  }
+}
+
+async function runDefaultMutationBatch(input: {
+  config: VisualHiveConfig;
+  plan: Plan;
+  rootDir: string;
+  operators: Plan["mutation"]["operators"];
+  enforceMinScore?: boolean;
+  skipInstall?: boolean;
+  skipBuild?: boolean;
+}): Promise<{ exitCode: number; reportPath: string; report: MutationReport }> {
+  const selectedContracts = input.config.contracts.filter((contract) => input.plan.items.some((item) => item.contractId === contract.id));
+  const results: MutationResult[] = [];
+  const applicableMappings: ApplicableMutationMapping[] = [];
+
+  for (const operator of input.operators) {
+    const mapping = selectContractsForMutation(operator, selectedContracts);
+    const selectedItems = input.plan.items.filter((item) => mapping.contractIds.includes(item.contractId));
+    const metadata = MUTATION_OPERATOR_METADATA[mapping.operatorId];
+    if (!mapping.applicable || selectedItems.length === 0) {
+      results.push({
+        operator: mapping.operatorId,
+        status: "not_applicable",
+        killed: false,
+        applicable: false,
+        contractIds: [],
+        expectedFailureKinds: metadata.expectedFailureKinds,
+        durationMs: 0,
+        artifacts: [],
+        errors: [`Mutation ${mapping.operatorId} was not applicable: ${mapping.reason}`]
+      });
+      continue;
+    }
+    applicableMappings.push({
+      operatorId: mapping.operatorId,
+      selectedItems,
+      expectedFailureKinds: metadata.expectedFailureKinds
+    });
+  }
+
+  let targetSession: MutationTargetSession | undefined;
+  try {
+    if (applicableMappings.length > 0) {
+      targetSession = await startMutationTargetSession({
+        config: input.config,
+        plan: input.plan,
+        rootDir: input.rootDir,
+        skipInstall: input.skipInstall,
+        skipBuild: input.skipBuild
+      });
+      const uniqueContractIds = new Set(applicableMappings.flatMap((mapping) => mapping.selectedItems.map((item) => item.contractId)));
+      const batchItems = input.plan.items.filter((item) => uniqueContractIds.has(item.contractId));
+      const selectedTargetIds = new Set(batchItems.map((item) => item.targetId));
+      const startedAt = Date.now();
+      const { report } = await runPlaywrightContracts({
+        config: input.config,
+        plan: {
+          ...input.plan,
+          items: batchItems,
+          targets: input.plan.targets.filter((target) => selectedTargetIds.has(target.id))
+        },
+        rootDir: input.rootDir,
+        ci: true,
+        mutationOperators: applicableMappings.map((mapping) => mapping.operatorId),
+        mutationMatrix: Object.fromEntries(
+          applicableMappings.map((mapping) => [mapping.operatorId, mapping.selectedItems.map((item) => item.contractId)])
+        ),
+        runTargetCommands: false,
+        skipInstall: input.skipInstall,
+        skipBuild: input.skipBuild
+      });
+      const batchDurationMs = Date.now() - startedAt;
+      for (const mapping of applicableMappings) {
+        const contractIds = new Set(mapping.selectedItems.map((item) => item.contractId));
+        const operatorResults = report.results.filter(
+          (result) => result.mutationOperator === mapping.operatorId && contractIds.has(result.contractId)
+        );
+        const errors = operatorResults.flatMap((result) => result.errors);
+        const killed = operatorResults.some((result) => result.status === "failed");
+        const missingStructuredResult = operatorResults.length === 0;
+        results.push({
+          operator: mapping.operatorId,
+          status: missingStructuredResult ? "error" : killed ? "killed" : "survived",
+          killed,
+          applicable: true,
+          contractIds: mapping.selectedItems.map((item) => item.contractId),
+          expectedFailureKinds: mapping.expectedFailureKinds,
+          failureKind: killed ? inferFailureKind(errors) : undefined,
+          failedAssertion: killed ? errors[0] : undefined,
+          durationMs:
+            operatorResults.reduce((sum, result) => sum + result.durationMs, 0) ||
+            Math.round(batchDurationMs / Math.max(applicableMappings.length, 1)),
+          errors: missingStructuredResult ? [`No structured Playwright result was produced for mutation ${mapping.operatorId}.`] : errors,
+          artifacts: [...new Set(operatorResults.flatMap((result) => result.artifacts))]
+        });
+      }
+    }
+
+    const report = buildMutationReport({
+      project: input.config.project.name,
+      minScore: input.config.mutation.minScore,
+      results
+    });
+    const reportPath = path.join(input.rootDir, ".visual-hive", "mutation-report.json");
+    await writeJson(reportPath, report);
+    const exitCode = input.enforceMinScore && report.score < report.minScore ? 1 : 0;
+    return { exitCode, reportPath, report };
+  } finally {
+    await targetSession?.stop();
   }
 }
 

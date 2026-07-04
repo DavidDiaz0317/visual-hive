@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { auditSchedules, loadConfig, writeJson, type ScheduleAuditReport } from "@visual-hive/core";
+import { gitChangedFiles } from "./gitChangedFiles.js";
 
 export interface SchedulesCommandOptions {
   config?: string;
@@ -70,35 +70,4 @@ async function resolveChangedFiles(options: SchedulesCommandOptions, cwd: string
     return gitChangedFiles(cwd, options.base);
   }
   return [];
-}
-
-function gitChangedFiles(cwd: string, base: string): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("git", ["diff", "--name-only", `${base}...HEAD`], {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr || `git diff failed for base ${base}`));
-        return;
-      }
-      resolve(
-        stdout
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-      );
-    });
-  });
 }

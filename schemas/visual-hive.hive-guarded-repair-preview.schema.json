@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-guarded-repair-preview.schema.json",
+  "title": "Visual Hive Hive Guarded Repair Preview",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "outputArtifacts",
+    "outputResource",
+    "policy",
+    "readiness",
+    "summary",
+    "workOrders"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "visual-hive.hive-guarded-repair-preview.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "externalCallsMade": {
+      "const": 0
+    },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": [
+        "hiveExport",
+        "repairWorkOrders",
+        "agentPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hiveExport": {
+          "type": "string"
+        },
+        "repairWorkOrders": {
+          "type": "string"
+        },
+        "agentPolicy": {
+          "type": "string"
+        },
+        "evidencePacket": {
+          "type": "string"
+        },
+        "handoffPacket": {
+          "type": "string"
+        }
+      }
+    },
+    "outputArtifacts": {
+      "type": "object",
+      "required": [
+        "preview",
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "preview": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      }
+    },
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactKey",
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactKey": {
+          "const": "preview"
+        },
+        "artifactPath": {
+          "const": ".visual-hive/hive/guarded-repair-preview.json"
+        },
+        "evidenceResourceId": {
+          "const": "hive-guarded-repair-preview"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://hive-guarded-repair-preview"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_hive_guarded_repair_preview"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "verdictAuthority",
+        "repairExecution",
+        "branchIsolationRequired",
+        "pullRequestOnly",
+        "humanReviewRequired",
+        "visualHiveRerunRequired",
+        "protectedTargetsFromPr",
+        "externalNetworkCalls",
+        "secretsPolicy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "verdictAuthority": {
+          "const": "visual_hive"
+        },
+        "repairExecution": {
+          "const": "preview_only_no_execution"
+        },
+        "branchIsolationRequired": {
+          "const": true
+        },
+        "pullRequestOnly": {
+          "type": "boolean"
+        },
+        "humanReviewRequired": {
+          "type": "boolean"
+        },
+        "visualHiveRerunRequired": {
+          "type": "boolean"
+        },
+        "protectedTargetsFromPr": {
+          "const": false
+        },
+        "externalNetworkCalls": {
+          "const": false
+        },
+        "secretsPolicy": {
+          "const": "names_only_values_redacted"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "canRequestGuardedRepair",
+        "blockedReasons",
+        "requiredApprovals",
+        "requiredCommands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canRequestGuardedRepair": {
+          "type": "boolean"
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredApprovals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "repairWorkOrders",
+        "readyWorkOrders",
+        "blockedWorkOrders",
+        "allowedActions",
+        "forbiddenActions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repairWorkOrders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readyWorkOrders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedWorkOrders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowedActions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forbiddenActions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "workOrders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/workOrder"
+      }
+    }
+  },
+  "$defs": {
+    "workOrder": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "actor",
+        "objective",
+        "branchName",
+        "maxAttempts",
+        "prOnly",
+        "requireHumanReview",
+        "rerunVisualHive",
+        "likelyFiles",
+        "artifacts",
+        "reproductionCommands",
+        "acceptanceCriteria",
+        "allowedActions",
+        "forbiddenActions",
+        "blockedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "branchName": {
+          "type": "string"
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prOnly": {
+          "type": "boolean"
+        },
+        "requireHumanReview": {
+          "type": "boolean"
+        },
+        "rerunVisualHive": {
+          "type": "boolean"
+        },
+        "likelyFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reproductionCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
