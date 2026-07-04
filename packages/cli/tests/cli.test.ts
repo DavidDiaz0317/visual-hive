@@ -1243,6 +1243,12 @@ jobs:
 
     expect(written.summary.pullRequestWorkflows).toBe(1);
     expect(written.summary.criticalFindings).toBe(0);
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/workflows.json",
+      evidenceResourceId: "workflow-audit",
+      evidenceResourceUri: "visual-hive://workflow-audit",
+      evidenceReadToolName: "visual_hive_read_workflow_audit"
+    });
     expect(written.workflows[0]?.writesBaselineReview).toBe(false);
     expect(written.findings.map((finding) => finding.kind)).toContain("missing_baseline_review_artifact");
     expect(summary).toContain("Workflow Safety Audit: cli-workflows");
@@ -1310,6 +1316,12 @@ jobs:
     expect(resolution.source).toBe("cwd");
     expect(resolution.workflowRoot).toBe(path.join(tempRoot, ".github", "workflows"));
     expect(result.audit.workflowRoot).toBe(path.join(tempRoot, ".github", "workflows"));
+    expect(result.audit.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/workflows.json",
+      evidenceResourceId: "workflow-audit",
+      evidenceResourceUri: "visual-hive://workflow-audit",
+      evidenceReadToolName: "visual_hive_read_workflow_audit"
+    });
     expect(result.audit.summary.pullRequestWorkflows).toBe(1);
     expect(result.auditPath).toBe(path.join(appRoot, ".visual-hive", "workflows.json"));
     expect(summary).toContain(`Scanned directory: ${path.join(tempRoot, ".github", "workflows")}`);

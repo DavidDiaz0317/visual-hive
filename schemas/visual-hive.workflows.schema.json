@@ -24,6 +24,9 @@
       "type": "string",
       "format": "date-time"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "workflowRoot": {
       "type": "string"
     },
@@ -141,6 +144,37 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/workflows.json"
+        },
+        "evidenceResourceId": {
+          "const": "workflow-audit"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://workflow-audit"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_workflow_audit"
+        }
+      }
+    },
     "workflow": {
       "type": "object",
       "required": [

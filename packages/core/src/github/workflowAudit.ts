@@ -1,5 +1,6 @@
 import YAML from "yaml";
 import type { VisualHiveConfig } from "../config/schema.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type WorkflowKind = "pull_request" | "scheduled" | "trusted_issue" | "trusted_handoff" | "unknown";
@@ -60,6 +61,7 @@ export interface WorkflowAuditReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: WorkflowAuditOutputResource;
   workflowRoot: string;
   summary: {
     workflowCount: number;
@@ -85,6 +87,15 @@ export interface WorkflowAuditReport {
   recommendations: string[];
 }
 
+export interface WorkflowAuditOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface AuditWorkflowsOptions {
   workflowRoot?: string;
   now?: Date;
@@ -101,6 +112,7 @@ export function auditWorkflows(
     schemaVersion: 1,
     project: config.project.name,
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedWorkflowAuditOutputResource(),
     workflowRoot: sanitizeText(options.workflowRoot ?? ".github/workflows"),
     summary: {
       workflowCount: workflows.length,
@@ -126,6 +138,20 @@ export function auditWorkflows(
     workflows,
     findings,
     recommendations: reportRecommendations(workflows, findings)
+  };
+}
+
+function catalogedWorkflowAuditOutputResource(): WorkflowAuditOutputResource {
+  const resource = getEvidenceResourceById("workflow-audit");
+  return {
+    artifactPath: ".visual-hive/workflows.json",
+    evidenceResourceId: resource?.id ?? "workflow-audit",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://workflow-audit",
+    evidenceResourceTitle: resource?.title ?? "Workflow Audit",
+    evidenceResourceDescription:
+      resource?.description ??
+      "GitHub workflow safety evidence for PR permissions, secret use, pull_request_target posture, artifact upload, and trusted workflow_run patterns.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_workflow_audit"
   };
 }
 
