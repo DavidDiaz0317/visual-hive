@@ -10,6 +10,7 @@ import type { ProviderDecisionLog } from "../providers/decisions.js";
 import type { ProviderHandoffManifest } from "../providers/handoff.js";
 import type { ProviderSetupPlan } from "../providers/setupPlan.js";
 import type { SecurityAuditReport } from "../security/audit.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export type ReadinessStatus = "ready" | "attention" | "blocked";
@@ -43,6 +44,7 @@ export interface ReadinessReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: ReadinessOutputResource;
   status: ReadinessStatus;
   score: number;
   summary: {
@@ -68,6 +70,15 @@ export interface ReadinessReport {
   };
   gates: ReadinessGate[];
   nextActions: string[];
+}
+
+export interface ReadinessOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface AnalyzeReadinessOptions {
@@ -106,6 +117,7 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     schemaVersion: 1,
     project: sanitizeText(config.project.name),
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedReadinessOutputResource(),
     status: summary.blocked > 0 ? "blocked" : summary.warnings + summary.missing > 0 ? "attention" : "ready",
     score: score(summary),
     summary,
@@ -125,6 +137,20 @@ export function analyzeReadiness(config: VisualHiveConfig, options: AnalyzeReadi
     },
     gates,
     nextActions: nextActions(gates)
+  };
+}
+
+function catalogedReadinessOutputResource(): ReadinessOutputResource {
+  const resource = getEvidenceResourceById("readiness-gate");
+  return {
+    artifactPath: ".visual-hive/readiness.json",
+    evidenceResourceId: resource?.id ?? "readiness-gate",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://readiness-gate",
+    evidenceResourceTitle: resource?.title ?? "Readiness Gate",
+    evidenceResourceDescription:
+      resource?.description ??
+      "Go/no-go readiness evidence across deterministic results, baseline review, mutation adequacy, workflow safety, provider posture, costs, and setup gaps.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_readiness_gate"
   };
 }
 

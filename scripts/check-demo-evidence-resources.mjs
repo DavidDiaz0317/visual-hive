@@ -57,6 +57,7 @@ const planLanes = await readOptionalJson(".visual-hive/plans.json");
 const runHistory = await readOptionalJson(".visual-hive/history.json");
 const testingLayers = await readOptionalJson(".visual-hive/testing-layers.json");
 const workflowAudit = await readOptionalJson(".visual-hive/workflows.json");
+const readinessGate = await readOptionalJson(".visual-hive/readiness.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
@@ -67,6 +68,7 @@ if (planLanes?.outputResource) checkOutputResource(planLanes.outputResource, "Pl
 if (runHistory?.outputResource) checkOutputResource(runHistory.outputResource, "Run history outputResource", artifactIndex);
 if (testingLayers?.outputResource) checkOutputResource(testingLayers.outputResource, "Testing layers outputResource", artifactIndex);
 if (workflowAudit?.outputResource) checkOutputResource(workflowAudit.outputResource, "Workflow audit outputResource", artifactIndex);
+if (readinessGate?.outputResource) checkOutputResource(readinessGate.outputResource, "Readiness gate outputResource", artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }

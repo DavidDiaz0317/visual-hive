@@ -2902,6 +2902,12 @@ jobs:
     });
 
     expect(readiness.schemaVersion).toBe(1);
+    expect(readiness.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/readiness.json",
+      evidenceResourceId: "readiness-gate",
+      evidenceResourceUri: "visual-hive://readiness-gate",
+      evidenceReadToolName: "visual_hive_read_readiness_gate"
+    });
     expect(readiness.status).toBe("attention");
     expect(readiness.gates.find((gate) => gate.id === "deterministic:status")?.status).toBe("passed");
     expect(readiness.gates.find((gate) => gate.id === "baselines:clean")?.status).toBe("passed");

@@ -24,6 +24,9 @@
     "generatedAt": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "status": {
       "enum": [
         "ready",
@@ -202,5 +205,38 @@
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/readiness.json"
+        },
+        "evidenceResourceId": {
+          "const": "readiness-gate"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://readiness-gate"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_readiness_gate"
+        }
+      }
+    }
+  }
 }

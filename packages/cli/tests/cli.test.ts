@@ -5761,6 +5761,12 @@ contracts:
     const summary = formatReadinessReport(result.report, result.reportPath);
 
     expect(written.project).toBe("readiness-fixture");
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/readiness.json",
+      evidenceResourceId: "readiness-gate",
+      evidenceResourceUri: "visual-hive://readiness-gate",
+      evidenceReadToolName: "visual_hive_read_readiness_gate"
+    });
     expect(written.gates.map((gate) => gate.id)).toContain("deterministic:status");
     expect(summary).toContain("Readiness Gate: readiness-fixture");
     await expect(access(path.join(tempRoot, ".visual-hive", "readiness.json"))).resolves.toBeUndefined();
