@@ -73,6 +73,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
   const riskSignals = await riskSignalsFor({ repoRoot, scripts, selectors, routes, workflows, testTools });
   const coverageGaps = coverageGapsFor({ selectors, routes, workflows, testTools, riskSignals });
   const config = await readVisualHiveConfig(repoRoot);
+  const previousVisualMap = await readPreviousVisualMap(repoRoot);
   const visualMap = await buildVisualMap({
     repoRoot,
     generatedAt: (options.now ?? new Date()).toISOString(),
@@ -81,7 +82,8 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     routes,
     targetHints,
     coverageGaps,
-    config
+    config,
+    previousVisualMap
   });
   const report: RepoMapReport = {
     schemaVersion: 1,
@@ -204,6 +206,17 @@ async function readVisualHiveConfig(repoRoot: string): Promise<VisualHiveConfig 
   return undefined;
 }
 
+async function readPreviousVisualMap(repoRoot: string): Promise<RepoVisualMap | undefined> {
+  const raw = await safeRead(path.join(repoRoot, ".visual-hive", "repo-map.json"));
+  if (!raw.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Partial<RepoMapReport>;
+    return parsed.visualMap;
+  } catch {
+    return undefined;
+  }
+}
+
 async function buildVisualMap(input: {
   repoRoot: string;
   generatedAt: string;
@@ -213,6 +226,7 @@ async function buildVisualMap(input: {
   targetHints: RepoTargetHint[];
   coverageGaps: RepoCoverageGap[];
   config?: VisualHiveConfig;
+  previousVisualMap?: RepoVisualMap;
 }): Promise<RepoVisualMap> {
   const nodes = new Map<string, RepoVisualMapNode>();
   const edges = new Map<string, RepoVisualMapEdge>();
@@ -319,7 +333,7 @@ async function buildVisualMap(input: {
 
   const nodeList = [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id));
   const edgeList = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id));
-  const findingList = [...findings.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const findingList = reconcileFindings([...findings.values()], input.previousVisualMap, input.generatedAt).sort((a, b) => a.id.localeCompare(b.id));
 
   return sanitizeValue({
     schemaVersion: 1,
@@ -339,6 +353,64 @@ async function buildVisualMap(input: {
     edges: edgeList,
     findings: findingList
   }) as RepoVisualMap;
+}
+
+function reconcileFindings(
+  currentFindings: RepoVisualMapFinding[],
+  previousVisualMap: RepoVisualMap | undefined,
+  generatedAt: string
+): RepoVisualMapFinding[] {
+  if (!previousVisualMap?.findings?.length) {
+    return currentFindings.map((finding) => ({
+      ...finding,
+      previouslySeen: false,
+      firstSeen: generatedAt,
+      lastSeen: generatedAt
+    }));
+  }
+
+  const previousByFingerprint = new Map(previousVisualMap.findings.map((finding) => [finding.fingerprint, finding]));
+  const currentFingerprints = new Set(currentFindings.map((finding) => finding.fingerprint));
+  const reconciled = currentFindings.map((finding) => {
+    const previous = previousByFingerprint.get(finding.fingerprint);
+    return {
+      ...finding,
+      previouslySeen: Boolean(previous),
+      firstSeen: previous?.firstSeen ?? previous?.lastSeen ?? previousVisualMap.generatedAt,
+      lastSeen: generatedAt,
+      evidence: unique([
+        ...finding.evidence,
+        previous ? `previouslySeen=${previous.firstSeen ?? previous.lastSeen ?? previousVisualMap.generatedAt}` : "",
+        `lastSeen=${generatedAt}`
+      ])
+    };
+  });
+
+  for (const previous of previousVisualMap.findings) {
+    if (currentFingerprints.has(previous.fingerprint)) continue;
+    const status = previous.status === "active" ? "resolved_candidate" : "stale";
+    reconciled.push({
+      ...previous,
+      id: `${status}:${previous.id}`,
+      status,
+      severity: previous.severity === "high" ? "warning" : previous.severity,
+      message:
+        status === "resolved_candidate"
+          ? `${previous.message} This finding is no longer present in the current repo map; verify before closing any linked issue.`
+          : `${previous.message} This previous finding is stale in the current repo map.`,
+      previouslySeen: true,
+      firstSeen: previous.firstSeen ?? previous.lastSeen ?? previousVisualMap.generatedAt,
+      lastSeen: previous.lastSeen ?? previousVisualMap.generatedAt,
+      evidence: unique([
+        ...previous.evidence,
+        `previouslySeen=${previous.firstSeen ?? previous.lastSeen ?? previousVisualMap.generatedAt}`,
+        `lastSeen=${previous.lastSeen ?? previousVisualMap.generatedAt}`,
+        `reconciledAt=${generatedAt}`
+      ])
+    });
+  }
+
+  return reconciled;
 }
 
 function addConfigVisualMap(

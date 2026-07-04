@@ -22,7 +22,7 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npx playwright install --with-deps chromium
-      - run: npm run demo:ci
+      - run: npm run demo:e2e
       - run: npm run smoke:ui:browser
       - run: npm run smoke:cli
       - run: npm run smoke:consumer

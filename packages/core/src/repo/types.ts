@@ -76,7 +76,7 @@ export type RepoVisualMapNodeKind =
   | "selector"
   | "coverage_gap";
 
-export type RepoVisualMapNodeStatus = "active" | "stale" | "unverified" | "conflicted";
+export type RepoVisualMapNodeStatus = "active" | "stale" | "resolved_candidate" | "unverified" | "conflicted";
 
 export interface RepoVisualMapProvenance {
   source: "static" | "config" | "runtime" | "derived";
@@ -133,6 +133,9 @@ export interface RepoVisualMapFinding {
   message: string;
   nodeIds: string[];
   evidence: string[];
+  previouslySeen?: boolean;
+  firstSeen?: string;
+  lastSeen?: string;
 }
 
 export interface RepoVisualMap {

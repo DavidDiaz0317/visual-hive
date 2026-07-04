@@ -1231,6 +1231,63 @@ jobs:
     });
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Repo Context: repo-map-write");
   });
+
+  it("reconciles previous visual-map findings by fingerprint", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-map-lifecycle-"));
+    tempDirs.push(tempRoot);
+    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "repo-map-lifecycle", scripts: { preview: "vite preview" }, dependencies: { vite: "^6.0.0" } }), "utf8");
+
+    const first = await writeRepoMap({
+      repoRoot: tempRoot,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    expect(first.report.visualMap.findings.find((finding) => finding.id === "coverage_gap:repo-intelligence-config")).toMatchObject({
+      status: "active",
+      previouslySeen: false,
+      firstSeen: "2026-06-15T00:00:00.000Z"
+    });
+
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: repo-map-lifecycle
+  type: static
+  defaultBranch: main
+targets:
+  local:
+    kind: url
+    url: http://127.0.0.1:4173
+    prSafe: true
+contracts:
+  - id: smoke
+    description: Smoke contract
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - body
+viewports:
+  desktop:
+    width: 1280
+    height: 720
+`,
+      "utf8"
+    );
+
+    const second = await writeRepoMap({
+      repoRoot: tempRoot,
+      now: new Date("2026-06-16T00:00:00.000Z")
+    });
+    const resolved = second.report.visualMap.findings.find((finding) => finding.id === "resolved_candidate:coverage_gap:repo-intelligence-config");
+    expect(resolved).toMatchObject({
+      status: "resolved_candidate",
+      previouslySeen: true,
+      firstSeen: "2026-06-15T00:00:00.000Z",
+      lastSeen: "2026-06-15T00:00:00.000Z"
+    });
+    expect(resolved?.evidence).toEqual(expect.arrayContaining(["reconciledAt=2026-06-16T00:00:00.000Z"]));
+  });
 });
 
 describe("planner", () => {
@@ -1629,6 +1686,104 @@ describe("coverage analysis", () => {
     const result = applyCoverageImprovementRecommendation(config, report, recommendation!.id);
     expect(result.applied).toBe(false);
     expect(result.diff).toBe("No config changes.");
+  });
+
+  it("adds data-driven visual-test maintenance findings from baseline artifacts", () => {
+    const config = sampleConfig();
+    const coverage = analyzeCoverage(config, { changedFiles: [], now: new Date("2026-06-15T00:00:00.000Z") });
+    const report = buildCoverageImprovementReport(config, coverage, undefined, {
+      now: new Date("2026-06-25T00:00:00.000Z"),
+      baselineList: {
+        schemaVersion: 1,
+        project: "sample",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        reportGeneratedAt: "2026-06-15T00:00:00.000Z",
+        reportPath: ".visual-hive/report.json",
+        approvalLogPath: ".visual-hive/baseline-approvals.json",
+        rejectionLogPath: ".visual-hive/baseline-rejections.json",
+        summary: {
+          total: 1,
+          passed: 0,
+          failed: 1,
+          created: 0,
+          missingBaseline: 0,
+          approvable: 1,
+          approved: 0,
+          rejected: 0,
+          pendingReview: 1
+        },
+        entries: [
+          {
+            contractId: "safe-contract",
+            screenshotName: "home",
+            route: "/",
+            viewport: "desktop",
+            status: "failed",
+            baselinePath: ".visual-hive/snapshots/home.png",
+            actualPath: ".visual-hive/artifacts/screenshots/home.png",
+            maxDiffPixelRatio: 0.01,
+            actualDiffPixelRatio: 0.2,
+            actualDiffPixels: 100,
+            canApprove: true,
+            canReject: true
+          }
+        ]
+      },
+      baselineApprovals: {
+        schemaVersion: 1,
+        approvals: [
+          {
+            schemaVersion: 1,
+            approvedAt: "2026-06-14T00:00:00.000Z",
+            contractId: "safe-contract",
+            screenshotName: "home",
+            route: "/",
+            viewport: "desktop",
+            sourceStatus: "failed",
+            actualPath: ".visual-hive/artifacts/screenshots/home-a.png",
+            baselinePath: ".visual-hive/snapshots/home.png",
+            bytes: 100
+          },
+          {
+            schemaVersion: 1,
+            approvedAt: "2026-06-15T00:00:00.000Z",
+            contractId: "safe-contract",
+            screenshotName: "home",
+            route: "/",
+            viewport: "desktop",
+            sourceStatus: "failed",
+            actualPath: ".visual-hive/artifacts/screenshots/home-b.png",
+            baselinePath: ".visual-hive/snapshots/home.png",
+            bytes: 101
+          }
+        ]
+      },
+      baselineRejections: {
+        schemaVersion: 1,
+        rejections: [
+          {
+            schemaVersion: 1,
+            rejectedAt: "2026-06-16T00:00:00.000Z",
+            contractId: "safe-contract",
+            screenshotName: "home",
+            route: "/",
+            viewport: "desktop",
+            sourceStatus: "failed",
+            actualPath: ".visual-hive/artifacts/screenshots/home-c.png",
+            baselinePath: ".visual-hive/snapshots/home.png",
+            reason: "unstable visual"
+          }
+        ]
+      }
+    });
+
+    expect(report.maintenanceFindings.map((finding) => finding.kind)).toEqual(expect.arrayContaining(["stale_baseline", "baseline_churn"]));
+    expect(report.recommendations.find((recommendation) => recommendation.maintenanceFindingId?.includes("stale-baseline"))?.suggestedTests.join(" ")).toContain(
+      "Review or reject the pending baseline change"
+    );
+    expect(report.recommendations.find((recommendation) => recommendation.maintenanceFindingId?.includes("baseline-churn"))?.suggestedConfigYaml).toContain(
+      "dynamic-region"
+    );
   });
 
   it("applies a selected coverage improvement recommendation as a validated config diff", () => {

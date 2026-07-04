@@ -376,6 +376,8 @@ try {
     "Run PR-safe checks",
     "Review visual changes",
     "Evidence to agent handoff",
+    "Visual Hive owns the verdict and does not repair code",
+    "Hive consumes issues and evidence resources",
     "Automation ladder",
     "Full automation remains blocked locally",
     "Hive readiness next step",

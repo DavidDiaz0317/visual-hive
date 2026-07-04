@@ -553,6 +553,7 @@
           "enum": [
             "active",
             "stale",
+            "resolved_candidate",
             "unverified",
             "conflicted"
           ]
@@ -662,6 +663,7 @@
           "enum": [
             "active",
             "stale",
+            "resolved_candidate",
             "unverified",
             "conflicted"
           ]
@@ -675,7 +677,10 @@
         },
         "message": { "type": "string" },
         "nodeIds": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "previouslySeen": { "type": "boolean" },
+        "firstSeen": { "type": "string" },
+        "lastSeen": { "type": "string" }
       }
     }
   }

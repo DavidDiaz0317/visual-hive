@@ -7,6 +7,8 @@ import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageGap, CoverageReport } from "./analyze.js";
 import type { FlowAuditEntry, FlowAuditReport } from "../flows/audit.js";
+import type { BaselineApprovalLog, BaselineList, BaselineRejectionLog } from "../baselines/manage.js";
+import type { RunHistoryReport } from "../history/record.js";
 
 export interface CoverageImprovementReport {
   schemaVersion: 1;
@@ -107,6 +109,10 @@ export interface BuildCoverageImprovementOptions {
   now?: Date;
   maxRecommendations?: number;
   flowAudit?: FlowAuditReport;
+  baselineList?: BaselineList;
+  baselineApprovals?: BaselineApprovalLog;
+  baselineRejections?: BaselineRejectionLog;
+  runHistory?: RunHistoryReport;
 }
 
 export function buildCoverageImprovementReport(
@@ -115,7 +121,7 @@ export function buildCoverageImprovementReport(
   mutationReport?: MutationReport,
   options: BuildCoverageImprovementOptions = {}
 ): CoverageImprovementReport {
-  const maintenanceFindings = buildVisualTestMaintenanceFindings(config, coverage, mutationReport);
+  const maintenanceFindings = buildVisualTestMaintenanceFindings(config, coverage, mutationReport, options);
   const recommendations = [
     ...coverage.uncoveredAreas.flatMap((gap) => recommendationForGap(config, gap)),
     ...recommendationsForMutationSurvivors(config, mutationReport),
@@ -593,7 +599,8 @@ function flowSuggestedTests(contractId: string, trustedOnly: boolean): string[] 
 function buildVisualTestMaintenanceFindings(
   config: VisualHiveConfig,
   coverage: CoverageReport,
-  mutationReport?: MutationReport
+  mutationReport?: MutationReport,
+  options: BuildCoverageImprovementOptions = {}
 ): VisualTestMaintenanceFinding[] {
   const findings: VisualTestMaintenanceFinding[] = [];
   const screenshotKeys = new Map<string, Array<{ contractId: string; targetId: string; screenshotName: string; route: string; viewport: string }>>();
@@ -747,7 +754,118 @@ function buildVisualTestMaintenanceFindings(
     }
   }
 
+  findings.push(...artifactBackedBaselineMaintenanceFindings(config, options));
+
   return dedupeMaintenanceFindings(findings).slice(0, 20);
+}
+
+function artifactBackedBaselineMaintenanceFindings(
+  config: VisualHiveConfig,
+  options: BuildCoverageImprovementOptions
+): VisualTestMaintenanceFinding[] {
+  const findings: VisualTestMaintenanceFinding[] = [];
+  const now = options.now ?? new Date();
+  const staleAfterMs = 7 * 24 * 60 * 60 * 1000;
+  const baselineList = options.baselineList;
+
+  if (baselineList) {
+    const generatedAtMs = Date.parse(baselineList.generatedAt);
+    const ageMs = Number.isFinite(generatedAtMs) ? now.getTime() - generatedAtMs : 0;
+    if (ageMs >= staleAfterMs) {
+      for (const entry of baselineList.entries.filter((candidate) => candidate.canApprove && !candidate.approvedAt && !candidate.rejectedAt).slice(0, 3)) {
+        const contract = config.contracts.find((candidate) => candidate.id === entry.contractId);
+        if (!contract) continue;
+        findings.push(
+          maintenanceFinding({
+            kind: "stale_baseline",
+            severity: "medium",
+            contract,
+            route: entry.route,
+            viewport: entry.viewport,
+            screenshotName: entry.screenshotName,
+            message: `Baseline review for "${entry.contractId}/${entry.screenshotName}" has been pending since ${baselineList.generatedAt}.`,
+            evidence: [
+              `baselineReviewGeneratedAt=${baselineList.generatedAt}`,
+              `ageDays=${Math.floor(ageMs / (24 * 60 * 60 * 1000))}`,
+              `status=${entry.status}`,
+              `actualPath=${entry.actualPath}`,
+              `baselinePath=${entry.baselinePath}`
+            ],
+            recommendedAction: "fix",
+            hiveOwner: "ci-maintainer",
+            trustedOnly: config.targets[contract.target]?.kind === "protected" || !config.targets[contract.target]?.prSafe
+          })
+        );
+      }
+    }
+  }
+
+  const churnCounts = new Map<string, { approvals: number; rejections: number; contractId: string; screenshotName: string; route: string; viewport: string }>();
+  for (const approval of options.baselineApprovals?.approvals ?? []) {
+    const key = baselineDecisionKey(approval);
+    const value = churnCounts.get(key) ?? { approvals: 0, rejections: 0, contractId: approval.contractId, screenshotName: approval.screenshotName, route: approval.route, viewport: approval.viewport };
+    value.approvals += 1;
+    churnCounts.set(key, value);
+  }
+  for (const rejection of options.baselineRejections?.rejections ?? []) {
+    const key = baselineDecisionKey(rejection);
+    const value = churnCounts.get(key) ?? { approvals: 0, rejections: 0, contractId: rejection.contractId, screenshotName: rejection.screenshotName, route: rejection.route, viewport: rejection.viewport };
+    value.rejections += 1;
+    churnCounts.set(key, value);
+  }
+  for (const churn of churnCounts.values()) {
+    if (churn.approvals + churn.rejections < 3 && !(churn.approvals > 0 && churn.rejections > 0)) continue;
+    const contract = config.contracts.find((candidate) => candidate.id === churn.contractId);
+    if (!contract) continue;
+    findings.push(
+      maintenanceFinding({
+        kind: "baseline_churn",
+        severity: churn.rejections > 1 ? "high" : "medium",
+        contract,
+        route: churn.route,
+        viewport: churn.viewport,
+        screenshotName: churn.screenshotName,
+        message: `Baseline "${churn.contractId}/${churn.screenshotName}" has repeated approval/rejection activity and may be unstable.`,
+        evidence: [`approvals=${churn.approvals}`, `rejections=${churn.rejections}`, `route=${churn.route}`, `viewport=${churn.viewport}`],
+        recommendedAction: "fix",
+        hiveOwner: "ci-maintainer",
+        trustedOnly: false
+      })
+    );
+  }
+
+  const history = options.runHistory;
+  if (history && history.entries.length >= 3) {
+    const recent = history.entries.slice(0, 5);
+    const noisy = recent.filter((entry) => entry.createdBaselines + entry.missingBaselines + entry.visualDiffs > 0);
+    if (noisy.length >= 3) {
+      const contractId = noisy.flatMap((entry) => entry.selectedContracts)[0];
+      const contract = config.contracts.find((candidate) => candidate.id === contractId) ?? config.contracts.find((candidate) => candidate.screenshots.length > 0);
+      if (contract) {
+        findings.push(
+          maintenanceFinding({
+            kind: "baseline_churn",
+            severity: "medium",
+            contract,
+            route: contract.screenshots[0]?.route,
+            viewport: contract.screenshots[0]?.viewport,
+            screenshotName: contract.screenshots[0]?.name,
+            message: "Recent run history shows repeated baseline or visual-diff activity.",
+            evidence: noisy.map((entry) => `${entry.id}:created=${entry.createdBaselines}:missing=${entry.missingBaselines}:diffs=${entry.visualDiffs}`).slice(0, 5),
+            recommendedAction: "fix",
+            hiveOwner: "ci-maintainer",
+            trustedOnly: false
+          })
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
+function baselineDecisionKey(value: { contractId: string; screenshotName: string; route: string; viewport: string }): string {
+  return `${value.contractId}\0${value.screenshotName}\0${value.route}\0${value.viewport}`;
 }
 
 function recommendationsForMaintenanceFindings(
@@ -819,6 +937,8 @@ function suggestedTestsForMaintenanceFinding(finding: VisualTestMaintenanceFindi
   if (finding.kind === "duplicate_screenshot") return ["Split the duplicated screenshots by route/state or remove one after replacing it with a targeted assertion."];
   if (finding.kind === "mutation_survivor") return ["Strengthen selectors, flow steps, or screenshots until the related mutation is killed."];
   if (finding.kind === "weak_threshold") return ["Review visual.maxDiffPixelRatio/maxDiffPixels before making this lane gating."];
+  if (finding.kind === "stale_baseline") return ["Review or reject the pending baseline change; do not let old created/diff screenshots become trusted by age.", "Rerun the deterministic lane after the baseline decision."];
+  if (finding.kind === "baseline_churn") return ["Inspect run history and baseline approval/rejection logs for dynamic UI regions.", "Add masks, stronger waitFor selectors, or narrower screenshots before approving new baselines."];
   return ["Review and maintain this visual test before relying on it as a gating contract."];
 }
 
@@ -847,6 +967,12 @@ function suggestedConfigForMaintenanceFinding(finding: VisualTestMaintenanceFind
   }
   if (finding.kind === "weak_threshold") {
     return yamlSnippet({ visual: { maxDiffPixelRatio: 0.01, failOnMissingBaselineInCI: true } });
+  }
+  if (finding.kind === "stale_baseline" || finding.kind === "baseline_churn") {
+    return yamlSnippet({
+      screenshots: [{ name: finding.screenshotName ?? "stable-region", route: finding.route ?? "/", viewport: finding.viewport ?? "desktop", mask: ["[data-testid='dynamic-region']"] }],
+      waitFor: [{ selector: "[data-testid='stable-loaded-state']", state: "visible", timeoutMs: 15000 }]
+    });
   }
   return undefined;
 }

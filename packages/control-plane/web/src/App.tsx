@@ -1233,7 +1233,7 @@ function AgentForwardWorkflow({
       }
     >
       <p className="card-subtext">
-        A guided chain from deterministic evidence to repair-ready handoff. Visual Hive owns the verdict; Hive, LLMs, MCP tools, and agents only consume this packet and recommend actions.
+        A guided chain from deterministic evidence to repair-ready handoff. Visual Hive owns the verdict and does not repair code, create branches, or open pull requests; Hive consumes issues and evidence resources in trusted workflows.
       </p>
       <div className="view-grid">
         <div className="guided-panel span-12">

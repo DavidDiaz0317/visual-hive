@@ -12,7 +12,11 @@ import {
   type CoverageImprovementReport,
   type CoverageReport,
   type FlowAuditReport,
-  type MutationReport
+  type MutationReport,
+  type BaselineList,
+  type BaselineApprovalLog,
+  type BaselineRejectionLog,
+  type RunHistoryReport
 } from "@visual-hive/core";
 
 export interface ImproveCoverageCommandOptions {
@@ -33,10 +37,24 @@ export async function runImproveCoverageCommand(
   const coveragePath = path.resolve(loaded.rootDir, options.coverage ?? ".visual-hive/coverage.json");
   const flowsPath = path.resolve(loaded.rootDir, options.flows ?? ".visual-hive/flows.json");
   const mutationPath = path.resolve(loaded.rootDir, options.mutationReport ?? ".visual-hive/mutation-report.json");
+  const baselineListPath = path.resolve(loaded.rootDir, ".visual-hive/baselines.json");
+  const baselineApprovalsPath = path.resolve(loaded.rootDir, ".visual-hive/baseline-approvals.json");
+  const baselineRejectionsPath = path.resolve(loaded.rootDir, ".visual-hive/baseline-rejections.json");
+  const historyPath = path.resolve(loaded.rootDir, ".visual-hive/history.json");
   const coverage = await readCoverageOrAnalyze(loaded.config, coveragePath);
   const flowAudit = await readOptionalJson<FlowAuditReport>(flowsPath);
   const mutationReport = await readOptionalJson<MutationReport>(mutationPath);
-  const report = buildCoverageImprovementReport(loaded.config, coverage, mutationReport, { flowAudit });
+  const baselineList = await readOptionalJson<BaselineList>(baselineListPath);
+  const baselineApprovals = await readOptionalJson<BaselineApprovalLog>(baselineApprovalsPath);
+  const baselineRejections = await readOptionalJson<BaselineRejectionLog>(baselineRejectionsPath);
+  const runHistory = await readOptionalJson<RunHistoryReport>(historyPath);
+  const report = buildCoverageImprovementReport(loaded.config, coverage, mutationReport, {
+    flowAudit,
+    baselineList,
+    baselineApprovals,
+    baselineRejections,
+    runHistory
+  });
   const reportPath = path.join(loaded.rootDir, ".visual-hive", "coverage-recommendations.json");
   await writeJson(reportPath, report);
   const applyResult = options.apply

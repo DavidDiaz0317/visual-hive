@@ -44,6 +44,8 @@
     "demo:e2e:defect:plan": "node packages/cli/dist/index.js plan --config examples/demo-react-app/visual-hive.defect.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt",
     "demo:e2e:defect:run": "node packages/cli/dist/index.js run --config examples/demo-react-app/visual-hive.defect.config.yaml --skip-install --skip-build",
     "demo:e2e:defect": "node scripts/run-demo-defect.mjs",
+    "demo:e2e:mutation": "node scripts/check-demo-mutation-proof.mjs",
+    "demo:e2e:handoff-dry-run": "node scripts/check-handoff-issue-dry-run.mjs",
     "demo:e2e": "node scripts/run-demo-suite.mjs e2e",
     "demo:baselines": "node packages/cli/dist/index.js baselines list --config examples/demo-react-app/visual-hive.config.yaml --write",
     "demo:mutate": "node packages/cli/dist/index.js mutate --config examples/demo-react-app/visual-hive.config.yaml --skip-install --skip-build",
