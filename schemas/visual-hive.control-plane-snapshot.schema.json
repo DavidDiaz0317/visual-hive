@@ -357,6 +357,11 @@
       "additionalProperties": true,
       "description": "Optional schema/catalog verification evidence from .visual-hive/schema-catalog.json. The artifact has its own schema and is surfaced here so the Control Plane can show drift health without rerunning maintenance checks."
     },
+    "mcpManifest": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional first-party MCP manifest evidence from .visual-hive/mcp-manifest.json. Setup-only manifests may expose setup recommendations, setup PR plan, and artifact index resources before a config exists."
+    },
     "contextLedger": {
       "type": "object",
       "additionalProperties": true,

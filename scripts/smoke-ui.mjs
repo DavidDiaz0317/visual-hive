@@ -35,6 +35,14 @@ try {
   if (!snapshot.setupPullRequestPlan || snapshot.setupPullRequestPlan.summary?.externalCallsMade !== 0) {
     throw new Error("snapshot did not include no-network setup PR plan evidence");
   }
+  if (!snapshot.mcpManifest || snapshot.mcpManifest.server?.externalCallsMade !== 0) {
+    throw new Error("snapshot did not include no-network setup MCP manifest evidence");
+  }
+  for (const expectedResource of ["setup-recommendations", "setup-pr-plan", "artifacts-index"]) {
+    if (!snapshot.mcpManifest.resources?.some((resource) => resource.id === expectedResource)) {
+      throw new Error(`snapshot MCP manifest did not include setup resource: ${expectedResource}`);
+    }
+  }
   const checklistIds = snapshot.guidanceState?.adoptionChecklist?.map((item) => item.id) ?? [];
   for (const expectedChecklistId of ["configure-repo", "plan-pr-safe", "run-deterministic-evidence", "package-agent-handoff", "enable-safe-workflow"]) {
     assertArrayIncludes(checklistIds, expectedChecklistId, "snapshot guidance adoption checklist");
@@ -414,6 +422,9 @@ try {
     "Open schema catalog artifact",
     "Verify schema/catalog drift",
     "Linked evidence resources",
+    "Setup evidence for agents",
+    "Setup MCP resources",
+    "Read tool",
     "Connections"
   ]) {
     if (!appJs.includes(expected)) {

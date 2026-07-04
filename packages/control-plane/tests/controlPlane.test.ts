@@ -947,6 +947,98 @@ viewports:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "mcp-manifest.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.mcp.v1",
+        project: "ui-fixture",
+        server: {
+          name: "visual-hive",
+          transport: "stdio",
+          defaultAccess: "read_only",
+          externalCallsMade: 0
+        },
+        resources: [
+          {
+            id: "setup-recommendations",
+            uri: "visual-hive://setup-recommendations",
+            title: "Setup Recommendations",
+            description: "No-network setup recommendations generated before a Visual Hive config exists.",
+            relativePath: ".visual-hive/recommendations.json",
+            readToolName: "visual_hive_read_setup_recommendations"
+          },
+          {
+            id: "setup-pr-plan",
+            uri: "visual-hive://setup-pr-plan",
+            title: "Setup Pull Request Plan",
+            description: "Review-only setup PR plan for config, docs, and safe workflow templates.",
+            relativePath: ".visual-hive/setup-pr-plan.json",
+            readToolName: "visual_hive_read_setup_pr_plan"
+          },
+          {
+            id: "artifacts-index",
+            uri: "visual-hive://artifacts/index",
+            title: "Artifact Index",
+            description: "Catalog-backed inventory of local Visual Hive evidence artifacts.",
+            relativePath: ".visual-hive/artifacts-index.json",
+            readToolName: "visual_hive_read_artifacts_index"
+          }
+        ],
+        tools: [
+          {
+            name: "visual_hive_recommend_setup",
+            title: "Recommend Setup",
+            description: "Inspect repository setup signals and return bounded setup recommendations without writing files.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_setup_recommendations",
+            title: "Read Setup Recommendations",
+            description: "Read no-network setup recommendations without writing config, docs, workflows, secrets, or provider settings.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_setup_pr_plan",
+            title: "Read Setup PR Plan",
+            description: "Read the setup pull request plan without creating branches, pull requests, issues, workflows, secrets, or provider settings.",
+            mode: "read_only"
+          },
+          {
+            name: "visual_hive_read_artifacts_index",
+            title: "Read Artifact Index",
+            description: "Read sanitized artifact inventory and evidence-resource metadata.",
+            mode: "read_only"
+          }
+        ],
+        disabledExecutionTools: [
+          {
+            name: "visual_hive_run",
+            title: "Run Deterministic Contracts",
+            description: "Execution is disabled in setup-only MCP mode until the repository has an approved config.",
+            mode: "execution_disabled"
+          },
+          {
+            name: "visual_hive_provider_upload",
+            title: "Upload Provider Artifacts",
+            description: "Provider uploads stay disabled in setup-only MCP mode.",
+            mode: "execution_disabled"
+          }
+        ],
+        policy: {
+          thirdPartyMcpDefault: "disabled",
+          executionToolsDefault: "disabled",
+          githubWritesFromPr: false,
+          externalUploadsFromPr: false,
+          baselineApprovalByAgent: false,
+          llmSoleOracle: false
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".github", "workflows", "visual-hive-pr.yml"),
     `name: Visual Hive PR
 on:
@@ -2348,6 +2440,207 @@ async function writeCoverageRecommendationFixture(repoRoot: string): Promise<voi
 }
 
 describe("control plane", () => {
+  it("surfaces setup-only artifacts and MCP readiness before config exists", async () => {
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-setup-only-"));
+    await mkdir(path.join(repoRoot, ".visual-hive"), { recursive: true });
+    await writeFile(
+      path.join(repoRoot, ".visual-hive", "recommendations.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: {
+            name: "setup-only-fixture",
+            repoRoot,
+            type: "react-vite",
+            packageManager: "npm",
+            detectedFrameworks: ["react", "vite"],
+            scripts: ["build", "preview"]
+          },
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          configPath: "visual-hive.config.yaml",
+          setupProfile: "free-local",
+          providerRecommendations: [],
+          costEstimate: {
+            localScreenshotsPerRun: 1,
+            externalScreenshotsPerRun: 0,
+            estimatedPrMinutes: 3,
+            estimatedScheduledMinutes: 5,
+            estimatedMonthlyExternalScreenshots: 0,
+            ciRuntimeClass: "cheap",
+            notes: []
+          },
+          permissions: {
+            pullRequest: {
+              permissions: ["contents: read"],
+              secretsRequired: [],
+              externalNetwork: false,
+              notes: []
+            },
+            scheduled: {
+              permissions: ["contents: read"],
+              secretsRequired: [],
+              externalNetwork: false,
+              notes: []
+            }
+          },
+          setupPullRequest: {
+            recommended: true,
+            title: "Add Visual Hive deterministic visual QA",
+            files: ["visual-hive.config.yaml"],
+            steps: ["Review generated config."],
+            securityNotes: ["Use pull_request for untrusted PR code."]
+          },
+          setupActions: [],
+          workflowPreviews: [],
+          recommendedConfig: {},
+          recommendedConfigYaml: "project:\n  name: setup-only-fixture\n",
+          detectedSelectors: [{ selector: "[data-testid='dashboard-page']", sourceFile: "src/App.tsx", occurrences: 1 }],
+          detectedRoutes: [{ route: "/", sourceFile: "src/App.tsx", occurrences: 1 }],
+          detectedStories: [],
+          detectedWorkflows: [],
+          playwright: {
+            status: "present",
+            dependencies: ["@playwright/test"],
+            scripts: [],
+            configFiles: [],
+            notes: []
+          },
+          recommendedTarget: {
+            id: "localPreview",
+            kind: "command",
+            url: "http://127.0.0.1:4173",
+            confidence: "medium",
+            reasons: ["Detected preview script."]
+          },
+          recommendedContracts: [],
+          recommendedCommands: ["visual-hive doctor"],
+          findings: [],
+          warnings: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(repoRoot, ".visual-hive", "setup-pr-plan.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: "setup-only-fixture",
+          generatedAt: "2026-06-15T00:00:00.000Z",
+          sourceRecommendationGeneratedAt: "2026-06-15T00:00:00.000Z",
+          setupProfile: "free-local",
+          status: "review",
+          title: "Add Visual Hive deterministic visual QA",
+          summary: {
+            filesPlanned: 1,
+            workflowsPlanned: 1,
+            validationCommands: 1,
+            externalCallsMade: 0,
+            requiresReview: true,
+            blockedReasons: []
+          },
+          files: [{ path: "visual-hive.config.yaml", kind: "config", action: "create", source: "setupPullRequest.files", requiresOverwriteReview: true }],
+          workflowPreviews: [],
+          providerDecisions: [],
+          validationCommands: ["visual-hive doctor"],
+          steps: [],
+          security: {
+            pullRequestPermissions: ["contents: read"],
+            pullRequestSecretsRequired: [],
+            scheduledSecretsRequired: [],
+            generatedWorkflowsUsePullRequestTarget: false,
+            generatedPrWorkflowUsesSecrets: false,
+            externalUploadsInPullRequest: false,
+            issueCreationFromUntrustedPr: false,
+            notes: []
+          },
+          warnings: []
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await writeFile(
+      path.join(repoRoot, ".visual-hive", "artifacts-index.json"),
+      JSON.stringify({ schemaVersion: 1, project: "setup-only-fixture", artifacts: [] }, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(repoRoot, ".visual-hive", "mcp-manifest.json"),
+      JSON.stringify(
+        {
+          schemaVersion: "visual-hive.mcp.v1",
+          project: "setup-only-fixture",
+          server: {
+            name: "visual-hive",
+            transport: "stdio",
+            defaultAccess: "read_only",
+            externalCallsMade: 0
+          },
+          resources: [
+            {
+              id: "setup-recommendations",
+              uri: "visual-hive://setup-recommendations",
+              relativePath: ".visual-hive/recommendations.json",
+              readToolName: "visual_hive_read_setup_recommendations"
+            },
+            {
+              id: "setup-pr-plan",
+              uri: "visual-hive://setup-pr-plan",
+              relativePath: ".visual-hive/setup-pr-plan.json",
+              readToolName: "visual_hive_read_setup_pr_plan"
+            },
+            {
+              id: "artifacts-index",
+              uri: "visual-hive://artifacts/index",
+              relativePath: ".visual-hive/artifacts-index.json",
+              readToolName: "visual_hive_read_artifacts_index"
+            }
+          ],
+          tools: [
+            { name: "visual_hive_read_setup_recommendations", mode: "read_only" },
+            { name: "visual_hive_read_setup_pr_plan", mode: "read_only" },
+            { name: "visual_hive_read_artifacts_index", mode: "read_only" }
+          ],
+          disabledExecutionTools: [{ name: "visual_hive_run", mode: "execution_disabled" }],
+          policy: {
+            thirdPartyMcpDefault: "disabled",
+            executionToolsDefault: "disabled",
+            githubWritesFromPr: false,
+            externalUploadsFromPr: false,
+            baselineApprovalByAgent: false,
+            llmSoleOracle: false
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await createControlPlaneSnapshot({ repo: repoRoot, readOnly: true });
+
+    expect(snapshot.config).toBeUndefined();
+    expect(snapshot.guidanceState.state).toBe("no_config");
+    expect(snapshot.setupRecommendation?.recommendedTarget.id).toBe("localPreview");
+    expect(snapshot.setupPullRequestPlan?.summary.externalCallsMade).toBe(0);
+    expect(snapshot.mcpManifest?.server.externalCallsMade).toBe(0);
+    expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index"])
+    );
+    expect(snapshot.mcpManifest?.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
+    expect(snapshot.artifacts.map((artifact) => artifact.path)).toEqual(
+      expect.arrayContaining([
+        ".visual-hive/recommendations.json",
+        ".visual-hive/setup-pr-plan.json",
+        ".visual-hive/mcp-manifest.json"
+      ])
+    );
+  });
+
   it("builds a snapshot from config and report artifacts", async () => {
     const fixture = await makeFixture();
     const snapshot = await createControlPlaneSnapshot({ repo: fixture.repoRoot, config: fixture.configPath, readOnly: true });
@@ -2704,6 +2997,28 @@ describe("control plane", () => {
       }
     });
     expect(snapshot.setupPullRequestPlan?.files.map((file) => file.path)).toContain(".visual-hive/setup-pr-plan.json");
+    expect(snapshot.mcpManifest).toMatchObject({
+      schemaVersion: "visual-hive.mcp.v1",
+      project: "ui-fixture",
+      server: {
+        defaultAccess: "read_only",
+        externalCallsMade: 0
+      },
+      policy: {
+        executionToolsDefault: "disabled",
+        externalUploadsFromPr: false,
+        llmSoleOracle: false
+      }
+    });
+    expect(snapshot.mcpManifest?.resources.map((resource) => resource.id)).toEqual(
+      expect.arrayContaining(["setup-recommendations", "setup-pr-plan", "artifacts-index"])
+    );
+    expect(snapshot.mcpManifest?.tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(["visual_hive_read_setup_recommendations", "visual_hive_read_setup_pr_plan", "visual_hive_read_artifacts_index"])
+    );
+    expect(snapshot.mcpManifest?.disabledExecutionTools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(["visual_hive_run", "visual_hive_provider_upload"])
+    );
     expect(snapshot.setupProgress).toMatchObject({
       status: "attention",
       phase: "measure mutation adequacy",
@@ -4287,6 +4602,10 @@ contracts:
       expect(appSource).toContain("Provider output is advisory by default");
       expect(appSource).toContain("Default oracle");
       expect(appSource).toContain("Review before upload");
+      expect(appSource).toContain("Setup evidence for agents");
+      expect(appSource).toContain("Setup MCP resources");
+      expect(appSource).toContain("Read tool");
+      expect(appSource).toContain("resource.readToolName");
       expect(appSource).toContain('evidenceArtifactPath(snapshot, "hive-wiki-index")');
       expect(appSource).toContain('evidenceArtifactPath(snapshot, "provider-agent-packet")');
       expect(appSource).not.toContain('evidenceArtifactPath(snapshot, "hive-wiki-index", ".visual-hive/hive/wiki-index.json")');
@@ -4343,6 +4662,8 @@ contracts:
         "Configure",
         "Run center",
         "First-run guide",
+        "Setup evidence for agents",
+        "Setup MCP resources",
         "Raw snapshot evidence",
         "Readiness",
         "Risk",

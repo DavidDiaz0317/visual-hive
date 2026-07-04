@@ -2064,6 +2064,8 @@ function LLM({ snapshot, runAction, connection }: { snapshot: Snapshot; runActio
 
 function Setup({ snapshot, runAction, connection }: { snapshot: Snapshot; runAction: (label: string, action: () => Promise<unknown>) => Promise<void>; connection?: string }) {
   const recommendation = snapshot.setupRecommendation;
+  const setupMcpResources = snapshot.mcpManifest?.resources?.filter((resource) => ["setup-recommendations", "setup-pr-plan", "artifacts-index"].includes(resource.id)) ?? [];
+  const setupMcpReady = setupMcpResources.length >= 2 && snapshot.mcpManifest?.server?.externalCallsMade === 0;
   return (
     <div className="view-grid">
       <Card className="span-5" title="Recommended setup">
@@ -2075,9 +2077,44 @@ function Setup({ snapshot, runAction, connection }: { snapshot: Snapshot; runAct
         </div>
       </Card>
       <Card className="span-7" title="Setup progress">
-        <CodeBlock value={JSON.stringify(snapshot.setupProgress ?? recommendation?.setupActions ?? [], null, 2)} />
+        <SimpleTable
+          headers={["Step", "Status", "Next action"]}
+          rows={(snapshot.setupProgress?.steps ?? []).map((step: any) => [step.label ?? step.id, step.status, step.nextAction ?? step.command ?? "review"])}
+        />
+      </Card>
+      <Card className="span-6" title="Setup evidence for agents">
+        <p className="card-subtext">
+          Setup recommendations and setup PR plans can be shared as read-only evidence before a config exists. The MCP setup manifest does not run targets, write files, call Hive, or call providers.
+        </p>
+        <KeyValueTable
+          rows={[
+            ["MCP setup manifest", setupMcpReady ? "ready" : "not generated"],
+            ["External calls", snapshot.mcpManifest?.server?.externalCallsMade ?? 0],
+            ["Read-only tools", snapshot.mcpManifest?.tools?.length ?? 0],
+            ["Execution tools disabled", snapshot.mcpManifest?.disabledExecutionTools?.length ?? 0]
+          ]}
+        />
+        <ArtifactList
+          artifacts={[
+            ".visual-hive/recommendations.json",
+            ".visual-hive/setup-pr-plan.json",
+            ".visual-hive/artifacts-index.json",
+            ".visual-hive/mcp-manifest.json"
+          ]}
+          connection={connection}
+        />
+      </Card>
+      <Card className="span-6" title="Setup MCP resources">
+        {setupMcpResources.length ? (
+          <SimpleTable headers={["Resource", "Read tool", "Path"]} rows={setupMcpResources.map((resource) => [resource.id, resource.readToolName ?? "none", resource.relativePath])} />
+        ) : (
+          <EmptyState title="No setup MCP manifest">
+            Run `visual-hive artifacts --repo .` and `visual-hive mcp --repo . --describe --output .visual-hive/mcp-manifest.json` after setup recommendations exist.
+          </EmptyState>
+        )}
       </Card>
       <EvidenceDisclosure className="span-12" title="Setup PR guidance raw evidence" data={snapshot.setupPullRequestPlan} />
+      <EvidenceDisclosure className="span-12" title="Setup progress raw evidence" data={{ setupProgress: snapshot.setupProgress, mcpManifest: snapshot.mcpManifest }} compact />
     </div>
   );
 }

@@ -79,6 +79,7 @@ import type {
   ArtifactFile,
   ControlPlaneFailure,
   ControlPlaneGuidanceState,
+  ControlPlaneMcpManifest,
   ControlPlaneNavigationBadges,
   ControlPlaneOptions,
   ControlPlanePipelineReport,
@@ -127,6 +128,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerDecisionLog,
     providerSetupPlan,
     providerHandoff,
+    mcpManifest,
     schemaCatalog,
     coverageImprovementArtifact,
     flowAuditArtifact,
@@ -174,6 +176,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readProviderDecisionLog(path.join(hiveRoot, "provider-decisions.json")),
     readJsonIfExists<ProviderSetupPlan>(path.join(hiveRoot, "provider-setup-plan.json")),
     readJsonIfExists<ProviderHandoffManifest>(path.join(hiveRoot, "provider-handoff.json")),
+    readJsonIfExists<ControlPlaneMcpManifest>(path.join(hiveRoot, "mcp-manifest.json")),
     readJsonIfExists<SchemaCatalogReport>(path.join(hiveRoot, "schema-catalog.json")),
     readJsonIfExists<CoverageImprovementReport>(path.join(hiveRoot, "coverage-recommendations.json")),
     readJsonIfExists<FlowAuditReport>(path.join(hiveRoot, "flows.json")),
@@ -324,6 +327,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     agentPacket,
     handoffAgentPacket,
     providerAgentPacket,
+    mcpManifest,
     schemaCatalog,
     artifacts
   });
@@ -367,6 +371,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerDecisionLog,
     providerSetupPlan,
     providerHandoff,
+    mcpManifest,
     schemaCatalog,
     setupRecommendation,
     setupPullRequestPlan,
@@ -791,6 +796,7 @@ function buildNavigationBadges(input: {
   agentPacket?: AgentPacket;
   handoffAgentPacket?: AgentPacket;
   providerAgentPacket?: AgentPacket;
+  mcpManifest?: ControlPlaneMcpManifest;
   schemaCatalog?: SchemaCatalogReport;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
@@ -801,6 +807,8 @@ function buildNavigationBadges(input: {
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
   const schemaCatalogFailures = input.schemaCatalog?.status === "failed" ? Math.max(1, Number(input.schemaCatalog.summary.failed ?? 0)) : 0;
+  const hasSetupArtifacts = input.artifacts.some((artifact) => artifact.path.endsWith("recommendations.json") || artifact.path.endsWith("setup-pr-plan.json"));
+  const missingSetupMcpManifest = hasSetupArtifacts && !input.mcpManifest ? 1 : 0;
   const missingAgentForwardPackets = [
     input.evidencePacket,
     input.handoffPacket,
@@ -815,10 +823,10 @@ function buildNavigationBadges(input: {
     input.providerAgentPacket
   ].filter((artifact) => !artifact).length;
   return {
-    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets + schemaCatalogFailures, 99),
+    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets + schemaCatalogFailures + missingSetupMcpManifest, 99),
     run: 0,
     review: Math.min(failures + baselines + testCreation + missingAgentForwardPackets, 99),
-    configure: Math.min(setup + risks + providerBlocks + schemaCatalogFailures, 99),
+    configure: Math.min(setup + risks + providerBlocks + schemaCatalogFailures + missingSetupMcpManifest, 99),
     expert: input.artifacts.length + schemaCatalogFailures,
     failures,
     baselines,

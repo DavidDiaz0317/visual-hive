@@ -67,6 +67,45 @@ export interface ControlPlanePipelineReport {
   artifacts: string[];
 }
 
+export interface ControlPlaneMcpManifest {
+  schemaVersion: "visual-hive.mcp.v1";
+  project: string;
+  server: {
+    name: string;
+    transport: string;
+    defaultAccess: string;
+    externalCallsMade: number;
+  };
+  resources: Array<{
+    id: string;
+    uri: string;
+    relativePath: string;
+    title?: string;
+    description?: string;
+    readToolName?: string;
+  }>;
+  tools: Array<{
+    name: string;
+    title?: string;
+    description?: string;
+    mode?: string;
+  }>;
+  disabledExecutionTools: Array<{
+    name: string;
+    title?: string;
+    description?: string;
+    mode?: string;
+  }>;
+  policy: {
+    thirdPartyMcpDefault?: string;
+    executionToolsDefault?: string;
+    githubWritesFromPr?: boolean;
+    externalUploadsFromPr?: boolean;
+    baselineApprovalByAgent?: boolean;
+    llmSoleOracle?: boolean;
+  };
+}
+
 export interface ControlPlaneOptions {
   repo?: string;
   config?: string;
@@ -365,6 +404,7 @@ export interface ControlPlaneSnapshot {
   providerDecisionLog?: ProviderDecisionLog;
   providerSetupPlan?: ProviderSetupPlan;
   providerHandoff?: ProviderHandoffManifest;
+  mcpManifest?: ControlPlaneMcpManifest;
   schemaCatalog?: SchemaCatalogReport;
   targetAudit?: TargetAuditReport;
   contractAudit?: ContractAuditReport;
