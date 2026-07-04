@@ -52,12 +52,14 @@ const agentPacket = await readOptionalJson(".visual-hive/agent-packet.json");
 const handoffAgentPacket = await readOptionalJson(".visual-hive/handoff-agent-packet.json");
 const providerAgentPacket = await readOptionalJson(".visual-hive/provider-agent-packet.json");
 const hiveExport = await readOptionalJson(".visual-hive/hive/hive-export.json");
+const planLanes = await readOptionalJson(".visual-hive/plans.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
 if (snapshot) checkGenericSnapshot(snapshot, artifactIndex);
 if (mcpManifest) checkGenericMcpManifest(mcpManifest, artifactIndex);
 if (hiveExport) checkGenericHiveExport(hiveExport, artifactIndex);
+if (planLanes?.outputResource) checkOutputResource(planLanes.outputResource, "Plan lane summary outputResource", artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }
@@ -157,6 +159,11 @@ function checkGenericAgentPacket(packet, index) {
     assertResourceShape(tool, `Agent Packet ${packet.profile} allowedTools[]`);
     checkAgainstArtifactIndex(tool, index, `Agent Packet ${packet.profile} tool[${tool.evidenceResourceId}]`);
   }
+}
+
+function checkOutputResource(outputResource, label, index) {
+  assertResourceShape(outputResource, label);
+  checkAgainstArtifactIndex(outputResource, index, label);
 }
 
 function checkAgainstArtifactIndex(resourceLike, index, label) {

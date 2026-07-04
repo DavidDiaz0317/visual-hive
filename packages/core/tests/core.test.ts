@@ -1335,6 +1335,12 @@ describe("planner", () => {
     expect(report.summary.selectedContracts).toBeGreaterThanOrEqual(2);
     expect(report.summary.unsafeExcludedContracts).toBeGreaterThan(0);
     expect(report.summary.mutationEnabledPlans).toBe(1);
+    expect(report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/plans.json",
+      evidenceResourceId: "plan-lanes",
+      evidenceResourceUri: "visual-hive://plan-lanes",
+      evidenceReadToolName: "visual_hive_read_plan_lanes"
+    });
     expect(report.lanes.find((lane) => lane.path.endsWith("plan.full.json"))).toMatchObject({
       mode: "full",
       mutationEnabled: true,

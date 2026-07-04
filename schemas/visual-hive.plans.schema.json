@@ -193,6 +193,42 @@
       "items": {
         "type": "string"
       }
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/plans.json"
+        },
+        "evidenceResourceId": {
+          "const": "plan-lanes"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://plan-lanes"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_plan_lanes"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

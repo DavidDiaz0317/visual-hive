@@ -30,7 +30,7 @@ Path: `.visual-hive/plans.json`
 
 Schema: `schemas/visual-hive.plans.schema.json`
 
-The plan lane summary is written by `visual-hive plans`. It scans `.visual-hive/plan*.json`, then records one row per lane with mode, status, selected contract/target IDs, ignored changed-file counts, unsafe exclusions, expensive targets, mutation operators, provider policy blocks, external calls planned, and recommendations. It lets maintainers compare PR, canary, full, scheduled, mutation, and docs-only plans without replacing the active `.visual-hive/plan.json` used by `visual-hive run`. The artifact is catalog-backed as `.visual-hive/plans.json`, `visual-hive://plan-lanes`, and `visual_hive_read_plan_lanes`; reading it is lane evidence only and does not run targets, change plan policy, or override a verdict.
+The plan lane summary is written by `visual-hive plans`. It scans `.visual-hive/plan*.json`, then records one row per lane with mode, status, selected contract/target IDs, ignored changed-file counts, unsafe exclusions, expensive targets, mutation operators, provider policy blocks, external calls planned, and recommendations. It lets maintainers compare PR, canary, full, scheduled, mutation, and docs-only plans without replacing the active `.visual-hive/plan.json` used by `visual-hive run`. The artifact is catalog-backed as `.visual-hive/plans.json`, `visual-hive://plan-lanes`, and `visual_hive_read_plan_lanes`; newly generated lane summaries also include `outputResource` with that same identity. Reading it is lane evidence only and does not run targets, change plan policy, or override a verdict.
 
 ## Repo Map
 

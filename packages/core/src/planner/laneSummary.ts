@@ -1,4 +1,5 @@
 import { mutationOperatorId } from "../mutations/operators.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { Plan } from "./types.js";
 
@@ -27,6 +28,15 @@ export interface PlanLaneSummaryRow {
   reasons: string[];
 }
 
+export interface PlanLaneSummaryOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface PlanLaneSummaryReport {
   schemaVersion: 1;
   project: string;
@@ -45,6 +55,7 @@ export interface PlanLaneSummaryReport {
   };
   lanes: PlanLaneSummaryRow[];
   recommendations: string[];
+  outputResource?: PlanLaneSummaryOutputResource;
 }
 
 export function buildPlanLaneSummary(inputs: PlanLaneSummaryInput[], now = new Date(), fallbackProject = "unknown"): PlanLaneSummaryReport {
@@ -72,7 +83,8 @@ export function buildPlanLaneSummary(inputs: PlanLaneSummaryInput[], now = new D
     planCount: lanes.length,
     summary,
     lanes,
-    recommendations: recommendations(lanes, summary)
+    recommendations: recommendations(lanes, summary),
+    outputResource: catalogedPlanLaneOutputResource()
   };
 }
 
@@ -137,4 +149,18 @@ function recommendations(lanes: PlanLaneSummaryRow[], summary: PlanLaneSummaryRe
     recs.add("Consider a canary plan for cheap scheduled public/demo health checks.");
   }
   return [...recs].sort();
+}
+
+function catalogedPlanLaneOutputResource(): PlanLaneSummaryOutputResource {
+  const resource = getEvidenceResourceById("plan-lanes");
+  return {
+    artifactPath: ".visual-hive/plans.json",
+    evidenceResourceId: resource?.id ?? "plan-lanes",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://plan-lanes",
+    evidenceResourceTitle: resource?.title ?? "Plan Lanes",
+    evidenceResourceDescription:
+      resource?.description ??
+      "Lane summary across active and sidecar plan artifacts, including PR, schedule, canary, full, and docs-only planning evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_plan_lanes"
+  };
 }
