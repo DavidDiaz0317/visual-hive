@@ -2791,6 +2791,7 @@ describe("control plane", () => {
     expect(snapshot.runbook.notes).toContain("Visual Hive owns the deterministic verdict; Playwright is the default local evidence runner.");
     expect(snapshot.runProfiles.find((profile) => profile.id === "pr-acceptance")).toMatchObject({
       enabled: true,
+      runnable: true,
       commandIds: ["doctor", "plan-pr", "run-ci", "baselines", "readiness", "triage-report"],
       safety: "pr_safe"
     });
@@ -3051,7 +3052,11 @@ describe("control plane", () => {
     ]);
     expect(snapshot.readinessReport?.project).toBe("ui-fixture");
     expect(snapshot.readinessReport?.gates.map((gate) => gate.id)).toContain("deterministic:status");
-    expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")?.enabled).toBe(false);
+    expect(snapshot.runProfiles.find((profile) => profile.id === "protected-schedule-preview")).toMatchObject({
+      enabled: false,
+      runnable: false,
+      blockedReason: expect.stringContaining("schedule-protected")
+    });
     expect(snapshot.riskReport?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.project).toBe("ui-fixture");
     expect(snapshot.securityAudit?.summary.score).toBe(96);
@@ -3204,11 +3209,25 @@ describe("control plane", () => {
 
     for (const profile of snapshot.runProfiles) {
       const missingCommandIds = profile.commandIds.filter((commandId) => !runbookIds.has(commandId));
+      const profileCommands = profile.commandIds
+        .map((commandId) => snapshot.runbook.commands.find((command) => command.id === commandId))
+        .filter((command): command is (typeof snapshot.runbook.commands)[number] => Boolean(command));
+      const guidanceOnlyCommandIds = profileCommands
+        .filter((command) => !isControlPlaneExecutableCommandId(command.id))
+        .map((command) => command.id);
+      expect(profile.enabled).toBe(profile.runnable);
       if (profile.enabled) {
         expect(missingCommandIds, `enabled run profile "${profile.id}" should only reference existing runbook commands`).toEqual([]);
+        expect(guidanceOnlyCommandIds, `enabled run profile "${profile.id}" should only reference executable commands`).toEqual([]);
+        expect(profile.blockedReasons, `enabled run profile "${profile.id}" should not expose blocked reasons`).toEqual([]);
+        expect(profile.blockedReason, `enabled run profile "${profile.id}" should not expose a blocked reason`).toBeUndefined();
       } else {
+        expect(profile.blockedReason, `disabled run profile "${profile.id}" should expose a primary blocked reason`).toBeTruthy();
         for (const commandId of missingCommandIds) {
           expect(profile.blockedReasons.join(" "), `disabled profile "${profile.id}" should explain missing command "${commandId}"`).toContain(commandId);
+        }
+        for (const commandId of guidanceOnlyCommandIds) {
+          expect(profile.blockedReasons.join(" "), `disabled profile "${profile.id}" should explain guidance-only command "${commandId}"`).toContain(commandId);
         }
       }
       for (const commandId of profile.commandIds) {

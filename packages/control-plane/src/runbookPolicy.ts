@@ -2,6 +2,8 @@ export const CONTROL_PLANE_EXECUTABLE_COMMAND_IDS = [
   "doctor",
   "recommend",
   "plan-pr",
+  "plan-canary",
+  "plan-full-safe",
   "run-ci",
   "baselines",
   "coverage",

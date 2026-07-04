@@ -829,6 +829,7 @@
         "commandIds",
         "safety",
         "enabled",
+        "runnable",
         "blockedReasons",
         "expectedArtifacts",
         "requiredSecrets"
@@ -858,6 +859,12 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "runnable": {
+          "type": "boolean"
+        },
+        "blockedReason": {
+          "type": "string"
         },
         "blockedReasons": {
           "type": "array",

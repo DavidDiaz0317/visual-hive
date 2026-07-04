@@ -829,7 +829,9 @@ function buildNavigationBadges(input: {
 }
 
 function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[] {
-  const definitions: Array<Omit<ControlPlaneRunProfile, "enabled" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">> = [
+  const definitions: Array<
+    Omit<ControlPlaneRunProfile, "enabled" | "runnable" | "blockedReason" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">
+  > = [
     {
       id: "pr-acceptance",
       label: "PR acceptance",
@@ -934,25 +936,30 @@ function buildRunProfiles(runbook: ControlPlaneRunbook): ControlPlaneRunProfile[
 }
 
 function materializeRunProfile(
-  definition: Omit<ControlPlaneRunProfile, "enabled" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">,
+  definition: Omit<ControlPlaneRunProfile, "enabled" | "runnable" | "blockedReason" | "blockedReasons" | "expectedArtifacts" | "requiredSecrets" | "safety">,
   runbook: ControlPlaneRunbook
 ): ControlPlaneRunProfile {
   const commands = definition.commandIds
     .map((id) => runbook.commands.find((command) => command.id === id))
     .filter((command): command is ControlPlaneRunbookCommand => Boolean(command));
   const missingCommands = definition.commandIds.filter((id) => !commands.some((command) => command.id === id));
+  const guidanceOnlyCommands = commands.filter((command) => !isControlPlaneExecutableCommandId(command.id)).map((command) => command.id);
   const requiredSecrets = uniqueStrings(commands.flatMap((command) => command.requiredSecrets));
   const blockedReasons = [
     ...missingCommands.map((id) => `Runbook command "${id}" is not available for this repository.`),
+    ...guidanceOnlyCommands.map((id) => `Runbook command "${id}" is guidance-only and cannot be executed from the local Control Plane.`),
     ...commands
       .filter((command) => command.safety === "trusted_only")
       .map((command) => `Runbook command "${command.id}" is trusted-only and cannot be executed from the local Control Plane.`),
     ...(requiredSecrets.length ? [`Profile requires protected environment variable names: ${requiredSecrets.join(", ")}.`] : [])
   ];
+  const runnable = blockedReasons.length === 0;
   return {
     ...definition,
     safety: mostRestrictiveSafety(commands.map((command) => command.safety)),
-    enabled: blockedReasons.length === 0,
+    enabled: runnable,
+    runnable,
+    blockedReason: blockedReasons[0],
     blockedReasons,
     expectedArtifacts: uniqueStrings(commands.flatMap((command) => command.expectedArtifacts)),
     requiredSecrets

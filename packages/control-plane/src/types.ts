@@ -306,6 +306,8 @@ export interface ControlPlaneRunProfile {
   commandIds: string[];
   safety: ControlPlaneRunbookCommand["safety"];
   enabled: boolean;
+  runnable: boolean;
+  blockedReason?: string;
   blockedReasons: string[];
   expectedArtifacts: string[];
   requiredSecrets: string[];
