@@ -62,6 +62,98 @@ export interface RepoCoverageGap {
   suggestedArtifact: string;
 }
 
+export type RepoVisualMapNodeKind =
+  | "file"
+  | "component"
+  | "layout"
+  | "route"
+  | "state"
+  | "viewport"
+  | "target"
+  | "contract"
+  | "screenshot"
+  | "mutation"
+  | "selector"
+  | "coverage_gap";
+
+export type RepoVisualMapNodeStatus = "active" | "stale" | "unverified" | "conflicted";
+
+export interface RepoVisualMapProvenance {
+  source: "static" | "config" | "runtime" | "derived";
+  confidence: "high" | "medium" | "low";
+  sourceFile?: string;
+  generatedAt: string;
+  firstSeen: string;
+  lastValidated?: string;
+}
+
+export interface RepoVisualMapNode {
+  id: string;
+  kind: RepoVisualMapNodeKind;
+  label: string;
+  status: RepoVisualMapNodeStatus;
+  provenance: RepoVisualMapProvenance;
+  sourceFiles: string[];
+  routes: string[];
+  states: string[];
+  viewports: string[];
+  selectors: string[];
+  targetIds: string[];
+  contractIds: string[];
+  screenshotNames: string[];
+  mutationOperators: string[];
+  coverageGapIds: string[];
+}
+
+export interface RepoVisualMapEdge {
+  id: string;
+  from: string;
+  to: string;
+  relation:
+    | "declares"
+    | "renders"
+    | "uses_selector"
+    | "targets"
+    | "covers_route"
+    | "captures"
+    | "uses_viewport"
+    | "maps_mutation"
+    | "has_gap"
+    | "impacts"
+    | "validated_by";
+  evidence: string[];
+  confidence: "high" | "medium" | "low";
+}
+
+export interface RepoVisualMapFinding {
+  id: string;
+  fingerprint: string;
+  status: RepoVisualMapNodeStatus;
+  severity: "info" | "warning" | "high";
+  message: string;
+  nodeIds: string[];
+  evidence: string[];
+}
+
+export interface RepoVisualMap {
+  schemaVersion: 1;
+  generatedAt: string;
+  summary: {
+    nodes: number;
+    edges: number;
+    routes: number;
+    components: number;
+    contracts: number;
+    screenshots: number;
+    mutations: number;
+    activeFindings: number;
+  };
+  lifecycle: "File -> Component -> Layout -> Route -> State -> Viewport -> Target -> Contract -> Screenshot -> Mutation -> Issue";
+  nodes: RepoVisualMapNode[];
+  edges: RepoVisualMapEdge[];
+  findings: RepoVisualMapFinding[];
+}
+
 export interface RepoMapOutputResource {
   artifactPath: string;
   evidenceResourceId: string;
@@ -96,5 +188,6 @@ export interface RepoMapReport {
   targetHints: RepoTargetHint[];
   riskSignals: RepoRiskSignal[];
   coverageGaps: RepoCoverageGap[];
+  visualMap: RepoVisualMap;
   recommendations: string[];
 }

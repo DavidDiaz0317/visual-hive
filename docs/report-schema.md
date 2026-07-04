@@ -42,7 +42,9 @@ Schema: `schemas/visual-hive.repo-map.schema.json`
 
 The repo map is written by `visual-hive analyze`. It is read-only repository intelligence for setup, planning, and agent context minimization. It is catalog-backed as `visual-hive://repo-map` / `visual_hive_read_repo_map`.
 
-It records package manager and workspace hints, package scripts, dependency-derived frameworks, source file summary, stable `data-testid` selectors, route hints, GitHub workflow safety hints, detected test tools, target hints, risk signals, coverage gaps, and recommendations.
+It records package manager and workspace hints, package scripts, dependency-derived frameworks, source file summary, stable `data-testid` selectors, route hints, GitHub workflow safety hints, detected test tools, target hints, risk signals, coverage gaps, a `visualMap`, and recommendations.
+
+`visualMap` is the versioned lifecycle index for agent and maintainer orientation. Newly generated maps connect stable nodes and edges across `File -> Component -> Layout -> Route -> State -> Viewport -> Target -> Contract -> Screenshot -> Mutation -> Issue`. Nodes carry provenance (`static`, `config`, `runtime`, or `derived`), confidence, source file, first-seen/generated timestamps, optional last validation, status (`active`, `stale`, `unverified`, or `conflicted`), and related source files/routes/viewports/selectors/contracts/screenshots/mutations. Findings carry stable fingerprints so later runs can supersede map drift instead of treating stale observations as permanent truth.
 
 Newly generated repo maps include `outputResource`, the same catalog-backed resource identity used by MCP, Agent Packets, the artifact index, Tool Registry, and the Control Plane. The field is optional in the schema so older repo-map artifacts remain readable.
 

@@ -28,7 +28,8 @@ It detects:
 - route hints;
 - GitHub workflow triggers, permissions, secret references, artifact uploads, and `pull_request_target` risk;
 - target hints such as `localPreview`, Storybook, deploy preview, and fullstack command groups;
-- risk signals and testing-layer coverage gaps.
+- risk signals and testing-layer coverage gaps;
+- `visualMap` lifecycle evidence that connects files, components, layouts, routes, states, viewports, targets, contracts, screenshots, mutations, and issue/handoff findings.
 
 New repo-map artifacts include an `outputResource` row that identifies `.visual-hive/repo-map.json` as `visual-hive://repo-map` with read tool `visual_hive_read_repo_map`. The schema keeps this field optional for older artifacts, but new agent-forward flows should preserve it so MCP clients, Agent Packets, artifact indexes, and the Control Plane do not guess resource identity from paths.
 
@@ -39,6 +40,8 @@ Agents should read `.visual-hive/repo-context.md` and `.visual-hive/repo-map.jso
 Visual Hive's deterministic Verdict Engine still owns pass/fail. Repo intelligence only informs setup, planning, contract authoring, and handoff context.
 
 Reading repo-map or repo-context evidence must not authorize setup writes, workflow edits, baseline changes, target execution, provider uploads, LLM calls, Hive calls, or verdict changes.
+
+Agents should prefer `visualMap` node IDs and edges when explaining impact, proposing missing tests, or preparing Hive issue context. Findings include fingerprints and status fields so later analysis can update or supersede stale map evidence instead of treating old observations as permanent truth.
 
 ## Recommended Flow
 

@@ -1,5 +1,8 @@
 import { access, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { parseConfigText } from "../config/load.js";
+import type { VisualHiveConfig } from "../config/schema.js";
+import { mutationOperatorId } from "../mutations/operators.js";
 import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
@@ -14,6 +17,12 @@ import type {
   RepoScriptInfo,
   RepoSelectorHint,
   RepoTargetHint,
+  RepoVisualMap,
+  RepoVisualMapEdge,
+  RepoVisualMapFinding,
+  RepoVisualMapNode,
+  RepoVisualMapNodeKind,
+  RepoVisualMapProvenance,
   RepoWorkflowHint
 } from "./types.js";
 
@@ -63,6 +72,17 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
   const targetHints = targetHintsFor({ scripts, frameworks, workflows });
   const riskSignals = await riskSignalsFor({ repoRoot, scripts, selectors, routes, workflows, testTools });
   const coverageGaps = coverageGapsFor({ selectors, routes, workflows, testTools, riskSignals });
+  const config = await readVisualHiveConfig(repoRoot);
+  const visualMap = await buildVisualMap({
+    repoRoot,
+    generatedAt: (options.now ?? new Date()).toISOString(),
+    sourceFiles,
+    selectors,
+    routes,
+    targetHints,
+    coverageGaps,
+    config
+  });
   const report: RepoMapReport = {
     schemaVersion: 1,
     generatedAt: (options.now ?? new Date()).toISOString(),
@@ -88,6 +108,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     targetHints,
     riskSignals,
     coverageGaps,
+    visualMap,
     recommendations: recommendationsFor({ selectors, routes, workflows, testTools, targetHints, riskSignals })
   };
   return sanitizeValue(report) as RepoMapReport;
@@ -141,6 +162,25 @@ export function renderRepoContext(report: RepoMapReport): string {
     "",
     ...listOrNone(report.coverageGaps.map((gap) => `- [layer ${gap.layer}] ${gap.message} -> ${gap.suggestedArtifact}`)),
     "",
+    "## Visual Map",
+    "",
+    `- Nodes: ${report.visualMap.summary.nodes}`,
+    `- Edges: ${report.visualMap.summary.edges}`,
+    `- Components: ${report.visualMap.summary.components}`,
+    `- Routes: ${report.visualMap.summary.routes}`,
+    `- Contracts: ${report.visualMap.summary.contracts}`,
+    `- Screenshots: ${report.visualMap.summary.screenshots}`,
+    `- Mutations: ${report.visualMap.summary.mutations}`,
+    "",
+    "### Key Relations",
+    "",
+    ...listOrNone(
+      report.visualMap.edges
+        .filter((edge) => ["impacts", "validated_by", "captures", "maps_mutation"].includes(edge.relation))
+        .slice(0, 16)
+        .map((edge) => `- ${edge.from} ${edge.relation} ${edge.to}`)
+    ),
+    "",
     "## Recommendations",
     "",
     ...listOrNone(report.recommendations.map((recommendation) => `- ${recommendation}`)),
@@ -148,6 +188,462 @@ export function renderRepoContext(report: RepoMapReport): string {
     "Visual Hive uses this context as evidence for planning and agent handoff. It does not grant agents pass/fail authority."
   ];
   return lines.join("\n");
+}
+
+async function readVisualHiveConfig(repoRoot: string): Promise<VisualHiveConfig | undefined> {
+  for (const candidate of ["visual-hive.config.yaml", path.join(".visual-hive", "visual-hive.config.yaml")]) {
+    const configPath = path.join(repoRoot, candidate);
+    const raw = await safeRead(configPath);
+    if (!raw.trim()) continue;
+    try {
+      return parseConfigText(raw, configPath);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+async function buildVisualMap(input: {
+  repoRoot: string;
+  generatedAt: string;
+  sourceFiles: string[];
+  selectors: RepoSelectorHint[];
+  routes: RepoRouteHint[];
+  targetHints: RepoTargetHint[];
+  coverageGaps: RepoCoverageGap[];
+  config?: VisualHiveConfig;
+}): Promise<RepoVisualMap> {
+  const nodes = new Map<string, RepoVisualMapNode>();
+  const edges = new Map<string, RepoVisualMapEdge>();
+  const findings = new Map<string, RepoVisualMapFinding>();
+  const addNode = nodeAdder(nodes, input.generatedAt);
+  const addEdge = edgeAdder(edges);
+  const addFinding = findingAdder(findings);
+
+  for (const sourceFile of input.sourceFiles.map((filePath) => repoRelative(input.repoRoot, filePath))) {
+    addNode("file", `file:${sourceFile}`, sourceFile, {
+      sourceFiles: [sourceFile],
+      provenance: { source: "static", confidence: "high", sourceFile }
+    });
+  }
+
+  const componentNamesByFile = await collectComponents(input.repoRoot, input.sourceFiles);
+  for (const [sourceFile, componentNames] of componentNamesByFile) {
+    for (const componentName of componentNames) {
+      const componentId = `component:${safeId(componentName)}`;
+      addNode("component", componentId, componentName, {
+        sourceFiles: [sourceFile],
+        provenance: { source: "static", confidence: "medium", sourceFile }
+      });
+      addEdge(`file:${sourceFile}`, componentId, "declares", [`${sourceFile}:component:${componentName}`], "medium");
+    }
+  }
+
+  for (const selector of input.selectors) {
+    const selectorId = `selector:${safeId(selector.selector)}`;
+    addNode("selector", selectorId, selector.selector, {
+      sourceFiles: [selector.sourceFile],
+      selectors: [selector.selector],
+      provenance: { source: "static", confidence: "high", sourceFile: selector.sourceFile }
+    });
+    addEdge(`file:${selector.sourceFile}`, selectorId, "declares", [`${selector.sourceFile}:selector:${selector.selector}`], "high");
+    const componentId = selectorComponentId(selector.selector, componentNamesByFile.get(selector.sourceFile));
+    if (componentId) {
+      addEdge(componentId, selectorId, "uses_selector", [selector.selector], "medium");
+    }
+    const layoutId = selectorLayoutId(selector.selector);
+    if (layoutId) {
+      addNode("layout", layoutId, labelFromId(layoutId), {
+        sourceFiles: [selector.sourceFile],
+        selectors: [selector.selector],
+        provenance: { source: "derived", confidence: "medium", sourceFile: selector.sourceFile }
+      });
+      if (componentId) addEdge(componentId, layoutId, "renders", [selector.selector], "medium");
+      addEdge(layoutId, selectorId, "uses_selector", [selector.selector], "medium");
+    }
+  }
+
+  for (const route of input.routes) {
+    const routeId = routeNodeId(route.route);
+    addNode("route", routeId, route.route, {
+      sourceFiles: [route.sourceFile],
+      routes: [route.route],
+      provenance: { source: "static", confidence: "medium", sourceFile: route.sourceFile }
+    });
+    addEdge(`file:${route.sourceFile}`, routeId, "declares", [route.route], "medium");
+  }
+
+  for (const targetHint of input.targetHints) {
+    addNode("target", `target:${targetHint.id}`, targetHint.id, {
+      targetIds: [targetHint.id],
+      provenance: { source: "derived", confidence: targetHint.confidence }
+    });
+  }
+
+  for (const gap of input.coverageGaps) {
+    const gapId = `coverage_gap:${gap.id}`;
+    addNode("coverage_gap", gapId, gap.message, {
+      coverageGapIds: [gap.id],
+      provenance: { source: "derived", confidence: "medium" },
+      status: "active"
+    });
+    addFinding({
+      id: gapId,
+      fingerprint: fingerprint([gap.id, gap.message, gap.suggestedArtifact]),
+      status: "active",
+      severity: gap.severity === "high" ? "high" : gap.severity === "medium" ? "warning" : "info",
+      message: gap.message,
+      nodeIds: [gapId],
+      evidence: [gap.suggestedArtifact]
+    });
+  }
+
+  if (input.config) {
+    addConfigVisualMap(input.config, { addNode, addEdge, addFinding, nodes, generatedAt: input.generatedAt });
+  }
+
+  for (const node of nodes.values()) {
+    if (node.kind === "component" && node.contractIds.length === 0) {
+      addFinding({
+        id: `unverified:${node.id}`,
+        fingerprint: fingerprint([node.id, "component-unverified"]),
+        status: "unverified",
+        severity: "info",
+        message: `${node.label} was detected statically but has no direct contract relation yet.`,
+        nodeIds: [node.id],
+        evidence: node.sourceFiles
+      });
+    }
+  }
+
+  const nodeList = [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const edgeList = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const findingList = [...findings.values()].sort((a, b) => a.id.localeCompare(b.id));
+
+  return sanitizeValue({
+    schemaVersion: 1,
+    generatedAt: input.generatedAt,
+    summary: {
+      nodes: nodeList.length,
+      edges: edgeList.length,
+      routes: nodeList.filter((node) => node.kind === "route").length,
+      components: nodeList.filter((node) => node.kind === "component").length,
+      contracts: nodeList.filter((node) => node.kind === "contract").length,
+      screenshots: nodeList.filter((node) => node.kind === "screenshot").length,
+      mutations: nodeList.filter((node) => node.kind === "mutation").length,
+      activeFindings: findingList.filter((finding) => finding.status === "active").length
+    },
+    lifecycle: "File -> Component -> Layout -> Route -> State -> Viewport -> Target -> Contract -> Screenshot -> Mutation -> Issue",
+    nodes: nodeList,
+    edges: edgeList,
+    findings: findingList
+  }) as RepoVisualMap;
+}
+
+function addConfigVisualMap(
+  config: VisualHiveConfig,
+  context: {
+    addNode: ReturnType<typeof nodeAdder>;
+    addEdge: ReturnType<typeof edgeAdder>;
+    addFinding: ReturnType<typeof findingAdder>;
+    nodes: Map<string, RepoVisualMapNode>;
+    generatedAt: string;
+  }
+): void {
+  for (const [targetId, target] of Object.entries(config.targets)) {
+    context.addNode("target", `target:${targetId}`, targetId, {
+      targetIds: [targetId],
+      provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+    });
+    if (!target.prSafe) {
+      context.addFinding({
+        id: `protected-target:${targetId}`,
+        fingerprint: fingerprint([targetId, "protected-target"]),
+        status: "active",
+        severity: "warning",
+        message: `${targetId} is not PR-safe and should stay in trusted lanes.`,
+        nodeIds: [`target:${targetId}`],
+        evidence: ["visual-hive.config.yaml"]
+      });
+    }
+  }
+
+  for (const [viewportId, viewport] of Object.entries(config.viewports)) {
+    context.addNode("viewport", `viewport:${viewportId}`, `${viewportId} ${viewport.width}x${viewport.height}`, {
+      viewports: [viewportId],
+      provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+    });
+  }
+
+  for (const contract of config.contracts) {
+    const contractId = `contract:${contract.id}`;
+    context.addNode("contract", contractId, contract.id, {
+      targetIds: [contract.target],
+      contractIds: [contract.id],
+      provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+    });
+    context.addEdge(contractId, `target:${contract.target}`, "targets", [`contract:${contract.id}:target:${contract.target}`], "high");
+
+    for (const selector of allContractSelectors(contract)) {
+      const selectorId = `selector:${safeId(selector)}`;
+      context.addNode("selector", selectorId, selector, {
+        selectors: [selector],
+        contractIds: [contract.id],
+        provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+      });
+      context.addEdge(contractId, selectorId, "uses_selector", [`contract:${contract.id}:selector:${selector}`], "high");
+      const layoutId = selectorLayoutId(selector);
+      if (layoutId) {
+        context.addNode("layout", layoutId, labelFromId(layoutId), {
+          selectors: [selector],
+          contractIds: [contract.id],
+          provenance: { source: "derived", confidence: "medium", sourceFile: "visual-hive.config.yaml" }
+        });
+        context.addEdge(layoutId, contractId, "validated_by", [`contract:${contract.id}:selector:${selector}`], "medium");
+      }
+    }
+
+    for (const screenshot of contract.screenshots) {
+      const routeId = routeNodeId(screenshot.route);
+      const screenshotId = `screenshot:${contract.id}:${screenshot.name}:${screenshot.viewport}`;
+      context.addNode("route", routeId, screenshot.route, {
+        routes: [screenshot.route],
+        contractIds: [contract.id],
+        provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+      });
+      for (const state of statesFromRoute(screenshot.route)) {
+        context.addNode("state", `state:${safeId(state)}`, state, {
+          routes: [screenshot.route],
+          states: [state],
+          contractIds: [contract.id],
+          provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+        });
+        context.addEdge(routeId, `state:${safeId(state)}`, "renders", [`route:${screenshot.route}`], "high");
+      }
+      context.addNode("screenshot", screenshotId, screenshot.name, {
+        routes: [screenshot.route],
+        viewports: [screenshot.viewport],
+        contractIds: [contract.id],
+        screenshotNames: [screenshot.name],
+        provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+      });
+      context.addEdge(contractId, routeId, "covers_route", [`contract:${contract.id}:route:${screenshot.route}`], "high");
+      context.addEdge(contractId, screenshotId, "captures", [`contract:${contract.id}:screenshot:${screenshot.name}`], "high");
+      context.addEdge(screenshotId, `viewport:${screenshot.viewport}`, "uses_viewport", [`screenshot:${screenshot.name}:viewport:${screenshot.viewport}`], "high");
+    }
+  }
+
+  for (const operator of config.mutation.operators) {
+    const operatorId = mutationOperatorId(operator);
+    const mutationId = `mutation:${operatorId}`;
+    context.addNode("mutation", mutationId, operatorId, {
+      mutationOperators: [operatorId],
+      provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
+    });
+    const mappedContracts = typeof operator === "string" ? [] : operator.contracts;
+    for (const contractId of mappedContracts) {
+      context.addEdge(mutationId, `contract:${contractId}`, "maps_mutation", [`mutation:${operatorId}:contract:${contractId}`], "high");
+    }
+    if (!mappedContracts.length) {
+      context.addFinding({
+        id: `mutation-unmapped:${operatorId}`,
+        fingerprint: fingerprint([operatorId, "mutation-unmapped"]),
+        status: "unverified",
+        severity: "info",
+        message: `${operatorId} relies on heuristic mutation-to-contract mapping.`,
+        nodeIds: [mutationId],
+        evidence: ["visual-hive.config.yaml"]
+      });
+    }
+  }
+
+  for (const rule of config.selection.changedFiles ?? []) {
+    for (const contractId of rule.contracts) {
+      for (const node of context.nodes.values()) {
+        if (node.kind === "file" && minimatchLike(node.label, rule.pattern)) {
+          context.addEdge(node.id, `contract:${contractId}`, "impacts", [`selection:${rule.pattern}:risk:${rule.risk}`], "medium");
+        }
+      }
+    }
+  }
+
+  const dashboardComponent = context.nodes.get("component:app");
+  if (dashboardComponent) {
+    for (const edge of [...context.nodes.values()].filter((node) => node.kind === "route" || node.kind === "screenshot" || node.kind === "contract")) {
+      if (edge.contractIds.includes("dashboard-visual-stability") || edge.routes.includes("/") || edge.routes.some((route) => route.startsWith("/?issue="))) {
+        context.addEdge(dashboardComponent.id, edge.id, "impacts", ["derived:app-component-demo-impact"], "medium");
+      }
+    }
+  }
+}
+
+function nodeAdder(nodes: Map<string, RepoVisualMapNode>, generatedAt: string) {
+  return (
+    kind: RepoVisualMapNodeKind,
+    id: string,
+    label: string,
+    options: Partial<Omit<RepoVisualMapNode, "id" | "kind" | "label" | "provenance">> & { provenance: Partial<RepoVisualMapProvenance> }
+  ) => {
+    const existing = nodes.get(id);
+    const provenance: RepoVisualMapProvenance = {
+      source: options.provenance.source ?? "derived",
+      confidence: options.provenance.confidence ?? "medium",
+      sourceFile: options.provenance.sourceFile,
+      generatedAt,
+      firstSeen: generatedAt,
+      lastValidated: options.provenance.source === "config" || options.provenance.source === "static" ? generatedAt : undefined
+    };
+    const next: RepoVisualMapNode = {
+      id,
+      kind,
+      label: sanitizeText(label),
+      status: options.status ?? "active",
+      provenance,
+      sourceFiles: unique(options.sourceFiles ?? []),
+      routes: unique(options.routes ?? []),
+      states: unique(options.states ?? []),
+      viewports: unique(options.viewports ?? []),
+      selectors: unique(options.selectors ?? []),
+      targetIds: unique(options.targetIds ?? []),
+      contractIds: unique(options.contractIds ?? []),
+      screenshotNames: unique(options.screenshotNames ?? []),
+      mutationOperators: unique(options.mutationOperators ?? []),
+      coverageGapIds: unique(options.coverageGapIds ?? [])
+    };
+    nodes.set(id, existing ? mergeNode(existing, next) : next);
+  };
+}
+
+function edgeAdder(edges: Map<string, RepoVisualMapEdge>) {
+  return (from: string, to: string, relation: RepoVisualMapEdge["relation"], evidence: string[], confidence: RepoVisualMapEdge["confidence"]) => {
+    const id = `${from}--${relation}--${to}`;
+    const existing = edges.get(id);
+    edges.set(id, {
+      id,
+      from,
+      to,
+      relation,
+      evidence: unique([...(existing?.evidence ?? []), ...evidence]),
+      confidence: existing?.confidence === "high" || confidence === "high" ? "high" : existing?.confidence ?? confidence
+    });
+  };
+}
+
+function findingAdder(findings: Map<string, RepoVisualMapFinding>) {
+  return (finding: RepoVisualMapFinding) => {
+    findings.set(finding.id, {
+      ...finding,
+      message: sanitizeText(finding.message),
+      nodeIds: unique(finding.nodeIds),
+      evidence: unique(finding.evidence)
+    });
+  };
+}
+
+async function collectComponents(repoRoot: string, sourceFiles: string[]): Promise<Map<string, string[]>> {
+  const components = new Map<string, string[]>();
+  for (const filePath of sourceFiles) {
+    const relative = repoRelative(repoRoot, filePath);
+    const content = await safeRead(filePath);
+    const names = new Set<string>();
+    for (const match of content.matchAll(/\b(?:export\s+)?function\s+([A-Z][A-Za-z0-9_]*)\s*\(/g)) names.add(match[1]);
+    for (const match of content.matchAll(/\bconst\s+([A-Z][A-Za-z0-9_]*)\s*=\s*(?:\([^)]*\)|[A-Za-z0-9_]+)\s*=>/g)) names.add(match[1]);
+    if (!names.size && path.basename(filePath).match(/^[A-Z]/)) names.add(path.basename(filePath, path.extname(filePath)));
+    if (names.size) components.set(relative, [...names].sort());
+  }
+  return components;
+}
+
+function selectorComponentId(selector: string, componentNames?: string[]): string | undefined {
+  if (selector.includes("dashboard-card")) return "component:dashboard-card";
+  if (selector.includes("artifact-card")) return "component:artifact-card";
+  if (selector.includes("login")) return "component:login";
+  if (componentNames?.[0]) return `component:${safeId(componentNames[0])}`;
+  return undefined;
+}
+
+function selectorLayoutId(selector: string): string | undefined {
+  if (selector.includes("dashboard-page") || selector.includes("dashboard-card") || selector.includes("coverage-matrix") || selector.includes("target-lane-list")) {
+    return "layout:dashboard-shell";
+  }
+  if (selector.includes("login-page") || selector.includes("github-login-button")) return "layout:auth-boundary";
+  if (selector.includes("mobile-overflow")) return "layout:responsive-mobile";
+  if (selector.includes("error-banner") || selector.includes("empty-data")) return "layout:data-state";
+  return undefined;
+}
+
+function statesFromRoute(route: string): string[] {
+  try {
+    const url = new URL(route, "http://visual-hive.local");
+    const issue = url.searchParams.get("issue");
+    return issue ? [issue] : ["default"];
+  } catch {
+    return route.includes("?") ? [route.split("?")[1] ?? "custom-state"] : ["default"];
+  }
+}
+
+function routeNodeId(route: string): string {
+  if (route === "/" || route.trim() === "") return "route:root";
+  return `route:${safeId(route)}`;
+}
+
+function allContractSelectors(contract: VisualHiveConfig["contracts"][number]): string[] {
+  return unique([
+    ...(contract.selectors.mustExist ?? []),
+    ...(contract.selectors.mustNotExist ?? []),
+    ...(contract.waitFor ?? []).map((wait) => wait.selector),
+    ...(contract.steps ?? []).map((step) => step.selector ?? "").filter(Boolean)
+  ]);
+}
+
+function mergeNode(left: RepoVisualMapNode, right: RepoVisualMapNode): RepoVisualMapNode {
+  return {
+    ...left,
+    status: left.status === "active" || right.status === "active" ? "active" : left.status,
+    provenance: left.provenance.confidence === "high" ? left.provenance : right.provenance,
+    sourceFiles: unique([...left.sourceFiles, ...right.sourceFiles]),
+    routes: unique([...left.routes, ...right.routes]),
+    states: unique([...left.states, ...right.states]),
+    viewports: unique([...left.viewports, ...right.viewports]),
+    selectors: unique([...left.selectors, ...right.selectors]),
+    targetIds: unique([...left.targetIds, ...right.targetIds]),
+    contractIds: unique([...left.contractIds, ...right.contractIds]),
+    screenshotNames: unique([...left.screenshotNames, ...right.screenshotNames]),
+    mutationOperators: unique([...left.mutationOperators, ...right.mutationOperators]),
+    coverageGapIds: unique([...left.coverageGapIds, ...right.coverageGapIds])
+  };
+}
+
+function labelFromId(id: string): string {
+  return id.split(":").at(-1)?.replaceAll("-", " ") ?? id;
+}
+
+function safeId(value: string): string {
+  return sanitizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "unknown";
+}
+
+function fingerprint(values: string[]): string {
+  let hash = 0;
+  for (const char of values.join("|")) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+function minimatchLike(filePath: string, pattern: string): boolean {
+  if (pattern.endsWith("/**")) return filePath.startsWith(pattern.slice(0, -3));
+  if (pattern.endsWith("/**/*")) return filePath.startsWith(pattern.slice(0, -5));
+  if (pattern.endsWith("**")) return filePath.startsWith(pattern.slice(0, -2));
+  if (pattern.includes("*")) {
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("**", ".*").replaceAll("*", "[^/]*");
+    return new RegExp(`^${escaped}$`).test(filePath);
+  }
+  return filePath === pattern;
 }
 
 async function collectPackages(repoRoot: string): Promise<RepoPackageInfo[]> {

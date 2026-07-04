@@ -1082,7 +1082,56 @@ describe("repo intelligence", () => {
     await writeFile(path.join(tempRoot, "package-lock.json"), "{}", "utf8");
     await writeFile(
       path.join(tempRoot, "src", "App.tsx"),
-      `<a href="/clusters" data-testid="dashboard-page">Clusters</a><button data-testid='critical-action-button'>Run</button>`,
+      `export function App() { return <main><a href="/clusters" data-testid="dashboard-page">Clusters</a><button data-testid='critical-action-button'>Run</button></main>; }`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: repo-map-fixture
+  type: react-vite
+  defaultBranch: main
+targets:
+  localPreview:
+    kind: command
+    serve: "npm run preview -- --host 127.0.0.1 --port 4173"
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+    cost: cheap
+contracts:
+  - id: dashboard-shell
+    description: Dashboard shell should render.
+    target: localPreview
+    severity: high
+    runOn:
+      pullRequest: true
+      schedule: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+        - "[data-testid='critical-action-button']"
+    screenshots:
+      - name: dashboard-desktop
+        route: "/clusters?issue=empty-data"
+        viewport: desktop
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+selection:
+  changedFiles:
+    - pattern: "src/**"
+      contracts:
+        - dashboard-shell
+      risk: high
+mutation:
+  enabled: true
+  minScore: 0.7
+  operators:
+    - id: hide-critical-button
+      contracts:
+        - dashboard-shell
+`,
       "utf8"
     );
     await writeFile(
@@ -1115,14 +1164,46 @@ jobs:
     expect(report.testTools).toEqual(expect.arrayContaining(["playwright", "vitest"]));
     expect(report.targetHints.find((hint) => hint.id === "localPreview")).toMatchObject({ kind: "command", confidence: "high" });
     expect(report.workflows[0]).toMatchObject({ usesPullRequestTarget: true, usesSecrets: true });
-    expect(report.riskSignals.map((risk) => risk.id)).toEqual(expect.arrayContaining(["missing_visual_hive_config", "workflow_pull_request_target"]));
-    expect(report.coverageGaps.map((gap) => gap.id)).toContain("repo-intelligence-config");
+    expect(report.riskSignals.map((risk) => risk.id)).toContain("workflow_pull_request_target");
+    expect(report.riskSignals.map((risk) => risk.id)).not.toContain("missing_visual_hive_config");
     expect(report.outputResource).toMatchObject({
       artifactPath: ".visual-hive/repo-map.json",
       evidenceResourceId: "repo-map",
       evidenceResourceUri: "visual-hive://repo-map",
       evidenceReadToolName: "visual_hive_read_repo_map"
     });
+    expect(report.visualMap.lifecycle).toBe("File -> Component -> Layout -> Route -> State -> Viewport -> Target -> Contract -> Screenshot -> Mutation -> Issue");
+    expect(report.visualMap.summary).toMatchObject({
+      routes: expect.any(Number),
+      components: expect.any(Number),
+      contracts: 1,
+      screenshots: 1,
+      mutations: 1
+    });
+    expect(report.visualMap.nodes.map((node) => node.id)).toEqual(
+      expect.arrayContaining([
+        "file:src/App.tsx",
+        "component:app",
+        "target:localPreview",
+        "contract:dashboard-shell",
+        "route:clusters-issue-empty-data",
+        "state:empty-data",
+        "viewport:desktop",
+        "screenshot:dashboard-shell:dashboard-desktop:desktop",
+        "mutation:hide-critical-button"
+      ])
+    );
+    expect(report.visualMap.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: "file:src/App.tsx", to: "component:app", relation: "declares" }),
+        expect.objectContaining({ from: "contract:dashboard-shell", to: "target:localPreview", relation: "targets" }),
+        expect.objectContaining({ from: "contract:dashboard-shell", to: "route:clusters-issue-empty-data", relation: "covers_route" }),
+        expect.objectContaining({ from: "contract:dashboard-shell", to: "screenshot:dashboard-shell:dashboard-desktop:desktop", relation: "captures" }),
+        expect.objectContaining({ from: "mutation:hide-critical-button", to: "contract:dashboard-shell", relation: "maps_mutation" }),
+        expect.objectContaining({ from: "file:src/App.tsx", to: "contract:dashboard-shell", relation: "impacts" })
+      ])
+    );
+    expect(report.visualMap.findings.every((finding) => finding.fingerprint)).toBe(true);
     expect(JSON.stringify(report)).not.toContain("SECRET_TOKEN");
   });
 

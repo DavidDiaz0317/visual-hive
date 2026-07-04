@@ -148,6 +148,9 @@
         "$ref": "#/$defs/coverageGap"
       }
     },
+    "visualMap": {
+      "$ref": "#/$defs/visualMap"
+    },
     "recommendations": {
       "type": "array",
       "items": {
@@ -439,6 +442,240 @@
         "suggestedArtifact": {
           "type": "string"
         }
+      }
+    },
+    "visualMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "generatedAt",
+        "summary",
+        "lifecycle",
+        "nodes",
+        "edges",
+        "findings"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodes",
+            "edges",
+            "routes",
+            "components",
+            "contracts",
+            "screenshots",
+            "mutations",
+            "activeFindings"
+          ],
+          "properties": {
+            "nodes": { "type": "integer", "minimum": 0 },
+            "edges": { "type": "integer", "minimum": 0 },
+            "routes": { "type": "integer", "minimum": 0 },
+            "components": { "type": "integer", "minimum": 0 },
+            "contracts": { "type": "integer", "minimum": 0 },
+            "screenshots": { "type": "integer", "minimum": 0 },
+            "mutations": { "type": "integer", "minimum": 0 },
+            "activeFindings": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "lifecycle": {
+          "const": "File -> Component -> Layout -> Route -> State -> Viewport -> Target -> Contract -> Screenshot -> Mutation -> Issue"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/visualMapNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/visualMapEdge"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/visualMapFinding"
+          }
+        }
+      }
+    },
+    "visualMapNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "status",
+        "provenance",
+        "sourceFiles",
+        "routes",
+        "states",
+        "viewports",
+        "selectors",
+        "targetIds",
+        "contractIds",
+        "screenshotNames",
+        "mutationOperators",
+        "coverageGapIds"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "enum": [
+            "file",
+            "component",
+            "layout",
+            "route",
+            "state",
+            "viewport",
+            "target",
+            "contract",
+            "screenshot",
+            "mutation",
+            "selector",
+            "coverage_gap"
+          ]
+        },
+        "label": { "type": "string" },
+        "status": {
+          "enum": [
+            "active",
+            "stale",
+            "unverified",
+            "conflicted"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/visualMapProvenance"
+        },
+        "sourceFiles": { "type": "array", "items": { "type": "string" } },
+        "routes": { "type": "array", "items": { "type": "string" } },
+        "states": { "type": "array", "items": { "type": "string" } },
+        "viewports": { "type": "array", "items": { "type": "string" } },
+        "selectors": { "type": "array", "items": { "type": "string" } },
+        "targetIds": { "type": "array", "items": { "type": "string" } },
+        "contractIds": { "type": "array", "items": { "type": "string" } },
+        "screenshotNames": { "type": "array", "items": { "type": "string" } },
+        "mutationOperators": { "type": "array", "items": { "type": "string" } },
+        "coverageGapIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "visualMapProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "confidence",
+        "generatedAt",
+        "firstSeen"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "static",
+            "config",
+            "runtime",
+            "derived"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "sourceFile": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "firstSeen": { "type": "string" },
+        "lastValidated": { "type": "string" }
+      }
+    },
+    "visualMapEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "from",
+        "to",
+        "relation",
+        "evidence",
+        "confidence"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "relation": {
+          "enum": [
+            "declares",
+            "renders",
+            "uses_selector",
+            "targets",
+            "covers_route",
+            "captures",
+            "uses_viewport",
+            "maps_mutation",
+            "has_gap",
+            "impacts",
+            "validated_by"
+          ]
+        },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "visualMapFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "status",
+        "severity",
+        "message",
+        "nodeIds",
+        "evidence"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "status": {
+          "enum": [
+            "active",
+            "stale",
+            "unverified",
+            "conflicted"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "high"
+          ]
+        },
+        "message": { "type": "string" },
+        "nodeIds": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" } }
       }
     }
   }
