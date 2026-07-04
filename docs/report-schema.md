@@ -480,7 +480,7 @@ Path: `.visual-hive/triage.json`
 
 Schema: `schemas/visual-hive.triage.schema.json`
 
-The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but Visual Hive verdict artifacts remain the pass/fail authority. Source artifacts can include deterministic report, mutation report, coverage report, provider-results report, and baseline approval/rejection logs.
+The triage report is written by `visual-hive triage`. It records offline deterministic classifications, severity counts, source artifact paths, evidence, related contract/target IDs, suggested files to inspect, and suggested next tests. It is sanitized before writing and is the machine-readable source for the Control Plane Failure Inbox. LLM prompts and GitHub markdown are generated from the same findings, but Visual Hive verdict artifacts remain the pass/fail authority. Source artifacts can include deterministic report, mutation report, coverage report, provider-results report, and baseline approval/rejection logs. Newly generated triage reports include `outputResource`, the same catalog-backed identity used by MCP, Agent Packets, the artifact index, Tool Registry, and the Control Plane: `.visual-hive/triage.json`, `visual-hive://triage-report`, and `visual_hive_read_triage_report`.
 
 ## Run History
 

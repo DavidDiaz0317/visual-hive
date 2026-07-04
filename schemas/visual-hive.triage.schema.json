@@ -22,6 +22,9 @@
     "generatedAt": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,
@@ -160,6 +163,39 @@
               "type": "string"
             }
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/triage.json"
+        },
+        "evidenceResourceId": {
+          "const": "triage-report"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://triage-report"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_triage_report"
         }
       }
     }

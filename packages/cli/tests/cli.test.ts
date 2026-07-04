@@ -4556,11 +4556,23 @@ contracts:
 
     const triageReport = await readJson<{
       schemaVersion: 1;
+      outputResource?: {
+        artifactPath: string;
+        evidenceResourceId: string;
+        evidenceResourceUri: string;
+        evidenceReadToolName?: string;
+      };
       sourceArtifacts: { providerResults?: string };
       summary: { findingCount: number; classifications: Record<string, number> };
       findings: Array<{ classification: string; evidence: string[]; suggestedFiles?: string[]; suggestedNextTests: string[] }>;
     }>(result.triageReportPath);
     expect(triageReport.schemaVersion).toBe(1);
+    expect(triageReport.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/triage.json",
+      evidenceResourceId: "triage-report",
+      evidenceResourceUri: "visual-hive://triage-report",
+      evidenceReadToolName: "visual_hive_read_triage_report"
+    });
     expect(triageReport.summary.findingCount).toBeGreaterThan(0);
     expect(triageReport.summary.classifications.missing_element).toBe(1);
     expect(triageReport.summary.classifications.provider_failure).toBe(1);

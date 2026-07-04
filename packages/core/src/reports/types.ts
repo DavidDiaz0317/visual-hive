@@ -233,10 +233,20 @@ export interface TriageReportSummary {
   classifications: Record<string, number>;
 }
 
+export interface TriageReportOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface TriageReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: TriageReportOutputResource;
   sourceArtifacts: {
     report?: string;
     mutationReport?: string;

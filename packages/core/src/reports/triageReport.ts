@@ -1,4 +1,5 @@
 import type { TriageFinding, TriageReport } from "./types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
 export interface BuildTriageReportOptions {
@@ -14,9 +15,24 @@ export function buildTriageReport(options: BuildTriageReportOptions): TriageRepo
     schemaVersion: 1,
     project: sanitizeText(options.project),
     generatedAt: (options.now ?? new Date()).toISOString(),
+    outputResource: catalogedTriageOutputResource(),
     sourceArtifacts: sanitizeSourceArtifacts(options.sourceArtifacts ?? {}),
     summary: summarize(findings),
     findings
+  };
+}
+
+function catalogedTriageOutputResource(): NonNullable<TriageReport["outputResource"]> {
+  const resource = getEvidenceResourceById("triage-report");
+  return {
+    artifactPath: ".visual-hive/triage.json",
+    evidenceResourceId: resource?.id ?? "triage-report",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://triage-report",
+    evidenceResourceTitle: resource?.title ?? "Triage Report",
+    evidenceResourceDescription:
+      resource?.description ??
+      "Offline deterministic triage classifications, likely causes, suggested tests, and repair context.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_triage_report"
   };
 }
 

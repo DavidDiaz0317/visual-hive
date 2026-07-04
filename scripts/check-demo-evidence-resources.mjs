@@ -58,6 +58,7 @@ const runHistory = await readOptionalJson(".visual-hive/history.json");
 const testingLayers = await readOptionalJson(".visual-hive/testing-layers.json");
 const workflowAudit = await readOptionalJson(".visual-hive/workflows.json");
 const readinessGate = await readOptionalJson(".visual-hive/readiness.json");
+const triageReport = await readOptionalJson(".visual-hive/triage.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
@@ -69,6 +70,7 @@ if (runHistory?.outputResource) checkOutputResource(runHistory.outputResource, "
 if (testingLayers?.outputResource) checkOutputResource(testingLayers.outputResource, "Testing layers outputResource", artifactIndex);
 if (workflowAudit?.outputResource) checkOutputResource(workflowAudit.outputResource, "Workflow audit outputResource", artifactIndex);
 if (readinessGate?.outputResource) checkOutputResource(readinessGate.outputResource, "Readiness gate outputResource", artifactIndex);
+if (triageReport?.outputResource) checkOutputResource(triageReport.outputResource, "Triage report outputResource", artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }

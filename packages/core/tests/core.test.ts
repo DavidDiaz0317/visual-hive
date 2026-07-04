@@ -3131,6 +3131,14 @@ jobs:
       findings: [],
       now: new Date("2026-06-15T00:00:00.000Z")
     });
+    expect(triageReport.outputResource).toEqual({
+      artifactPath: ".visual-hive/triage.json",
+      evidenceResourceId: "triage-report",
+      evidenceResourceUri: "visual-hive://triage-report",
+      evidenceResourceTitle: "Triage Report",
+      evidenceResourceDescription: "Offline deterministic triage classifications, likely causes, suggested tests, and repair context.",
+      evidenceReadToolName: "visual_hive_read_triage_report"
+    });
     const readinessReport = analyzeReadiness(config, {
       plan,
       report,
