@@ -14,5 +14,8 @@ review, add/remove local connection records, and execute a small allowlist of
 local Visual Hive runbook commands by command ID. It does not execute arbitrary
 browser-supplied shell text, trusted/protected lanes, or secret-bearing lanes.
 Run Profiles compose those same allowlisted commands into curated local flows
-such as PR acceptance, triage refresh, and mutation adequacy audit.
+such as PR acceptance, triage refresh, and mutation adequacy audit. The
+snapshot exposes whether each profile is runnable plus a primary blocked reason,
+so local UI, CLI, and agent consumers can explain why trusted-only,
+secret-bearing, missing-command, or guidance-only profiles cannot run locally.
 `--read-only` disables those write and execution actions.

@@ -74,6 +74,14 @@ try {
   if (snapshot.runHistory.trend?.direction === undefined) {
     throw new Error("snapshot run-history evidence did not include trend direction");
   }
+  const prAcceptanceProfile = snapshot.runProfiles?.find((profile) => profile.id === "pr-acceptance");
+  if (!prAcceptanceProfile?.enabled || !prAcceptanceProfile?.runnable || prAcceptanceProfile.blockedReason) {
+    throw new Error("snapshot did not expose pr-acceptance as a runnable local run profile");
+  }
+  const protectedProfile = snapshot.runProfiles?.find((profile) => profile.id === "protected-schedule-preview");
+  if (protectedProfile && (protectedProfile.enabled || protectedProfile.runnable || !protectedProfile.blockedReason)) {
+    throw new Error("snapshot did not expose protected-schedule-preview as a blocked run profile with a primary reason");
+  }
   assertCatalogArtifact(snapshot, ".visual-hive/history.json", "run-history", "visual-hive://run-history", "visual_hive_read_run_history");
   assertCatalogArtifact(snapshot, ".visual-hive/evidence-packet.json", "latest-evidence", "visual-hive://latest-evidence", "visual_hive_read_evidence_packet");
   assertCatalogArtifact(snapshot, ".visual-hive/handoff.json", "latest-handoff", "visual-hive://latest-handoff", "visual_hive_generate_handoff_dry_run");

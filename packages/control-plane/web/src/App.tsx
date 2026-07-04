@@ -606,13 +606,24 @@ function RunProfileCard({
   busyAction?: string;
   connection?: string;
 }) {
+  const canRun = profile.runnable && profile.enabled;
+  const blockedReason = profile.blockedReason ?? profile.blockedReasons[0];
   return (
-    <Card className="span-6 profile-card" title={profile.label} action={<Badge tone={profile.enabled ? "success" : "warning"}>{profile.enabled ? "ready" : "blocked"}</Badge>}>
+    <Card className="span-6 profile-card" title={profile.label} action={<Badge tone={canRun ? "success" : "warning"}>{canRun ? "runnable" : "blocked"}</Badge>}>
       <p className="card-subtext">{profile.description}</p>
-      <KeyValueTable rows={[["Safety", profile.safety], ["Commands", profile.commandIds.length], ["Artifacts", profile.expectedArtifacts.length], ["Secrets", profile.requiredSecrets.join(", ") || "none"]]} />
+      <KeyValueTable
+        rows={[
+          ["Runnable", canRun ? "yes" : "no"],
+          ["Safety", profile.safety],
+          ["Commands", profile.commandIds.length],
+          ["Artifacts", profile.expectedArtifacts.length],
+          ["Secrets", profile.requiredSecrets.join(", ") || "none"],
+          ["Primary block", blockedReason ?? "none"]
+        ]}
+      />
       {profile.blockedReasons.length ? <FindingList findings={profile.blockedReasons} tone="warning" /> : null}
       <ConfirmButton
-        disabled={snapshot.readOnly || !profile.enabled || busyAction === profile.id}
+        disabled={snapshot.readOnly || !canRun || busyAction === profile.id}
         message={`Run profile "${profile.id}" locally?`}
         onConfirm={() => runAction(profile.id, () => postJson("/api/runbook/profile", { profileId: profile.id }, connection))}
         variant="primary"

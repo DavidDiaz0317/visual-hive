@@ -74,7 +74,7 @@ Path: `.visual-hive/runbook.json`
 
 Schema: `schemas/visual-hive.runbook.schema.json`
 
-The runbook artifact is written by `visual-hive runbook`. It exports the same curated command list and run profiles shown in the local Control Plane, including safety class, lane, required secret names, expected artifacts, blocked reasons, and optional execution evidence. Execution remains allowlisted by command/profile ID; protected or secret-bearing lanes are guidance-only outside trusted scheduled/manual automation. The provider-governance profile runs only no-network provider readiness, setup-plan, handoff, cost, and readiness commands so optional provider adoption remains reviewable before any trusted upload lane exists.
+The runbook artifact is written by `visual-hive runbook`. It exports the same curated command list and run profiles shown in the local Control Plane, including safety class, lane, required secret names, expected artifacts, `runnable`, primary `blockedReason`, full blocked reasons, and optional execution evidence. Execution remains allowlisted by command/profile ID; protected or secret-bearing lanes are guidance-only outside trusted scheduled/manual automation. The provider-governance profile runs only no-network provider readiness, setup-plan, handoff, cost, and readiness commands so optional provider adoption remains reviewable before any trusted upload lane exists.
 
 ## Coverage Recommendations
 
