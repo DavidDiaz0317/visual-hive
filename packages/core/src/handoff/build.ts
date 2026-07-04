@@ -149,6 +149,10 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
   const evidenceResources = handoffEvidenceResources(handoff, evidence);
   const visualRefs = visualMapReferences(handoff, evidence);
   const validationCommands = handoffValidationCommands(evidence);
+  const failedContracts = failedContractLines(evidence);
+  const affectedSurfaces = affectedSurfaceLines(evidence);
+  const screenshotEvidence = screenshotEvidenceLines(evidence);
+  const mutationEvidence = mutationEvidenceLines(evidence);
   const lines = [
     `# ${handoff.githubIssue.title}`,
     "",
@@ -161,7 +165,16 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     `- Handoff status: ${handoff.status}`,
     `- External calls made: ${handoff.externalCallsMade}`,
     `- Evidence packet: ${handoff.sourceEvidencePacket}`,
+    `- Dedupe fingerprint: ${handoff.githubIssue.dedupeSignature}`,
     `- Labels: ${handoff.labels.join(", ")}`,
+    "",
+    "## Failing Contracts",
+    "",
+    ...(failedContracts.length ? failedContracts : ["- No failing deterministic contracts in the latest Evidence Packet."]),
+    "",
+    "## Affected Surface",
+    "",
+    ...(affectedSurfaces.length ? affectedSurfaces : ["- See `.visual-hive/report.json` selector assertions and `.visual-hive/repo-map.json` visual-map nodes."]),
     "",
     "## Gating Evidence",
     "",
@@ -176,6 +189,14 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     ...(handoff.workItems.length
       ? handoff.workItems.map((item) => `- [${item.priority}] ${item.kind}: ${item.title} (${item.evidenceKeys.join(", ") || "no evidence key"})`)
       : ["- No work items generated."]),
+    "",
+    "## Screenshot And Diff Evidence",
+    "",
+    ...(screenshotEvidence.length ? screenshotEvidence : ["- No screenshot or diff evidence in the latest Evidence Packet."]),
+    "",
+    "## Mutation Evidence",
+    "",
+    ...(mutationEvidence.length ? mutationEvidence : ["- No mutation report evidence in the latest Evidence Packet."]),
     "",
     "## Reproduction Commands",
     "",
@@ -192,18 +213,98 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     "## Validation Commands",
     "",
     ...validationCommands.map((command) => `- \`${command}\``),
+    "- After Hive repairs code/tests, rerun `visual-hive pipeline --mode pr --ci` or the repository's trusted Visual Hive workflow before closing.",
     "",
     "## Governance",
     "",
     "- Visual Hive's deterministic Verdict Engine owns pass/fail.",
     "- Hive, LLMs, MCP tools, and agents may repair or route work, but they do not decide the verdict.",
     "- This dry-run handoff made zero network calls and did not create a GitHub issue or Hive Bead.",
-    "- Trusted workflows must consume uploaded sanitized artifacts and must not execute untrusted PR code."
+    "- Trusted workflows must consume uploaded sanitized artifacts and must not execute untrusted PR code.",
+    "- Do not blindly approve baselines to make the issue disappear.",
+    "- Do not weaken screenshot thresholds, selector assertions, mutation thresholds, or console/network policies without explicit review.",
+    "- Do not treat LLM/Hive judgment as the Visual Hive verdict.",
+    "- Rerun Visual Hive after every repair and use the new deterministic verdict as the close signal."
   ];
-  if (handoff.blockedReasons.length) {
-    lines.splice(14, 0, `- Blocked reasons: ${handoff.blockedReasons.join("; ")}`);
-  }
+  if (handoff.blockedReasons.length) lines.splice(15, 0, `- Blocked reasons: ${handoff.blockedReasons.join("; ")}`);
   return `${sanitizeText(lines.join("\n"))}\n`;
+}
+
+function failedContractLines(evidence: EvidencePacket): string[] {
+  const deterministic = evidence.deterministicReport?.failedContracts ?? [];
+  const fromContributions = evidence.evidenceContributions.filter((item) => item.contractId && item.status === "failed");
+  return dedupe([
+    ...deterministic.map((contract) => {
+      const errors = contract.errors.length ? `; errors=${contract.errors.slice(0, 2).join(" | ")}` : "";
+      return `- ${contract.contractId} on ${contract.targetId}${errors}`;
+    }),
+    ...fromContributions.map((contribution) => `- ${contribution.contractId} on ${contribution.targetId ?? "unknown-target"}: ${contribution.reason}`)
+  ]).slice(0, 12);
+}
+
+function affectedSurfaceLines(evidence: EvidencePacket): string[] {
+  const screenshotSurfaces = (evidence.deterministicReport?.screenshotEvidence ?? []).map((shot) =>
+    [
+      `contract=${shot.contractId}`,
+      `route=${shot.route}`,
+      `viewport=${shot.viewport}`,
+      "selectors=see .visual-hive/report.json selectorAssertions",
+      "components=see .visual-hive/repo-map.json visual map"
+    ].join("; ")
+  );
+  const mutationSurfaces = [
+    ...(evidence.mutation?.killedOperators ?? []),
+    ...(evidence.mutation?.survivedOperators ?? [])
+  ].flatMap((result) =>
+    (result.affected ?? []).map((surface) =>
+      [
+        `mutation=${result.operator}`,
+        `contract=${surface.contractId}`,
+        surface.targetId ? `target=${surface.targetId}` : undefined,
+        surface.route ? `route=${surface.route}` : undefined,
+        surface.component ? `component=${surface.component}` : undefined,
+        surface.viewport ? `viewport=${surface.viewport}` : undefined
+      ]
+        .filter(Boolean)
+        .join("; ")
+    )
+  );
+  const targetRefs = [
+    ...(evidence.plan?.selectedTargets ?? []).map((target) => `target=${target}; source=plan`),
+    ...(evidence.plan?.selectedContracts ?? []).map((contract) => `contract=${contract}; source=plan`)
+  ];
+  return dedupe([...screenshotSurfaces, ...mutationSurfaces, ...targetRefs]).map((line) => `- ${line}`).slice(0, 16);
+}
+
+function screenshotEvidenceLines(evidence: EvidencePacket): string[] {
+  return (evidence.deterministicReport?.screenshotEvidence ?? [])
+    .map((shot) =>
+      [
+        `- ${shot.contractId}/${shot.screenshotName} ${shot.status}`,
+        `route=${shot.route}`,
+        `viewport=${shot.viewport}`,
+        `baseline=${shot.baselinePath}`,
+        `actual=${shot.actualPath}`,
+        shot.diffPath ? `diff=${shot.diffPath}` : undefined,
+        typeof shot.actualDiffPixelRatio === "number" ? `diffRatio=${shot.actualDiffPixelRatio}` : undefined,
+        typeof shot.actualDiffPixels === "number" ? `diffPixels=${shot.actualDiffPixels}` : undefined
+      ]
+        .filter(Boolean)
+        .join("; ")
+    )
+    .slice(0, 12);
+}
+
+function mutationEvidenceLines(evidence: EvidencePacket): string[] {
+  const killed = (evidence.mutation?.killedOperators ?? []).map((result) =>
+    `- killed ${result.operator}; contracts=${result.contractIds.join(", ") || "none"}; next=${result.suggestedMissingTest ?? "Current contracts killed this mutation."}`
+  );
+  const survived = (evidence.mutation?.survivedOperators ?? []).map((result) =>
+    `- survived ${result.operator}; contracts=${result.contractIds.join(", ") || "none"}; validation=${result.validationCommand ?? "visual-hive mutate"}; next=${result.suggestedMissingTest ?? "Add a contract that kills this mutation."}`
+  );
+  const notApplicable = (evidence.mutation?.notApplicableOperators ?? []).map((operator) => `- not_applicable ${operator}; no relevant selected contract`);
+  const score = evidence.mutation ? [`- score=${evidence.mutation.score}; killed=${evidence.mutation.killed}; total=${evidence.mutation.total}; minScore=${evidence.mutation.minScore}`] : [];
+  return [...score, ...survived, ...killed, ...notApplicable].slice(0, 18);
 }
 
 function handoffEvidenceResources(handoff: HandoffPacket, evidence: EvidencePacket): Array<{ label: string; path: string }> {

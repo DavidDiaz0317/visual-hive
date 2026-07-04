@@ -6498,6 +6498,20 @@ describe("handoff packets", () => {
     expect(handoff.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(handoff.result.status).toBe("dry_run_written");
     expect(handoff.issueBody).toContain("Visual Hive's deterministic Verdict Engine owns pass/fail.");
+    expect(handoff.issueBody).toContain(`Dedupe fingerprint: ${handoff.handoff.githubIssue.dedupeSignature}`);
+    expect(handoff.issueBody).toContain("## Failing Contracts");
+    expect(handoff.issueBody).toContain("dashboard on local");
+    expect(handoff.issueBody).toContain("## Affected Surface");
+    expect(handoff.issueBody).toContain("contract=dashboard");
+    expect(handoff.issueBody).toContain("route=/");
+    expect(handoff.issueBody).toContain("viewport=desktop");
+    expect(handoff.issueBody).toContain("selectors=see .visual-hive/report.json selectorAssertions");
+    expect(handoff.issueBody).toContain("components=see .visual-hive/repo-map.json visual map");
+    expect(handoff.issueBody).toContain("## Screenshot And Diff Evidence");
+    expect(handoff.issueBody).toContain("baseline=.visual-hive/snapshots/dashboard.png");
+    expect(handoff.issueBody).toContain("actual=.visual-hive/artifacts/screenshots/dashboard.png");
+    expect(handoff.issueBody).toContain("## Mutation Evidence");
+    expect(handoff.issueBody).toContain("survived force-login-on-demo");
     expect(handoff.issueBody).toContain("## Evidence Resources");
     expect(handoff.issueBody).toContain("Test Creation Plan: .visual-hive/test-creation-plan.json");
     expect(handoff.issueBody).toContain("Hive native export: .visual-hive/hive/hive-export.json");
@@ -6509,6 +6523,18 @@ describe("handoff packets", () => {
     expect(handoff.issueBody).toContain("## Validation Commands");
     expect(handoff.issueBody).toContain("visual-hive handoff-validate");
     expect(handoff.issueBody).toContain("visual-hive hive export --dry-run --mode repair_request");
+    expect(handoff.issueBody).toContain("After Hive repairs code/tests, rerun `visual-hive pipeline --mode pr --ci`");
+    expect(handoff.issueBody).toContain("Do not blindly approve baselines");
+    expect(handoff.issueBody).toContain("Do not weaken screenshot thresholds");
+    expect(handoff.issueBody).toContain("Do not treat LLM/Hive judgment as the Visual Hive verdict.");
+    expect(handoff.issueBody).toContain("Rerun Visual Hive after every repair");
+    const sameFailureHandoff = buildHandoffArtifacts({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      labels: ["visual-hive", "hive/quality", "ai-ready", "custom"],
+      now: new Date("2026-06-15T01:03:00.000Z")
+    });
+    expect(sameFailureHandoff.handoff.githubIssue.dedupeSignature).toBe(handoff.handoff.githubIssue.dedupeSignature);
     expect(JSON.stringify(handoff)).not.toContain("secret-token-value");
     expect(JSON.stringify(handoff)).not.toContain("bearer-secret-value");
     expect(JSON.stringify(handoff)).toContain("[REDACTED]");

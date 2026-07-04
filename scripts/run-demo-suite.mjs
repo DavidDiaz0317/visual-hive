@@ -146,7 +146,21 @@ const e2eCleanSteps = [
   script("demo:artifacts")
 ];
 
-const e2eSteps = [...e2eCleanSteps, script("demo:e2e:defect")];
+const e2eRestoreSteps = [
+  script("demo:plan"),
+  script("demo:run:seed"),
+  script("demo:run:ci"),
+  script("demo:mutate"),
+  script("demo:triage"),
+  script("demo:evidence"),
+  script("demo:handoff"),
+  script("demo:test-creation"),
+  script("demo:snapshot"),
+  script("demo:artifacts"),
+  script("demo:evidence-resources")
+];
+
+const e2eSteps = [...e2eCleanSteps, script("demo:e2e:defect"), ...e2eRestoreSteps];
 
 const suites = {
   core: coreSteps,
