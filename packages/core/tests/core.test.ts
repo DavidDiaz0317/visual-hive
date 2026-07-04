@@ -1111,6 +1111,12 @@ jobs:
     expect(report.workflows[0]).toMatchObject({ usesPullRequestTarget: true, usesSecrets: true });
     expect(report.riskSignals.map((risk) => risk.id)).toEqual(expect.arrayContaining(["missing_visual_hive_config", "workflow_pull_request_target"]));
     expect(report.coverageGaps.map((gap) => gap.id)).toContain("repo-intelligence-config");
+    expect(report.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/repo-map.json",
+      evidenceResourceId: "repo-map",
+      evidenceResourceUri: "visual-hive://repo-map",
+      evidenceReadToolName: "visual_hive_read_repo_map"
+    });
     expect(JSON.stringify(report)).not.toContain("SECRET_TOKEN");
   });
 
@@ -1126,7 +1132,16 @@ jobs:
 
     expect(result.reportPath).toBe(path.join(tempRoot, ".visual-hive", "repo-map.json"));
     expect(result.markdownPath).toBe(path.join(tempRoot, ".visual-hive", "repo-context.md"));
-    expect(await readFile(result.reportPath, "utf8")).toContain('"schemaVersion": 1');
+    const repoMapJson = await readFile(result.reportPath, "utf8");
+    expect(repoMapJson).toContain('"schemaVersion": 1');
+    expect(JSON.parse(repoMapJson)).toMatchObject({
+      outputResource: {
+        artifactPath: ".visual-hive/repo-map.json",
+        evidenceResourceId: "repo-map",
+        evidenceResourceUri: "visual-hive://repo-map",
+        evidenceReadToolName: "visual_hive_read_repo_map"
+      }
+    });
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Repo Context: repo-map-write");
   });
 });

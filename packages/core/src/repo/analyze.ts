@@ -1,10 +1,12 @@
 import { access, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type {
   RepoCoverageGap,
   RepoMapReport,
+  RepoMapOutputResource,
   RepoPackageInfo,
   RepoPackageManager,
   RepoRiskSignal,
@@ -65,6 +67,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     schemaVersion: 1,
     generatedAt: (options.now ?? new Date()).toISOString(),
     repoRoot: ".",
+    outputResource: catalogedRepoOutputResource(".visual-hive/repo-map.json"),
     project: {
       name: sanitizeText(rootPackage?.name ?? path.basename(repoRoot)),
       packageManager,
@@ -505,6 +508,20 @@ function repoRelative(repoRoot: string, filePath: string): string {
 
 function resolveArtifact(repoRoot: string, filePath: string): string {
   return path.isAbsolute(filePath) ? filePath : path.resolve(repoRoot, filePath);
+}
+
+function catalogedRepoOutputResource(artifactPath: string): RepoMapOutputResource {
+  const resource = getEvidenceResourceById("repo-map");
+  return {
+    artifactPath,
+    evidenceResourceId: resource?.id ?? "repo-map",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://repo-map",
+    evidenceResourceTitle: resource?.title ?? "Repository Intelligence Map",
+    evidenceResourceDescription:
+      resource?.description ??
+      "Sanitized deterministic repository scan with package manager, frameworks, scripts, selectors, route hints, workflow hints, risk signals, and coverage gaps.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_repo_map"
+  };
 }
 
 function compareScripts(a: RepoScriptInfo, b: RepoScriptInfo): number {

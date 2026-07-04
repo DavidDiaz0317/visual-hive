@@ -42,6 +42,8 @@ The repo map is written by `visual-hive analyze`. It is read-only repository int
 
 It records package manager and workspace hints, package scripts, dependency-derived frameworks, source file summary, stable `data-testid` selectors, route hints, GitHub workflow safety hints, detected test tools, target hints, risk signals, coverage gaps, and recommendations.
 
+Newly generated repo maps include `outputResource`, the same catalog-backed resource identity used by MCP, Agent Packets, the artifact index, Tool Registry, and the Control Plane. The field is optional in the schema so older repo-map artifacts remain readable.
+
 The companion `.visual-hive/repo-context.md` is the compact Markdown view for humans and agents, catalog-backed as `visual-hive://repo-context` / `visual_hive_read_repo_context`. The repo map and context summary do not decide pass/fail and do not grant agents permission to execute tools.
 
 ## Setup Recommendations

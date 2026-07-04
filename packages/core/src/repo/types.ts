@@ -62,10 +62,20 @@ export interface RepoCoverageGap {
   suggestedArtifact: string;
 }
 
+export interface RepoMapOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface RepoMapReport {
   schemaVersion: 1;
   generatedAt: string;
   repoRoot: string;
+  outputResource?: RepoMapOutputResource;
   project: {
     name: string;
     packageManager: RepoPackageManager;

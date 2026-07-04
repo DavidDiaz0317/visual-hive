@@ -31,6 +31,9 @@
     "repoRoot": {
       "type": "string"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "project": {
       "type": "object",
       "additionalProperties": false,
@@ -153,6 +156,37 @@
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/repo-map.json"
+        },
+        "evidenceResourceId": {
+          "const": "repo-map"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://repo-map"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_repo_map"
+        }
+      }
+    },
     "packageInfo": {
       "type": "object",
       "additionalProperties": false,

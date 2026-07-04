@@ -30,6 +30,8 @@ It detects:
 - target hints such as `localPreview`, Storybook, deploy preview, and fullstack command groups;
 - risk signals and testing-layer coverage gaps.
 
+New repo-map artifacts include an `outputResource` row that identifies `.visual-hive/repo-map.json` as `visual-hive://repo-map` with read tool `visual_hive_read_repo_map`. The schema keeps this field optional for older artifacts, but new agent-forward flows should preserve it so MCP clients, Agent Packets, artifact indexes, and the Control Plane do not guess resource identity from paths.
+
 ## Agent Policy
 
 Agents should read `.visual-hive/repo-context.md` and `.visual-hive/repo-map.json` before loading large source folders. Both artifacts are catalog-backed read-only evidence resources, so MCP clients, Agent Packets, the artifact index, and the Control Plane can refer to the same repo intelligence without path guessing. The map is an efficiency layer, not an oracle.

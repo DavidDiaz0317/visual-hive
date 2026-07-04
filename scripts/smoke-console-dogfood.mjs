@@ -230,8 +230,14 @@ async function assertSetupArtifacts(hiveRoot) {
     path: ".visual-hive/setup-pr-plan.json",
     tool: "visual_hive_read_setup_pr_plan"
   });
-  await readJson(path.join(hiveRoot, "repo-map.json"));
+  const repoMap = await readJson(path.join(hiveRoot, "repo-map.json"));
   await readFile(path.join(hiveRoot, "repo-context.md"), "utf8");
+  assertOutputResource(repoMap.outputResource, {
+    id: "repo-map",
+    uri: "visual-hive://repo-map",
+    path: ".visual-hive/repo-map.json",
+    tool: "visual_hive_read_repo_map"
+  });
   if (setupPrPlan.summary?.externalCallsMade !== 0) {
     throw new Error(`setup-pr-plan.json made external calls: ${setupPrPlan.summary?.externalCallsMade}`);
   }
