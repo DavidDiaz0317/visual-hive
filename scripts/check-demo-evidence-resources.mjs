@@ -48,11 +48,13 @@ const mcpManifest = await readOptionalJson(".visual-hive/mcp-manifest.json");
 const agentPacket = await readOptionalJson(".visual-hive/agent-packet.json");
 const handoffAgentPacket = await readOptionalJson(".visual-hive/handoff-agent-packet.json");
 const providerAgentPacket = await readOptionalJson(".visual-hive/provider-agent-packet.json");
+const hiveExport = await readOptionalJson(".visual-hive/hive/hive-export.json");
 
 checkGenericArtifactIndex(artifactIndex);
 if (contextLedger) checkGenericContextLedger(contextLedger, artifactIndex);
 if (snapshot) checkGenericSnapshot(snapshot, artifactIndex);
 if (mcpManifest) checkGenericMcpManifest(mcpManifest, artifactIndex);
+if (hiveExport) checkGenericHiveExport(hiveExport, artifactIndex);
 for (const packet of [agentPacket, handoffAgentPacket, providerAgentPacket].filter(Boolean)) {
   checkGenericAgentPacket(packet, artifactIndex);
 }
@@ -132,6 +134,15 @@ function checkGenericMcpManifest(manifest, index) {
         assert(indexed.evidenceReadToolName === mcpResource.readToolName, `MCP manifest ${mcpResource.id} read tool matches artifact index`);
       }
     }
+  }
+}
+
+function checkGenericHiveExport(exportBundle, index) {
+  assert(exportBundle.schemaVersion === "visual-hive.hive-export.v1", "hive-export.json has the expected schema version");
+  assert(Array.isArray(exportBundle.outputResources), "hive-export.json exposes outputResources[]");
+  for (const outputResource of exportBundle.outputResources) {
+    assertResourceShape(outputResource, `Hive export outputResources[${outputResource.artifactKey ?? "unknown"}]`);
+    checkAgainstArtifactIndex(outputResource, index, `Hive export outputResources[${outputResource.evidenceResourceId}]`);
   }
 }
 
