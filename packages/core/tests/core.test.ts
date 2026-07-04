@@ -6498,6 +6498,17 @@ describe("handoff packets", () => {
     expect(handoff.beadRequest.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(handoff.result.status).toBe("dry_run_written");
     expect(handoff.issueBody).toContain("Visual Hive's deterministic Verdict Engine owns pass/fail.");
+    expect(handoff.issueBody).toContain("## Evidence Resources");
+    expect(handoff.issueBody).toContain("Test Creation Plan: .visual-hive/test-creation-plan.json");
+    expect(handoff.issueBody).toContain("Hive native export: .visual-hive/hive/hive-export.json");
+    expect(handoff.issueBody).toContain("Hive knowledge graph: .visual-hive/hive/knowledge-graph.json");
+    expect(handoff.issueBody).toContain("Hive repair work orders: .visual-hive/hive/repair-work-orders.json");
+    expect(handoff.issueBody).toContain("## Visual Map References");
+    expect(handoff.issueBody).toContain("contract:dashboard");
+    expect(handoff.issueBody).toContain("mutation:force-login-on-demo");
+    expect(handoff.issueBody).toContain("## Validation Commands");
+    expect(handoff.issueBody).toContain("visual-hive handoff-validate");
+    expect(handoff.issueBody).toContain("visual-hive hive export --dry-run --mode repair_request");
     expect(JSON.stringify(handoff)).not.toContain("secret-token-value");
     expect(JSON.stringify(handoff)).not.toContain("bearer-secret-value");
     expect(JSON.stringify(handoff)).toContain("[REDACTED]");

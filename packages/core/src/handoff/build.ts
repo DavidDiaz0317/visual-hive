@@ -146,6 +146,9 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
   const gating = evidence.evidenceContributions.filter((contribution) => contribution.gating);
   const advisory = evidence.evidenceContributions.filter((contribution) => !contribution.gating);
   const reproduction = evidence.deterministicReport?.reproductionCommands ?? [];
+  const evidenceResources = handoffEvidenceResources(handoff, evidence);
+  const visualRefs = visualMapReferences(handoff, evidence);
+  const validationCommands = handoffValidationCommands(evidence);
   const lines = [
     `# ${handoff.githubIssue.title}`,
     "",
@@ -178,12 +181,17 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     "",
     ...(reproduction.length ? reproduction.map((command) => `- \`${command}\``) : ["- See Evidence Packet artifacts."]),
     "",
-    "## Artifacts",
+    "## Evidence Resources",
     "",
-    `- Handoff packet: ${handoff.hiveBeadRequest.handoffPacketPath}`,
-    `- Bead request: ${handoff.hiveBeadRequest.requestPath}`,
-    `- Evidence packet: ${handoff.hiveBeadRequest.evidencePacketPath}`,
-    ...(evidence.deterministicReport?.generatedSpecPath ? [`- Generated spec: ${evidence.deterministicReport.generatedSpecPath}`] : []),
+    ...evidenceResources.map((resource) => `- ${resource.label}: ${resource.path}`),
+    "",
+    "## Visual Map References",
+    "",
+    ...(visualRefs.length ? visualRefs.map((reference) => `- ${reference}`) : ["- Run `visual-hive analyze` to generate `.visual-hive/repo-map.json` visual-map nodes."]),
+    "",
+    "## Validation Commands",
+    "",
+    ...validationCommands.map((command) => `- \`${command}\``),
     "",
     "## Governance",
     "",
@@ -196,6 +204,89 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     lines.splice(14, 0, `- Blocked reasons: ${handoff.blockedReasons.join("; ")}`);
   }
   return `${sanitizeText(lines.join("\n"))}\n`;
+}
+
+function handoffEvidenceResources(handoff: HandoffPacket, evidence: EvidencePacket): Array<{ label: string; path: string }> {
+  const resources: Array<{ label: string; path?: string }> = [
+    { label: "Evidence packet", path: handoff.hiveBeadRequest.evidencePacketPath },
+    { label: "Handoff packet", path: handoff.hiveBeadRequest.handoffPacketPath },
+    { label: "Hive issue body", path: handoff.githubIssue.bodyPath },
+    { label: "Hive bead dry-run request", path: handoff.hiveBeadRequest.requestPath },
+    { label: "Hive handoff result", path: ".visual-hive/hive-handoff-result.json" },
+    { label: "Handoff validation", path: ".visual-hive/hive-handoff-validation.json" },
+    { label: "Test Creation Plan", path: ".visual-hive/test-creation-plan.json" },
+    { label: "Test Creation Plan markdown", path: ".visual-hive/test-creation-plan.md" },
+    { label: "Hive native export", path: ".visual-hive/hive/hive-export.json" },
+    { label: "Hive Beads", path: ".visual-hive/hive/beads.json" },
+    { label: "Hive knowledge facts", path: ".visual-hive/hive/knowledge-facts.json" },
+    { label: "Hive knowledge graph", path: ".visual-hive/hive/knowledge-graph.json" },
+    { label: "Hive wiki index", path: ".visual-hive/hive/wiki-index.json" },
+    { label: "Hive issue context", path: ".visual-hive/hive/issue-context.md" },
+    { label: "Hive repair work orders", path: ".visual-hive/hive/repair-work-orders.json" },
+    { label: "Hive agent policy", path: ".visual-hive/hive/hive-agent-policy.json" },
+    { label: "Guarded repair preview", path: ".visual-hive/hive/guarded-repair-preview.json" },
+    { label: "Repair request envelope", path: ".visual-hive/hive/repair-request-envelope.json" },
+    { label: "Trusted repair consumer summary", path: ".visual-hive/hive/trusted-repair-consumer-summary.json" },
+    { label: "Trusted repair workflow dry-run", path: ".visual-hive/hive/trusted-repair-workflow-dry-run.json" },
+    { label: "Repo map", path: evidence.sourceArtifacts.repoMap },
+    { label: "Deterministic report", path: evidence.sourceArtifacts.report },
+    { label: "Mutation report", path: evidence.sourceArtifacts.mutationReport },
+    { label: "Triage report", path: evidence.sourceArtifacts.triageReport },
+    { label: "Generated spec", path: evidence.deterministicReport?.generatedSpecPath }
+  ];
+  return dedupeResources(resources)
+    .filter((resource): resource is { label: string; path: string } => Boolean(resource.path))
+    .slice(0, 28);
+}
+
+function visualMapReferences(handoff: HandoffPacket, evidence: EvidencePacket): string[] {
+  const values = [
+    ...handoff.workItems.flatMap((item) => item.evidenceKeys.map((key) => `evidence:${key}`)),
+    ...evidence.evidenceContributions.flatMap((contribution) => [
+      contribution.contractId ? `contract:${contribution.contractId}` : undefined,
+      contribution.targetId ? `target:${contribution.targetId}` : undefined,
+      contribution.operator ? `mutation:${contribution.operator}` : undefined
+    ]),
+    ...(evidence.plan?.selectedTargets ?? []).map((targetId) => `target:${targetId}`),
+    ...(evidence.plan?.selectedContracts ?? []).map((contractId) => `contract:${contractId}`),
+    ...(evidence.deterministicReport?.screenshotEvidence ?? []).flatMap((shot) => [
+      `screenshot:${shot.contractId}:${shot.screenshotName}:${shot.viewport}`,
+      `route:${shot.route}`,
+      `viewport:${shot.viewport}`
+    ]),
+    ...(evidence.mutation?.killedOperators ?? []).map((result) => `mutation:${result.operator}`),
+    ...(evidence.mutation?.survivedOperators ?? []).map((result) => `mutation:${result.operator}`),
+    ...(evidence.triage?.findings ?? []).flatMap((finding) => [
+      ...((finding.contractIds ?? []).map((contractId) => `contract:${contractId}`)),
+      ...((finding.targetIds ?? []).map((targetId) => `target:${targetId}`))
+    ])
+  ];
+  return dedupe(values.filter((value): value is string => Boolean(value))).slice(0, 24);
+}
+
+function handoffValidationCommands(evidence: EvidencePacket): string[] {
+  return dedupe([
+    ...(evidence.deterministicReport?.reproductionCommands ?? []),
+    "visual-hive evidence",
+    "visual-hive handoff --dry-run",
+    "visual-hive hive export --dry-run --mode repair_request",
+    "visual-hive hive guarded-repair-preview",
+    "visual-hive hive repair-request-envelope",
+    "visual-hive hive trusted-repair-consumer-summary",
+    "visual-hive hive trusted-repair-workflow-dry-run",
+    "visual-hive handoff-validate",
+    "visual-hive test-creation-plan"
+  ]).slice(0, 16);
+}
+
+function dedupeResources(resources: Array<{ label: string; path?: string }>): Array<{ label: string; path?: string }> {
+  const seen = new Set<string>();
+  return resources.filter((resource) => {
+    const key = `${resource.label}:${resource.path ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildWorkItems(evidence: EvidencePacket): HandoffWorkItem[] {
