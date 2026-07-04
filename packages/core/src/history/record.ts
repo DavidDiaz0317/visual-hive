@@ -2,6 +2,7 @@ import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Plan } from "../planner/types.js";
 import type { MutationReport, Report, RepositoryMetadata } from "../reports/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { readJson, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 
@@ -12,6 +13,16 @@ export interface RunHistoryReport {
   summary: RunHistorySummary;
   trend: RunHistoryTrend;
   entries: RunHistoryEntry[];
+  outputResource?: RunHistoryOutputResource;
+}
+
+export interface RunHistoryOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
 }
 
 export interface RunHistorySummary {
@@ -252,7 +263,22 @@ export function createRunHistoryReport(input: { project: string; generatedAt: st
       totalCreatedBaselines: entries.reduce((sum, entry) => sum + entry.createdBaselines, 0)
     },
     trend: createRunHistoryTrend(entries),
-    entries
+    entries,
+    outputResource: catalogedRunHistoryOutputResource()
+  };
+}
+
+function catalogedRunHistoryOutputResource(): RunHistoryOutputResource {
+  const resource = getEvidenceResourceById("run-history");
+  return {
+    artifactPath: ".visual-hive/history.json",
+    evidenceResourceId: resource?.id ?? "run-history",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://run-history",
+    evidenceResourceTitle: resource?.title ?? "Run History",
+    evidenceResourceDescription:
+      resource?.description ??
+      "Longitudinal local run history for deterministic status, mutation score, flake signals, baseline review, and cost/runtime trend evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_run_history"
   };
 }
 

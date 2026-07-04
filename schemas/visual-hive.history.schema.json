@@ -236,6 +236,42 @@
           }
         }
       }
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    }
+  },
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/history.json"
+        },
+        "evidenceResourceId": {
+          "const": "run-history"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://run-history"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_run_history"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

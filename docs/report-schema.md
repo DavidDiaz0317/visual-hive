@@ -12,7 +12,7 @@ Schema: `schemas/visual-hive.pipeline.schema.json`
 
 The pipeline report is written by `visual-hive pipeline` and records the end-to-end operational acceptance sequence: doctor, analysis, planning, deterministic run, baselines, mutation adequacy when selected, governance audits, triage, evidence packet, verdict, Hive exports, handoff validation, agent packets, tool registry, context ledger, and artifact indexing. It is read by the Context Ledger, Control Plane, and `visual-hive://pipeline-status` MCP evidence resource. It is an execution summary, not an override of the Visual Hive verdict; the verdict remains in `.visual-hive/verdict.json` and the deterministic report remains in `.visual-hive/report.json`.
 
-The run history report is written by `visual-hive history --record` and is catalog-backed as `visual-hive://run-history` / `visual_hive_read_run_history`. It records longitudinal local evidence such as deterministic status, mutation score, baseline review, runtime, and cost trend data. It is trend evidence only: reading `.visual-hive/history.json` does not rerun checks, approve baselines, infer a fresh verdict, or change gating policy.
+The run history report is written by `visual-hive history --record` and is catalog-backed as `visual-hive://run-history` / `visual_hive_read_run_history`. Newly generated history reports include `outputResource` with that same catalog identity. It records longitudinal local evidence such as deterministic status, mutation score, baseline review, runtime, and cost trend data. It is trend evidence only: reading `.visual-hive/history.json` does not rerun checks, approve baselines, infer a fresh verdict, or change gating policy.
 
 ## Plan
 

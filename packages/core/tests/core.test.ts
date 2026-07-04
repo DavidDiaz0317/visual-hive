@@ -3740,6 +3740,12 @@ describe("run history", () => {
       hasPrevious: false,
       direction: "unknown"
     });
+    expect(history.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/history.json",
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceReadToolName: "visual_hive_read_run_history"
+    });
     expect(history.entries[0]?.files.report).toBe(".visual-hive/history/run-one/report.json");
     expect(history.entries[0]?.files.issue).toBe(".visual-hive/history/run-one/issue.md");
     expect(history.entries[0]?.files.prComment).toBe(".visual-hive/history/run-one/pr-comment.md");
@@ -3749,8 +3755,17 @@ describe("run history", () => {
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "issue.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "pr-comment.md"), "utf8")).resolves.toContain("[REDACTED]");
     await expect(readFile(path.join(hiveRoot, "history", "run-one", "baseline-review.md"), "utf8")).resolves.toContain("[REDACTED]");
-    const index = JSON.parse(await readFile(path.join(hiveRoot, "history.json"), "utf8")) as { entries: unknown[] };
+    const index = JSON.parse(await readFile(path.join(hiveRoot, "history.json"), "utf8")) as {
+      entries: unknown[];
+      outputResource?: Record<string, unknown>;
+    };
     expect(index.entries).toHaveLength(1);
+    expect(index.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/history.json",
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceReadToolName: "visual_hive_read_run_history"
+    });
   });
 
   it("calculates latest-vs-previous run trend evidence", async () => {
@@ -3807,6 +3822,12 @@ describe("run history", () => {
     });
 
     expect(history.entries.map((entry) => entry.id)).toEqual(["latest", "previous"]);
+    expect(history.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/history.json",
+      evidenceResourceId: "run-history",
+      evidenceResourceUri: "visual-hive://run-history",
+      evidenceReadToolName: "visual_hive_read_run_history"
+    });
     expect(history.trend).toMatchObject({
       hasPrevious: true,
       direction: "improved",
