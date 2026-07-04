@@ -25,6 +25,8 @@ const supportResources = [
   resourceFromCatalog("context-ledger"),
   resourceFromCatalog("control-plane-snapshot"),
   resourceFromCatalog("artifacts-index"),
+  resourceFromCatalog("pipeline-status"),
+  resourceFromCatalog("schema-catalog"),
   resourceFromCatalog("agent-packet"),
   resourceFromCatalog("handoff-agent-packet"),
   resourceFromCatalog("provider-agent-packet"),
