@@ -88,6 +88,11 @@ import { renderMarkdownReport } from "../src/commands/report.js";
 
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const catalogPath = (id: string): string => {
+  const resource = VISUAL_HIVE_EVIDENCE_RESOURCES.find((candidate) => candidate.id === id);
+  if (!resource) throw new Error(`Missing test evidence resource fixture: ${id}`);
+  return resource.relativePath;
+};
 const sampleRepository = {
   provider: "local" as const,
   repository: "visual-hive/test",
@@ -3867,32 +3872,35 @@ selection:
         "artifacts-final"
       ])
     );
-    expect(pipeline.artifacts).toContain(".visual-hive/pipeline.json");
+    expect(pipeline.artifacts).toContain(catalogPath("pipeline-status"));
     expect(pipeline.artifacts).toEqual(
       expect.arrayContaining([
         ".visual-hive/repo-map.json",
-        ".visual-hive/evidence-packet.json",
-        ".visual-hive/testing-layers.json",
-        ".visual-hive/verdict.json",
-        ".visual-hive/handoff.json",
+        catalogPath("latest-plan"),
+        catalogPath("latest-report"),
+        catalogPath("latest-evidence"),
+        catalogPath("testing-layers"),
+        catalogPath("latest-verdict"),
+        catalogPath("latest-handoff"),
         ".visual-hive/hive-issue.md",
         ".visual-hive/hive-bead-request.json",
         ".visual-hive/hive-handoff-result.json",
-        ".visual-hive/hive-handoff-validation.json",
-        ".visual-hive/hive/hive-export.json",
-        ".visual-hive/hive/guarded-repair-preview.json",
+        catalogPath("handoff-validation"),
+        catalogPath("hive-export"),
+        catalogPath("hive-guarded-repair-preview"),
         ".visual-hive/hive/guarded-repair-preview.md",
-        ".visual-hive/hive/repair-request-envelope.json",
+        catalogPath("hive-repair-request-envelope"),
         ".visual-hive/hive/repair-request-envelope.md",
-        ".visual-hive/hive/trusted-repair-consumer-summary.json",
+        catalogPath("hive-trusted-repair-consumer-summary"),
         ".visual-hive/hive/trusted-repair-consumer-summary.md",
-        ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
+        catalogPath("hive-trusted-repair-workflow-dry-run"),
         ".visual-hive/hive/trusted-repair-workflow-dry-run.md",
-        ".visual-hive/test-creation-plan.json",
-        ".visual-hive/agent-packet.json",
-        ".visual-hive/handoff-agent-packet.json",
-        ".visual-hive/tools/tool-registry.json",
-        ".visual-hive/context-ledger.json"
+        catalogPath("test-creation-plan"),
+        catalogPath("agent-packet"),
+        catalogPath("handoff-agent-packet"),
+        catalogPath("provider-agent-packet"),
+        catalogPath("tool-registry"),
+        catalogPath("context-ledger")
       ])
     );
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
