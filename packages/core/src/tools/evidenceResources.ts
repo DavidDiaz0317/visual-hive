@@ -330,6 +330,22 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "hive-wiki-index",
+    "visual-hive://hive/wiki-index",
+    "hive-wiki-index",
+    "Hive Wiki Index",
+    "Focused index of Hive wiki-vault pages generated from deterministic Visual Hive knowledge facts.",
+    ".visual-hive/hive/wiki-index.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_hive_wiki_index",
+      "Read Hive Wiki Index",
+      "Return the existing no-network Hive wiki-vault page index if it has been generated.",
+      "visual-hive hive export --dry-run",
+      ["Read wiki-vault index evidence only. Do not create wiki pages in Hive or call Hive from the default MCP surface."]
+    )
+  ),
+  resource(
     "hive-repair-work-orders",
     "visual-hive://hive/repair-work-orders",
     "hive-repair-work-orders",

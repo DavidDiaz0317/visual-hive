@@ -307,6 +307,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.includes("/hive/") && normalized.endsWith("/beads.json")) labels.add("hive-beads");
   if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-facts.json")) labels.add("hive-knowledge");
   if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-graph.json")) labels.add("hive-graph");
+  if (normalized.includes("/hive/") && normalized.endsWith("/wiki-index.json")) labels.add("hive-wiki-index");
   if (normalized.includes("/hive/") && normalized.endsWith("/repair-work-orders.json")) labels.add("hive-repair");
   if (normalized.includes("/hive/") && normalized.endsWith("/hive-agent-policy.json")) labels.add("hive-agent-policy");
   if (normalized.endsWith("/hive/issue-context.md")) labels.add("hive-issue");
@@ -367,6 +368,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "beads.json": "visual-hive.hive-beads.schema.json",
     "knowledge-facts.json": "visual-hive.hive-knowledge-facts.schema.json",
     "knowledge-graph.json": "visual-hive.hive-knowledge-graph.schema.json",
+    "wiki-index.json": "visual-hive.hive-wiki-index.schema.json",
     "repair-work-orders.json": "visual-hive.hive-repair-work-orders.schema.json",
     "hive-agent-policy.json": "visual-hive.hive-agent-policy.schema.json",
     "guarded-repair-preview.json": "visual-hive.hive-guarded-repair-preview.schema.json",

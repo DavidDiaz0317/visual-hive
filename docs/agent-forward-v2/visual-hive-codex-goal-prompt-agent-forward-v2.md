@@ -257,7 +257,7 @@ Move the repo toward v0.3/v0.4 "Agent-Forward Operational Beta." Do this in the 
    - config defaults disabled/advisory;
    - no network by default;
    - outputs `.visual-hive/handoff.json`, `.visual-hive/hive-issue.md`, `.visual-hive/hive-bead-request.json`, `.visual-hive/hive-handoff-result.json`;
-   - outputs `.visual-hive/hive/hive-export.json`, `.visual-hive/hive/beads.json`, `.visual-hive/hive/knowledge-facts.json`, `.visual-hive/hive/knowledge-graph.json`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/repair-work-orders.json`, and `.visual-hive/hive/wiki/*.md`;
+   - outputs `.visual-hive/hive/hive-export.json`, `.visual-hive/hive/beads.json`, `.visual-hive/hive/knowledge-facts.json`, `.visual-hive/hive/knowledge-graph.json`, `.visual-hive/hive/wiki-index.json`, `.visual-hive/hive/issue-context.md`, `.visual-hive/hive/repair-work-orders.json`, and `.visual-hive/hive/wiki/*.md`;
    - command: `visual-hive hive export --dry-run`;
    - guarded repair preview command: `visual-hive hive guarded-repair-preview`;
    - guarded repair preview outputs `.visual-hive/hive/guarded-repair-preview.json` and `.visual-hive/hive/guarded-repair-preview.md` without executing repair or calling Hive;

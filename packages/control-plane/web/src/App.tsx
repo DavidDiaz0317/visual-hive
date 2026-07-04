@@ -1119,6 +1119,7 @@ function AgentForwardWorkflow({
     evidenceArtifactPath(snapshot, "hive-beads", ".visual-hive/hive/beads.json"),
     evidenceArtifactPath(snapshot, "hive-knowledge-facts", ".visual-hive/hive/knowledge-facts.json"),
     evidenceArtifactPath(snapshot, "hive-knowledge-graph", ".visual-hive/hive/knowledge-graph.json"),
+    evidenceArtifactPath(snapshot, "hive-wiki-index", ".visual-hive/hive/wiki-index.json"),
     ".visual-hive/hive/issue-context.md",
     evidenceArtifactPath(snapshot, "hive-repair-work-orders", ".visual-hive/hive/repair-work-orders.json"),
     evidenceArtifactPath(snapshot, "hive-agent-policy", ".visual-hive/hive/hive-agent-policy.json"),
@@ -1149,7 +1150,12 @@ function AgentForwardWorkflow({
   const hiveGraphEdges = hiveExport?.knowledgeGraph?.edges ?? [];
   const repairOrders = hiveExport?.repairWorkOrders ?? [];
   const wikiVaultDir = hiveExport?.outputArtifacts?.wikiVaultDir;
-  const wikiArtifacts = wikiVaultDir ? hiveFacts.slice(0, hivePreviewLimit).map((fact) => `${wikiVaultDir}/${fact.slug}.md`) : [];
+  const hiveWikiPages = hiveExport?.wikiIndex?.pages ?? [];
+  const wikiArtifacts = hiveWikiPages.length
+    ? hiveWikiPages.slice(0, hivePreviewLimit).map((page) => page.path)
+    : wikiVaultDir
+      ? hiveFacts.slice(0, hivePreviewLimit).map((fact) => `${wikiVaultDir}/${fact.slug}.md`)
+      : [];
   const hiveModeCommands = [
     {
       id: "hive-export-advisory",

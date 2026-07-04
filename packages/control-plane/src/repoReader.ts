@@ -1269,6 +1269,7 @@ function buildRunbook(
         ".visual-hive/hive/beads.json",
         ".visual-hive/hive/knowledge-facts.json",
         ".visual-hive/hive/knowledge-graph.json",
+        ".visual-hive/hive/wiki-index.json",
         ".visual-hive/hive/issue-context.md",
         ".visual-hive/hive/repair-work-orders.json",
         ".visual-hive/hive/hive-agent-policy.json"
@@ -1301,6 +1302,7 @@ function buildRunbook(
         ".visual-hive/hive/beads.json",
         ".visual-hive/hive/knowledge-facts.json",
         ".visual-hive/hive/knowledge-graph.json",
+        ".visual-hive/hive/wiki-index.json",
         ".visual-hive/hive/issue-context.md",
         ".visual-hive/hive/wiki"
       ]

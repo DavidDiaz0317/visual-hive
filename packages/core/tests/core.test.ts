@@ -1018,6 +1018,7 @@ describe("schema catalog", () => {
     expect(schemaNames).toContain("visual-hive.hive-beads.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-knowledge-facts.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-knowledge-graph.schema.json");
+    expect(schemaNames).toContain("visual-hive.hive-wiki-index.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-repair-work-orders.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-agent-policy.schema.json");
     expect(schemaNames).toContain("visual-hive.hive-guarded-repair-preview.schema.json");
@@ -4002,6 +4003,11 @@ describe("artifact index", () => {
       "utf8"
     );
     await writeFile(
+      path.join(hiveRoot, "hive", "wiki-index.json"),
+      '{"schemaVersion":"visual-hive.hive-wiki-index.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","externalCallsMade":0,"wikiVaultDir":".visual-hive/hive/wiki","pages":[{"slug":"visual-hive-regression","title":"token=abc123","type":"regression","source":"visual-hive:evidence","path":".visual-hive/hive/wiki/visual-hive-regression.md","tags":["visual-hive"],"relatedEvidenceKeys":["selector.dashboard"],"artifacts":[".visual-hive/evidence-packet.json"]}]}',
+      "utf8"
+    );
+    await writeFile(
       path.join(hiveRoot, "hive", "repair-work-orders.json"),
       '[{"id":"repair-1","actor":"quality","title":"token=abc123","objective":"Fix Visual Hive regression","sourceBeadIds":["vh-bead-1"],"evidenceKeys":["selector.dashboard"],"likelyFiles":["src/App.tsx"],"artifacts":[".visual-hive/report.json"],"reproductionCommands":["visual-hive run --ci"],"acceptanceCriteria":["Visual Hive verdict passes after repair."],"allowedActions":["edit_pr_branch"],"forbiddenActions":["decide_visual_hive_verdict"],"maxAttempts":1,"branchPrefix":"hive/visual-hive-","prOnly":true,"requireHumanReview":true,"rerunVisualHive":true}]',
       "utf8"
@@ -4044,7 +4050,7 @@ describe("artifact index", () => {
       now: new Date("2026-06-15T00:00:00.000Z")
     });
 
-    expect(index.summary.artifactCount).toBe(60);
+    expect(index.summary.artifactCount).toBe(61);
     expect(index.artifacts.some((artifact) => artifact.path.endsWith("artifacts-index.json"))).toBe(false);
     expect(index.summary.image).toBe(1);
     expect(index.summary.redactedPreviews).toBeGreaterThanOrEqual(1);
@@ -4357,6 +4363,16 @@ describe("artifact index", () => {
       evidenceResourceUri: "visual-hive://hive/knowledge-graph",
       evidenceResourceTitle: "Hive Knowledge Graph",
       evidenceReadToolName: "visual_hive_read_hive_knowledge_graph"
+    });
+    const hiveWikiIndex = index.artifacts.find((artifact) => artifact.path.endsWith("hive/wiki-index.json"));
+    expect(hiveWikiIndex?.preview).toContain("[REDACTED]");
+    expect(hiveWikiIndex?.labels).toContain("hive-wiki-index");
+    expect(hiveWikiIndex?.schemaPath).toBe("schemas/visual-hive.hive-wiki-index.schema.json");
+    expect(hiveWikiIndex).toMatchObject({
+      evidenceResourceId: "hive-wiki-index",
+      evidenceResourceUri: "visual-hive://hive/wiki-index",
+      evidenceResourceTitle: "Hive Wiki Index",
+      evidenceReadToolName: "visual_hive_read_hive_wiki_index"
     });
     const hiveRepairWorkOrders = index.artifacts.find((artifact) => artifact.path.endsWith("hive/repair-work-orders.json"));
     expect(hiveRepairWorkOrders?.preview).toContain("[REDACTED]");

@@ -235,6 +235,7 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("hive-beads", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-knowledge-facts", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-knowledge-graph", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-wiki-index", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-repair-work-orders", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-agent-policy", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-guarded-repair-preview", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),

@@ -58,6 +58,7 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://hive/beads`
 - `visual-hive://hive/knowledge-facts`
 - `visual-hive://hive/knowledge-graph`
+- `visual-hive://hive/wiki-index`
 - `visual-hive://hive/repair-work-orders`
 - `visual-hive://hive/agent-policy`
 - `visual-hive://hive-guarded-repair-preview`
@@ -93,9 +94,9 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_validate_config`
 - `visual_hive_recommend_setup`
 - `visual_hive_plan`
-- `visual_hive_read_plan_lanes`
 - `visual_hive_explain_failure`
 - `visual_hive_list_reproduction_commands`
+- `visual_hive_read_plan_lanes`
 - `visual_hive_read_setup_recommendations`
 - `visual_hive_read_setup_pr_plan`
 - `visual_hive_read_latest_report`
@@ -116,6 +117,7 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_hive_beads`
 - `visual_hive_read_hive_knowledge_facts`
 - `visual_hive_read_hive_knowledge_graph`
+- `visual_hive_read_hive_wiki_index`
 - `visual_hive_read_hive_repair_work_orders`
 - `visual_hive_read_hive_agent_policy`
 - `visual_hive_read_hive_guarded_repair_preview`

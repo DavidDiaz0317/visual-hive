@@ -171,6 +171,7 @@
         "knowledgeFacts",
         "graphNodes",
         "graphEdges",
+        "wikiPages",
         "repairWorkOrders",
         "blockedReasons"
       ],
@@ -189,6 +190,10 @@
           "minimum": 0
         },
         "graphEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wikiPages": {
           "type": "integer",
           "minimum": 0
         },

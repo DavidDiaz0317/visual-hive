@@ -22,6 +22,7 @@
     "beads",
     "knowledgeFacts",
     "knowledgeGraph",
+    "wikiIndex",
     "repairWorkOrders",
     "agentPolicy",
     "blockedReasons"
@@ -94,6 +95,7 @@
         "beads",
         "knowledgeFacts",
         "knowledgeGraph",
+        "wikiIndex",
         "issueContext",
         "repairWorkOrders",
         "agentPolicy",
@@ -111,6 +113,9 @@
           "type": "string"
         },
         "knowledgeGraph": {
+          "type": "string"
+        },
+        "wikiIndex": {
           "type": "string"
         },
         "issueContext": {
@@ -132,7 +137,7 @@
       "items": {
         "$ref": "#/$defs/outputResource"
       },
-      "minItems": 6
+      "minItems": 7
     },
     "governance": {
       "type": "object",
@@ -169,6 +174,7 @@
         "knowledgeFacts",
         "graphNodes",
         "graphEdges",
+        "wikiPages",
         "repairWorkOrders",
         "blockedReasons"
       ],
@@ -187,6 +193,10 @@
           "minimum": 0
         },
         "graphEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wikiPages": {
           "type": "integer",
           "minimum": 0
         },
@@ -227,6 +237,9 @@
     "knowledgeGraph": {
       "$ref": "#/$defs/graph"
     },
+    "wikiIndex": {
+      "$ref": "#/$defs/wikiIndex"
+    },
     "repairWorkOrders": {
       "type": "array",
       "items": {
@@ -262,6 +275,7 @@
             "beads",
             "knowledgeFacts",
             "knowledgeGraph",
+            "wikiIndex",
             "repairWorkOrders",
             "agentPolicy"
           ]
@@ -272,6 +286,7 @@
             ".visual-hive/hive/beads.json",
             ".visual-hive/hive/knowledge-facts.json",
             ".visual-hive/hive/knowledge-graph.json",
+            ".visual-hive/hive/wiki-index.json",
             ".visual-hive/hive/repair-work-orders.json",
             ".visual-hive/hive/hive-agent-policy.json"
           ]
@@ -282,6 +297,7 @@
             "hive-beads",
             "hive-knowledge-facts",
             "hive-knowledge-graph",
+            "hive-wiki-index",
             "hive-repair-work-orders",
             "hive-agent-policy"
           ]
@@ -292,6 +308,7 @@
             "visual-hive://hive/beads",
             "visual-hive://hive/knowledge-facts",
             "visual-hive://hive/knowledge-graph",
+            "visual-hive://hive/wiki-index",
             "visual-hive://hive/repair-work-orders",
             "visual-hive://hive/agent-policy"
           ]
@@ -308,6 +325,7 @@
             "visual_hive_read_hive_beads",
             "visual_hive_read_hive_knowledge_facts",
             "visual_hive_read_hive_knowledge_graph",
+            "visual_hive_read_hive_wiki_index",
             "visual_hive_read_hive_repair_work_orders",
             "visual_hive_read_hive_agent_policy"
           ]
@@ -602,6 +620,98 @@
             "derived_from",
             "shared_tag"
           ]
+        }
+      }
+    },
+    "wikiIndex": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "generatedAt",
+        "project",
+        "externalCallsMade",
+        "wikiVaultDir",
+        "pages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": "visual-hive.hive-wiki-index.v1"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "externalCallsMade": {
+          "const": 0
+        },
+        "wikiVaultDir": {
+          "type": "string"
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/wikiIndexPage"
+          }
+        }
+      }
+    },
+    "wikiIndexPage": {
+      "type": "object",
+      "required": [
+        "slug",
+        "title",
+        "type",
+        "source",
+        "path",
+        "tags",
+        "relatedEvidenceKeys",
+        "artifacts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "pattern",
+            "gotcha",
+            "decision",
+            "regression",
+            "test_scaffold",
+            "integration",
+            "coverage_rule"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "relatedEvidenceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

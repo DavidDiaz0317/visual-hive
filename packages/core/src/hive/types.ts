@@ -92,6 +92,26 @@ export interface HiveKnowledgeGraph {
   edges: HiveGraphEdge[];
 }
 
+export interface HiveWikiIndexPage {
+  slug: string;
+  title: string;
+  type: HiveKnowledgeFactType;
+  source: string;
+  path: string;
+  tags: string[];
+  relatedEvidenceKeys: string[];
+  artifacts: string[];
+}
+
+export interface HiveWikiIndex {
+  schemaVersion: "visual-hive.hive-wiki-index.v1";
+  generatedAt: string;
+  project: string;
+  externalCallsMade: 0;
+  wikiVaultDir: string;
+  pages: HiveWikiIndexPage[];
+}
+
 export interface HiveRepairWorkOrder {
   id: string;
   actor: HiveBeadActor;
@@ -145,7 +165,14 @@ export interface HiveProviderEvidenceSummary {
   blockedReasons: string[];
 }
 
-export type HiveExportOutputResourceKey = "export" | "beads" | "knowledgeFacts" | "knowledgeGraph" | "repairWorkOrders" | "agentPolicy";
+export type HiveExportOutputResourceKey =
+  | "export"
+  | "beads"
+  | "knowledgeFacts"
+  | "knowledgeGraph"
+  | "wikiIndex"
+  | "repairWorkOrders"
+  | "agentPolicy";
 
 export interface HiveCatalogedOutputResource {
   artifactKey: string;
@@ -179,6 +206,7 @@ export interface HiveExportBundle {
     beads: string;
     knowledgeFacts: string;
     knowledgeGraph: string;
+    wikiIndex: string;
     issueContext: string;
     repairWorkOrders: string;
     agentPolicy: string;
@@ -197,6 +225,7 @@ export interface HiveExportBundle {
     knowledgeFacts: number;
     graphNodes: number;
     graphEdges: number;
+    wikiPages: number;
     repairWorkOrders: number;
     blockedReasons: number;
   };
@@ -205,6 +234,7 @@ export interface HiveExportBundle {
   beads: HiveBead[];
   knowledgeFacts: HiveKnowledgeFact[];
   knowledgeGraph: HiveKnowledgeGraph;
+  wikiIndex: HiveWikiIndex;
   repairWorkOrders: HiveRepairWorkOrder[];
   agentPolicy: HiveAgentPolicy;
   blockedReasons: string[];
@@ -213,6 +243,7 @@ export interface HiveExportBundle {
 export interface HiveExportArtifacts {
   bundle: HiveExportBundle;
   issueContext: string;
+  wikiIndex: HiveWikiIndex;
   wikiPages: Array<{ slug: string; path: string; content: string }>;
 }
 

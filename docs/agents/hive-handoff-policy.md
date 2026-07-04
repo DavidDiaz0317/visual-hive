@@ -30,6 +30,7 @@ It requires `.visual-hive/evidence-packet.json` and writes:
 - `.visual-hive/hive/beads.json`
 - `.visual-hive/hive/knowledge-facts.json`
 - `.visual-hive/hive/knowledge-graph.json`
+- `.visual-hive/hive/wiki-index.json`
 - `.visual-hive/hive/issue-context.md`
 - `.visual-hive/hive/repair-work-orders.json`
 - `.visual-hive/hive/hive-agent-policy.json`
@@ -72,7 +73,7 @@ This keeps Hive and coding agents focused on concrete evidence gaps instead of r
 The Hive-native export expands that compact packet into artifacts that Hive can use directly:
 
 - `beads.json` mirrors Hive's bead/work-item shape for quality, CI-maintainer, and security actors;
-- `knowledge-facts.json` and `wiki/*.md` preserve regressions, gotchas, integration facts, coverage rules, and test scaffolds;
+- `knowledge-facts.json`, `wiki-index.json`, and `wiki/*.md` preserve regressions, gotchas, integration facts, coverage rules, and test scaffolds;
 - `knowledge-graph.json` links evidence, facts, beads, and repair work orders with `derived_from`, `depends_on`, and `related_to` edges;
 - `repair-work-orders.json` tells a trusted Hive repair lane what to fix, which artifacts to inspect, and how Visual Hive must re-verify the result.
 - `guarded-repair-preview.json` is a preview-only repair gate over the work orders and agent policy. It performs no repair, calls no Hive API, and records whether every work order is PR-only, branch-isolated, bounded, reviewable, forbidden from deciding the Visual Hive verdict, and required to rerun Visual Hive.
@@ -80,7 +81,7 @@ The Hive-native export expands that compact packet into artifacts that Hive can 
 - `trusted-repair-consumer-summary.json` is a no-network dry-run consumer over the repair request envelope. It previews whether a trusted workflow could start, which repair requests are ready or blocked, and which branches/PRs a future trusted workflow would create. It performs no checkout, repair, branch creation, PR creation, issue creation, Hive API call, provider call, or Visual Hive rerun.
 - `trusted-repair-workflow-dry-run.json` is a no-network future workflow plan over the trusted repair consumer summary. It lists artifact validation, trusted checkout, future branch creation, bounded Hive repair-agent, final validation, and future pull request steps as planned or blocked actions. It performs no checkout, repair, branch creation, PR creation, issue creation, Hive API call, provider call, or Visual Hive rerun.
 
-`hive-export.json` also includes `outputResources`, a catalog-backed view over the split Hive JSON artifacts. Each entry connects the actual output path to the shared Visual Hive evidence-resource ID, URI, title, description, and read-only MCP tool name. The repair-chain artifacts and mode comparison each include their own `outputResource` field for the same reason. Hive agents and trusted workflow consumers should prefer those resource identities over path guessing when they need focused beads, facts, graph, work-order, policy, guarded-repair, request-envelope, trusted-consumer, workflow-dry-run, or mode-comparison evidence.
+`hive-export.json` also includes `outputResources`, a catalog-backed view over the split Hive JSON artifacts. Each entry connects the actual output path to the shared Visual Hive evidence-resource ID, URI, title, description, and read-only MCP tool name. The repair-chain artifacts and mode comparison each include their own `outputResource` field for the same reason. Hive agents and trusted workflow consumers should prefer those resource identities over path guessing when they need focused beads, facts, graph, wiki-index, work-order, policy, guarded-repair, request-envelope, trusted-consumer, workflow-dry-run, or mode-comparison evidence.
 
 `visual-hive hive compare-modes` writes a no-network comparison bundle that previews all five Hive integration levels side by side:
 

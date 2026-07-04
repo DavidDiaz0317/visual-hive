@@ -32,6 +32,7 @@ import type {
   HiveKnowledgeFact,
   HiveKnowledgeGraph,
   HiveProviderEvidenceSummary,
+  HiveWikiIndex,
   HiveRepairRequestEnvelope,
   HiveRepairRequestEnvelopeItem,
   HiveTrustedRepairConsumerSummary,
@@ -67,6 +68,7 @@ const HIVE_EXPORT_OUTPUT_RESOURCE_MAP: Array<{
   { artifactKey: "beads", resourceId: "hive-beads" },
   { artifactKey: "knowledgeFacts", resourceId: "hive-knowledge-facts" },
   { artifactKey: "knowledgeGraph", resourceId: "hive-knowledge-graph" },
+  { artifactKey: "wikiIndex", resourceId: "hive-wiki-index" },
   { artifactKey: "repairWorkOrders", resourceId: "hive-repair-work-orders" },
   { artifactKey: "agentPolicy", resourceId: "hive-agent-policy" }
 ];
@@ -154,6 +156,8 @@ export function buildHiveExportArtifacts(options: BuildHiveExportOptions): HiveE
       : emptyGraph();
   const agentPolicy = buildAgentPolicy(context);
   const blockedReasons = blockedReasonsFor(context);
+  const wikiPages = config.export.wikiVault && knowledgeFacts.length ? knowledgeFacts.map((fact) => wikiPageFor(fact, paths.wikiVaultDir)) : [];
+  const wikiIndex = buildWikiIndex(context, knowledgeFacts, wikiPages, paths.wikiVaultDir);
   const bundle: HiveExportBundle = sanitizeValue({
     schemaVersion: "visual-hive.hive-export.v1",
     generatedAt,
@@ -181,6 +185,7 @@ export function buildHiveExportArtifacts(options: BuildHiveExportOptions): HiveE
       knowledgeFacts: knowledgeFacts.length,
       graphNodes: knowledgeGraph.nodes.length,
       graphEdges: knowledgeGraph.edges.length,
+      wikiPages: wikiIndex.pages.length,
       repairWorkOrders: repairWorkOrders.length,
       blockedReasons: blockedReasons.length
     },
@@ -189,14 +194,14 @@ export function buildHiveExportArtifacts(options: BuildHiveExportOptions): HiveE
     beads,
     knowledgeFacts,
     knowledgeGraph,
+    wikiIndex,
     repairWorkOrders,
     agentPolicy,
     blockedReasons
   }) as HiveExportBundle;
 
   const issueContext = renderHiveIssueContext(bundle, context, workSources);
-  const wikiPages = config.export.wikiVault && knowledgeFacts.length ? knowledgeFacts.map((fact) => wikiPageFor(fact, paths.wikiVaultDir)) : [];
-  return { bundle, issueContext, wikiPages };
+  return { bundle, issueContext, wikiIndex, wikiPages };
 }
 
 function hiveExportOutputResources(paths: HiveExportBundle["outputArtifacts"]): HiveExportOutputResource[] {
@@ -229,6 +234,7 @@ export async function writeHiveExportArtifacts(options: WriteHiveExportOptions):
   await writeJson(resolveArtifact(rootDir, paths.beads), artifacts.bundle.beads);
   await writeJson(resolveArtifact(rootDir, paths.knowledgeFacts), artifacts.bundle.knowledgeFacts);
   await writeJson(resolveArtifact(rootDir, paths.knowledgeGraph), artifacts.bundle.knowledgeGraph);
+  await writeJson(resolveArtifact(rootDir, paths.wikiIndex), artifacts.wikiIndex);
   await writeJson(resolveArtifact(rootDir, paths.repairWorkOrders), artifacts.bundle.repairWorkOrders);
   await writeJson(resolveArtifact(rootDir, paths.agentPolicy), artifacts.bundle.agentPolicy);
   await writeText(resolveArtifact(rootDir, paths.issueContext), artifacts.issueContext);
@@ -245,6 +251,7 @@ export function renderHiveExportSummary(result: WriteHiveExportResult, format: "
     `Wrote ${result.paths.beads}`,
     `Wrote ${result.paths.knowledgeFacts}`,
     `Wrote ${result.paths.knowledgeGraph}`,
+    `Wrote ${result.paths.wikiIndex}`,
     `Wrote ${result.paths.issueContext}`,
     `Wrote ${result.paths.repairWorkOrders}`,
     `Wrote ${result.paths.agentPolicy}`,
@@ -258,6 +265,7 @@ export function renderHiveExportSummary(result: WriteHiveExportResult, format: "
     `- Beads: ${result.bundle.summary.beads}`,
     `- Knowledge facts: ${result.bundle.summary.knowledgeFacts}`,
     `- Graph: ${result.bundle.summary.graphNodes} nodes / ${result.bundle.summary.graphEdges} edges`,
+    `- Wiki pages: ${result.bundle.summary.wikiPages}`,
     `- Repair work orders: ${result.bundle.summary.repairWorkOrders}`,
     ...(result.bundle.blockedReasons.length ? [`- Blocked reasons: ${result.bundle.blockedReasons.join("; ")}`] : [])
   ].join("\n");
@@ -1084,6 +1092,38 @@ function buildKnowledgeGraph(
   return { schemaVersion: "visual-hive.hive-knowledge-graph.v1", nodes: [...nodes.values()], edges: dedupeEdges(edges) };
 }
 
+function buildWikiIndex(
+  context: HiveSourceContext,
+  facts: HiveKnowledgeFact[],
+  wikiPages: Array<{ slug: string; path: string; content: string }>,
+  wikiVaultDir: string
+): HiveWikiIndex {
+  const pageBySlug = new Map(wikiPages.map((page) => [page.slug, page]));
+  return {
+    schemaVersion: "visual-hive.hive-wiki-index.v1",
+    generatedAt: context.generatedAt,
+    project: context.evidence.project,
+    externalCallsMade: 0,
+    wikiVaultDir,
+    pages: facts
+      .map((fact) => {
+        const page = pageBySlug.get(fact.slug);
+        if (!page) return undefined;
+        return {
+          slug: fact.slug,
+          title: fact.title,
+          type: fact.type,
+          source: fact.source,
+          path: page.path,
+          tags: fact.tags,
+          relatedEvidenceKeys: fact.relatedEvidenceKeys,
+          artifacts: fact.artifacts
+        };
+      })
+      .filter((page): page is HiveWikiIndex["pages"][number] => Boolean(page))
+  };
+}
+
 function buildAgentPolicy(context: HiveSourceContext): HiveAgentPolicy {
   const repairMode = shouldEmitRepairArtifacts(context.mode, context.config);
   return {
@@ -1760,6 +1800,7 @@ function outputPaths(outputDir: string): HiveExportBundle["outputArtifacts"] {
     beads: `${outputDir}/beads.json`,
     knowledgeFacts: `${outputDir}/knowledge-facts.json`,
     knowledgeGraph: `${outputDir}/knowledge-graph.json`,
+    wikiIndex: `${outputDir}/wiki-index.json`,
     issueContext: `${outputDir}/issue-context.md`,
     repairWorkOrders: `${outputDir}/repair-work-orders.json`,
     agentPolicy: `${outputDir}/hive-agent-policy.json`,

@@ -76,6 +76,9 @@ describe("Hive native export", () => {
     expect(result.issueContext).toContain("## Provider Evidence");
     expect(result.bundle.knowledgeGraph.nodes.length).toBeGreaterThan(0);
     expect(result.bundle.knowledgeGraph.edges.every((edge) => nodeIds(result).has(edge.from) && nodeIds(result).has(edge.to))).toBe(true);
+    expect(result.bundle.summary.wikiPages).toBe(result.wikiPages.length);
+    expect(result.bundle.wikiIndex.pages.length).toBe(result.wikiPages.length);
+    expect(result.bundle.wikiIndex.pages[0]?.path).toMatch(/^\.visual-hive\/hive\/wiki\/.+\.md$/);
     expect(JSON.stringify(result.bundle)).not.toContain("secret-value");
   });
 
@@ -138,6 +141,7 @@ describe("Hive native export", () => {
     await expectMatchesSchema("visual-hive.hive-beads.schema.json", result.bundle.beads);
     await expectMatchesSchema("visual-hive.hive-knowledge-facts.schema.json", result.bundle.knowledgeFacts);
     await expectMatchesSchema("visual-hive.hive-knowledge-graph.schema.json", result.bundle.knowledgeGraph);
+    await expectMatchesSchema("visual-hive.hive-wiki-index.schema.json", result.bundle.wikiIndex);
     await expectMatchesSchema("visual-hive.hive-repair-work-orders.schema.json", result.bundle.repairWorkOrders);
     await expectMatchesSchema("visual-hive.hive-agent-policy.schema.json", result.bundle.agentPolicy);
   });
@@ -180,6 +184,13 @@ describe("Hive native export", () => {
         evidenceReadToolName: "visual_hive_read_hive_knowledge_graph"
       }),
       expect.objectContaining({
+        artifactKey: "wikiIndex",
+        artifactPath: ".visual-hive/hive/wiki-index.json",
+        evidenceResourceId: "hive-wiki-index",
+        evidenceResourceUri: "visual-hive://hive/wiki-index",
+        evidenceReadToolName: "visual_hive_read_hive_wiki_index"
+      }),
+      expect.objectContaining({
         artifactKey: "repairWorkOrders",
         artifactPath: ".visual-hive/hive/repair-work-orders.json",
         evidenceResourceId: "hive-repair-work-orders",
@@ -213,6 +224,7 @@ describe("Hive native export", () => {
       "hive-beads",
       "hive-knowledge-facts",
       "hive-knowledge-graph",
+      "hive-wiki-index",
       "hive-repair-work-orders",
       "hive-agent-policy"
     ];

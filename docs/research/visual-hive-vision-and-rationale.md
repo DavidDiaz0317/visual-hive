@@ -288,6 +288,7 @@ visual-hive hive trusted-repair-workflow-dry-run
 - `.visual-hive/hive/beads.json`
 - `.visual-hive/hive/knowledge-facts.json`
 - `.visual-hive/hive/knowledge-graph.json`
+- `.visual-hive/hive/wiki-index.json`
 - `.visual-hive/hive/issue-context.md`
 - `.visual-hive/hive/repair-work-orders.json`
 - `.visual-hive/hive/hive-agent-policy.json`
@@ -377,7 +378,7 @@ Visual Hive now includes a formal Evidence Packet schema and writer. This is the
 Hive integration should continue in phases, with the first no-network phases already present:
 
 1. Handoff dry run: write sanitized compact handoff artifacts only.
-2. Hive native export: write issue context, beads, project knowledge facts, graph data, wiki pages, agent policy, and guarded repair work orders.
+2. Hive native export: write issue context, beads, project knowledge facts, graph data, a wiki page index, wiki pages, agent policy, and guarded repair work orders.
 3. Guarded repair preview: consume repair work orders and agent policy, but perform no repair and make no Hive network calls.
 4. Trusted GitHub issue mode: create/update issues from sanitized artifacts without checking out or executing PR code.
 5. Bead/API mode: post to Hive only when explicitly enabled in trusted environments.
