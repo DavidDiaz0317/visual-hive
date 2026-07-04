@@ -1,13 +1,24 @@
 import type { ProviderId, VisualHiveConfig } from "../config/schema.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { inspectProviders, type ProviderInspection } from "./inspect.js";
 
 export type ProviderSetupRecommendation = "use_builtin" | "keep_disabled" | "mock_review" | "trusted_setup_ready" | "blocked";
 
+export interface ProviderSetupPlanOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface ProviderSetupPlan {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: ProviderSetupPlanOutputResource;
   providerId: ProviderId;
   label: string;
   recommendation: ProviderSetupRecommendation;
@@ -47,6 +58,7 @@ export function buildProviderSetupPlan(config: VisualHiveConfig, options: BuildP
     schemaVersion: 1,
     project: config.project.name,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
+    outputResource: catalogedProviderSetupPlanOutputResource(),
     providerId: provider.id,
     label: provider.label,
     recommendation,
@@ -70,6 +82,18 @@ export function buildProviderSetupPlan(config: VisualHiveConfig, options: BuildP
     warnings: warningsFor(provider)
   };
   return sanitizePlan(plan);
+}
+
+export function catalogedProviderSetupPlanOutputResource(): NonNullable<ProviderSetupPlan["outputResource"]> {
+  const resource = getEvidenceResourceById("provider-setup-plan");
+  return {
+    artifactPath: ".visual-hive/provider-setup-plan.json",
+    evidenceResourceId: resource?.id ?? "provider-setup-plan",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://provider-setup-plan",
+    evidenceResourceTitle: resource?.title ?? "Provider Setup Plan",
+    evidenceResourceDescription: resource?.description ?? "No-network optional provider setup, credential-name, workflow, and safety planning evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_provider_setup_plan"
+  };
 }
 
 function recommendationFor(provider: ProviderInspection): ProviderSetupRecommendation {

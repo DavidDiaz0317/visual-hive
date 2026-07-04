@@ -261,6 +261,12 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("provider-results", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], {
       writes: []
     }),
+    evidenceCli("provider-setup-plan", ["setup_agent", "review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
+    evidenceCli("provider-handoff", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
     evidenceCli("provider-upload-argos-manifest", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], {
       writes: []
     }),

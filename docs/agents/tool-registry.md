@@ -31,7 +31,7 @@ The initial policy is conservative:
 
 - third-party MCP exposure is disabled by default;
 - provider MCPs and uploads require trusted mode;
-- provider evidence reads, such as `visual_hive_read_provider_results`, `visual_hive_read_provider_upload_manifest`, and `visual_hive_read_provider_agent_packet`, are local read-only tools and do not grant provider upload authority;
+- provider evidence reads, such as `visual_hive_read_provider_setup_plan`, `visual_hive_read_provider_handoff`, `visual_hive_read_provider_results`, `visual_hive_read_provider_upload_manifest`, and `visual_hive_read_provider_agent_packet`, are local read-only tools and do not grant credential, provider upload, provider API, provider gating, or verdict authority;
 - Control Plane snapshot reads, such as `visual_hive_read_control_plane_snapshot`, expose guided setup/runbook/navigation evidence only and do not grant UI write or command execution authority;
 - setup recommendation reads, such as `visual_hive_read_setup_recommendations` and `visual_hive_read_setup_pr_plan`, expose no-network setup guidance, setup bundle review, and workflow-safety evidence only and do not authorize writing config, docs, workflows, secrets, or provider settings;
 - run-history reads, such as `visual_hive_read_run_history`, expose longitudinal status, flake, baseline, mutation, runtime, and cost trend evidence only and do not authorize reruns, baseline approval, or verdict-policy changes;

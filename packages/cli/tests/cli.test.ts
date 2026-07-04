@@ -4987,6 +4987,12 @@ providers:
       authorizationRequired: true,
       externalCallsMade: 0
     });
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/provider-setup-plan.json",
+      evidenceResourceId: "provider-setup-plan",
+      evidenceResourceUri: "visual-hive://provider-setup-plan",
+      evidenceReadToolName: "visual_hive_read_provider_setup_plan"
+    });
     expect(summary).toContain("Provider Setup Plan: Argos");
     expect(summary).toContain("External calls made: 0");
     expect(summary).toContain("visual-hive providers list --mock-results");
@@ -5106,6 +5112,12 @@ providers:
         screenshotArtifacts: 1,
         diffArtifacts: 1
       }
+    });
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/provider-handoff.json",
+      evidenceResourceId: "provider-handoff",
+      evidenceResourceUri: "visual-hive://provider-handoff",
+      evidenceReadToolName: "visual_hive_read_provider_handoff"
     });
     expect(written.artifacts.map((artifact) => artifact.kind)).toEqual([
       "actual_screenshot",

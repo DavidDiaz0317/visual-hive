@@ -160,6 +160,10 @@ Schema: `schemas/visual-hive.provider-setup-plan.schema.json`
 
 The provider setup plan is written by `visual-hive providers plan --provider <id>`. It is a no-network readiness artifact for a maintainer-controlled setup review. It records provider ID, label, recommendation, readiness metadata, required and missing environment variable names, whether external authorization is required, config changes to review, trusted workflow steps, safety checks, validation commands, warnings, and `externalCallsMade: 0`.
 
+Newly generated setup plans include `outputResource` with the catalog identity `.visual-hive/provider-setup-plan.json`, `visual-hive://provider-setup-plan`, and `visual_hive_read_provider_setup_plan`. Reading this resource does not enable credentials, billing, provider uploads, provider gating, provider API calls, or verdict overrides.
+
+The setup plan does not enable a provider, create credentials, upload screenshots, make provider API calls, or change deterministic pass/fail authority. Missing credentials are reported by environment variable name only.
+
 ## Provider Handoff Manifest
 
 Path: `.visual-hive/provider-handoff.json`
@@ -168,7 +172,7 @@ Schema: `schemas/visual-hive.provider-handoff.schema.json`
 
 The provider handoff manifest is written by `visual-hive providers handoff --provider <id>` after a deterministic report exists. It enumerates the exact actual/diff/baseline screenshot artifacts and context files that a trusted external-provider lane would review, marks which artifacts are eligible for upload, records blocked reasons from credential names and `costPolicy`, and includes trusted workflow steps plus validation commands. It always records `externalCallsMade: 0`; the default CLI does not upload screenshots or call provider APIs.
 
-The setup plan does not enable a provider, create credentials, upload screenshots, make provider API calls, or change deterministic pass/fail authority. Missing credentials are reported by environment variable name only.
+Newly generated handoff manifests include `outputResource` with the catalog identity `.visual-hive/provider-handoff.json`, `visual-hive://provider-handoff`, and `visual_hive_read_provider_handoff`. Reading this resource does not upload screenshots, call provider APIs, enable provider gating, change provider credentials, or override the Visual Hive verdict.
 
 ## Evidence Packet
 

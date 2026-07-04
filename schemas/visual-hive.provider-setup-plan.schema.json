@@ -7,6 +7,7 @@
     "schemaVersion",
     "project",
     "generatedAt",
+    "outputResource",
     "providerId",
     "label",
     "recommendation",
@@ -29,6 +30,9 @@
     "generatedAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
     },
     "providerId": {
       "type": "string"
@@ -141,5 +145,39 @@
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/provider-setup-plan.json"
+        },
+        "evidenceResourceId": {
+          "const": "provider-setup-plan"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://provider-setup-plan"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_provider_setup_plan"
+        }
+      }
+    }
+  }
 }

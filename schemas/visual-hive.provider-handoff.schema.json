@@ -8,6 +8,7 @@
     "schemaVersion",
     "project",
     "generatedAt",
+    "outputResource",
     "providerId",
     "label",
     "status",
@@ -30,6 +31,9 @@
     },
     "generatedAt": {
       "type": "string"
+    },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
     },
     "providerId": {
       "enum": [
@@ -103,6 +107,38 @@
     }
   },
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/provider-handoff.json"
+        },
+        "evidenceResourceId": {
+          "const": "provider-handoff"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://provider-handoff"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_provider_handoff"
+        }
+      }
+    },
     "readiness": {
       "type": "object",
       "required": [

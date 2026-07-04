@@ -1,10 +1,20 @@
 import type { ProviderId, VisualHiveConfig } from "../config/schema.js";
 import type { Report, ScreenshotAssertionResult } from "../reports/types.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { inspectProviders, type ProviderInspection } from "./inspect.js";
 
 export type ProviderHandoffStatus = "ready" | "review" | "blocked";
 export type ProviderHandoffArtifactKind = "actual_screenshot" | "diff_screenshot" | "baseline_screenshot" | "generated_spec" | "deterministic_report";
+
+export interface ProviderHandoffOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
 
 export interface ProviderHandoffArtifact {
   path: string;
@@ -22,6 +32,7 @@ export interface ProviderHandoffManifest {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: ProviderHandoffOutputResource;
   providerId: ProviderId;
   label: string;
   status: ProviderHandoffStatus;
@@ -101,6 +112,7 @@ export function buildProviderHandoffManifest(
     schemaVersion: 1,
     project: config.project.name,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
+    outputResource: catalogedProviderHandoffOutputResource(),
     providerId: provider.id,
     label: provider.label,
     status,
@@ -132,6 +144,18 @@ export function buildProviderHandoffManifest(
     validationCommands: validationCommands(provider),
     warnings
   });
+}
+
+export function catalogedProviderHandoffOutputResource(): NonNullable<ProviderHandoffManifest["outputResource"]> {
+  const resource = getEvidenceResourceById("provider-handoff");
+  return {
+    artifactPath: ".visual-hive/provider-handoff.json",
+    evidenceResourceId: resource?.id ?? "provider-handoff",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://provider-handoff",
+    evidenceResourceTitle: resource?.title ?? "Provider Handoff Manifest",
+    evidenceResourceDescription: resource?.description ?? "No-network optional provider artifact handoff eligibility and trusted workflow planning evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_provider_handoff"
+  };
 }
 
 function collectScreenshotArtifacts(report: Report): ProviderHandoffArtifact[] {

@@ -602,6 +602,38 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "provider-setup-plan",
+    "visual-hive://provider-setup-plan",
+    "provider-setup-plan",
+    "Provider Setup Plan",
+    "No-network optional provider setup, credential-name, workflow, and safety planning evidence. Read-only; does not enable credentials, billing, uploads, or provider gating.",
+    ".visual-hive/provider-setup-plan.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_provider_setup_plan",
+      "Read Provider Setup Plan",
+      "Read optional provider setup planning evidence without enabling credentials, billing, uploads, or provider gating.",
+      "visual-hive providers plan --provider argos",
+      ["Read provider setup evidence only. Do not enable credentials, billing, provider upload, provider gating, or external calls from the default evidence surface."]
+    )
+  ),
+  resource(
+    "provider-handoff",
+    "visual-hive://provider-handoff",
+    "provider-handoff",
+    "Provider Handoff Manifest",
+    "No-network optional provider artifact handoff eligibility and trusted workflow planning evidence. Read-only; does not upload artifacts or authorize provider API calls.",
+    ".visual-hive/provider-handoff.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_provider_handoff",
+      "Read Provider Handoff Manifest",
+      "Read optional provider artifact handoff evidence without uploading artifacts or making provider API calls.",
+      "visual-hive providers handoff --provider argos",
+      ["Read provider handoff evidence only. Do not upload artifacts, call providers, enable provider gating, or change the Visual Hive verdict."]
+    )
+  ),
+  resource(
     "provider-results",
     "visual-hive://provider-results",
     "provider-results",
