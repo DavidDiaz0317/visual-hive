@@ -24,6 +24,9 @@
       "type": "string",
       "format": "date-time"
     },
+    "outputResource": {
+      "$ref": "#/$defs/outputResource"
+    },
     "deterministicStatus": {
       "enum": [
         "passed",
@@ -92,6 +95,38 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "outputResource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription",
+        "evidenceReadToolName"
+      ],
+      "properties": {
+        "artifactPath": {
+          "const": ".visual-hive/provider-results.json"
+        },
+        "evidenceResourceId": {
+          "const": "provider-results"
+        },
+        "evidenceResourceUri": {
+          "const": "visual-hive://provider-results"
+        },
+        "evidenceResourceTitle": {
+          "type": "string"
+        },
+        "evidenceResourceDescription": {
+          "type": "string"
+        },
+        "evidenceReadToolName": {
+          "const": "visual_hive_read_provider_results"
+        }
+      }
+    },
     "provider": {
       "type": "object",
       "required": [

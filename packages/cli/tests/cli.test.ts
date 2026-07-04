@@ -5539,6 +5539,12 @@ providers:
     const summary = formatProvidersMockSummary(written, result.reportPath);
 
     expect(written.schemaVersion).toBe(1);
+    expect(written.outputResource).toMatchObject({
+      artifactPath: ".visual-hive/provider-results.json",
+      evidenceResourceId: "provider-results",
+      evidenceResourceUri: "visual-hive://provider-results",
+      evidenceReadToolName: "visual_hive_read_provider_results"
+    });
     expect(written.providers.find((provider) => provider.providerId === "storybook")?.result.status).toBe("mock");
     expect(written.providers.find((provider) => provider.providerId === "storybook")?.normalized.storybook?.recommendedCommand).toBe(
       "npm run storybook -- --ci"

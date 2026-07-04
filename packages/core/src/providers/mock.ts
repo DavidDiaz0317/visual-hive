@@ -9,6 +9,7 @@ import {
   type ProviderAdapterOperationResult,
   type ProviderNormalizedMetadata
 } from "./adapter.js";
+import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 
 export interface MockProviderRun {
   providerId: string;
@@ -25,10 +26,20 @@ export interface MockProviderRun {
   warnings: string[];
 }
 
+export interface MockProviderRunReportOutputResource {
+  artifactPath: string;
+  evidenceResourceId: string;
+  evidenceResourceUri: string;
+  evidenceResourceTitle: string;
+  evidenceResourceDescription: string;
+  evidenceReadToolName?: string;
+}
+
 export interface MockProviderRunReport {
   schemaVersion: 1;
   project: string;
   generatedAt: string;
+  outputResource?: MockProviderRunReportOutputResource;
   deterministicStatus: "passed" | "failed";
   artifactCount: number;
   providers: MockProviderRun[];
@@ -84,6 +95,7 @@ export function runMockProviderAdapters(
     schemaVersion: 1,
     project: config.project.name,
     generatedAt,
+    outputResource: catalogedProviderResultsOutputResource(),
     deterministicStatus: input.deterministicStatus,
     artifactCount: input.artifactCount,
     providers,
@@ -97,6 +109,18 @@ export function runMockProviderAdapters(
       failedProviders: providers.filter((provider) => provider.operations.some((operation) => operation.status === "failed")).length
     },
     warnings
+  };
+}
+
+export function catalogedProviderResultsOutputResource(): NonNullable<MockProviderRunReport["outputResource"]> {
+  const resource = getEvidenceResourceById("provider-results");
+  return {
+    artifactPath: ".visual-hive/provider-results.json",
+    evidenceResourceId: resource?.id ?? "provider-results",
+    evidenceResourceUri: resource?.uri ?? "visual-hive://provider-results",
+    evidenceResourceTitle: resource?.title ?? "Provider Results",
+    evidenceResourceDescription: resource?.description ?? "Normalized optional provider readiness, mock result, and upload status evidence.",
+    evidenceReadToolName: resource?.readTool?.name ?? "visual_hive_read_provider_results"
   };
 }
 

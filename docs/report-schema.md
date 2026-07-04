@@ -130,6 +130,8 @@ Schema: `schemas/visual-hive.provider-results.schema.json`
 
 The provider-results artifact is written by `visual-hive providers list --mock-results` after a deterministic run or by `visual-hive providers upload --provider argos`. Mock/list mode exercises the provider adapter lifecycle without making paid-provider or external network calls. Argos upload mode records upload status (`uploaded`, `skipped`, `blocked`, `missing_credentials`, `failed`, or `dry_run`), external call count, staged/uploaded artifact counts, sanitized command/stdout/stderr excerpts, and an optional provider URL. Each provider row records availability, upload/compare/fetch/normalize/metadata operations where applicable, normalized provider status, missing credential names, warnings, sanitized artifact paths, network mode, upload mode, local artifact counts, and provider-specific normalized metadata. Provider output is supplemental unless the config explicitly marks a normalized provider result as gating for a trusted lane.
 
+Newly generated provider-results artifacts include `outputResource` with the catalog identity `.visual-hive/provider-results.json`, `visual-hive://provider-results`, and `visual_hive_read_provider_results`. Reading this resource does not enable credentials, upload screenshots, make external calls, change provider gating, or override the Visual Hive verdict.
+
 ## Provider Upload Manifest
 
 Path: `.visual-hive/provider-upload/argos/manifest.json`
