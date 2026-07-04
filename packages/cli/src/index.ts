@@ -1044,6 +1044,8 @@ program
   .command("artifacts")
   .description("Index .visual-hive artifacts with safe classifications and sanitized previews")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--repo <path>", "repository root to index when a Visual Hive config is not available")
+  .option("--project <name>", "project name to use with --repo; defaults to the repository directory name")
   .option("--max-artifacts <count>", "maximum artifact entries to index", (value) => Number.parseInt(value, 10))
   .option("--max-preview-bytes <count>", "maximum bytes to preview for text-like artifacts", (value) => Number.parseInt(value, 10))
   .option("--format <format>", "markdown or json", "markdown")
@@ -1051,6 +1053,8 @@ program
     try {
       const result = await runArtifactsCommand({
         config: options.config,
+        repo: options.repo,
+        project: options.project,
         maxArtifacts: options.maxArtifacts,
         maxPreviewBytes: options.maxPreviewBytes,
         format: options.format

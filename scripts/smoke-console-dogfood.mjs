@@ -32,6 +32,14 @@ await requireFile(path.join(fixturesDir, "docs-only-changed-files.txt"), "docs-o
 
 const commands = [
   step("recommend-setup", ["recommend", "--repo", ".", "--profile", "complex-app"], consoleRoot),
+  step("artifacts-setup-root", ["artifacts", "--repo", ".", "--project", "console"], consoleRoot),
+  {
+    label: "setup-evidence-resource-check",
+    executable: process.execPath,
+    args: [checkerPath, "--root", consoleRoot, "--profile", "general"],
+    cwd: repoRoot,
+    timeoutMs: DEFAULT_TIMEOUT_MS
+  },
   step("doctor", ["doctor", "--config", configPath], consoleRoot),
   step("plan-auth", [
     "plan",

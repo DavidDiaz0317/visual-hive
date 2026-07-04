@@ -1711,6 +1711,52 @@ contracts:
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
   });
 
+  it("artifacts indexes setup evidence before a config exists", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-artifacts-repo-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(tempRoot, ".visual-hive", "recommendations.json"), {
+      schemaVersion: 1,
+      project: "setup-only",
+      outputResource: {
+        evidenceResourceId: "setup-recommendations",
+        evidenceResourceUri: "visual-hive://setup-recommendations",
+        artifactPath: ".visual-hive/recommendations.json",
+        evidenceReadToolName: "visual_hive_read_setup_recommendations"
+      }
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "setup-pr-plan.json"), {
+      schemaVersion: 1,
+      project: "setup-only",
+      summary: { externalCallsMade: 0 },
+      outputResource: {
+        evidenceResourceId: "setup-pr-plan",
+        evidenceResourceUri: "visual-hive://setup-pr-plan",
+        artifactPath: ".visual-hive/setup-pr-plan.json",
+        evidenceReadToolName: "visual_hive_read_setup_pr_plan"
+      }
+    });
+
+    const result = await runArtifactsCommand({ cwd: repoRoot, repo: tempRoot, project: "setup-only" });
+    const written = await readJson<typeof result.index>(result.indexPath);
+    const summary = formatArtifactsIndex(written, result.indexPath);
+
+    expect(written.project).toBe("setup-only");
+    expect(written.artifacts.find((artifact) => artifact.path === ".visual-hive/recommendations.json")).toMatchObject({
+      evidenceResourceId: "setup-recommendations",
+      evidenceResourceUri: "visual-hive://setup-recommendations",
+      evidenceReadToolName: "visual_hive_read_setup_recommendations",
+      labels: expect.arrayContaining(["evidence-resource", "setup-recommendations"])
+    });
+    expect(written.artifacts.find((artifact) => artifact.path === ".visual-hive/setup-pr-plan.json")).toMatchObject({
+      evidenceResourceId: "setup-pr-plan",
+      evidenceResourceUri: "visual-hive://setup-pr-plan",
+      evidenceReadToolName: "visual_hive_read_setup_pr_plan",
+      labels: expect.arrayContaining(["evidence-resource", "setup-pr-plan"])
+    });
+    expect(summary).toContain("Artifact Index: setup-only");
+  });
+
   it("writes Hive handoff dry-run artifacts from an Evidence Packet", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-handoff-"));
     tempDirs.push(tempRoot);

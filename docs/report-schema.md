@@ -514,7 +514,7 @@ Path: `.visual-hive/artifacts-index.json`
 
 Schema: `schemas/visual-hive.artifacts.schema.json`
 
-The artifact index inventories files under `.visual-hive`, classifies renderable artifacts, and stores sanitized previews for text-like files. Image files are linked for rendering through the Control Plane image endpoint, while JSON, Markdown, logs, YAML, text, and generated specs receive redacted previews.
+The artifact index inventories files under `.visual-hive`, classifies renderable artifacts, and stores sanitized previews for text-like files. Image files are linked for rendering through the Control Plane image endpoint, while JSON, Markdown, logs, YAML, text, and generated specs receive redacted previews. `visual-hive artifacts --repo <path>` can index setup artifacts before a `visual-hive.config.yaml` exists, which keeps `.visual-hive/recommendations.json` and `.visual-hive/setup-pr-plan.json` catalog-backed during first-time onboarding.
 
 Known evidence artifacts also carry shared resource metadata from the core evidence-resource catalog: `evidenceResourceId`, `evidenceResourceUri`, `evidenceResourceTitle`, `evidenceResourceDescription`, and `evidenceReadToolName`. These entries include the labels `evidence-resource` and the catalog resource ID, such as `latest-evidence`, `provider-results`, or `provider-upload-argos-manifest`, while preserving existing path-derived labels for compatibility. These fields keep the artifact index, Control Plane artifact browser, MCP manifest, MCP read tools, Agent Packet, and Tool Registry aligned around the same resource identity instead of duplicating path and tool names in each package.
 

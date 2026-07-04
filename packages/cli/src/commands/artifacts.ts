@@ -7,16 +7,20 @@ export interface ArtifactsCommandOptions {
   format?: "markdown" | "json";
   maxArtifacts?: number;
   maxPreviewBytes?: number;
+  project?: string;
+  repo?: string;
 }
 
 export async function runArtifactsCommand(options: ArtifactsCommandOptions = {}): Promise<{ index: ArtifactIndexReport; indexPath: string }> {
   const cwd = options.cwd ?? process.cwd();
-  const loaded = await loadConfig(options.config, cwd);
-  const hiveRoot = path.join(loaded.rootDir, ".visual-hive");
+  const loaded = options.repo ? undefined : await loadConfig(options.config, cwd);
+  const repoRoot = options.repo ? path.resolve(cwd, options.repo) : loaded!.rootDir;
+  const project = options.project ?? loaded?.config.project.name ?? path.basename(repoRoot);
+  const hiveRoot = path.join(repoRoot, ".visual-hive");
   const index = await indexArtifacts({
-    repoRoot: loaded.rootDir,
+    repoRoot,
     hiveRoot,
-    project: loaded.config.project.name,
+    project,
     maxArtifacts: options.maxArtifacts,
     maxPreviewBytes: options.maxPreviewBytes
   });
