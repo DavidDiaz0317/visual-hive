@@ -2717,6 +2717,9 @@ describe("control plane", () => {
     const schema = JSON.parse(await readFile(path.join(sourceRepoRoot, "schemas", "visual-hive.control-plane-snapshot.schema.json"), "utf8")) as Record<string, unknown>;
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
     expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true);
+    expect(snapshot.safetyBoundary).toContain("does not repair code");
+    expect(snapshot.safetyBoundary).toContain("create branches");
+    expect(snapshot.safetyBoundary).toContain("open pull requests");
     expect(snapshot.overview.deterministicStatus).toBe("passed");
     expect(snapshot.overview.visualHiveVerdict).toBe("failed");
     expect(snapshot.overview.gatingContributions).toBe(2);

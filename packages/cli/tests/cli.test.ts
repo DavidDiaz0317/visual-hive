@@ -410,6 +410,7 @@ mutation:
     const demoExhaustiveOutput = runDemoSuiteDryRun("exhaustive");
     expect(packageJson.scripts["demo:all"]).toBe("node scripts/run-demo-suite.mjs all");
     expect(packageJson.scripts["demo:ci"]).toBe("node scripts/run-demo-suite.mjs ci");
+    expect(packageJson.scripts["demo:full-run"]).toBe("node scripts/run-demo-full-tool-suite.mjs");
     expect(packageJson.scripts["demo:list"]).toBe("node scripts/run-demo-suite.mjs --list");
     expect(packageJson.scripts["schema:verify"]).toBe("node packages/cli/dist/index.js schemas verify --output .visual-hive/schema-catalog.json");
     expect(packageJson.scripts["smoke:console:run"]).toBe("node scripts/smoke-console-local-preview.mjs");
@@ -504,6 +505,16 @@ mutation:
     expect(packageJson.scripts["demo:connections"]).toContain("--write");
     expect(packageJson.scripts["demo:artifacts"]).toContain("artifacts --config");
     expect(packageJson.scripts["demo:evidence-resources"]).toBe("node scripts/check-demo-evidence-resources.mjs");
+    const fullRunScript = await readFile(path.join(repoRoot, "scripts", "run-demo-full-tool-suite.mjs"), "utf8");
+    const issueDryRunScript = await readFile(path.join(repoRoot, "scripts", "check-handoff-issue-dry-run.mjs"), "utf8");
+    expect(fullRunScript).toContain("visual-hive.full-demo-summary.v1");
+    expect(fullRunScript).toContain("full-demo-summary.json");
+    expect(fullRunScript).toContain("full-demo-summary.md");
+    expect(fullRunScript).toContain("demo:e2e:handoff-dry-run");
+    expect(issueDryRunScript).toContain("blocked_artifacts");
+    expect(fullRunScript).toContain("assertFreshAfterSeededDefect");
+    expect(fullRunScript).toContain("Setup/repo intelligence");
+    expect(fullRunScript).toContain("KubeStellar planning smoke");
     expect(packageJson.scripts["demo:evidence"]).toContain("evidence --config");
     expect(packageJson.scripts["demo:layers"]).toContain("layers --config");
     expect(demoAllOutput.indexOf("demo:evidence")).toBeLessThan(demoAllOutput.indexOf("demo:layers"));

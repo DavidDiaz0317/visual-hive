@@ -65,13 +65,16 @@ npm run build
 npm test
 npm run demo:all
 npm run demo:ci
+npm run demo:full-run
 npm run smoke:cli
 npm run ui:build
 npm run smoke:ui
 npm run smoke:ui:browser
 ```
 
-`demo:all` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. It is the normal bounded acceptance path: it builds and inspects the demo app, writes PR/canary/full-safe plans, seeds local baselines when needed, runs the end-to-end operational pipeline in CI verification mode, then emits the provider, LLM, Evidence Packet, Verdict, Hive handoff, Hive native export, main Agent Packet, handoff-agent Agent Packet, provider-specialist Agent Packet, tool registry, KubeStellar planning, schema catalog, Control Plane snapshot, artifact index, persisted evidence-resource consistency check, and read-only Control Plane smoke evidence that the UI consumes. The schema catalog is generated before the Control Plane snapshot so the persisted snapshot includes schema/resource drift health, not only the live UI endpoint. The evidence-resource consistency check verifies that Context Ledger, Control Plane snapshot, artifact index, MCP manifest, and role-specific Agent Packets agree on catalog-backed resource IDs, URIs, paths, and read tools for generated demo evidence. The same checker also has a generic mode used by KubeStellar planning artifacts, consumer-install smoke output, and real-console dogfood setup output, so catalog-backed evidence identity is exercised outside the built-in demo app. `demo:ci` uses the same acceptance sequence and is safe for clean CI workspaces because it seeds deterministic local baselines before strict verification.
+`demo:e2e` is the focused proof that the demo app can pass cleanly, catch a seeded public-demo login regression, restore clean artifacts, prove mutation evidence, and produce a Hive issue dry-run. `demo:ci` is the standard bounded acceptance suite used by PR CI. `demo:full-run` is the complete tool-surface acceptance proof: it runs all major demo categories, verifies cross-artifact freshness, writes `examples/demo-react-app/.visual-hive/full-demo-summary.json` and `.md`, and is exercised by the read-only scheduled/manual `visual-hive-full-demo.yml` workflow.
+
+`demo:all`, `demo:ci`, and `demo:full-run` may create ignored baselines under `examples/demo-react-app/.visual-hive/snapshots` on the first local run. `demo:ci` is safe for clean CI workspaces because it seeds deterministic local baselines before strict verification. `demo:full-run` also proves the no-network/no-repair boundary: external calls, issue dry-run network calls, source mutations, repair branches/PRs, and local GitHub issues must all remain zero.
 
 The aggregate demo commands are intentionally run through `scripts/run-demo-suite.mjs`, which gives every step an explicit timeout and kills the child process tree if a tool stalls. Use `npm run demo:list` to inspect the suites, run smaller bounded slices with `npm run demo:acceptance:core`, `npm run demo:acceptance:governance`, `npm run demo:acceptance:agent`, and `npm run demo:acceptance:portfolio`, or run the longer command-by-command sweep with `npm run demo:acceptance:exhaustive`. `smoke:ui` checks the served bundle and snapshot API; `smoke:ui:browser` launches Chromium and verifies the rendered guided cockpit, verdict panel, Review navigation, and Expert evidence disclosure.
 

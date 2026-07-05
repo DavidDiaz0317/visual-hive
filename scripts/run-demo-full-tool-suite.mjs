@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { clearTimeout, setTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,8 @@ const demoRoot = path.join(repoRoot, "examples", "demo-react-app");
 const demoHive = path.join(demoRoot, ".visual-hive");
 const kubestellarRoot = path.join(repoRoot, "examples", "kubestellar-console");
 const kubestellarHive = path.join(kubestellarRoot, ".visual-hive");
+const summaryJsonPath = path.join(demoHive, "full-demo-summary.json");
+const summaryMarkdownPath = path.join(demoHive, "full-demo-summary.md");
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const TIMEOUTS_BY_SCRIPT = {
@@ -24,6 +26,87 @@ const TIMEOUTS_BY_SCRIPT = {
   "demo:kubestellar": 180_000,
   "smoke:ui": 120_000,
   "smoke:ui:browser": 180_000
+};
+
+const ARTIFACTS_BY_SECTION = {
+  "Setup/repo intelligence": [".visual-hive/repo-map.json", ".visual-hive/repo-context.md", ".visual-hive/recommendations.json"],
+  Planning: [".visual-hive/plan.json", ".visual-hive/plan.canary.json", ".visual-hive/plan.full.json", ".visual-hive/plans.json"],
+  "Clean deterministic run": [".visual-hive/report.json", ".visual-hive/baselines.json"],
+  "Seeded defect proof": [
+    ".visual-hive/report.json",
+    ".visual-hive/triage.json",
+    ".visual-hive/evidence-packet.json",
+    ".visual-hive/handoff.json",
+    ".visual-hive/hive-issue.md",
+    ".visual-hive/test-creation-plan.json"
+  ],
+  "Mutation adequacy": [".visual-hive/mutation-report.json"],
+  "Coverage/test maintenance": [
+    ".visual-hive/coverage.json",
+    ".visual-hive/coverage-recommendations.json",
+    ".visual-hive/flows.json",
+    ".visual-hive/targets.json",
+    ".visual-hive/contracts.json",
+    ".visual-hive/schedules.json"
+  ],
+  "Governance/provider/safety": [
+    ".visual-hive/workflows.json",
+    ".visual-hive/provider-results.json",
+    ".visual-hive/provider-setup-plan.json",
+    ".visual-hive/provider-handoff.json",
+    ".visual-hive/provider-upload/argos/manifest.json",
+    ".visual-hive/risk.json",
+    ".visual-hive/security.json",
+    ".visual-hive/costs.json",
+    ".visual-hive/readiness.json",
+    ".visual-hive/setup-progress.json",
+    ".visual-hive/runbook.json"
+  ],
+  "Evidence/verdict/triage": [
+    ".visual-hive/triage.json",
+    ".visual-hive/llm-usage.json",
+    ".visual-hive/evidence-packet.json",
+    ".visual-hive/testing-layers.json",
+    ".visual-hive/verdict.json"
+  ],
+  "Hive handoff/resource sharing": [
+    ".visual-hive/handoff.json",
+    ".visual-hive/hive-issue.md",
+    ".visual-hive/hive-bead-request.json",
+    ".visual-hive/hive-handoff-result.json",
+    ".visual-hive/hive-handoff-validation.json",
+    ".visual-hive/hive/hive-export.json",
+    ".visual-hive/hive/beads.json",
+    ".visual-hive/hive/knowledge-facts.json",
+    ".visual-hive/hive/knowledge-graph.json",
+    ".visual-hive/hive/wiki-index.json",
+    ".visual-hive/hive/repair-work-orders.json",
+    ".visual-hive/hive/hive-agent-policy.json",
+    ".visual-hive/hive/guarded-repair-preview.json",
+    ".visual-hive/hive/repair-request-envelope.json",
+    ".visual-hive/hive/trusted-repair-consumer-summary.json",
+    ".visual-hive/hive/trusted-repair-workflow-dry-run.json",
+    ".visual-hive/hive-issue-dry-run.json"
+  ],
+  "Agent packets/tools/MCP/context": [
+    ".visual-hive/test-creation-plan.json",
+    ".visual-hive/agent-packet.json",
+    ".visual-hive/handoff-agent-packet.json",
+    ".visual-hive/provider-agent-packet.json",
+    ".visual-hive/tools/tool-registry.json",
+    ".visual-hive/mcp-manifest.json",
+    ".visual-hive/context-ledger.json",
+    ".visual-hive/schema-catalog.json"
+  ],
+  "Control Plane/UI": [".visual-hive/control-plane-snapshot.json", ".visual-hive/artifacts-index.json"],
+  "KubeStellar planning smoke": [
+    "examples/kubestellar-console/.visual-hive/plan.auth.json",
+    "examples/kubestellar-console/.visual-hive/plan.cluster.json",
+    "examples/kubestellar-console/.visual-hive/plan.docs.json",
+    "examples/kubestellar-console/.visual-hive/plan.schedule.json",
+    "examples/kubestellar-console/.visual-hive/plans.json",
+    "examples/kubestellar-console/.visual-hive/artifacts-index.json"
+  ]
 };
 
 const sections = [
@@ -108,11 +191,13 @@ const metrics = {
 };
 
 const results = [];
+let seededDefectGeneratedAtMs = 0;
 
 console.log("[demo:full-run] starting complete Visual Hive demo tool-suite acceptance run");
 
 for (const currentSection of sections) {
   console.log(`\n[demo:full-run] ${currentSection.name}`);
+  const sectionStartedAt = Date.now();
   try {
     for (const scriptName of currentSection.scripts) {
       await runScript(scriptName);
@@ -121,11 +206,24 @@ for (const currentSection of sections) {
     if (currentSection.after) {
       await currentSection.after();
     }
-    results.push({ name: currentSection.name, status: "pass" });
+    results.push({
+      name: currentSection.name,
+      status: "pass",
+      commandsRun: currentSection.scripts,
+      artifactsChecked: currentSection.artifactsChecked,
+      durationMs: Date.now() - sectionStartedAt
+    });
     console.log(`[demo:full-run] ${currentSection.name}: pass`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    results.push({ name: currentSection.name, status: "fail", message });
+    results.push({
+      name: currentSection.name,
+      status: "fail",
+      commandsRun: currentSection.scripts,
+      artifactsChecked: currentSection.artifactsChecked,
+      durationMs: Date.now() - sectionStartedAt,
+      message
+    });
     console.error(`[demo:full-run] ${currentSection.name}: fail`);
     console.error(message);
     await printFinalSummary("FAIL");
@@ -137,15 +235,42 @@ await verifyFinalMetrics();
 await printFinalSummary("PASS");
 
 function section(name, scripts, verify, after) {
-  return { name, scripts, verify, after };
+  return { name, scripts, verify, after, artifactsChecked: ARTIFACTS_BY_SECTION[name] ?? [] };
 }
 
 async function restoreCleanArtifacts() {
   console.log("[demo:full-run] restoring clean demo artifacts after seeded defect proof");
-  for (const scriptName of ["demo:plan", "demo:run:seed", "demo:run:ci"]) {
+  for (const scriptName of [
+    "demo:plan",
+    "demo:run:seed",
+    "demo:run:ci",
+    "demo:baselines",
+    "demo:mutate",
+    "demo:coverage",
+    "demo:triage",
+    "demo:evidence",
+    "demo:layers",
+    "demo:verdict",
+    "demo:handoff",
+    "demo:handoff-validate",
+    "demo:test-creation",
+    "demo:snapshot",
+    "demo:artifacts"
+  ]) {
     await runScript(scriptName);
   }
   await verifyCleanRun();
+  await assertFreshAfterSeededDefect("report.json", "clean report");
+  await assertFreshAfterSeededDefect("mutation-report.json", "clean mutation report");
+  await assertFreshAfterSeededDefect("coverage.json", "clean coverage report");
+  await assertFreshAfterSeededDefect("triage.json", "clean triage report");
+  await assertFreshAfterSeededDefect("evidence-packet.json", "clean Evidence Packet");
+  await assertFreshAfterSeededDefect("verdict.json", "clean verdict report");
+  await assertFreshAfterSeededDefect("handoff.json", "clean handoff packet");
+  await assertFreshAfterSeededDefect("hive-handoff-validation.json", "clean handoff validation");
+  await assertFreshAfterSeededDefect("test-creation-plan.json", "clean test creation plan");
+  await assertFreshAfterSeededDefect("control-plane-snapshot.json", "clean Control Plane snapshot");
+  await assertFreshAfterSeededDefect("artifacts-index.json", "clean artifact index");
 }
 
 async function verifySetup() {
@@ -189,6 +314,7 @@ async function verifyPlanning() {
 async function verifyCleanRun() {
   const report = await readDemoJson("report.json");
   assert(report.status === "passed", `clean deterministic report status must be passed, got ${report.status}.`);
+  assert(!JSON.stringify(report).includes("seeded-force-login-public-demo"), "clean report must not include seeded defect contract evidence.");
   assert(report.outputResource, "report.json must include outputResource metadata.");
   assert(nonEmptyArray(report.selectedContracts), "report must include selected contracts.");
   assert(nonEmptyArray(report.results), "report must include per-contract results.");
@@ -211,12 +337,15 @@ async function verifySeededDefect() {
   const issue = await readDemoText("hive-issue.md");
   const reportText = JSON.stringify(report);
   assert(report.status === "failed", `seeded defect report status must be failed, got ${report.status}.`);
+  assert(!reportText.includes("target_startup_failure"), "seeded defect must not fail because of target startup infrastructure.");
+  assert(!reportText.includes("environment_failure"), "seeded defect must not fail because of environment infrastructure.");
   assert(reportText.includes("seeded-force-login-public-demo"), "seeded defect report must include seeded-force-login-public-demo.");
   assert(evidence.verdictSummary?.visualHiveVerdict === "failed", "seeded defect Evidence Packet verdict must be failed.");
   assert(nonEmptyArray(triage.findings), "seeded defect triage must include findings.");
   assert(handoff.externalCallsMade === 0, "seeded defect handoff must remain no-network.");
   assert(nonEmptyArray(testCreation.recommendations), "seeded defect must produce test-creation context.");
   assert(issue.includes("Visual Hive") && issue.includes("seeded-force-login-public-demo"), "seeded defect issue body must include Visual Hive context.");
+  seededDefectGeneratedAtMs = timestampMs(report.generatedAt);
   metrics.seededDefects += 1;
 }
 
@@ -388,6 +517,12 @@ async function verifyAgentTooling() {
   assert(nonEmptyArray(tools.tools), "Tool Registry must include tools.");
   assert(nonEmptyArray(mcp.resources) && nonEmptyArray(mcp.tools), "MCP manifest must include resources and read tools.");
   assert(nonEmptyArray(context.toolCalls) || context.sourceArtifacts, "Context Ledger must include tool/evidence context.");
+  assert(JSON.stringify(context).includes("evidenceResources"), "Context Ledger must include evidenceResources links.");
+  const mcpToolIds = new Set(mcp.tools.map((tool) => tool.name ?? tool.id));
+  assert(
+    mcp.resources.every((resource) => !resource.readToolName || mcpToolIds.has(resource.readToolName)),
+    "MCP resources with read tools must align with the MCP read-tool catalog."
+  );
   assert(schemas.summary?.failed === 0 || schemas.failed === 0, "schema verification must pass.");
   metrics.agentPackets += 3;
   metrics.mcpManifests += 1;
@@ -472,6 +607,7 @@ async function collectExternalCallsFromLatestArtifacts() {
 }
 
 async function printFinalSummary(result) {
+  const summary = await writeFullDemoSummary(result);
   console.log("\n=== Visual Hive Full Demo Summary ===");
   const byName = new Map(results.map((entry) => [entry.name, entry]));
   for (const name of sections.map((entry) => entry.name)) {
@@ -482,10 +618,82 @@ async function printFinalSummary(result) {
     }
   }
   console.log(`- External calls made by local/default path: ${metrics.externalCallsMade}`);
+  console.log(`- Network calls made by issue dry-run: ${metrics.networkCallsMade}`);
   console.log(`- Source mutations in demo path: ${metrics.sourceMutations}`);
   console.log(`- Repair branches/PRs created by Visual Hive: ${metrics.repairBranchesOrPrsCreated}`);
   console.log(`- Real GitHub issues created locally: ${metrics.realGithubIssuesCreated}`);
   console.log(`- Result: ${result}`);
+  console.log(`- Summary JSON: ${path.relative(repoRoot, summaryJsonPath).replaceAll("\\", "/")}`);
+  console.log(`- Summary Markdown: ${path.relative(repoRoot, summaryMarkdownPath).replaceAll("\\", "/")}`);
+  return summary;
+}
+
+async function writeFullDemoSummary(finalResult) {
+  const summary = {
+    schemaVersion: "visual-hive.full-demo-summary.v1",
+    generatedAt: new Date().toISOString(),
+    project: "demo-react-app",
+    headSha: await getGitHeadSha(),
+    sections: sections.map((currentSection) => {
+      const result = results.find((entry) => entry.name === currentSection.name);
+      return {
+        name: currentSection.name,
+        status: result?.status ?? "fail",
+        commandsRun: result?.commandsRun ?? currentSection.scripts,
+        artifactsChecked: result?.artifactsChecked ?? currentSection.artifactsChecked,
+        durationMs: result?.durationMs ?? 0,
+        ...(result?.message ? { failureMessage: result.message } : result ? {} : { failureMessage: "Section did not run." })
+      };
+    }),
+    metrics: { ...metrics },
+    finalResult,
+    safety: {
+      visualHiveDoesNotRepairCode: true,
+      visualHiveDoesNotCreateBranches: true,
+      visualHiveDoesNotOpenPullRequests: true,
+      localRunDoesNotCreateGitHubIssues: true,
+      localRunDoesNotCallHiveApi: true,
+      localRunDoesNotCallLlm: true,
+      localRunDoesNotCallPaidProvider: true
+    }
+  };
+  await mkdir(demoHive, { recursive: true });
+  await writeFile(summaryJsonPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  await writeFile(summaryMarkdownPath, renderSummaryMarkdown(summary), "utf8");
+  return summary;
+}
+
+function renderSummaryMarkdown(summary) {
+  const lines = [
+    "# Visual Hive Full Demo Summary",
+    "",
+    `- Project: ${summary.project}`,
+    `- Final result: ${summary.finalResult}`,
+    `- Generated: ${summary.generatedAt}`,
+    `- Head SHA: ${summary.headSha ?? "unknown"}`,
+    "",
+    "## Sections",
+    "",
+    "| Section | Status | Commands | Artifacts | Duration |",
+    "| --- | --- | ---: | ---: | ---: |",
+    ...summary.sections.map(
+      (entry) => `| ${entry.name} | ${entry.status} | ${entry.commandsRun.length} | ${entry.artifactsChecked.length} | ${entry.durationMs}ms |`
+    ),
+    "",
+    "## Metrics",
+    "",
+    ...Object.entries(summary.metrics).map(([key, value]) => `- ${key}: ${value}`),
+    "",
+    "## Safety",
+    "",
+    ...Object.entries(summary.safety).map(([key, value]) => `- ${key}: ${value}`)
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+async function getGitHeadSha() {
+  const result = await runCapture({ label: "git-head", executable: "git", args: ["rev-parse", "HEAD"], timeoutMs: 10_000 });
+  return result.status === 0 ? result.stdout.trim() : undefined;
 }
 
 async function runScript(scriptName) {
@@ -550,6 +758,48 @@ function runStep(step) {
   });
 }
 
+function runCapture(step) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(step.executable, step.args, {
+      cwd: repoRoot,
+      windowsHide: true,
+      detached: process.platform !== "win32"
+    });
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    const timer = setTimeout(async () => {
+      timedOut = true;
+      await killProcessTree(child);
+    }, step.timeoutMs);
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        resolve({ status: 1, stdout, stderr: `${stderr}${error.message}` });
+      }
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        resolve({ status: timedOut ? 124 : code ?? 1, stdout, stderr });
+      }
+    });
+  });
+}
+
 async function killProcessTree(child) {
   if (!child.pid) return;
   if (process.platform === "win32") {
@@ -587,6 +837,19 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function assertFreshAfterSeededDefect(relativePath, label) {
+  if (!seededDefectGeneratedAtMs) return;
+  const artifact = await readDemoJson(relativePath);
+  const generatedAtMs = timestampMs(artifact.generatedAt);
+  assert(generatedAtMs > seededDefectGeneratedAtMs, `${label} must be regenerated after seeded defect proof.`);
+}
+
+function timestampMs(value) {
+  const parsed = Date.parse(String(value ?? ""));
+  assert(Number.isFinite(parsed), `Artifact timestamp is missing or invalid: ${value ?? "missing"}.`);
+  return parsed;
 }
 
 function nonEmptyArray(value) {
