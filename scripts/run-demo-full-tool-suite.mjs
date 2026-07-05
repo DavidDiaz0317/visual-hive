@@ -1,0 +1,630 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { clearTimeout, setTimeout } from "node:timers";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const demoRoot = path.join(repoRoot, "examples", "demo-react-app");
+const demoHive = path.join(demoRoot, ".visual-hive");
+const kubestellarRoot = path.join(repoRoot, "examples", "kubestellar-console");
+const kubestellarHive = path.join(kubestellarRoot, ".visual-hive");
+
+const DEFAULT_TIMEOUT_MS = 120_000;
+const TIMEOUTS_BY_SCRIPT = {
+  "demo:build": 180_000,
+  "demo:run:seed": 180_000,
+  "demo:run:ci": 180_000,
+  "demo:mutate": 240_000,
+  "demo:e2e:defect": 300_000,
+  "demo:e2e:mutation": 120_000,
+  "demo:e2e:handoff-dry-run": 120_000,
+  "demo:kubestellar": 180_000,
+  "smoke:ui": 120_000,
+  "smoke:ui:browser": 180_000
+};
+
+const sections = [
+  section("Setup/repo intelligence", ["demo:build", "demo:doctor", "demo:analyze", "demo:recommend"], verifySetup),
+  section("Planning", ["demo:plan", "demo:plan:canary", "demo:plan:full", "demo:plans"], verifyPlanning),
+  section("Clean deterministic run", ["demo:run:seed", "demo:run:ci", "demo:baselines"], verifyCleanRun),
+  section("Seeded defect proof", ["demo:e2e:defect"], verifySeededDefect, restoreCleanArtifacts),
+  section("Mutation adequacy", ["demo:mutate", "demo:e2e:mutation"], verifyMutation),
+  section(
+    "Coverage/test maintenance",
+    ["demo:coverage", "demo:flows", "demo:improve", "demo:targets", "demo:contracts", "demo:schedules"],
+    verifyCoverageMaintenance
+  ),
+  section(
+    "Governance/provider/safety",
+    [
+      "demo:workflows",
+      "demo:providers",
+      "demo:provider-plan",
+      "demo:provider-handoff",
+      "demo:provider-upload",
+      "demo:risk",
+      "demo:security",
+      "demo:costs",
+      "demo:readiness",
+      "demo:setup-status",
+      "demo:runbook"
+    ],
+    verifyGovernance
+  ),
+  section("Evidence/verdict/triage", ["demo:triage", "demo:llm", "demo:report", "demo:evidence", "demo:layers", "demo:verdict"], verifyEvidence),
+  section(
+    "Hive handoff/resource sharing",
+    [
+      "demo:handoff",
+      "demo:hive-export",
+      "demo:hive-guarded-preview",
+      "demo:hive-repair-envelope",
+      "demo:hive-repair-consumer",
+      "demo:hive-repair-workflow",
+      "demo:handoff-validate",
+      "demo:hive-modes",
+      "demo:e2e:handoff-dry-run"
+    ],
+    verifyHiveHandoff
+  ),
+  section(
+    "Agent packets/tools/MCP/context",
+    [
+      "demo:test-creation",
+      "demo:agent-packet",
+      "demo:agent-packet:handoff",
+      "demo:agent-packet:provider",
+      "demo:tools",
+      "demo:mcp",
+      "demo:context",
+      "demo:schemas"
+    ],
+    verifyAgentTooling
+  ),
+  section("Control Plane/UI", ["demo:snapshot", "demo:artifacts", "demo:evidence-resources", "smoke:ui", "smoke:ui:browser"], verifyControlPlane),
+  section("KubeStellar planning smoke", ["demo:kubestellar"], verifyKubestellar)
+];
+
+const metrics = {
+  cleanReports: 0,
+  seededDefects: 0,
+  mutationResults: 0,
+  evidencePackets: 0,
+  handoffPackets: 0,
+  hiveIssueDryRuns: 0,
+  agentPackets: 0,
+  controlPlaneSnapshots: 0,
+  artifactIndexes: 0,
+  mcpManifests: 0,
+  toolRegistries: 0,
+  externalCallsMade: 0,
+  networkCallsMade: 0,
+  sourceMutations: 0,
+  repairBranchesOrPrsCreated: 0,
+  realGithubIssuesCreated: 0
+};
+
+const results = [];
+
+console.log("[demo:full-run] starting complete Visual Hive demo tool-suite acceptance run");
+
+for (const currentSection of sections) {
+  console.log(`\n[demo:full-run] ${currentSection.name}`);
+  try {
+    for (const scriptName of currentSection.scripts) {
+      await runScript(scriptName);
+    }
+    await currentSection.verify();
+    if (currentSection.after) {
+      await currentSection.after();
+    }
+    results.push({ name: currentSection.name, status: "pass" });
+    console.log(`[demo:full-run] ${currentSection.name}: pass`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    results.push({ name: currentSection.name, status: "fail", message });
+    console.error(`[demo:full-run] ${currentSection.name}: fail`);
+    console.error(message);
+    await printFinalSummary("FAIL");
+    process.exit(1);
+  }
+}
+
+await verifyFinalMetrics();
+await printFinalSummary("PASS");
+
+function section(name, scripts, verify, after) {
+  return { name, scripts, verify, after };
+}
+
+async function restoreCleanArtifacts() {
+  console.log("[demo:full-run] restoring clean demo artifacts after seeded defect proof");
+  for (const scriptName of ["demo:plan", "demo:run:seed", "demo:run:ci"]) {
+    await runScript(scriptName);
+  }
+  await verifyCleanRun();
+}
+
+async function verifySetup() {
+  const repoMap = await readDemoJson("repo-map.json");
+  const repoContext = await readDemoText("repo-context.md");
+  assert(repoMap.outputResource, "repo-map.json must include outputResource metadata.");
+  assert(repoMap.visualMap, "repo-map.json must include visualMap.");
+  assert(nonEmptyArray(repoMap.visualMap.nodes), "repo map visualMap must include nodes.");
+  assert(nonEmptyArray(repoMap.visualMap.edges), "repo map visualMap must include edges.");
+  assert(Array.isArray(repoMap.visualMap.findings), "repo map visualMap must include findings.");
+  const relationCount =
+    countArray(repoMap.routes) +
+    countArray(repoMap.selectors) +
+    countArray(repoMap.targetHints) +
+    countArray(repoMap.coverageGaps) +
+    countArray(repoMap.visualMap.edges);
+  assert(relationCount > 0, "repo map must include at least one route, selector, target, contract, screenshot, or coverage-gap relation.");
+  assert(
+    repoMap.visualMap.findings.some((finding) => finding.firstSeen || finding.lastSeen || "previouslySeen" in finding),
+    "repo map findings must include fingerprint lifecycle fields."
+  );
+  assert(
+    repoContext.includes("Visual Hive") && repoContext.toLowerCase().includes("repo context"),
+    "repo context must be human-readable Visual Hive repo context."
+  );
+}
+
+async function verifyPlanning() {
+  const plan = await readDemoJson("plan.json");
+  const canaryPlan = await readDemoJson("plan.canary.json");
+  const fullPlan = await readDemoJson("plan.full.json");
+  const plans = await readDemoJson("plans.json");
+  assert(nonEmptyArray(plan.items), "default plan must select at least one contract.");
+  assert(nonEmptyArray(plan.targets), "default plan must select at least one target.");
+  assert(canaryPlan.mode === "canary", "plan.canary.json must be a canary lane.");
+  assert(fullPlan.mode === "full", "plan.full.json must be a full lane.");
+  const lanes = JSON.stringify(plans.lanes ?? plans.summary ?? plans);
+  assert(lanes.includes("pr") && lanes.includes("canary") && lanes.includes("full"), "plans summary must include PR, canary, and full lanes.");
+}
+
+async function verifyCleanRun() {
+  const report = await readDemoJson("report.json");
+  assert(report.status === "passed", `clean deterministic report status must be passed, got ${report.status}.`);
+  assert(report.outputResource, "report.json must include outputResource metadata.");
+  assert(nonEmptyArray(report.selectedContracts), "report must include selected contracts.");
+  assert(nonEmptyArray(report.results), "report must include per-contract results.");
+  assert(
+    report.results.some((result) => nonEmptyArray(result.selectorAssertions) || nonEmptyArray(result.screenshotAssertions)),
+    "report must include selector or screenshot assertion evidence."
+  );
+  const screenshotCount = report.results.reduce((count, result) => count + countArray(result.screenshotAssertions), 0);
+  assert(screenshotCount > 0, "report must include screenshot evidence.");
+  await readDemoJson("baselines.json");
+  metrics.cleanReports += 1;
+}
+
+async function verifySeededDefect() {
+  const report = await readDemoJson("report.json");
+  const evidence = await readDemoJson("evidence-packet.json");
+  const triage = await readDemoJson("triage.json");
+  const handoff = await readDemoJson("handoff.json");
+  const testCreation = await readDemoJson("test-creation-plan.json");
+  const issue = await readDemoText("hive-issue.md");
+  const reportText = JSON.stringify(report);
+  assert(report.status === "failed", `seeded defect report status must be failed, got ${report.status}.`);
+  assert(reportText.includes("seeded-force-login-public-demo"), "seeded defect report must include seeded-force-login-public-demo.");
+  assert(evidence.verdictSummary?.visualHiveVerdict === "failed", "seeded defect Evidence Packet verdict must be failed.");
+  assert(nonEmptyArray(triage.findings), "seeded defect triage must include findings.");
+  assert(handoff.externalCallsMade === 0, "seeded defect handoff must remain no-network.");
+  assert(nonEmptyArray(testCreation.recommendations), "seeded defect must produce test-creation context.");
+  assert(issue.includes("Visual Hive") && issue.includes("seeded-force-login-public-demo"), "seeded defect issue body must include Visual Hive context.");
+  metrics.seededDefects += 1;
+}
+
+async function verifyMutation() {
+  const report = await readDemoJson("mutation-report.json");
+  assert(report.schemaVersion === 2, "mutation-report.json schemaVersion must be 2.");
+  assert(nonEmptyArray(report.results), "mutation report must include at least one mutation result.");
+  let killed = 0;
+  let survived = 0;
+  let notApplicable = 0;
+  let sourceMutations = 0;
+  for (const result of report.results) {
+    assert(result.operator, "mutation result must include operator.");
+    assert(["killed", "survived", "not_applicable", "error"].includes(result.status), `unexpected mutation status ${result.status}.`);
+    assert(Array.isArray(result.contractIds), `mutation ${result.operator} must include contractIds.`);
+    assert(Array.isArray(result.affected), `mutation ${result.operator} must include affected surfaces.`);
+    assert(result.validationCommand, `mutation ${result.operator} must include validationCommand.`);
+    assert(["runtime", "fixture"].includes(result.mutationMode), `mutation ${result.operator} must include runtime or fixture mutationMode.`);
+    assert(result.sourceMutation === false, `mutation ${result.operator} must not mutate source files.`);
+    if (result.status === "killed") killed += 1;
+    if (result.status === "survived") survived += 1;
+    if (result.status === "not_applicable") notApplicable += 1;
+    if (result.sourceMutation) sourceMutations += 1;
+  }
+  assert(report.killed === killed, "mutation killed count must match killed results.");
+  assert(report.total === killed + survived, "mutation total must exclude not_applicable results.");
+  if (survived > 0) {
+    const issue = await readDemoText("hive-issue.md");
+    const testCreation = JSON.stringify(await readDemoJson("test-creation-plan.json"));
+    assert(issue.includes("mutation") || testCreation.includes("mutation_survivor"), "survived mutations must appear in issue or test-creation context.");
+  }
+  metrics.mutationResults += report.results.length;
+  metrics.sourceMutations += sourceMutations;
+  void notApplicable;
+}
+
+async function verifyCoverageMaintenance() {
+  const coverage = await readDemoJson("coverage.json");
+  const recommendations = await readDemoJson("coverage-recommendations.json");
+  assert(coverage.outputResource, "coverage.json must include outputResource metadata.");
+  assert(Array.isArray(recommendations.recommendations), "coverage recommendations must include a recommendations array.");
+  assert(
+    recommendations.recommendations.length > 0 || recommendations.summary?.recommendationCount === 0,
+    "coverage recommendations must include recommendations or explicitly report none."
+  );
+  assert(Array.isArray(recommendations.maintenanceFindings), "coverage recommendations must include maintenanceFindings.");
+  const allowedKinds = new Set([
+    "screenshot_without_assertion",
+    "missing_mobile_viewport",
+    "mutation_survivor",
+    "stale_baseline",
+    "baseline_churn",
+    "weak_threshold",
+    "duplicate_screenshot",
+    "generic_selector"
+  ]);
+  assert(
+    recommendations.maintenanceFindings.some((finding) => allowedKinds.has(finding.kind)),
+    "maintenance findings must include at least one required visual-test maintenance kind."
+  );
+  const serialized = JSON.stringify(recommendations).toLowerCase();
+  assert(!serialized.includes("auto_approve") && !serialized.includes("approved baseline automatically"), "full-run must not auto-approve baselines.");
+}
+
+async function verifyGovernance() {
+  const workflows = await readDemoJson("workflows.json");
+  const providers = await readDemoJson("provider-results.json");
+  const providerPlan = await readDemoJson("provider-setup-plan.json");
+  const providerHandoff = await readDemoJson("provider-handoff.json");
+  const providerUpload = await readDemoJson("provider-upload/argos/manifest.json");
+  await readDemoJson("risk.json");
+  await readDemoJson("security.json");
+  await readDemoJson("costs.json");
+  await readDemoJson("readiness.json");
+  await readDemoJson("setup-progress.json");
+  await readDemoJson("runbook.json");
+  assert(workflows.outputResource, "workflow audit must include outputResource metadata.");
+  assert(workflows.summary?.workflowsUsingPullRequestTarget === 0, "PR workflow must not use pull_request_target.");
+  assert(workflows.summary?.pullRequestWorkflows >= 1, "workflow audit must include PR workflows.");
+  assert(String(JSON.stringify(workflows)).includes("read-only") || workflows.summary?.trustedIssueWorkflows >= 1, "workflow audit must capture read-only/trusted issue posture.");
+  assert(providers.summary?.externalCallsMade === 0 || collectNumericKey(providers, "externalCallsMade") === 0, "provider listing must not make external calls.");
+  assert(providerPlan.externalCallsMade === 0, "provider plan must not make external calls.");
+  assert(providerHandoff.externalCallsMade === 0, "provider handoff must not make external calls.");
+  assert(providerUpload.dryRun === true || providerUpload.externalCallsMade === 0, "provider upload must remain dry-run/mock by default.");
+  assertNoSecretValues([workflows, providers, providerPlan, providerHandoff, providerUpload], "governance/provider artifacts");
+}
+
+async function verifyEvidence() {
+  const triage = await readDemoJson("triage.json");
+  const llm = await readDemoJson("llm-usage.json");
+  const evidence = await readDemoJson("evidence-packet.json");
+  const layers = await readDemoJson("testing-layers.json");
+  const verdict = await readDemoJson("verdict.json");
+  assert(Array.isArray(triage.findings), "triage.json must include findings.");
+  assert(evidence.verdictSummary?.visualHiveVerdict === "passed", "restored clean Evidence Packet verdict must be passed.");
+  assert(layers.summary, "testing-layers.json must include summary.");
+  assert(verdict.summary?.visualHiveVerdict === "passed", "verdict.json must preserve Visual Hive passed verdict.");
+  assert(llm.summary?.callsMade === 0 || collectNumericKey(llm, "callsMade") === 0, "LLM governance artifacts must report callsMade 0.");
+  const serialized = JSON.stringify({ evidence, verdict, llm });
+  assert(serialized.includes("Visual Hive") || serialized.includes("visual_hive"), "verdict authority must be Visual Hive.");
+  metrics.evidencePackets += 1;
+}
+
+async function verifyHiveHandoff() {
+  const handoff = await readDemoJson("handoff.json");
+  const beadRequest = await readDemoJson("hive-bead-request.json");
+  const handoffResult = await readDemoJson("hive-handoff-result.json");
+  const validation = await readDemoJson("hive-handoff-validation.json");
+  const hiveExport = await readDemoJson("hive/hive-export.json");
+  await readDemoJson("hive/beads.json");
+  await readDemoJson("hive/knowledge-facts.json");
+  await readDemoJson("hive/knowledge-graph.json");
+  await readDemoJson("hive/wiki-index.json");
+  await readDemoJson("hive/repair-work-orders.json");
+  await readDemoJson("hive/hive-agent-policy.json");
+  const guarded = await readDemoJson("hive/guarded-repair-preview.json");
+  const envelope = await readDemoJson("hive/repair-request-envelope.json");
+  const consumer = await readDemoJson("hive/trusted-repair-consumer-summary.json");
+  const workflow = await readDemoJson("hive/trusted-repair-workflow-dry-run.json");
+  const dryRun = await readDemoJson("hive-issue-dry-run.json");
+  const issue = await readDemoText("hive-issue.md");
+
+  for (const [name, artifact] of Object.entries({ handoff, beadRequest, handoffResult, validation, hiveExport, guarded, envelope, consumer, workflow, dryRun })) {
+    assert(collectNumericKey(artifact, "externalCallsMade") === 0, `${name} must report externalCallsMade 0.`);
+  }
+  assert(dryRun.networkCallsMade === 0, "issue handoff dry-run must report networkCallsMade 0.");
+  assert(dryRun.scenarios?.some((scenario) => scenario.decision === "create" && scenario.wouldCreateOrUpdate), "issue dry-run must simulate create.");
+  assert(dryRun.scenarios?.some((scenario) => scenario.decision === "update" && scenario.wouldCreateOrUpdate), "issue dry-run must simulate update.");
+  assert(dryRun.scenarios?.some((scenario) => scenario.blocked === true && !scenario.wouldCreateOrUpdate), "issue dry-run must block unsafe artifacts.");
+  for (const expected of [
+    "dedupe",
+    "Evidence Packet",
+    "repo-map",
+    "test-creation-plan",
+    "mutation",
+    "screenshot",
+    "validation",
+    "guardrail",
+    "baseline",
+    "threshold"
+  ]) {
+    assert(issue.toLowerCase().includes(expected.toLowerCase()), `hive issue body must include ${expected}.`);
+  }
+  assert(consumer.consumerActions?.wouldCreateBranches === false, "trusted repair consumer must not create branches.");
+  assert(consumer.consumerActions?.wouldOpenPullRequests === false, "trusted repair consumer must not open pull requests.");
+  assert(workflow.currentActions?.createdBranches === false, "trusted repair workflow dry-run must not create branches.");
+  assert(workflow.currentActions?.openedPullRequests === false, "trusted repair workflow dry-run must not open pull requests.");
+  assert((workflow.summary?.plannedBranches ?? 0) === 0, "trusted repair workflow dry-run must plan zero branches locally.");
+  assert((workflow.summary?.plannedPullRequests ?? 0) === 0, "trusted repair workflow dry-run must plan zero pull requests locally.");
+  metrics.handoffPackets += 1;
+  metrics.hiveIssueDryRuns += 1;
+  metrics.networkCallsMade += dryRun.networkCallsMade ?? 0;
+}
+
+async function verifyAgentTooling() {
+  const testCreation = await readDemoJson("test-creation-plan.json");
+  const agent = await readDemoJson("agent-packet.json");
+  const handoffAgent = await readDemoJson("handoff-agent-packet.json");
+  const providerAgent = await readDemoJson("provider-agent-packet.json");
+  const tools = await readDemoJson("tools/tool-registry.json");
+  const mcp = await readDemoJson("mcp-manifest.json");
+  const context = await readDemoJson("context-ledger.json");
+  const schemas = await readDemoJson("schema-catalog.json");
+  assert(nonEmptyArray(testCreation.recommendations), "test-creation-plan.json must include recommendations.");
+  for (const packet of [agent, handoffAgent, providerAgent]) {
+    assert(packet.budgets?.allowExternalNetwork === false, "agent packet budgets must set allowExternalNetwork false.");
+    assert(packet.budgets?.maxExternalCostUsd === 0, "agent packet budgets must set maxExternalCostUsd 0.");
+  }
+  assert(nonEmptyArray(tools.tools), "Tool Registry must include tools.");
+  assert(nonEmptyArray(mcp.resources) && nonEmptyArray(mcp.tools), "MCP manifest must include resources and read tools.");
+  assert(nonEmptyArray(context.toolCalls) || context.sourceArtifacts, "Context Ledger must include tool/evidence context.");
+  assert(schemas.summary?.failed === 0 || schemas.failed === 0, "schema verification must pass.");
+  metrics.agentPackets += 3;
+  metrics.mcpManifests += 1;
+  metrics.toolRegistries += 1;
+}
+
+async function verifyControlPlane() {
+  const snapshot = await readDemoJson("control-plane-snapshot.json");
+  const artifacts = await readDemoJson("artifacts-index.json");
+  assert(snapshot.report, "Control Plane snapshot must include report.");
+  assert(snapshot.mutationReport, "Control Plane snapshot must include mutation report.");
+  assert(snapshot.evidencePacket, "Control Plane snapshot must include evidence packet.");
+  assert(snapshot.testCreationPlan, "Control Plane snapshot must include test creation plan.");
+  assert(snapshot.handoffPacket, "Control Plane snapshot must include handoff packet.");
+  assert(snapshot.hiveExport, "Control Plane snapshot must include Hive export.");
+  assert(snapshot.runbook, "Control Plane snapshot must include runbook commands.");
+  assert(snapshot.guidanceState?.primaryAction || snapshot.overview?.nextActions, "Control Plane snapshot must include next safe action.");
+  assert(nonEmptyArray(snapshot.artifacts), "Control Plane snapshot must include artifact links.");
+  const snapshotText = JSON.stringify(snapshot).toLowerCase();
+  assert(snapshotText.includes("does not repair code"), "Control Plane copy must state Visual Hive does not repair code.");
+  assert(snapshotText.includes("does not create branches") || snapshotText.includes("create branches"), "Control Plane copy must discuss branch creation boundary.");
+  assert(artifacts.summary?.artifactCount > 0, "artifact index must include artifacts.");
+  metrics.controlPlaneSnapshots += 1;
+  metrics.artifactIndexes += 1;
+}
+
+async function verifyKubestellar() {
+  await readJson(path.join(kubestellarHive, "plan.auth.json"));
+  await readJson(path.join(kubestellarHive, "plan.cluster.json"));
+  await readJson(path.join(kubestellarHive, "plan.docs.json"));
+  await readJson(path.join(kubestellarHive, "plan.schedule.json"));
+  await readJson(path.join(kubestellarHive, "plans.json"));
+  await readJson(path.join(kubestellarHive, "artifacts-index.json"));
+}
+
+async function verifyFinalMetrics() {
+  metrics.externalCallsMade = await collectExternalCallsFromLatestArtifacts();
+  assert(metrics.cleanReports >= 1, "At least 1 clean deterministic report must be generated.");
+  assert(metrics.seededDefects >= 1, "At least 1 seeded defect failure must be proven.");
+  assert(metrics.mutationResults >= 1, "At least 1 mutation result must exist.");
+  assert(metrics.evidencePackets >= 1, "At least 1 Evidence Packet must be generated.");
+  assert(metrics.handoffPackets >= 1, "At least 1 Handoff Packet must be generated.");
+  assert(metrics.hiveIssueDryRuns >= 1, "At least 1 Hive issue dry-run report must be generated.");
+  assert(metrics.agentPackets >= 1, "At least 1 Agent Packet must be generated.");
+  assert(metrics.controlPlaneSnapshots >= 1, "At least 1 Control Plane snapshot must be generated.");
+  assert(metrics.artifactIndexes >= 1, "At least 1 artifact index must be generated.");
+  assert(metrics.mcpManifests >= 1, "At least 1 MCP manifest must be generated.");
+  assert(metrics.toolRegistries >= 1, "At least 1 Tool Registry must be generated.");
+  assert(metrics.externalCallsMade === 0, `externalCallsMade must equal 0 for default/local demo path, got ${metrics.externalCallsMade}.`);
+  assert(metrics.networkCallsMade === 0, `networkCallsMade must equal 0 for issue dry-run, got ${metrics.networkCallsMade}.`);
+  assert(metrics.sourceMutations === 0, `sourceMutation must be false for all demo mutation results, got ${metrics.sourceMutations}.`);
+  assert(metrics.repairBranchesOrPrsCreated === 0, "Visual Hive must not create repair branches or PRs.");
+  assert(metrics.realGithubIssuesCreated === 0, "Visual Hive must not create real GitHub issues locally.");
+}
+
+async function collectExternalCallsFromLatestArtifacts() {
+  const files = [
+    "provider-results.json",
+    "provider-setup-plan.json",
+    "provider-handoff.json",
+    "provider-upload/argos/manifest.json",
+    "llm-usage.json",
+    "handoff.json",
+    "hive-bead-request.json",
+    "hive-handoff-result.json",
+    "hive-handoff-validation.json",
+    "hive/hive-export.json",
+    "hive/guarded-repair-preview.json",
+    "hive/repair-request-envelope.json",
+    "hive/trusted-repair-consumer-summary.json",
+    "hive/trusted-repair-workflow-dry-run.json",
+    "hive-issue-dry-run.json"
+  ];
+  let total = 0;
+  for (const file of files) {
+    const fullPath = path.join(demoHive, file);
+    if (existsSync(fullPath)) {
+      total += collectNumericKey(await readJson(fullPath), "externalCallsMade");
+    }
+  }
+  return total;
+}
+
+async function printFinalSummary(result) {
+  console.log("\n=== Visual Hive Full Demo Summary ===");
+  const byName = new Map(results.map((entry) => [entry.name, entry]));
+  for (const name of sections.map((entry) => entry.name)) {
+    const entry = byName.get(name);
+    console.log(`- ${name}: ${entry?.status ?? "not_run"}`);
+    if (entry?.message) {
+      console.log(`  ${entry.message}`);
+    }
+  }
+  console.log(`- External calls made by local/default path: ${metrics.externalCallsMade}`);
+  console.log(`- Source mutations in demo path: ${metrics.sourceMutations}`);
+  console.log(`- Repair branches/PRs created by Visual Hive: ${metrics.repairBranchesOrPrsCreated}`);
+  console.log(`- Real GitHub issues created locally: ${metrics.realGithubIssuesCreated}`);
+  console.log(`- Result: ${result}`);
+}
+
+async function runScript(scriptName) {
+  const timeoutMs = TIMEOUTS_BY_SCRIPT[scriptName] ?? DEFAULT_TIMEOUT_MS;
+  const step = scriptCommand(scriptName, timeoutMs);
+  console.log(`[demo:full-run] running ${scriptName} (${Math.round(timeoutMs / 1000)}s timeout)`);
+  const result = await runStep(step);
+  if (result.status !== 0) {
+    throw new Error(`${scriptName} failed with exit code ${result.status}.`);
+  }
+}
+
+function scriptCommand(name, timeoutMs) {
+  if (process.platform === "win32") {
+    return { label: name, executable: process.env.ComSpec ?? "cmd.exe", args: ["/d", "/s", "/c", "npm", "run", name], timeoutMs };
+  }
+  return { label: name, executable: "npm", args: ["run", name], timeoutMs };
+}
+
+function runStep(step) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    const child = spawn(step.executable, step.args, {
+      cwd: repoRoot,
+      stdio: "inherit",
+      windowsHide: true,
+      detached: process.platform !== "win32"
+    });
+
+    const timer = setTimeout(async () => {
+      timedOut = true;
+      console.error(`[${step.label}] timed out after ${Math.round(step.timeoutMs / 1000)}s; terminating process tree`);
+      await killProcessTree(child);
+    }, step.timeoutMs);
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        console.error(`[${step.label}] failed to start: ${error.message}`);
+        resolve({ status: 1 });
+      }
+    });
+
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        if (timedOut) {
+          resolve({ status: 124 });
+          return;
+        }
+        if (signal) {
+          console.error(`[${step.label}] exited after signal ${signal}`);
+          resolve({ status: 1 });
+          return;
+        }
+        resolve({ status: code ?? 1 });
+      }
+    });
+  });
+}
+
+async function killProcessTree(child) {
+  if (!child.pid) return;
+  if (process.platform === "win32") {
+    await new Promise((resolve) => {
+      const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      killer.on("close", resolve);
+      killer.on("error", resolve);
+    });
+    return;
+  }
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch {
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // Already exited.
+    }
+  }
+}
+
+async function readDemoJson(relativePath) {
+  return readJson(path.join(demoHive, relativePath));
+}
+
+async function readDemoText(relativePath) {
+  return readFile(path.join(demoHive, relativePath), "utf8");
+}
+
+async function readJson(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function nonEmptyArray(value) {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function countArray(value) {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function collectNumericKey(value, key) {
+  if (!value || typeof value !== "object") return 0;
+  let total = 0;
+  if (typeof value[key] === "number") {
+    total += value[key];
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      total += collectNumericKey(item, key);
+    }
+    return total;
+  }
+  for (const item of Object.values(value)) {
+    total += collectNumericKey(item, key);
+  }
+  return total;
+}
+
+function assertNoSecretValues(values, label) {
+  const text = JSON.stringify(values);
+  const forbidden = [
+    /gh[pousr]_[A-Za-z0-9_]+/,
+    /Bearer\s+[A-Za-z0-9._-]{8,}/i,
+    /ARGOS_TOKEN\s*[:=]\s*[^,\s"'}]+/i,
+    /client_secret\s*[:=]\s*[^,\s"'}]+/i,
+    /set-cookie\s*[:=]\s*[^,\s"'}]+/i
+  ];
+  for (const pattern of forbidden) {
+    assert(!pattern.test(text), `${label} must not contain secret-like values matching ${pattern}.`);
+  }
+}

@@ -340,6 +340,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     configRoot: resolved.configRoot,
     readOnly: resolved.readOnly,
     demo: resolved.demo,
+    safetyBoundary:
+      "Visual Hive owns visual QA evidence and does not repair code, create branches, open pull requests, create GitHub issues, call Hive APIs, call LLMs, or call paid providers in the local/default path.",
     activeConnectionId: connectionId || "current",
     configRaw,
     config,

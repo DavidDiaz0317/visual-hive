@@ -215,7 +215,7 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     ...validationCommands.map((command) => `- \`${command}\``),
     "- After Hive repairs code/tests, rerun `visual-hive pipeline --mode pr --ci` or the repository's trusted Visual Hive workflow before closing.",
     "",
-    "## Governance",
+    "## Governance And Guardrails",
     "",
     "- Visual Hive's deterministic Verdict Engine owns pass/fail.",
     "- Hive, LLMs, MCP tools, and agents may repair or route work, but they do not decide the verdict.",

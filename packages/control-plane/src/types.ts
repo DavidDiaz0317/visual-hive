@@ -374,6 +374,7 @@ export interface ControlPlaneSnapshot {
   configRoot: string;
   readOnly: boolean;
   demo: boolean;
+  safetyBoundary: string;
   configRaw?: string;
   config?: VisualHiveConfig;
   configError?: string;

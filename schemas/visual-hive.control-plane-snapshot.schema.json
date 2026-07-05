@@ -13,6 +13,7 @@
     "configRoot",
     "readOnly",
     "demo",
+    "safetyBoundary",
     "overview",
     "guidanceState",
     "navigationBadges",
@@ -52,6 +53,10 @@
     },
     "demo": {
       "type": "boolean"
+    },
+    "safetyBoundary": {
+      "type": "string",
+      "minLength": 1
     },
     "overview": {
       "type": "object",

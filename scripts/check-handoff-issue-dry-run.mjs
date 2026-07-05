@@ -48,6 +48,11 @@ const scenarios = [
         labels
       }
     ]
+  }),
+  simulateIssueDecision({
+    name: "blocked_artifacts",
+    existingIssues: [],
+    forcedBlockingReasons: ["Synthetic blocked-artifact proof: trusted workflow must not create or update issues from blocked evidence."]
   })
 ];
 
@@ -92,14 +97,17 @@ if (!report.blocked) {
 
 console.log(`Visual Hive Hive issue handoff dry-run passed: ${path.relative(repoRoot, outputPath).replaceAll("\\", "/")}`);
 
-function simulateIssueDecision({ name, existingIssues }) {
+function simulateIssueDecision({ name, existingIssues, forcedBlockingReasons = [] }) {
   const existing = existingIssues.find((issue) => String(issue.body ?? "").includes(dedupeSignature) || String(issue.body ?? "").includes(marker));
-  const decision = blockingReasons.length ? "blocked" : existing ? "update" : "create";
+  const effectiveBlockingReasons = [...blockingReasons, ...forcedBlockingReasons].map(sanitizeText);
+  const decision = effectiveBlockingReasons.length ? "blocked" : existing ? "update" : "create";
   return {
     name,
     decision,
     wouldCreateOrUpdate: decision === "create" || decision === "update",
     existingIssueNumber: existing?.number,
+    blocked: decision === "blocked",
+    blockingReasons: effectiveBlockingReasons,
     title,
     labels,
     bodyPreview: body.slice(0, 1000),

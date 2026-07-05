@@ -111,6 +111,7 @@
     "demo:acceptance:exhaustive": "node scripts/run-demo-suite.mjs exhaustive",
     "demo:all": "node scripts/run-demo-suite.mjs all",
     "demo:ci": "node scripts/run-demo-suite.mjs ci",
+    "demo:full-run": "node scripts/run-demo-full-tool-suite.mjs",
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "ui:build": "npm run build -w @visual-hive/control-plane",
     "smoke:ui": "node scripts/smoke-ui.mjs",
