@@ -245,6 +245,13 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("baseline-review.md")) labels.add("baseline-review");
   if (normalized.endsWith("baselines.json")) labels.add("baseline-review");
   if (normalized.endsWith("issue.md")) labels.add("issue");
+  if (normalized.endsWith("issues.json")) labels.add("issue-candidates");
+  if (normalized.endsWith("issues.md")) labels.add("issue-candidates");
+  if (normalized.endsWith("issue-queue.json")) labels.add("issue-queue");
+  if (normalized.endsWith("issue-publish-plan.json")) labels.add("issue-publish-plan");
+  if (normalized.endsWith("issue-publish-dry-run.json")) labels.add("issue-publish-dry-run");
+  if (normalized.endsWith("issue-publish-result.json")) labels.add("issue-publish-result");
+  if (normalized.endsWith("setup-issue.md")) labels.add("setup-issue");
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
   if (/\/plan(?:\.[a-z0-9_-]+)?\.json$/.test(normalized)) labels.add("plan");
   if (normalized.endsWith("triage.json")) labels.add("triage-report");
@@ -343,6 +350,11 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "costs.json": "visual-hive.costs.schema.json",
     "history.json": "visual-hive.history.schema.json",
     "triage.json": "visual-hive.triage.schema.json",
+    "issues.json": "visual-hive.issues.schema.json",
+    "issue-queue.json": "visual-hive.issue-queue.schema.json",
+    "issue-publish-plan.json": "visual-hive.issue-publish-plan.schema.json",
+    "issue-publish-dry-run.json": "visual-hive.issue-publish-dry-run.schema.json",
+    "issue-publish-result.json": "visual-hive.issue-publish-result.schema.json",
     "llm-usage.json": "visual-hive.llm-usage.schema.json",
     "llm-decisions.json": "visual-hive.llm-decisions.schema.json",
     "connections.json": "visual-hive.connections.schema.json",

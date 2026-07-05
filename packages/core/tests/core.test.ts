@@ -41,6 +41,8 @@ import {
   writeHiveTrustedRepairWorkflowDryRun
 } from "../src/hive/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
+import { buildIssuesReport, writeIssuesArtifacts } from "../src/issues/build.js";
+import { writeIssuePublishArtifacts } from "../src/issues/publish.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
 import { VISUAL_HIVE_EVIDENCE_RESOURCES } from "../src/tools/evidenceResources.js";
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
@@ -7545,11 +7547,11 @@ describe("tool registry", () => {
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
+      "visual_hive_read_issue_queue",
+      "visual_hive_read_issue_candidates",
       "visual_hive_read_triage_report",
       "visual_hive_read_issue_body",
-      "visual_hive_read_pr_comment",
-      "visual_hive_generate_handoff_dry_run",
-      "visual_hive_validate_handoff"
+      "visual_hive_read_pr_comment"
     ]);
     expect(registry.tools.find((tool) => tool.id === "visual_hive_read_triage_report")).toMatchObject({
       evidenceResourceId: "triage-report",
@@ -8230,3 +8232,141 @@ function argosEnabledConfig(upload: Partial<VisualHiveConfig["providers"]["argos
     }
   });
 }
+
+describe("issue artifacts", () => {
+  it("builds deduplicated issue candidates from report and mutation evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "issues-demo",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      minScore: 0.8,
+      score: 0,
+      killed: 0,
+      total: 1,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["hosted-demo-never-login"],
+          applicable: true,
+          affectedSurfaces: [{ contractId: "hosted-demo-never-login", route: "/" }],
+          expectedFailureKinds: ["login_regression"],
+          failedAssertion: "Login controls were not detected by the contract.",
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"],
+          validationCommand: "visual-hive mutate",
+          mutationMode: "runtime",
+          sourceMutation: false
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "issues-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "issues-demo" });
+
+    const result = await writeIssuesArtifacts({ rootDir, project: "issues-demo" });
+
+    expect(result.report.externalCallsMade).toBe(0);
+    expect(result.report.networkCallsMade).toBe(0);
+    expect(result.report.issues.map((issue) => issue.issueKind)).toContain("mutation_survivor");
+    expect(result.report.issues.every((issue) => issue.dedupeFingerprint.startsWith("visual-hive:"))).toBe(true);
+    const survivor = result.report.issues.find((issue) => issue.issueKind === "mutation_survivor");
+    expect(survivor?.linkedEvidencePacket).toBe(".visual-hive/evidence-packet.json");
+    expect(survivor?.linkedRepoMap).toBe(".visual-hive/repo-map.json");
+    expect(survivor?.body).toContain("Visual Hive does not repair code");
+    expect(result.queue.summary.readyForHive).toBeGreaterThan(0);
+    expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
+  });
+
+  it("marks disappeared findings as resolved candidates and honors suppressions", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-lifecycle-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    const first = await writeIssuesArtifacts({ rootDir, project: "lifecycle-demo" });
+    const firstIssue = first.report.issues[0]!;
+    await writeJson(path.join(rootDir, ".visual-hive", "issue-suppressions.json"), {
+      suppressions: [{ dedupeFingerprint: firstIssue.dedupeFingerprint, reason: "Covered by manual release checklist", expiresAt: "2999-01-01T00:00:00.000Z" }]
+    });
+
+    const suppressed = await buildIssuesReport({ rootDir, project: "lifecycle-demo" });
+    expect(suppressed.report.issues.find((issue) => issue.dedupeFingerprint === firstIssue.dedupeFingerprint)?.status).toBe("suppressed");
+
+    await writeJson(path.join(rootDir, ".visual-hive", "issues.json"), first.report);
+    await writeJson(path.join(rootDir, ".visual-hive", "issue-suppressions.json"), { suppressions: [] });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    const resolved = await buildIssuesReport({ rootDir, project: "lifecycle-demo" });
+
+    expect(resolved.report.issues.find((issue) => issue.dedupeFingerprint === firstIssue.dedupeFingerprint)?.status).toBe("resolved_candidate");
+  });
+
+  it("writes no-network issue publish plan and dry-run artifacts with dedupe decisions", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-publish-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "publish-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "publish-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "publish-demo" });
+    const firstIssue = issues.report.issues[0]!;
+
+    const publish = await writeIssuePublishArtifacts({
+      rootDir,
+      existingIssues: [
+        {
+          number: 12,
+          url: "https://github.com/example/repo/issues/12?token=secret-value",
+          dedupeFingerprint: firstIssue.dedupeFingerprint,
+          title: firstIssue.title,
+          labels: firstIssue.labels
+        }
+      ],
+      now: new Date("2026-01-02T00:00:00.000Z")
+    });
+
+    expect(publish.plan.externalCallsMade).toBe(0);
+    expect(publish.dryRun.networkCallsMade).toBe(0);
+    expect(publish.result.realGithubIssuesCreated).toBe(0);
+    expect(publish.plan.decisions[0]).toMatchObject({ action: "update", existingIssue: { number: 12 } });
+    expect(JSON.stringify(publish)).not.toContain("secret-value");
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", publish.plan);
+    await expectMatchesSchema("visual-hive.issue-publish-dry-run.schema.json", publish.dryRun);
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", publish.result);
+
+    await writeJson(path.join(rootDir, ".visual-hive", "hive-handoff-validation.json"), {
+      schemaVersion: "visual-hive.handoff-validation.v1",
+      generatedAt: "2026-01-02T00:00:00.000Z",
+      project: "publish-demo",
+      status: "blocked",
+      sourceArtifacts: {
+        evidencePacket: ".visual-hive/evidence-packet.json",
+        handoff: ".visual-hive/handoff.json",
+        issue: ".visual-hive/hive-issue.md",
+        beadRequest: ".visual-hive/hive-bead-request.json",
+        result: ".visual-hive/hive-handoff-result.json"
+      },
+      summary: { checksPassed: 0, warnings: 0, blocked: 1, externalCallsMade: 0, workItems: 0 },
+      hiveReadiness: {
+        recommendedMode: "missing",
+        recommendedStatus: "missing",
+        readyModes: [],
+        trustedOnlyModes: [],
+        blockedModes: [],
+        trustedWorkflowRequiredModes: [],
+        fullAutomationBlocked: true,
+        guardedRepairTrustedOnlyOrBlocked: true
+      },
+      checks: [],
+      blockedReasons: ["artifact validation failed"],
+      warnings: []
+    });
+    const blocked = await writeIssuePublishArtifacts({ rootDir });
+    expect(blocked.plan.status).toBe("blocked");
+    expect(blocked.plan.decisions.every((decision) => decision.action === "blocked")).toBe(true);
+  });
+});

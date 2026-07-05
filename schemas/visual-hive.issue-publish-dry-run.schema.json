@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.issue-publish-dry-run.schema.json",
+  "title": "Visual Hive Issue Publish Dry Run",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "status", "externalCallsMade", "networkCallsMade", "wouldCreateIssues", "wouldUpdateIssues", "wouldSkipIssues", "wouldBlockIssues", "decisions"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.issue-publish-dry-run.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "status": { "enum": ["ready", "blocked"] },
+    "externalCallsMade": { "const": 0 },
+    "networkCallsMade": { "const": 0 },
+    "wouldCreateIssues": { "type": "number" },
+    "wouldUpdateIssues": { "type": "number" },
+    "wouldSkipIssues": { "type": "number" },
+    "wouldBlockIssues": { "type": "number" },
+    "decisions": { "type": "array", "items": { "type": "object" } }
+  },
+  "additionalProperties": false
+}

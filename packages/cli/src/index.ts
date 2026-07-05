@@ -46,6 +46,7 @@ import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
+import { formatIssuePublishResult, formatIssuesResult, runIssuePublishCommand, runIssuesCommand } from "./commands/issues.js";
 import {
   formatHiveExport,
   formatHiveGuardedRepairPreview,
@@ -455,6 +456,57 @@ program
         format: options.format
       });
       console.log(formatCoverageImprovementReport(result.report, result.reportPath, options.format, result.applyResult, Boolean(options.yes && result.applyResult?.applied)));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const issuesCommand = program
+  .command("issues")
+  .description("Generate stable deduplicated GitHub issue candidates from Visual Hive evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--write", "write .visual-hive/issues.json, issues.md, issue-queue.json, and setup-issue.md")
+  .option("--format <format>", "markdown or json", "markdown")
+  .option("--kind <kind>", "filter issue candidates by issue kind")
+  .option("--min-severity <severity>", "filter issue candidates by minimum severity: low, medium, high, critical")
+  .action(async (options) => {
+    try {
+      const result = await runIssuesCommand({
+        config: options.config,
+        write: options.write,
+        format: options.format,
+        kind: options.kind,
+        minSeverity: options.minSeverity
+      });
+      console.log(formatIssuesResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+issuesCommand
+  .command("publish")
+  .description("Write trusted issue publishing plan and dry-run artifacts from Visual Hive issue candidates")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--issues <path>", "issues artifact path", ".visual-hive/issues.json")
+  .option("--handoff-validation <path>", "handoff validation artifact path", ".visual-hive/hive-handoff-validation.json")
+  .option("--dry-run", "write no-network issue publish dry-run artifacts", true)
+  .option("--mode <mode>", "publish mode: dry_run or live", "dry_run")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runIssuePublishCommand({
+        config: options.config,
+        issues: options.issues,
+        handoffValidation: options.handoffValidation,
+        dryRun: options.dryRun,
+        mode: options.mode,
+        format: options.format
+      });
+      console.log(formatIssuePublishResult(result, options.format));
+      if (result.result.status === "blocked") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }

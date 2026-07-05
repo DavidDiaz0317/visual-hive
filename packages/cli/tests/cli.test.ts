@@ -52,6 +52,7 @@ import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "../src/commands/handoff.js";
+import { formatIssuePublishResult, formatIssuesResult, runIssuePublishCommand, runIssuesCommand } from "../src/commands/issues.js";
 import {
   formatHiveExport,
   formatHiveGuardedRepairPreview,
@@ -6161,5 +6162,167 @@ mutation:
     expect(result.exitCode).toBe(1);
     expect(result.report.results[0]?.status).toBe("not_applicable");
     expect(result.report.total).toBe(0);
+  });
+
+  it("writes issue candidates, issue queue, and setup issue artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-issues-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: issue-cli-demo
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+    prSafe: true
+contracts:
+  - id: dashboard
+    description: Dashboard
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+`,
+      "utf8"
+    );
+    await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), {
+      schemaVersion: 2,
+      project: "issue-cli-demo",
+      repository: sampleRepository,
+      mode: "pr",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      status: "failed",
+      changedFiles: [],
+      selectedTargets: [{ id: "local", kind: "url", url: "http://127.0.0.1:4173", prSafe: true, cost: "cheap" }],
+      selectedContracts: ["dashboard"],
+      excludedContracts: [],
+      targetLifecycle: [],
+      generatedSpecPath: ".visual-hive/generated/visual-hive.generated.spec.ts",
+      results: [
+        {
+          contractId: "dashboard",
+          targetId: "local",
+          status: "failed",
+          durationMs: 10,
+          errors: ["Missing selector [data-testid='dashboard-page']"],
+          artifacts: [".visual-hive/report.json"],
+          selectorAssertions: [{ kind: "mustExist", value: "[data-testid='dashboard-page']", status: "failed", message: "missing" }],
+          consoleErrors: [],
+          pageErrors: [],
+          networkErrors: [],
+          reproductionCommand: "visual-hive run --ci"
+        }
+      ],
+      summary: {
+        passed: 0,
+        failed: 1,
+        screenshotsPassed: 0,
+        screenshotsFailed: 0,
+        baselinesCreated: 0,
+        createdBaselines: 0,
+        missingBaselines: 0,
+        visualDiffs: 0,
+        consoleErrors: 0,
+        pageErrors: 0
+      },
+      consoleErrors: [],
+      pageErrors: [],
+      artifacts: [".visual-hive/report.json"],
+      reproductionCommands: ["visual-hive run --ci"]
+    });
+    await writeJson(path.join(tempRoot, ".visual-hive", "evidence-packet.json"), { project: "issue-cli-demo" });
+    await writeJson(path.join(tempRoot, ".visual-hive", "repo-map.json"), { project: "issue-cli-demo" });
+
+    const result = await runIssuesCommand({ config: path.join(tempRoot, "visual-hive.config.yaml"), cwd: tempRoot, write: true });
+    const summary = formatIssuesResult(result);
+
+    expect(summary).toContain("Wrote");
+    expect(result.report.issues[0]?.issueKind).toBe("selector_contract_failure");
+    expect(result.report.issues[0]?.body).toContain("Visual Hive does not repair code");
+    await expectMatchesSchema("visual-hive.issues.schema.json", result.report);
+    await expectMatchesSchema("visual-hive.issue-queue.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-queue.json")));
+    await expect(readFile(path.join(tempRoot, ".visual-hive", "setup-issue.md"), "utf8")).resolves.toContain("[Visual Hive] Setup visual QA");
+  });
+
+  it("writes issue publish plan, dry-run, and result artifacts without network calls", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-issue-publish-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: issue-publish-demo
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: shell
+    description: Shell renders
+    target: local
+    severity: high
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+viewports:
+  desktop:
+    width: 1280
+    height: 720
+`,
+      "utf8"
+    );
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(tempRoot, ".visual-hive", "issues.json"), {
+      schemaVersion: "visual-hive.issues.v1",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      project: "issue-publish-demo",
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      sourceArtifacts: { evidencePacket: ".visual-hive/evidence-packet.json" },
+      summary: {
+        total: 1,
+        openCandidates: 1,
+        updateCandidates: 0,
+        resolvedCandidates: 0,
+        suppressed: 0,
+        blocked: 0,
+        byKind: { mutation_survivor: 1 },
+        bySeverity: { high: 1 }
+      },
+      issues: [
+        {
+          issueKind: "mutation_survivor",
+          severity: "high",
+          status: "open_candidate",
+          dedupeFingerprint: "visual-hive:mutation_survivor:abcdef1234567890",
+          title: "[Visual Hive] Mutation survived: force-login-on-demo",
+          labels: ["visual-hive", "mutation-survivor"],
+          body: "<!-- visual-hive-issue dedupe:visual-hive:mutation_survivor:abcdef1234567890 -->\nVisual Hive does not repair code.",
+          owningAgentHint: "visual-hive/mutation",
+          sourceArtifacts: [".visual-hive/mutation-report.json"],
+          affected: [{ contractId: "public-auth-boundary" }],
+          validationCommand: "visual-hive mutate --enforce-min-score",
+          linkedEvidencePacket: ".visual-hive/evidence-packet.json",
+          linkedRepoMap: ".visual-hive/repo-map.json",
+          linkedMutationReport: ".visual-hive/mutation-report.json",
+          guardrails: ["Visual Hive does not repair code."]
+        }
+      ]
+    });
+
+    const result = await runIssuePublishCommand({ config: path.join(tempRoot, "visual-hive.config.yaml"), cwd: tempRoot, dryRun: true });
+    const output = formatIssuePublishResult(result);
+
+    expect(output).toContain("Issue Publish");
+    expect(result.plan.summary.create).toBe(1);
+    expect(result.result.externalCallsMade).toBe(0);
+    expect(result.result.realGithubIssuesCreated).toBe(0);
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-plan.json")));
+    await expectMatchesSchema("visual-hive.issue-publish-dry-run.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-dry-run.json")));
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-result.json")));
   });
 });

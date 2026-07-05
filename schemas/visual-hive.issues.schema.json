@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.issues.schema.json",
+  "title": "Visual Hive Issue Candidates",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "externalCallsMade", "networkCallsMade", "sourceArtifacts", "summary", "issues"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.issues.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "externalCallsMade": { "const": 0 },
+    "networkCallsMade": { "const": 0 },
+    "sourceArtifacts": { "type": "object", "additionalProperties": { "type": "string" } },
+    "summary": {
+      "type": "object",
+      "required": ["total", "openCandidates", "updateCandidates", "resolvedCandidates", "suppressed", "blocked", "byKind", "bySeverity"],
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "number" },
+        "openCandidates": { "type": "number" },
+        "updateCandidates": { "type": "number" },
+        "resolvedCandidates": { "type": "number" },
+        "suppressed": { "type": "number" },
+        "blocked": { "type": "number" },
+        "byKind": { "type": "object", "additionalProperties": { "type": "number" } },
+        "bySeverity": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": [
+        "issueKind",
+        "severity",
+        "status",
+        "dedupeFingerprint",
+        "title",
+        "labels",
+        "body",
+        "owningAgentHint",
+        "sourceArtifacts",
+        "affected",
+        "validationCommand",
+        "guardrails"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issueKind": {
+          "enum": [
+            "setup_needed",
+            "map_drift",
+            "missing_visual_coverage",
+            "weak_visual_test",
+            "stale_baseline",
+            "baseline_churn",
+            "visual_regression",
+            "selector_contract_failure",
+            "screenshot_diff",
+            "mutation_survivor",
+            "workflow_safety",
+            "provider_governance",
+            "protected_target_blocked",
+            "external_repo_onboarding"
+          ]
+        },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "status": { "enum": ["open_candidate", "update_candidate", "resolved_candidate", "suppressed", "blocked"] },
+        "dedupeFingerprint": { "type": "string" },
+        "title": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "body": { "type": "string" },
+        "owningAgentHint": {
+          "enum": [
+            "visual-hive/setup",
+            "visual-hive/map",
+            "visual-hive/test-creator",
+            "visual-hive/test-maintainer",
+            "visual-hive/mutation",
+            "hive/quality",
+            "hive/ci",
+            "hive/architect"
+          ]
+        },
+        "sourceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "affected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "route": { "type": "string" },
+              "component": { "type": "string" },
+              "contractId": { "type": "string" },
+              "selector": { "type": "string" },
+              "viewport": { "type": "string" },
+              "targetId": { "type": "string" }
+            }
+          }
+        },
+        "reproductionCommand": { "type": "string" },
+        "validationCommand": { "type": "string" },
+        "linkedEvidencePacket": { "type": "string" },
+        "linkedRepoMap": { "type": "string" },
+        "linkedMutationReport": { "type": "string" },
+        "linkedHandoff": { "type": "string" },
+        "linkedHiveExport": { "type": "string" },
+        "linkedKnowledgeGraph": { "type": "string" },
+        "linkedAgentPacket": { "type": "string" },
+        "guardrails": { "type": "array", "items": { "type": "string" } },
+        "suppressedReason": { "type": "string" },
+        "suppressionExpiresAt": { "type": "string" }
+      }
+    }
+  }
+}

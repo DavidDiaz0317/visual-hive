@@ -76,6 +76,12 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://mutation-report`
 - `visual-hive://triage-report`
 - `visual-hive://issue-body`
+- `visual-hive://issues`
+- `visual-hive://issue-queue`
+- `visual-hive://setup-issue`
+- `visual-hive://issue-publish-plan`
+- `visual-hive://issue-publish-dry-run`
+- `visual-hive://issue-publish-result`
 - `visual-hive://pr-comment`
 - `visual-hive://triage-prompt`
 - `visual-hive://repair-prompt`
@@ -140,6 +146,12 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_mutation_report`
 - `visual_hive_read_triage_report`
 - `visual_hive_read_issue_body`
+- `visual_hive_read_issue_candidates`
+- `visual_hive_read_issue_queue`
+- `visual_hive_read_setup_issue`
+- `visual_hive_read_issue_publish_plan`
+- `visual_hive_read_issue_publish_dry_run`
+- `visual_hive_read_issue_publish_result`
 - `visual_hive_read_pr_comment`
 - `visual_hive_read_triage_prompt`
 - `visual_hive_generate_repair_prompt`

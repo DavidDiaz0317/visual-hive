@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.issue-publish-plan.schema.json",
+  "title": "Visual Hive Issue Publish Plan",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "mode", "status", "externalCallsMade", "networkCallsMade", "sourceArtifacts", "summary", "blockedReasons", "decisions"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.issue-publish-plan.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "mode": { "enum": ["dry_run", "live"] },
+    "status": { "enum": ["ready", "blocked"] },
+    "externalCallsMade": { "const": 0 },
+    "networkCallsMade": { "const": 0 },
+    "sourceArtifacts": {
+      "type": "object",
+      "required": ["issues"],
+      "properties": {
+        "issues": { "type": "string" },
+        "handoffValidation": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "blockedReasons": { "type": "array", "items": { "type": "string" } },
+    "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "required": ["total", "create", "update", "skip", "blocked", "suppressed", "resolvedCandidates"],
+      "properties": {
+        "total": { "type": "number" },
+        "create": { "type": "number" },
+        "update": { "type": "number" },
+        "skip": { "type": "number" },
+        "blocked": { "type": "number" },
+        "suppressed": { "type": "number" },
+        "resolvedCandidates": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "issueRef": {
+      "type": "object",
+      "required": ["number", "url", "dedupeFingerprint", "title", "labels"],
+      "properties": {
+        "number": { "type": "number" },
+        "url": { "type": "string" },
+        "dedupeFingerprint": { "type": "string" },
+        "title": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": ["dedupeFingerprint", "issueKind", "title", "status", "severity", "action", "reason", "labels", "owningAgentHint", "validationCommand", "body"],
+      "properties": {
+        "dedupeFingerprint": { "type": "string" },
+        "issueKind": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "action": { "enum": ["create", "update", "skip", "blocked"] },
+        "reason": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "owningAgentHint": { "type": "string" },
+        "validationCommand": { "type": "string" },
+        "existingIssue": { "$ref": "#/$defs/issueRef" },
+        "targetIssue": { "$ref": "#/$defs/issueRef" },
+        "body": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

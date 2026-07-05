@@ -544,6 +544,102 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "issue-candidates",
+    "visual-hive://issues",
+    "issue-candidates",
+    "Issue Candidates",
+    "Stable deduplicated GitHub issue candidates derived from deterministic reports, mutations, coverage, workflow safety, readiness, handoff, and Hive artifacts.",
+    ".visual-hive/issues.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_issue_candidates",
+      "Read Issue Candidates",
+      "Read issue candidates without creating, updating, or closing GitHub issues.",
+      "visual-hive issues --write",
+      ["Read issue candidate evidence only. Issue creation must happen from a trusted workflow_run consumer or explicitly guarded live smoke."]
+    )
+  ),
+  resource(
+    "issue-queue",
+    "visual-hive://issue-queue",
+    "issue-queue",
+    "Issue Queue",
+    "Issue-centric work queue grouping Visual Hive findings by Hive readiness, Visual Hive agent readiness, blocked policy, missing artifacts, resolved candidates, and suppressions.",
+    ".visual-hive/issue-queue.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_issue_queue",
+      "Read Issue Queue",
+      "Read the issue queue without publishing issues or running agents.",
+      "visual-hive issues --write",
+      ["Read issue queue evidence only. Agents and Hive should act from trusted issues, not from untrusted PR execution."]
+    )
+  ),
+  resource(
+    "setup-issue",
+    "visual-hive://setup-issue",
+    "setup-issue",
+    "Setup Issue",
+    "Agent-ready setup issue markdown for onboarding a repository into Visual Hive without making network calls.",
+    ".visual-hive/setup-issue.md",
+    "text/markdown",
+    readTool(
+      "visual_hive_read_setup_issue",
+      "Read Setup Issue",
+      "Read the setup issue body without creating a GitHub issue.",
+      "visual-hive issues --write",
+      ["Read setup issue evidence only. Publishing requires trusted workflow permissions."]
+    )
+  ),
+  resource(
+    "issue-publish-plan",
+    "visual-hive://issue-publish-plan",
+    "issue-publish-plan",
+    "Issue Publish Plan",
+    "No-network trusted issue publication plan showing create/update/skip/block decisions from issue candidates.",
+    ".visual-hive/issue-publish-plan.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_issue_publish_plan",
+      "Read Issue Publish Plan",
+      "Read the issue publication plan without creating or updating GitHub issues.",
+      "visual-hive issues publish --dry-run",
+      ["Read issue publish planning evidence only. Publishing requires trusted workflow permissions and explicit live mode."]
+    )
+  ),
+  resource(
+    "issue-publish-dry-run",
+    "visual-hive://issue-publish-dry-run",
+    "issue-publish-dry-run",
+    "Issue Publish Dry Run",
+    "No-network issue publication dry-run evidence showing what trusted publishing would create, update, skip, or block.",
+    ".visual-hive/issue-publish-dry-run.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_issue_publish_dry_run",
+      "Read Issue Publish Dry Run",
+      "Read no-network issue publish dry-run evidence without creating or updating GitHub issues.",
+      "visual-hive issues publish --dry-run",
+      ["Read issue publish dry-run evidence only. Do not publish issues from untrusted PR execution."]
+    )
+  ),
+  resource(
+    "issue-publish-result",
+    "visual-hive://issue-publish-result",
+    "issue-publish-result",
+    "Issue Publish Result",
+    "Trusted issue publication result evidence. Default local generation remains dry-run with zero real GitHub issues created.",
+    ".visual-hive/issue-publish-result.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_issue_publish_result",
+      "Read Issue Publish Result",
+      "Read issue publish result evidence without executing another publish action.",
+      "visual-hive issues publish --dry-run",
+      ["Read publish result evidence only. Do not infer that default local runs created real issues unless realGithubIssuesCreated is nonzero."]
+    )
+  ),
+  resource(
     "pr-comment",
     "visual-hive://pr-comment",
     "pr-comment",
