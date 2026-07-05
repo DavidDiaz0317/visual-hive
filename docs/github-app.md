@@ -62,3 +62,21 @@ A newly connected repo should get:
 - Body: detected frameworks, checklist, proposed config, proposed workflows, exact commands, next action, and guardrails.
 
 The setup issue is the queue item for a setup agent or human maintainer. Visual Hive still does not repair code by itself.
+
+## Setup Publish Dry Run
+
+Visual Hive can produce setup issue publishing evidence without creating a real GitHub issue:
+
+```bash
+visual-hive issues --write
+visual-hive issues setup-publish --dry-run
+```
+
+This writes:
+
+- `.visual-hive/setup-issue-candidate.json`
+- `.visual-hive/setup-issue-publish-plan.json`
+- `.visual-hive/setup-issue-publish-dry-run.json`
+- `.visual-hive/setup-issue-publish-result.json`
+
+The GitHub App or trusted `workflow_run` consumer can later use those sanitized artifacts to create or update the setup issue. Local/default runs still make zero network calls and create zero real issues.

@@ -3,6 +3,7 @@ import {
   loadConfig,
   writeIssuePublishArtifacts,
   writeIssuesArtifacts,
+  writeSetupIssuePublishArtifacts,
   type IssuePublishArtifacts,
   type VisualHiveIssueCandidate,
   type VisualHiveIssuePublishMode,
@@ -39,6 +40,10 @@ export interface IssuePublishCommandOptions {
   tokenEnv?: string;
   liveGuardEnv?: string;
   format?: "markdown" | "json";
+}
+
+export interface SetupIssuePublishCommandOptions extends Omit<IssuePublishCommandOptions, "issues"> {
+  setupIssue?: string;
 }
 
 const SEVERITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 } as const;
@@ -96,6 +101,19 @@ export async function runIssuePublishCommand(options: IssuePublishCommandOptions
   });
 }
 
+export async function runSetupIssuePublishCommand(options: SetupIssuePublishCommandOptions = {}): Promise<IssuePublishArtifacts & { candidatePath: string }> {
+  const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
+  return writeSetupIssuePublishArtifacts({
+    rootDir: loaded.rootDir,
+    mode: options.live || options.mode === "live" ? "live" : options.dryRun ? "dry_run" : options.mode ?? "dry_run",
+    setupIssuePath: options.setupIssue,
+    handoffValidationPath: options.handoffValidation,
+    githubRepository: options.repository,
+    tokenEnv: options.tokenEnv,
+    liveGuardEnv: options.liveGuardEnv
+  });
+}
+
 export function formatIssuePublishResult(result: IssuePublishArtifacts, format: "markdown" | "json" = "markdown"): string {
   if (format === "json") {
     return JSON.stringify({ plan: result.plan, dryRun: result.dryRun, result: result.result }, null, 2);
@@ -121,6 +139,31 @@ export function formatIssuePublishResult(result: IssuePublishArtifacts, format: 
     "",
     "## Decisions",
     ...result.plan.decisions.slice(0, 10).map((decision) => `- ${decision.action}: ${decision.title} (${decision.dedupeFingerprint})`)
+  ].join("\n");
+}
+
+export function formatSetupIssuePublishResult(result: IssuePublishArtifacts & { candidatePath: string }, format: "markdown" | "json" = "markdown"): string {
+  if (format === "json") {
+    return JSON.stringify({ candidatePath: result.candidatePath, plan: result.plan, dryRun: result.dryRun, result: result.result }, null, 2);
+  }
+  return [
+    `Wrote ${result.candidatePath}`,
+    `Wrote ${result.planPath}`,
+    `Wrote ${result.dryRunPath}`,
+    `Wrote ${result.resultPath}`,
+    "",
+    `# Visual Hive Setup Issue Publish: ${result.plan.project}`,
+    "",
+    `- Mode: ${result.plan.mode}`,
+    `- Status: ${result.result.status}`,
+    `- Would create: ${result.dryRun.wouldCreateIssues}`,
+    `- Would update: ${result.dryRun.wouldUpdateIssues}`,
+    `- External calls made: ${result.result.externalCallsMade}`,
+    `- Network calls made: ${result.result.networkCallsMade}`,
+    `- Real GitHub issues created: ${result.result.realGithubIssuesCreated}`,
+    "",
+    "## Decisions",
+    ...result.plan.decisions.map((decision) => `- ${decision.action}: ${decision.title} (${decision.dedupeFingerprint})`)
   ].join("\n");
 }
 

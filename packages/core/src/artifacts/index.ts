@@ -252,6 +252,10 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("issue-publish-dry-run.json")) labels.add("issue-publish-dry-run");
   if (normalized.endsWith("issue-publish-result.json")) labels.add("issue-publish-result");
   if (normalized.endsWith("setup-issue.md")) labels.add("setup-issue");
+  if (normalized.endsWith("setup-issue-candidate.json")) labels.add("setup-issue");
+  if (normalized.endsWith("setup-issue-publish-plan.json")) labels.add("setup-issue-publish-plan");
+  if (normalized.endsWith("setup-issue-publish-dry-run.json")) labels.add("setup-issue-publish-dry-run");
+  if (normalized.endsWith("setup-issue-publish-result.json")) labels.add("setup-issue-publish-result");
   if (normalized.endsWith("pr-comment.md")) labels.add("pr-comment");
   if (/\/plan(?:\.[a-z0-9_-]+)?\.json$/.test(normalized)) labels.add("plan");
   if (normalized.endsWith("triage.json")) labels.add("triage-report");
@@ -356,6 +360,10 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "issue-publish-plan.json": "visual-hive.issue-publish-plan.schema.json",
     "issue-publish-dry-run.json": "visual-hive.issue-publish-dry-run.schema.json",
     "issue-publish-result.json": "visual-hive.issue-publish-result.schema.json",
+    "setup-issue-candidate.json": "visual-hive.issues.schema.json",
+    "setup-issue-publish-plan.json": "visual-hive.issue-publish-plan.schema.json",
+    "setup-issue-publish-dry-run.json": "visual-hive.issue-publish-dry-run.schema.json",
+    "setup-issue-publish-result.json": "visual-hive.issue-publish-result.schema.json",
     "llm-usage.json": "visual-hive.llm-usage.schema.json",
     "llm-decisions.json": "visual-hive.llm-decisions.schema.json",
     "connections.json": "visual-hive.connections.schema.json",

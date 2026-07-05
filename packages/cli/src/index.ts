@@ -46,7 +46,14 @@ import { formatVerdictReport, runVerdictCommand } from "./commands/verdict.js";
 import { formatLayersReport, runLayersCommand } from "./commands/layers.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "./commands/testCreationPlan.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "./commands/handoff.js";
-import { formatIssuePublishResult, formatIssuesResult, runIssuePublishCommand, runIssuesCommand } from "./commands/issues.js";
+import {
+  formatIssuePublishResult,
+  formatIssuesResult,
+  formatSetupIssuePublishResult,
+  runIssuePublishCommand,
+  runIssuesCommand,
+  runSetupIssuePublishCommand
+} from "./commands/issues.js";
 import {
   formatHiveExport,
   formatHiveGuardedRepairPreview,
@@ -513,6 +520,42 @@ issuesCommand
         format: options.format
       });
       console.log(formatIssuePublishResult(result, options.format));
+      if (result.result.status === "blocked" || result.result.status === "failed") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+issuesCommand
+  .command("setup-publish")
+  .description("Write trusted setup-issue publishing plan and dry-run artifacts from .visual-hive/setup-issue.md")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--setup-issue <path>", "setup issue markdown path", ".visual-hive/setup-issue.md")
+  .option("--handoff-validation <path>", "handoff validation artifact path", ".visual-hive/hive-handoff-validation.json")
+  .option("--dry-run", "write no-network setup issue publish dry-run artifacts", true)
+  .option("--mode <mode>", "publish mode: dry_run or live", "dry_run")
+  .option("--live", "attempt guarded live GitHub setup issue create/update; requires VISUAL_HIVE_LIVE_GITHUB_ISSUE=true and a token")
+  .option("--repo <owner/repo>", "GitHub repository for live setup issue publishing; defaults to GITHUB_REPOSITORY")
+  .option("--token-env <name>", "environment variable containing the GitHub token for live publishing")
+  .option("--live-guard-env <name>", "environment variable that must be set to true for live publishing", "VISUAL_HIVE_LIVE_GITHUB_ISSUE")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options, command: Command) => {
+    try {
+      const result = await runSetupIssuePublishCommand({
+        config: nestedConfigOption(options, command),
+        setupIssue: options.setupIssue,
+        handoffValidation: options.handoffValidation,
+        dryRun: options.dryRun,
+        live: options.live,
+        mode: options.mode,
+        repository: options.repo,
+        tokenEnv: options.tokenEnv,
+        liveGuardEnv: options.liveGuardEnv,
+        format: options.format
+      });
+      console.log(formatSetupIssuePublishResult(result, options.format));
       if (result.result.status === "blocked" || result.result.status === "failed") {
         process.exitCode = 1;
       }

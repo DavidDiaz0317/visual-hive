@@ -52,7 +52,14 @@ import { runEvidenceCommand } from "../src/commands/evidence.js";
 import { formatLayersReport, runLayersCommand } from "../src/commands/layers.js";
 import { formatVerdictReport, runVerdictCommand } from "../src/commands/verdict.js";
 import { formatHandoffResult, formatHandoffValidation, runHandoffCommand, runHandoffValidateCommand } from "../src/commands/handoff.js";
-import { formatIssuePublishResult, formatIssuesResult, runIssuePublishCommand, runIssuesCommand } from "../src/commands/issues.js";
+import {
+  formatIssuePublishResult,
+  formatIssuesResult,
+  formatSetupIssuePublishResult,
+  runIssuePublishCommand,
+  runIssuesCommand,
+  runSetupIssuePublishCommand
+} from "../src/commands/issues.js";
 import {
   formatHiveExport,
   formatHiveGuardedRepairPreview,
@@ -6342,6 +6349,74 @@ viewports:
     expect(liveBlocked.result.mode).toBe("live");
     expect(liveBlocked.result.status).toBe("blocked");
     expect(liveBlocked.result.externalCallsMade).toBe(0);
+    expect(liveBlocked.result.realGithubIssuesCreated).toBe(0);
+    expect(liveBlocked.result.blockedReasons.join(" ")).toContain("VISUAL_HIVE_LIVE_GITHUB_ISSUE");
+  });
+
+  it("writes setup issue publish dry-run artifacts from setup-issue.md", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-setup-publish-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: setup-publish-demo
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: shell
+    description: Shell renders
+    target: local
+    severity: high
+    runOn:
+      pullRequest: true
+viewports:
+  desktop:
+    width: 1280
+    height: 720
+`,
+      "utf8"
+    );
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, ".visual-hive", "setup-issue.md"),
+      [
+        "<!-- visual-hive-setup-issue -->",
+        "",
+        "# [Visual Hive] Setup visual QA",
+        "",
+        "Project: setup-publish-demo",
+        "",
+        "- Review the proposed config.",
+        "- Keep pull_request read-only."
+      ].join("\n"),
+      "utf8"
+    );
+
+    const result = await runSetupIssuePublishCommand({ config: path.join(tempRoot, "visual-hive.config.yaml"), cwd: tempRoot, dryRun: true });
+    const output = formatSetupIssuePublishResult(result);
+
+    expect(output).toContain("Setup Issue Publish");
+    expect(result.plan.summary.create).toBe(1);
+    expect(result.plan.decisions[0].issueKind).toBe("setup_needed");
+    expect(result.plan.decisions[0].owningAgentHint).toBe("visual-hive/setup");
+    expect(result.plan.decisions[0].labels).toEqual(expect.arrayContaining(["visual-hive", "setup", "hive/quality"]));
+    expect(result.plan.decisions[0].body).toContain("does not repair code");
+    expect(result.result.externalCallsMade).toBe(0);
+    expect(result.result.realGithubIssuesCreated).toBe(0);
+    await expectMatchesSchema("visual-hive.issues.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "setup-issue-candidate.json")));
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "setup-issue-publish-plan.json")));
+    await expectMatchesSchema("visual-hive.issue-publish-dry-run.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "setup-issue-publish-dry-run.json")));
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "setup-issue-publish-result.json")));
+
+    const liveBlocked = await runSetupIssuePublishCommand({
+      config: path.join(tempRoot, "visual-hive.config.yaml"),
+      cwd: tempRoot,
+      mode: "live",
+      live: true
+    });
+    expect(liveBlocked.result.status).toBe("blocked");
     expect(liveBlocked.result.realGithubIssuesCreated).toBe(0);
     expect(liveBlocked.result.blockedReasons.join(" ")).toContain("VISUAL_HIVE_LIVE_GITHUB_ISSUE");
   });

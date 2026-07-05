@@ -150,6 +150,7 @@ const sections = [
       "demo:handoff-validate",
       "demo:hive-modes",
       "demo:issues",
+      "demo:setup-issue-publish",
       "demo:issue-publish",
       "demo:e2e:handoff-dry-run"
     ],
@@ -472,6 +473,8 @@ async function verifyHiveHandoff() {
   const dryRun = await readDemoJson("hive-issue-dry-run.json");
   const issues = await readDemoJson("issues.json");
   const issueQueue = await readDemoJson("issue-queue.json");
+  const setupIssueCandidate = await readDemoJson("setup-issue-candidate.json");
+  const setupIssuePublishResult = await readDemoJson("setup-issue-publish-result.json");
   const issuePublishResult = await readDemoJson("issue-publish-result.json");
   const issue = await readDemoText("hive-issue.md");
 
@@ -484,6 +487,8 @@ async function verifyHiveHandoff() {
   assert(dryRun.scenarios?.some((scenario) => scenario.blocked === true && !scenario.wouldCreateOrUpdate), "issue dry-run must block unsafe artifacts.");
   assert(nonEmptyArray(issues.issues), "issues.json must include issue candidates before issue-agent runs.");
   assert(issueQueue.summary?.total >= 1, "issue-queue.json must include queued issues.");
+  assert(setupIssueCandidate.issues?.[0]?.issueKind === "setup_needed", "setup issue publish must create a setup_needed candidate.");
+  assert(setupIssuePublishResult.realGithubIssuesCreated === 0, "setup issue publish dry-run must not create real issues.");
   assert(issuePublishResult.realGithubIssuesCreated === 0, "issue publish dry-run must not create real issues.");
   for (const expected of [
     "dedupe",

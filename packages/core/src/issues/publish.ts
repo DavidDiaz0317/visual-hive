@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readJson, writeJson } from "../utils/files.js";
+import { readJson, readText, writeJson } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { HandoffValidationReport } from "../handoff/validate.js";
 import type {
@@ -34,6 +34,14 @@ export interface WriteIssuePublishArtifactsOptions extends BuildIssuePublishPlan
   githubClient?: GitHubIssuePublisherClient;
 }
 
+export interface WriteSetupIssuePublishArtifactsOptions extends Omit<WriteIssuePublishArtifactsOptions, "issuesPath" | "planPath" | "dryRunPath" | "resultPath"> {
+  setupIssuePath?: string;
+  setupIssueCandidatePath?: string;
+  planPath?: string;
+  dryRunPath?: string;
+  resultPath?: string;
+}
+
 export interface IssuePublishArtifacts {
   plan: VisualHiveIssuePublishPlan;
   dryRun: VisualHiveIssuePublishDryRun;
@@ -66,7 +74,12 @@ const DEFAULT_PATHS = {
   handoffValidation: ".visual-hive/hive-handoff-validation.json",
   plan: ".visual-hive/issue-publish-plan.json",
   dryRun: ".visual-hive/issue-publish-dry-run.json",
-  result: ".visual-hive/issue-publish-result.json"
+  result: ".visual-hive/issue-publish-result.json",
+  setupIssue: ".visual-hive/setup-issue.md",
+  setupIssueCandidate: ".visual-hive/setup-issue-candidate.json",
+  setupPlan: ".visual-hive/setup-issue-publish-plan.json",
+  setupDryRun: ".visual-hive/setup-issue-publish-dry-run.json",
+  setupResult: ".visual-hive/setup-issue-publish-result.json"
 };
 
 export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOptions): Promise<VisualHiveIssuePublishPlan> {
@@ -119,6 +132,49 @@ export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtif
   await writeJson(dryRunPath, dryRun);
   await writeJson(resultPath, result);
   return { plan, dryRun, result, planPath, dryRunPath, resultPath };
+}
+
+export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePublishArtifactsOptions): Promise<IssuePublishArtifacts & { candidatePath: string }> {
+  const rootDir = path.resolve(options.rootDir);
+  const setupIssuePath = options.setupIssuePath ?? DEFAULT_PATHS.setupIssue;
+  const candidatePath = options.setupIssueCandidatePath ?? DEFAULT_PATHS.setupIssueCandidate;
+  const setupBody = await readText(resolveArtifact(rootDir, setupIssuePath));
+  const existingIssues = await readOptional<VisualHiveIssuesReport>(rootDir, DEFAULT_PATHS.issues);
+  const generatedAt = (options.now ?? new Date()).toISOString();
+  const project = existingIssues?.project ?? projectFromSetupIssue(setupBody) ?? "unknown";
+  const setupCandidate = setupIssueCandidate(project, setupBody, setupIssuePath);
+  const setupIssuesReport = sanitizeValue({
+    schemaVersion: "visual-hive.issues.v1",
+    generatedAt,
+    project,
+    externalCallsMade: 0,
+    networkCallsMade: 0,
+    sourceArtifacts: {
+      ...(existingIssues?.sourceArtifacts ?? {}),
+      setupIssue: normalizeArtifactPath(setupIssuePath)
+    },
+    summary: {
+      total: 1,
+      openCandidates: 1,
+      updateCandidates: 0,
+      resolvedCandidates: 0,
+      suppressed: 0,
+      blocked: 0,
+      byKind: { setup_needed: 1 },
+      bySeverity: { medium: 1 }
+    },
+    issues: [setupCandidate]
+  }) as VisualHiveIssuesReport;
+  const candidateAbsolutePath = resolveArtifact(rootDir, candidatePath);
+  await writeJson(candidateAbsolutePath, setupIssuesReport);
+  const artifacts = await writeIssuePublishArtifacts({
+    ...options,
+    issuesPath: candidatePath,
+    planPath: options.planPath ?? DEFAULT_PATHS.setupPlan,
+    dryRunPath: options.dryRunPath ?? DEFAULT_PATHS.setupDryRun,
+    resultPath: options.resultPath ?? DEFAULT_PATHS.setupResult
+  });
+  return { ...artifacts, candidatePath: candidateAbsolutePath };
 }
 
 async function prepareLiveContext(
@@ -280,6 +336,38 @@ function decisionForIssue(issue: VisualHiveIssueCandidate, existingIssue: Visual
     return decision(issue, "update", issue.status === "resolved_candidate" ? "Existing issue should receive resolved-candidate evidence." : "Existing issue matches dedupe fingerprint.", existingIssue);
   }
   return decision(issue, "create", "No existing issue was provided for this dedupe fingerprint.", existingIssue);
+}
+
+function setupIssueCandidate(project: string, setupBody: string, setupIssuePath: string): VisualHiveIssueCandidate {
+  return sanitizeValue({
+    issueKind: "setup_needed",
+    severity: "medium",
+    status: "open_candidate",
+    dedupeFingerprint: `visual-hive:setup:${safeFingerprintSegment(project)}`,
+    title: "[Visual Hive] Setup visual QA",
+    labels: ["visual-hive", "setup", "hive/quality", "visual-hive/agent-setup"],
+    body: `${setupBody.trim()}\n\n## Visual Hive Setup Issue Routing\n\nVisual Hive generated this setup issue as a safe, reviewable entry point for humans, Hive, or setup agents. Visual Hive does not repair code, create repair branches, open pull requests, approve baselines, call Hive, call LLMs, or call paid providers from this default setup path.\n\nvisual-hive-dedupe: visual-hive:setup:${safeFingerprintSegment(project)}\n`,
+    owningAgentHint: "visual-hive/setup",
+    sourceArtifacts: [normalizeArtifactPath(setupIssuePath)],
+    affected: [],
+    reproductionCommand: "visual-hive recommend --repo .",
+    validationCommand: "visual-hive doctor && visual-hive plan --mode pr && visual-hive issues --write",
+    linkedRepoMap: ".visual-hive/repo-map.json",
+    guardrails: [
+      "Keep PR workflows on pull_request with read-only permissions and no secrets.",
+      "Do not approve baselines blindly during setup.",
+      "Do not add paid providers, Hive calls, or LLM calls unless explicitly configured in a trusted lane.",
+      "Validate setup with Visual Hive doctor, plan, and issues before publishing."
+    ]
+  }) as VisualHiveIssueCandidate;
+}
+
+function projectFromSetupIssue(body: string): string | undefined {
+  return body.match(/Project:\s*([^\n]+)/i)?.[1]?.trim();
+}
+
+function safeFingerprintSegment(value: string): string {
+  return sanitizeText(value).toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
 }
 
 function decision(

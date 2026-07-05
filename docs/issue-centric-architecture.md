@@ -22,6 +22,10 @@ Visual Hive writes:
 - `.visual-hive/issues.md`
 - `.visual-hive/issue-queue.json`
 - `.visual-hive/setup-issue.md`
+- `.visual-hive/setup-issue-candidate.json`
+- `.visual-hive/setup-issue-publish-plan.json`
+- `.visual-hive/setup-issue-publish-dry-run.json`
+- `.visual-hive/setup-issue-publish-result.json`
 - `.visual-hive/issue-publish-plan.json`
 - `.visual-hive/issue-publish-dry-run.json`
 - `.visual-hive/issue-publish-result.json`
@@ -51,6 +55,30 @@ visual-hive agent issue-runner --issue-index 0
 Default issue-agent artifacts are recommendation-only. They do not edit source, create branches, open PRs, create GitHub issues, call Hive APIs, call LLMs, call paid providers, or use external network.
 
 Write-capable repair belongs in a trusted Hive/agent workflow, not in the default Visual Hive local path.
+
+## Setup Issue Workflow
+
+Connection/setup is issue-centric too:
+
+```bash
+visual-hive analyze --repo .
+visual-hive recommend --repo .
+visual-hive issues --write
+visual-hive issues setup-publish --dry-run
+```
+
+`visual-hive issues setup-publish` converts `.visual-hive/setup-issue.md` into a synthetic `setup_needed` issue candidate, then writes the same publish-plan, dry-run, and result evidence used by normal issue publishing. The default mode makes zero network calls and creates zero GitHub issues.
+
+Live setup issue creation is guarded by the same policy as other issue publishing:
+
+- trusted workflow only,
+- sanitized artifact input,
+- explicit live guard environment variable,
+- no PR code checkout,
+- no source repair,
+- no baseline approval.
+
+The setup issue is intended to trigger a human or setup agent to create/review config and workflow changes. Visual Hive remains the detector and evidence router.
 
 ## Why Issues First
 
