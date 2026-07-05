@@ -36,9 +36,11 @@ export function buildMutationReport(input: {
 }
 
 function enrichMutationResult(result: MutationResult): MutationResult {
+  const affectedSurfaces = result.affectedSurfaces ?? result.affected ?? result.contractIds.map((contractId) => ({ contractId }));
   return {
     ...result,
-    affected: result.affected ?? result.contractIds.map((contractId) => ({ contractId })),
+    affected: result.affected ?? affectedSurfaces,
+    affectedSurfaces,
     validationCommand: result.validationCommand ?? "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
     suggestedMissingTest: result.suggestedMissingTest ?? suggestedMissingTest(result),
     mutationMode: result.mutationMode ?? "runtime",

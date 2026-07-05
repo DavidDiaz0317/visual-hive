@@ -205,6 +205,7 @@ export interface MutationResult {
   contractIds: string[];
   applicable: boolean;
   affected?: MutationAffectedSurface[];
+  affectedSurfaces?: MutationAffectedSurface[];
   expectedFailureKinds?: string[];
   failureKind?: string;
   failedAssertion?: string;
