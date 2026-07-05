@@ -289,6 +289,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
   if (normalized.endsWith("handoff-agent-packet.json")) labels.add("handoff-agent-packet");
   if (normalized.endsWith("provider-agent-packet.json")) labels.add("provider-agent-packet");
+  if (normalized.endsWith("/agents/agent-run.json") || normalized.endsWith("/agent-run.json")) labels.add("agent-issue-run");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
   if (normalized.endsWith("mcp-manifest.json")) labels.add("mcp-manifest");
@@ -367,6 +368,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
     "handoff-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "provider-agent-packet.json": "visual-hive.agent-packet.schema.json",
+    "agent-run.json": "visual-hive.agent-issue-run.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
     "mcp-manifest.json": "visual-hive.mcp.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",

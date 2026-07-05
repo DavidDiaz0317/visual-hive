@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.agent-issue-run.schema.json",
+  "title": "Visual Hive Agent Issue Run",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "mode",
+    "status",
+    "profile",
+    "selectedIssue",
+    "parsedIssue",
+    "codexCli",
+    "budgets",
+    "safety",
+    "artifactPaths",
+    "recommendations",
+    "blockedReasons"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.agent-issue-run.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "mode": { "enum": ["no_write", "write_preview"] },
+    "status": { "enum": ["completed", "blocked"] },
+    "profile": { "enum": ["setup_agent", "map_agent", "test_creator_agent", "test_maintainer_agent", "mutation_agent", "review_agent"] },
+    "selectedIssue": {
+      "type": "object",
+      "required": ["dedupeFingerprint", "issueKind", "severity", "status", "title", "owningAgentHint"],
+      "additionalProperties": false,
+      "properties": {
+        "dedupeFingerprint": { "type": "string" },
+        "issueKind": { "type": "string" },
+        "severity": { "type": "string" },
+        "status": { "type": "string" },
+        "title": { "type": "string" },
+        "owningAgentHint": { "type": "string" }
+      }
+    },
+    "parsedIssue": {
+      "type": "object",
+      "required": ["affectedRoutes", "affectedComponents", "affectedContracts", "affectedSelectors", "affectedViewports", "sourceArtifacts", "evidenceArtifacts", "validationCommand", "guardrails"],
+      "additionalProperties": false,
+      "properties": {
+        "affectedRoutes": { "type": "array", "items": { "type": "string" } },
+        "affectedComponents": { "type": "array", "items": { "type": "string" } },
+        "affectedContracts": { "type": "array", "items": { "type": "string" } },
+        "affectedSelectors": { "type": "array", "items": { "type": "string" } },
+        "affectedViewports": { "type": "array", "items": { "type": "string" } },
+        "sourceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "reproductionCommand": { "type": "string" },
+        "validationCommand": { "type": "string" },
+        "guardrails": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "codexCli": {
+      "type": "object",
+      "required": ["command", "discoveryStatus"],
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string" },
+        "discoveryStatus": { "const": "not_executed" },
+        "helpExcerpt": { "type": "string" }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["maxRuntimeMs", "maxToolCalls", "maxPromptTokens", "allowWrite", "allowExternalNetwork", "maxExternalCostUsd"],
+      "additionalProperties": false,
+      "properties": {
+        "maxRuntimeMs": { "type": "number", "minimum": 0 },
+        "maxToolCalls": { "type": "number", "minimum": 0 },
+        "maxPromptTokens": { "type": "number", "minimum": 0 },
+        "allowWrite": { "type": "boolean" },
+        "allowExternalNetwork": { "const": false },
+        "maxExternalCostUsd": { "const": 0 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["sourceMutations", "branchesCreated", "pullRequestsOpened", "externalCallsMade", "networkCallsMade", "realGithubIssuesCreated", "realGithubIssuesUpdated", "hiveApiCallsMade", "llmCallsMade", "paidProviderCallsMade"],
+      "additionalProperties": false,
+      "properties": {
+        "sourceMutations": { "const": 0 },
+        "branchesCreated": { "const": 0 },
+        "pullRequestsOpened": { "const": 0 },
+        "externalCallsMade": { "const": 0 },
+        "networkCallsMade": { "const": 0 },
+        "realGithubIssuesCreated": { "const": 0 },
+        "realGithubIssuesUpdated": { "const": 0 },
+        "hiveApiCallsMade": { "const": 0 },
+        "llmCallsMade": { "const": 0 },
+        "paidProviderCallsMade": { "const": 0 }
+      }
+    },
+    "artifactPaths": {
+      "type": "object",
+      "required": ["request", "output", "run"],
+      "additionalProperties": false,
+      "properties": {
+        "request": { "type": "string" },
+        "output": { "type": "string" },
+        "run": { "type": "string" }
+      }
+    },
+    "recommendations": { "type": "array", "items": { "type": "string" } },
+    "blockedReasons": { "type": "array", "items": { "type": "string" } }
+  }
+}

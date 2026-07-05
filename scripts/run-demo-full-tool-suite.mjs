@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { clearTimeout, setTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
@@ -149,6 +149,8 @@ const sections = [
       "demo:hive-repair-workflow",
       "demo:handoff-validate",
       "demo:hive-modes",
+      "demo:issues",
+      "demo:issue-publish",
       "demo:e2e:handoff-dry-run"
     ],
     verifyHiveHandoff
@@ -158,6 +160,7 @@ const sections = [
     [
       "demo:test-creation",
       "demo:agent-packet",
+      "demo:agent-issue-run",
       "demo:agent-packet:handoff",
       "demo:agent-packet:provider",
       "demo:tools",
@@ -179,6 +182,7 @@ const metrics = {
   handoffPackets: 0,
   hiveIssueDryRuns: 0,
   agentPackets: 0,
+  agentIssueRuns: 0,
   controlPlaneSnapshots: 0,
   artifactIndexes: 0,
   mcpManifests: 0,
@@ -466,6 +470,9 @@ async function verifyHiveHandoff() {
   const consumer = await readDemoJson("hive/trusted-repair-consumer-summary.json");
   const workflow = await readDemoJson("hive/trusted-repair-workflow-dry-run.json");
   const dryRun = await readDemoJson("hive-issue-dry-run.json");
+  const issues = await readDemoJson("issues.json");
+  const issueQueue = await readDemoJson("issue-queue.json");
+  const issuePublishResult = await readDemoJson("issue-publish-result.json");
   const issue = await readDemoText("hive-issue.md");
 
   for (const [name, artifact] of Object.entries({ handoff, beadRequest, handoffResult, validation, hiveExport, guarded, envelope, consumer, workflow, dryRun })) {
@@ -475,6 +482,9 @@ async function verifyHiveHandoff() {
   assert(dryRun.scenarios?.some((scenario) => scenario.decision === "create" && scenario.wouldCreateOrUpdate), "issue dry-run must simulate create.");
   assert(dryRun.scenarios?.some((scenario) => scenario.decision === "update" && scenario.wouldCreateOrUpdate), "issue dry-run must simulate update.");
   assert(dryRun.scenarios?.some((scenario) => scenario.blocked === true && !scenario.wouldCreateOrUpdate), "issue dry-run must block unsafe artifacts.");
+  assert(nonEmptyArray(issues.issues), "issues.json must include issue candidates before issue-agent runs.");
+  assert(issueQueue.summary?.total >= 1, "issue-queue.json must include queued issues.");
+  assert(issuePublishResult.realGithubIssuesCreated === 0, "issue publish dry-run must not create real issues.");
   for (const expected of [
     "dedupe",
     "Evidence Packet",
@@ -503,6 +513,7 @@ async function verifyHiveHandoff() {
 async function verifyAgentTooling() {
   const testCreation = await readDemoJson("test-creation-plan.json");
   const agent = await readDemoJson("agent-packet.json");
+  const issueAgentRun = await findLatestAgentIssueRun();
   const handoffAgent = await readDemoJson("handoff-agent-packet.json");
   const providerAgent = await readDemoJson("provider-agent-packet.json");
   const tools = await readDemoJson("tools/tool-registry.json");
@@ -514,6 +525,14 @@ async function verifyAgentTooling() {
     assert(packet.budgets?.allowExternalNetwork === false, "agent packet budgets must set allowExternalNetwork false.");
     assert(packet.budgets?.maxExternalCostUsd === 0, "agent packet budgets must set maxExternalCostUsd 0.");
   }
+  assert(issueAgentRun.schemaVersion === "visual-hive.agent-issue-run.v1", "Issue agent run must use the expected schema.");
+  assert(issueAgentRun.mode === "no_write", "Issue agent run must default to no_write mode.");
+  assert(issueAgentRun.budgets?.allowExternalNetwork === false, "Issue agent run must disable external network.");
+  assert(issueAgentRun.safety?.sourceMutations === 0, "Issue agent run must not mutate source.");
+  assert(issueAgentRun.safety?.branchesCreated === 0, "Issue agent run must not create branches.");
+  assert(issueAgentRun.safety?.pullRequestsOpened === 0, "Issue agent run must not open pull requests.");
+  assert(issueAgentRun.safety?.realGithubIssuesCreated === 0, "Issue agent run must not create GitHub issues.");
+  assert(issueAgentRun.parsedIssue?.validationCommand, "Issue agent run must preserve the issue validation command.");
   assert(nonEmptyArray(tools.tools), "Tool Registry must include tools.");
   assert(nonEmptyArray(mcp.resources) && nonEmptyArray(mcp.tools), "MCP manifest must include resources and read tools.");
   assert(nonEmptyArray(context.toolCalls) || context.sourceArtifacts, "Context Ledger must include tool/evidence context.");
@@ -525,6 +544,7 @@ async function verifyAgentTooling() {
   );
   assert(schemas.summary?.failed === 0 || schemas.failed === 0, "schema verification must pass.");
   metrics.agentPackets += 3;
+  metrics.agentIssueRuns += 1;
   metrics.mcpManifests += 1;
   metrics.toolRegistries += 1;
 }
@@ -567,6 +587,7 @@ async function verifyFinalMetrics() {
   assert(metrics.handoffPackets >= 1, "At least 1 Handoff Packet must be generated.");
   assert(metrics.hiveIssueDryRuns >= 1, "At least 1 Hive issue dry-run report must be generated.");
   assert(metrics.agentPackets >= 1, "At least 1 Agent Packet must be generated.");
+  assert(metrics.agentIssueRuns >= 1, "At least 1 issue-driven agent run artifact must be generated.");
   assert(metrics.controlPlaneSnapshots >= 1, "At least 1 Control Plane snapshot must be generated.");
   assert(metrics.artifactIndexes >= 1, "At least 1 artifact index must be generated.");
   assert(metrics.mcpManifests >= 1, "At least 1 MCP manifest must be generated.");
@@ -827,6 +848,16 @@ async function readDemoJson(relativePath) {
 
 async function readDemoText(relativePath) {
   return readFile(path.join(demoHive, relativePath), "utf8");
+}
+
+async function findLatestAgentIssueRun() {
+  const agentsDir = path.join(demoHive, "agents");
+  const entries = await readdir(agentsDir, { withFileTypes: true });
+  const runPaths = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(agentsDir, entry.name, "agent-run.json"));
+  assert(runPaths.length > 0, "At least one issue-agent run artifact must exist.");
+  return readJson(runPaths.sort().at(-1));
 }
 
 async function readJson(filePath) {

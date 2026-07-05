@@ -21,6 +21,15 @@ visual-hive agent-packet --config visual-hive.config.yaml --profile provider_spe
 
 The default output is `.visual-hive/agent-packet.json`. The demo and agent-handoff Control Plane run profile also write `.visual-hive/handoff-agent-packet.json` for the handoff-agent packet, while the provider-governance run profile writes `.visual-hive/provider-agent-packet.json` for provider-specialist review. Those role-specific packets sit beside the main repair/test Agent Packet without replacing it, and both role-specific packet paths are catalog-backed read-only evidence resources for MCP, Tool Registry, Context Ledger, artifact index, and Control Plane consumers.
 
+For issue-centric work, generate issue candidates first and then build a bounded issue-agent run bundle:
+
+```bash
+visual-hive issues --write --config visual-hive.config.yaml
+visual-hive agent issue-runner --config visual-hive.config.yaml --kind mutation_survivor
+```
+
+This writes `.visual-hive/agents/<dedupeFingerprint>/agent-request.md`, `agent-output.md`, and `agent-run.json`. The default mode is no-write and no-network: it does not call Codex, Hive, LLMs, providers, or GitHub, and it does not edit source, create branches, open PRs, approve baselines, or create issues. It packages the selected issue, guardrails, evidence links, validation command, and budget into a form that a future trusted Codex/Hive runner can consume.
+
 Schema: `schemas/visual-hive.agent-packet.schema.json`
 
 ## Contract

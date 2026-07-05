@@ -41,6 +41,7 @@ import {
   writeHiveTrustedRepairWorkflowDryRun
 } from "../src/hive/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
+import { writeAgentIssueRun } from "../src/agent/issueRunner.js";
 import { buildIssuesReport, writeIssuesArtifacts } from "../src/issues/build.js";
 import { writeIssuePublishArtifacts } from "../src/issues/publish.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -8496,5 +8497,73 @@ describe("issue artifacts", () => {
     expect(JSON.stringify(publish)).not.toContain("secret-token");
     await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", publish.plan);
     await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", publish.result);
+  });
+
+  it("writes a no-write issue-driven agent request bundle from an issue candidate", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-run-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-issue-demo",
+      score: 0,
+      total: 1,
+      killed: 0,
+      survived: 1,
+      notApplicable: 0,
+      minScore: 0.75,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["hosted-demo-never-login"],
+          selectedContracts: ["hosted-demo-never-login"],
+          expectedFailureKinds: ["login_regression"],
+          durationMs: 12,
+          artifacts: [".visual-hive/mutation-report.json"],
+          affectedSurfaces: [{ contractId: "hosted-demo-never-login", route: "/", selector: "[data-testid='login-page']", viewport: "desktop", targetId: "localPreview" }],
+          validationCommand: "visual-hive mutate --operator force-login-on-demo",
+          suggestedMissingTest: "Add a contract that forbids the login page on the hosted demo.",
+          sourceMutation: false
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-issue-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-issue-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), { schemaVersion: "visual-hive.handoff.v1" });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive", "hive-export.json"), { schemaVersion: "visual-hive.hive-export.v1" });
+    await writeJson(path.join(rootDir, ".visual-hive", "hive", "knowledge-graph.json"), { schemaVersion: "visual-hive.hive-knowledge-graph.v1" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-issue-demo" });
+    const survivor = issues.report.issues.find((issue) => issue.issueKind === "mutation_survivor")!;
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-issue-demo",
+      dedupeFingerprint: survivor.dedupeFingerprint,
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(run.run.profile).toBe("test_creator_agent");
+    expect(run.run.mode).toBe("no_write");
+    expect(run.run.budgets.allowWrite).toBe(false);
+    expect(run.run.budgets.allowExternalNetwork).toBe(false);
+    expect(run.run.safety).toMatchObject({
+      sourceMutations: 0,
+      branchesCreated: 0,
+      pullRequestsOpened: 0,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      realGithubIssuesCreated: 0,
+      hiveApiCallsMade: 0,
+      llmCallsMade: 0,
+      paidProviderCallsMade: 0
+    });
+    expect(run.run.parsedIssue.validationCommand).toBe("visual-hive mutate --operator force-login-on-demo");
+    expect(run.requestMarkdown).toContain("Default run is advisory no-write");
+    expect(run.outputMarkdown).toContain("did not call Codex, Hive, LLMs, providers, or GitHub");
+    expect(run.outputMarkdown).toContain("Do not approve baselines blindly");
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 });

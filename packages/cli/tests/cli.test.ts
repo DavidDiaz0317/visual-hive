@@ -69,6 +69,7 @@ import {
 } from "../src/commands/hive.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
+import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "../src/commands/agentIssueRunner.js";
 import { formatToolsRegistry, runToolsCommand } from "../src/commands/tools.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "../src/commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "../src/commands/context.js";
@@ -492,6 +493,10 @@ mutation:
     expect(packageJson.scripts["demo:provider-handoff"]).toContain("providers handoff --config");
     expect(packageJson.scripts["demo:provider-handoff"]).toContain("--provider argos");
     expect(packageJson.scripts["demo:baselines"]).toContain("baselines list --config");
+    expect(packageJson.scripts["demo:issue-publish"]).toContain("issues --config");
+    expect(packageJson.scripts["demo:issue-publish"]).toContain(" publish --dry-run");
+    expect(packageJson.scripts["demo:agent-issue-run"]).toContain("agent issue-runner");
+    expect(packageJson.scripts["demo:agent-issue-run"]).toContain("--issue-index 0");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
     expect(demoExhaustiveOutput.indexOf("demo:flows")).toBeLessThan(demoExhaustiveOutput.indexOf("demo:improve"));
@@ -6339,5 +6344,95 @@ viewports:
     expect(liveBlocked.result.externalCallsMade).toBe(0);
     expect(liveBlocked.result.realGithubIssuesCreated).toBe(0);
     expect(liveBlocked.result.blockedReasons.join(" ")).toContain("VISUAL_HIVE_LIVE_GITHUB_ISSUE");
+  });
+
+  it("writes issue-agent no-write request, output, and run artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-agent-issue-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: agent-issue-cli-demo
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: shell
+    description: Shell renders
+    target: local
+    severity: high
+    runOn:
+      pullRequest: true
+viewports:
+  desktop:
+    width: 1280
+    height: 720
+`,
+      "utf8"
+    );
+    await mkdir(path.join(tempRoot, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(tempRoot, ".visual-hive", "issues.json"), {
+      schemaVersion: "visual-hive.issues.v1",
+      generatedAt: "2026-01-05T00:00:00.000Z",
+      project: "agent-issue-cli-demo",
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      sourceArtifacts: { evidencePacket: ".visual-hive/evidence-packet.json", repoMap: ".visual-hive/repo-map.json" },
+      summary: {
+        total: 1,
+        openCandidates: 1,
+        updateCandidates: 0,
+        resolvedCandidates: 0,
+        suppressed: 0,
+        blocked: 0,
+        byKind: { mutation_survivor: 1 },
+        bySeverity: { high: 1 }
+      },
+      issues: [
+        {
+          issueKind: "mutation_survivor",
+          severity: "high",
+          status: "open_candidate",
+          dedupeFingerprint: "visual-hive:mutation_survivor:agent-cli",
+          title: "[Visual Hive] Mutation survived: remove-demo-badge",
+          labels: ["visual-hive", "mutation-survivor"],
+          body: "<!-- visual-hive-issue dedupe:visual-hive:mutation_survivor:agent-cli -->\nVisual Hive does not repair code.",
+          owningAgentHint: "visual-hive/mutation",
+          sourceArtifacts: [".visual-hive/mutation-report.json"],
+          affected: [{ contractId: "badge-contract", route: "/", selector: "[data-testid='demo-badge']", viewport: "desktop", targetId: "local" }],
+          reproductionCommand: "visual-hive mutate --operator remove-demo-badge",
+          validationCommand: "visual-hive mutate --operator remove-demo-badge",
+          linkedEvidencePacket: ".visual-hive/evidence-packet.json",
+          linkedRepoMap: ".visual-hive/repo-map.json",
+          linkedMutationReport: ".visual-hive/mutation-report.json",
+          linkedAgentPacket: ".visual-hive/agent-packet.json",
+          guardrails: ["Visual Hive does not repair code.", "Do not weaken thresholds."]
+        }
+      ]
+    });
+
+    const result = await runAgentIssueRunnerCommand({
+      config: path.join(tempRoot, "visual-hive.config.yaml"),
+      cwd: tempRoot,
+      dedupe: "visual-hive:mutation_survivor:agent-cli",
+      maxRuntimeMs: 1000,
+      maxToolCalls: 3
+    });
+    const output = formatAgentIssueRunnerResult(result);
+
+    expect(output).toContain("Visual Hive Issue Agent Run");
+    expect(result.run.profile).toBe("test_creator_agent");
+    expect(result.run.budgets.maxRuntimeMs).toBe(1000);
+    expect(result.run.budgets.maxToolCalls).toBe(3);
+    expect(result.run.budgets.allowWrite).toBe(false);
+    expect(result.run.safety.externalCallsMade).toBe(0);
+    expect(result.run.safety.realGithubIssuesCreated).toBe(0);
+    expect(result.requestPath).toMatch(/\.visual-hive\/agents\/.+\/agent-request\.md/);
+    expect(result.outputPath).toMatch(/\.visual-hive\/agents\/.+\/agent-output\.md/);
+    expect(result.runPath).toMatch(/\.visual-hive\/agents\/.+\/agent-run\.json/);
+    await expect(access(path.join(tempRoot, result.requestPath))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, result.outputPath))).resolves.toBeUndefined();
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", await readJson(path.join(tempRoot, result.runPath)));
   });
 });

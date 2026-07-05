@@ -62,6 +62,7 @@ import {
   runHiveTrustedRepairWorkflowDryRunCommand
 } from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
+import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -497,10 +498,10 @@ issuesCommand
   .option("--token-env <name>", "environment variable containing the GitHub token for live publishing")
   .option("--live-guard-env <name>", "environment variable that must be set to true for live publishing", "VISUAL_HIVE_LIVE_GITHUB_ISSUE")
   .option("--format <format>", "markdown or json", "markdown")
-  .action(async (options) => {
+  .action(async (options, command: Command) => {
     try {
       const result = await runIssuePublishCommand({
-        config: options.config,
+        config: nestedConfigOption(options, command),
         issues: options.issues,
         handoffValidation: options.handoffValidation,
         dryRun: options.dryRun,
@@ -833,6 +834,48 @@ program
         format: options.format
       });
       console.log(formatAgentPacketResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const agentCommand = program.command("agent").description("Issue-driven Visual Hive agent handoff utilities");
+
+agentCommand
+  .command("issue-runner")
+  .description("Build a bounded no-write issue-agent request/output bundle from .visual-hive/issues.json")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--issues <path>", "issue candidates path", ".visual-hive/issues.json")
+  .option("--dedupe <fingerprint>", "dedupe fingerprint of the issue candidate to run")
+  .option("--issue-index <number>", "zero-based issue index when --dedupe is not provided", parseIntegerOption)
+  .option("--kind <kind>", "select the first active issue candidate of this issue kind")
+  .option("--output-dir <path>", "directory for agent-request.md, agent-output.md, and agent-run.json")
+  .option("--allow-write", "mark the run as write-preview capable; default remains no-write and performs no code edits")
+  .option("--codex-command <command>", "Codex CLI command name to record in the request", "codex")
+  .option("--max-runtime-ms <number>", "maximum future agent runtime budget in milliseconds", parseIntegerOption)
+  .option("--max-tool-calls <number>", "maximum future tool-call budget", parseIntegerOption)
+  .option("--max-prompt-tokens <number>", "maximum prompt-token budget", parseIntegerOption)
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options, command: Command) => {
+    try {
+      const result = await runAgentIssueRunnerCommand({
+        config: nestedConfigOption(options, command),
+        issues: options.issues,
+        dedupe: options.dedupe,
+        issueIndex: options.issueIndex,
+        kind: options.kind,
+        outputDir: options.outputDir,
+        allowWrite: options.allowWrite,
+        codexCommand: options.codexCommand,
+        maxRuntimeMs: options.maxRuntimeMs,
+        maxToolCalls: options.maxToolCalls,
+        maxPromptTokens: options.maxPromptTokens,
+        format: options.format
+      });
+      console.log(formatAgentIssueRunnerResult(result, options.format));
+      if (result.run.status === "blocked") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }
@@ -1654,6 +1697,13 @@ function parseNumberOption(value: string): number {
     throw new Error(`Expected a non-negative number, received "${value}".`);
   }
   return parsed;
+}
+
+function nestedConfigOption(options: { config?: string }, command: Command): string | undefined {
+  const parentConfig = command.parent?.opts<{ config?: string }>().config;
+  if (options.config && options.config !== "visual-hive.config.yaml") return options.config;
+  if (parentConfig && parentConfig !== "visual-hive.config.yaml") return parentConfig;
+  return options.config ?? parentConfig;
 }
 
 async function waitForShutdown(close: () => Promise<void>): Promise<void> {
