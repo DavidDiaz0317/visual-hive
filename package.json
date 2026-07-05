@@ -22,12 +22,13 @@
     "packages/cli",
     "packages/playwright-adapter",
     "packages/github-adapter",
+    "packages/github-app",
     "packages/llm-adapter",
     "examples/demo-react-app"
   ],
   "scripts": {
-    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/control-plane && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli",
-    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/control-plane && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app",
+    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/control-plane && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/github-app && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli",
+    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/control-plane && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/github-app && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app",
     "lint": "eslint .",
     "test": "vitest run",
     "schema:verify": "node packages/cli/dist/index.js schemas verify --output .visual-hive/schema-catalog.json",
