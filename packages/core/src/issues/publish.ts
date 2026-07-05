@@ -20,12 +20,18 @@ export interface BuildIssuePublishPlanOptions {
   issuesPath?: string;
   handoffValidationPath?: string;
   existingIssues?: VisualHivePublishedIssueRef[];
+  blockedReasons?: string[];
 }
 
 export interface WriteIssuePublishArtifactsOptions extends BuildIssuePublishPlanOptions {
   planPath?: string;
   dryRunPath?: string;
   resultPath?: string;
+  githubRepository?: string;
+  tokenEnv?: string;
+  liveGuardEnv?: string;
+  env?: Record<string, string | undefined>;
+  githubClient?: GitHubIssuePublisherClient;
 }
 
 export interface IssuePublishArtifacts {
@@ -35,6 +41,24 @@ export interface IssuePublishArtifacts {
   planPath: string;
   dryRunPath: string;
   resultPath: string;
+}
+
+export interface GitHubIssuePublisherClient {
+  listOpenIssues(input: GitHubIssuePublisherInput): Promise<VisualHivePublishedIssueRef[]>;
+  createIssue(input: GitHubIssueMutationInput): Promise<VisualHivePublishedIssueRef>;
+  updateIssue(input: GitHubIssueMutationInput & { issueNumber: number }): Promise<VisualHivePublishedIssueRef>;
+}
+
+export interface GitHubIssuePublisherInput {
+  repository: string;
+  token: string;
+}
+
+export interface GitHubIssueMutationInput extends GitHubIssuePublisherInput {
+  title: string;
+  body: string;
+  labels: string[];
+  dedupeFingerprint: string;
 }
 
 const DEFAULT_PATHS = {
@@ -54,6 +78,7 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
   const generatedAt = (options.now ?? new Date()).toISOString();
   const existingByFingerprint = new Map((options.existingIssues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
   const blockedReasons = [
+    ...(options.blockedReasons ?? []),
     ...artifactSafetyBlocks(issues, handoffValidation),
     ...(!issues.issues.length ? ["issues.json contains no issue candidates to publish."] : [])
   ];
@@ -79,9 +104,14 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
 
 export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtifactsOptions): Promise<IssuePublishArtifacts> {
   const rootDir = path.resolve(options.rootDir);
-  const plan = await buildIssuePublishPlan(options);
+  const liveContext = await prepareLiveContext(rootDir, options);
+  const plan = await buildIssuePublishPlan({
+    ...options,
+    existingIssues: liveContext.existingIssues ?? options.existingIssues,
+    blockedReasons: liveContext.blockedReasons
+  });
   const dryRun = buildDryRun(plan, options.now);
-  const result = buildDryRunResult(plan, options.now);
+  const result = plan.mode === "live" ? await buildLiveResult(plan, liveContext, options) : buildDryRunResult(plan, options.now);
   const planPath = resolveArtifact(rootDir, options.planPath ?? DEFAULT_PATHS.plan);
   const dryRunPath = resolveArtifact(rootDir, options.dryRunPath ?? DEFAULT_PATHS.dryRun);
   const resultPath = resolveArtifact(rootDir, options.resultPath ?? DEFAULT_PATHS.result);
@@ -89,6 +119,148 @@ export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtif
   await writeJson(dryRunPath, dryRun);
   await writeJson(resultPath, result);
   return { plan, dryRun, result, planPath, dryRunPath, resultPath };
+}
+
+async function prepareLiveContext(
+  rootDir: string,
+  options: WriteIssuePublishArtifactsOptions
+): Promise<{ blockedReasons: string[]; existingIssues?: VisualHivePublishedIssueRef[]; repository?: string; token?: string; externalCallsMade: number; networkCallsMade: number }> {
+  if ((options.mode ?? "dry_run") !== "live") {
+    return { blockedReasons: [], existingIssues: options.existingIssues, externalCallsMade: 0, networkCallsMade: 0 };
+  }
+  const env = options.env ?? process.env;
+  const liveGuardEnv = options.liveGuardEnv ?? "VISUAL_HIVE_LIVE_GITHUB_ISSUE";
+  const repository = options.githubRepository ?? env.GITHUB_REPOSITORY;
+  const tokenEnv = options.tokenEnv ?? (env.GH_TOKEN ? "GH_TOKEN" : "GITHUB_TOKEN");
+  const token = env[tokenEnv];
+  const blockedReasons: string[] = [];
+  if (env[liveGuardEnv] !== "true") {
+    blockedReasons.push(`Refusing live issue publishing because ${liveGuardEnv}=true is not set.`);
+  }
+  if (!repository || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+    blockedReasons.push("Refusing live issue publishing because no valid GitHub repository was provided.");
+  }
+  if (!token) {
+    blockedReasons.push(`Refusing live issue publishing because ${tokenEnv} is not set.`);
+  }
+  if (blockedReasons.length) {
+    return { blockedReasons, existingIssues: options.existingIssues, repository, externalCallsMade: 0, networkCallsMade: 0 };
+  }
+  try {
+    const client = options.githubClient ?? createGitHubIssuePublisherClient();
+    const existingIssues = await client.listOpenIssues({ repository: repository!, token: token! });
+    return {
+      blockedReasons: [],
+      existingIssues: mergeIssueRefs(options.existingIssues ?? [], existingIssues),
+      repository,
+      token,
+      externalCallsMade: 1,
+      networkCallsMade: 1
+    };
+  } catch (error) {
+    return {
+      blockedReasons: [`Refusing live issue publishing because GitHub issue discovery failed: ${sanitizeText(error instanceof Error ? error.message : String(error))}`],
+      existingIssues: options.existingIssues,
+      repository,
+      externalCallsMade: 1,
+      networkCallsMade: 1
+    };
+  }
+}
+
+async function buildLiveResult(
+  plan: VisualHiveIssuePublishPlan,
+  context: { repository?: string; token?: string; externalCallsMade: number; networkCallsMade: number },
+  options: WriteIssuePublishArtifactsOptions
+): Promise<VisualHiveIssuePublishResult> {
+  const generatedAt = (options.now ?? new Date()).toISOString();
+  if (plan.status === "blocked" || !context.repository || !context.token) {
+    return sanitizeValue({
+      schemaVersion: "visual-hive.issue-publish-result.v1",
+      generatedAt,
+      project: plan.project,
+      mode: "live",
+      status: "blocked",
+      externalCallsMade: context.externalCallsMade,
+      networkCallsMade: context.networkCallsMade,
+      realGithubIssuesCreated: 0,
+      realGithubIssuesUpdated: 0,
+      blockedReasons: plan.blockedReasons,
+      decisions: plan.decisions,
+      createdIssues: [],
+      updatedIssues: []
+    }) as VisualHiveIssuePublishResult;
+  }
+
+  const client = options.githubClient ?? createGitHubIssuePublisherClient();
+  const createdIssues: VisualHivePublishedIssueRef[] = [];
+  const updatedIssues: VisualHivePublishedIssueRef[] = [];
+  const decisions: VisualHiveIssuePublishDecision[] = [];
+  const blockedReasons: string[] = [];
+  let externalCallsMade = context.externalCallsMade;
+  let networkCallsMade = context.networkCallsMade;
+
+  for (const item of plan.decisions) {
+    if (item.action !== "create" && item.action !== "update") {
+      decisions.push(item);
+      continue;
+    }
+    try {
+      if (item.action === "create") {
+        const created = await client.createIssue({
+          repository: context.repository,
+          token: context.token,
+          title: item.title,
+          body: item.body,
+          labels: item.labels,
+          dedupeFingerprint: item.dedupeFingerprint
+        });
+        externalCallsMade += 1;
+        networkCallsMade += 1;
+        createdIssues.push(created);
+        decisions.push({ ...item, targetIssue: created });
+      } else if (item.existingIssue) {
+        const updated = await client.updateIssue({
+          repository: context.repository,
+          token: context.token,
+          issueNumber: item.existingIssue.number,
+          title: item.title,
+          body: item.body,
+          labels: item.labels,
+          dedupeFingerprint: item.dedupeFingerprint
+        });
+        externalCallsMade += 1;
+        networkCallsMade += 1;
+        updatedIssues.push(updated);
+        decisions.push({ ...item, targetIssue: updated });
+      } else {
+        decisions.push({ ...item, action: "blocked", reason: "Update decision had no target issue." });
+        blockedReasons.push(`No existing issue target was available for ${item.dedupeFingerprint}.`);
+      }
+    } catch (error) {
+      externalCallsMade += 1;
+      networkCallsMade += 1;
+      const reason = `GitHub issue ${item.action} failed for ${item.dedupeFingerprint}: ${sanitizeText(error instanceof Error ? error.message : String(error))}`;
+      blockedReasons.push(reason);
+      decisions.push({ ...item, action: "blocked", reason });
+    }
+  }
+
+  return sanitizeValue({
+    schemaVersion: "visual-hive.issue-publish-result.v1",
+    generatedAt,
+    project: plan.project,
+    mode: "live",
+    status: blockedReasons.length ? "failed" : "published",
+    externalCallsMade,
+    networkCallsMade,
+    realGithubIssuesCreated: createdIssues.length,
+    realGithubIssuesUpdated: updatedIssues.length,
+    blockedReasons,
+    decisions,
+    createdIssues,
+    updatedIssues
+  }) as VisualHiveIssuePublishResult;
 }
 
 function decisionForIssue(issue: VisualHiveIssueCandidate, existingIssue: VisualHivePublishedIssueRef | undefined, globalBlockedReasons: string[]): VisualHiveIssuePublishDecision {
@@ -191,6 +363,101 @@ function summarizeDecisions(decisions: VisualHiveIssuePublishDecision[]): Visual
     suppressed: decisions.filter((decision) => decision.status === "suppressed").length,
     resolvedCandidates: decisions.filter((decision) => decision.status === "resolved_candidate").length
   };
+}
+
+function mergeIssueRefs(left: VisualHivePublishedIssueRef[], right: VisualHivePublishedIssueRef[]): VisualHivePublishedIssueRef[] {
+  const byFingerprint = new Map<string, VisualHivePublishedIssueRef>();
+  for (const issue of [...left, ...right]) {
+    byFingerprint.set(issue.dedupeFingerprint, sanitizeValue(issue));
+  }
+  return [...byFingerprint.values()];
+}
+
+function createGitHubIssuePublisherClient(): GitHubIssuePublisherClient {
+  return {
+    async listOpenIssues(input) {
+      const issues: VisualHivePublishedIssueRef[] = [];
+      let page = 1;
+      while (page <= 5) {
+        const response = await githubFetch(input, `/issues?state=open&labels=${encodeURIComponent("visual-hive")}&per_page=100&page=${page}`);
+        const rows = await response.json() as unknown[];
+        if (!Array.isArray(rows) || !rows.length) break;
+        for (const row of rows) {
+          const issue = issueRefFromGitHub(row);
+          if (issue) issues.push(issue);
+        }
+        if (rows.length < 100) break;
+        page += 1;
+      }
+      return issues;
+    },
+    async createIssue(input) {
+      const response = await githubFetch(input, "/issues", {
+        method: "POST",
+        body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels })
+      });
+      const row = await response.json() as unknown;
+      const issue = issueRefFromGitHub(row, input.dedupeFingerprint);
+      if (!issue) throw new Error("GitHub create response did not include an issue reference.");
+      return issue;
+    },
+    async updateIssue(input) {
+      const response = await githubFetch(input, `/issues/${input.issueNumber}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels })
+      });
+      const row = await response.json() as unknown;
+      const issue = issueRefFromGitHub(row, input.dedupeFingerprint);
+      if (!issue) throw new Error("GitHub update response did not include an issue reference.");
+      return issue;
+    }
+  };
+}
+
+async function githubFetch(input: GitHubIssuePublisherInput, pathValue: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(`https://api.github.com/repos/${input.repository}${pathValue}`, {
+    ...init,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${input.token}`,
+      "Content-Type": "application/json",
+      "User-Agent": "visual-hive-issue-publisher",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(init.headers ?? {})
+    }
+  });
+  if (!response.ok) {
+    const text = sanitizeText(await response.text());
+    throw new Error(`GitHub API returned ${response.status}: ${text.slice(0, 500)}`);
+  }
+  return response;
+}
+
+function issueRefFromGitHub(value: unknown, fallbackDedupe?: string): VisualHivePublishedIssueRef | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  const number = typeof row.number === "number" ? row.number : undefined;
+  const url = typeof row.html_url === "string" ? row.html_url : typeof row.url === "string" ? row.url : undefined;
+  const title = typeof row.title === "string" ? row.title : undefined;
+  const body = typeof row.body === "string" ? row.body : "";
+  const labels = Array.isArray(row.labels)
+    ? row.labels
+        .map((label) => {
+          if (typeof label === "string") return label;
+          if (label && typeof label === "object" && !Array.isArray(label) && typeof (label as Record<string, unknown>).name === "string") {
+            return (label as Record<string, string>).name;
+          }
+          return undefined;
+        })
+        .filter((label): label is string => Boolean(label))
+    : [];
+  const dedupeFingerprint = fallbackDedupe ?? extractDedupeFingerprint(body);
+  if (!number || !url || !title || !dedupeFingerprint) return undefined;
+  return sanitizeValue({ number, url, dedupeFingerprint, title, labels }) as VisualHivePublishedIssueRef;
+}
+
+function extractDedupeFingerprint(body: string): string | undefined {
+  return body.match(/dedupe:\s*([A-Za-z0-9:_./-]+)/)?.[1] ?? body.match(/visual-hive-dedupe:\s*([A-Za-z0-9:_./-]+)/)?.[1];
 }
 
 async function readOptional<T>(rootDir: string, artifactPath: string): Promise<T | undefined> {

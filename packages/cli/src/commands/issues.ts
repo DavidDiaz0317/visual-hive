@@ -32,8 +32,12 @@ export interface IssuePublishCommandOptions {
   cwd?: string;
   mode?: VisualHiveIssuePublishMode;
   dryRun?: boolean;
+  live?: boolean;
   issues?: string;
   handoffValidation?: string;
+  repository?: string;
+  tokenEnv?: string;
+  liveGuardEnv?: string;
   format?: "markdown" | "json";
 }
 
@@ -83,9 +87,12 @@ export async function runIssuePublishCommand(options: IssuePublishCommandOptions
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
   return writeIssuePublishArtifacts({
     rootDir: loaded.rootDir,
-    mode: options.dryRun ? "dry_run" : options.mode ?? "dry_run",
+    mode: options.live || options.mode === "live" ? "live" : options.dryRun ? "dry_run" : options.mode ?? "dry_run",
     issuesPath: options.issues,
-    handoffValidationPath: options.handoffValidation
+    handoffValidationPath: options.handoffValidation,
+    githubRepository: options.repository,
+    tokenEnv: options.tokenEnv,
+    liveGuardEnv: options.liveGuardEnv
   });
 }
 

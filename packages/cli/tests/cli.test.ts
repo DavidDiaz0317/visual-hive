@@ -6324,5 +6324,20 @@ viewports:
     await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-plan.json")));
     await expectMatchesSchema("visual-hive.issue-publish-dry-run.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-dry-run.json")));
     await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "issue-publish-result.json")));
+
+    const liveBlocked = await runIssuePublishCommand({
+      config: path.join(tempRoot, "visual-hive.config.yaml"),
+      cwd: tempRoot,
+      mode: "live",
+      live: true
+    });
+    const liveOutput = formatIssuePublishResult(liveBlocked);
+    expect(liveOutput).toContain("Status: blocked");
+    expect(liveBlocked.plan.mode).toBe("live");
+    expect(liveBlocked.result.mode).toBe("live");
+    expect(liveBlocked.result.status).toBe("blocked");
+    expect(liveBlocked.result.externalCallsMade).toBe(0);
+    expect(liveBlocked.result.realGithubIssuesCreated).toBe(0);
+    expect(liveBlocked.result.blockedReasons.join(" ")).toContain("VISUAL_HIVE_LIVE_GITHUB_ISSUE");
   });
 });

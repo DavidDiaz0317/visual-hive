@@ -492,6 +492,10 @@ issuesCommand
   .option("--handoff-validation <path>", "handoff validation artifact path", ".visual-hive/hive-handoff-validation.json")
   .option("--dry-run", "write no-network issue publish dry-run artifacts", true)
   .option("--mode <mode>", "publish mode: dry_run or live", "dry_run")
+  .option("--live", "attempt guarded live GitHub issue create/update; requires VISUAL_HIVE_LIVE_GITHUB_ISSUE=true and a token")
+  .option("--repo <owner/repo>", "GitHub repository for live issue publishing; defaults to GITHUB_REPOSITORY")
+  .option("--token-env <name>", "environment variable containing the GitHub token for live publishing")
+  .option("--live-guard-env <name>", "environment variable that must be set to true for live publishing", "VISUAL_HIVE_LIVE_GITHUB_ISSUE")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -500,11 +504,15 @@ issuesCommand
         issues: options.issues,
         handoffValidation: options.handoffValidation,
         dryRun: options.dryRun,
+        live: options.live,
         mode: options.mode,
+        repository: options.repo,
+        tokenEnv: options.tokenEnv,
+        liveGuardEnv: options.liveGuardEnv,
         format: options.format
       });
       console.log(formatIssuePublishResult(result, options.format));
-      if (result.result.status === "blocked") {
+      if (result.result.status === "blocked" || result.result.status === "failed") {
         process.exitCode = 1;
       }
     } catch (error) {

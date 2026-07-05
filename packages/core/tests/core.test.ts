@@ -8369,4 +8369,132 @@ describe("issue artifacts", () => {
     expect(blocked.plan.status).toBe("blocked");
     expect(blocked.plan.decisions.every((decision) => decision.action === "blocked")).toBe(true);
   });
+
+  it("blocks live issue publishing unless explicit trusted guards are present", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-live-blocked-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    await writeIssuesArtifacts({ rootDir, project: "live-blocked-demo" });
+    let clientCalled = false;
+
+    const publish = await writeIssuePublishArtifacts({
+      rootDir,
+      mode: "live",
+      env: {},
+      githubClient: {
+        async listOpenIssues() {
+          clientCalled = true;
+          return [];
+        },
+        async createIssue() {
+          clientCalled = true;
+          throw new Error("should not create");
+        },
+        async updateIssue() {
+          clientCalled = true;
+          throw new Error("should not update");
+        }
+      }
+    });
+
+    expect(clientCalled).toBe(false);
+    expect(publish.plan.status).toBe("blocked");
+    expect(publish.result.status).toBe("blocked");
+    expect(publish.result.externalCallsMade).toBe(0);
+    expect(publish.result.networkCallsMade).toBe(0);
+    expect(publish.result.realGithubIssuesCreated).toBe(0);
+    expect(publish.result.realGithubIssuesUpdated).toBe(0);
+    expect(publish.result.blockedReasons.join(" ")).toContain("VISUAL_HIVE_LIVE_GITHUB_ISSUE");
+    expect(publish.result.blockedReasons.join(" ")).toContain("GITHUB_TOKEN");
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", publish.result);
+  });
+
+  it("publishes live issues through a mock GitHub client with dedupe create and update decisions", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-live-mock-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    const issues = await writeIssuesArtifacts({ rootDir, project: "live-mock-demo" });
+    const first = issues.report.issues[0]!;
+    const second = {
+      ...first,
+      dedupeFingerprint: `${first.dedupeFingerprint}:new`,
+      title: `${first.title} duplicate proof`,
+      body: first.body.replace(first.dedupeFingerprint, `${first.dedupeFingerprint}:new`)
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "issues.json"), {
+      ...issues.report,
+      summary: {
+        ...issues.report.summary,
+        total: 2,
+        openCandidates: 2,
+        byKind: { [first.issueKind]: 2 },
+        bySeverity: { [first.severity]: 2 }
+      },
+      issues: [first, second]
+    });
+    const calls: string[] = [];
+
+    const publish = await writeIssuePublishArtifacts({
+      rootDir,
+      mode: "live",
+      githubRepository: "DavidDiaz0317/visual-hive-demo-site",
+      env: {
+        VISUAL_HIVE_LIVE_GITHUB_ISSUE: "true",
+        GITHUB_TOKEN: "ghp_secret-token"
+      },
+      githubClient: {
+        async listOpenIssues() {
+          calls.push("list");
+          return [
+            {
+              number: 42,
+              url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/42?token=secret-token",
+              dedupeFingerprint: first.dedupeFingerprint,
+              title: first.title,
+              labels: first.labels
+            }
+          ];
+        },
+        async createIssue(input) {
+          calls.push(`create:${input.dedupeFingerprint}`);
+          return {
+            number: 43,
+            url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/43",
+            dedupeFingerprint: input.dedupeFingerprint,
+            title: input.title,
+            labels: input.labels
+          };
+        },
+        async updateIssue(input) {
+          calls.push(`update:${input.issueNumber}`);
+          return {
+            number: input.issueNumber,
+            url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/42",
+            dedupeFingerprint: input.dedupeFingerprint,
+            title: input.title,
+            labels: input.labels
+          };
+        }
+      },
+      now: new Date("2026-01-03T00:00:00.000Z")
+    });
+
+    expect(calls).toEqual(["list", "update:42", `create:${second.dedupeFingerprint}`]);
+    expect(publish.plan.status).toBe("ready");
+    expect(publish.plan.summary.update).toBe(1);
+    expect(publish.plan.summary.create).toBe(1);
+    expect(publish.result.status).toBe("published");
+    expect(publish.result.mode).toBe("live");
+    expect(publish.result.externalCallsMade).toBe(3);
+    expect(publish.result.networkCallsMade).toBe(3);
+    expect(publish.result.realGithubIssuesCreated).toBe(1);
+    expect(publish.result.realGithubIssuesUpdated).toBe(1);
+    expect(publish.result.createdIssues[0]?.number).toBe(43);
+    expect(publish.result.updatedIssues[0]?.number).toBe(42);
+    expect(JSON.stringify(publish)).not.toContain("secret-token");
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", publish.plan);
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", publish.result);
+  });
 });
