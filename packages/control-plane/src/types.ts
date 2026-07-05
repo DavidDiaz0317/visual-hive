@@ -45,7 +45,12 @@ import type {
   SetupProgressReport,
   SetupPullRequestPlanReport,
   SetupRecommendationReport,
-  WorkflowAuditReport
+  WorkflowAuditReport,
+  VisualHiveIssuePublishDryRun,
+  VisualHiveIssuePublishPlan,
+  VisualHiveIssuePublishResult,
+  VisualHiveIssueQueue,
+  VisualHiveIssuesReport
 } from "@visual-hive/core";
 
 export interface ControlPlanePipelineReport {
@@ -415,6 +420,11 @@ export interface ControlPlaneSnapshot {
   setupRecommendation?: SetupRecommendationReport;
   setupPullRequestPlan?: SetupPullRequestPlanReport;
   pipelineReport?: ControlPlanePipelineReport;
+  issuesReport?: VisualHiveIssuesReport;
+  issueQueue?: VisualHiveIssueQueue;
+  issuePublishPlan?: VisualHiveIssuePublishPlan;
+  issuePublishDryRun?: VisualHiveIssuePublishDryRun;
+  issuePublishResult?: VisualHiveIssuePublishResult;
   issueMarkdown?: string;
   prCommentMarkdown?: string;
   triagePrompt?: string;

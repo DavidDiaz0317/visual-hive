@@ -653,8 +653,12 @@ function ReviewWorkspace({
       <SignalCard className="span-3" icon={<Image size={17} />} label="Baselines" tone={(snapshot.baselineSummary?.pendingReview ?? 0) > 0 ? "warning" : "success"} value={snapshot.baselineSummary?.pendingReview ?? 0} detail="Pending review" />
       <SignalCard className="span-3" icon={<FlaskConical size={17} />} label="Mutation score" tone={typeof snapshot.mutationReport?.score === "number" && snapshot.mutationReport.score >= (snapshot.mutationReport.minScore ?? 0.7) ? "success" : "warning"} value={formatPercent(snapshot.mutationReport?.score)} detail="Adequacy" />
       <SignalCard className="span-3" icon={<Clock size={17} />} label="Last run" tone={statusTone(snapshot.report?.status)} value={snapshot.report?.status ?? "missing"} detail={formatDate(snapshot.report?.generatedAt)} />
+      <SignalCard className="span-3" icon={<ClipboardList size={17} />} label="Issue queue" tone={(snapshot.issueQueue?.summary.total ?? 0) > 0 ? "warning" : "success"} value={snapshot.issueQueue?.summary.total ?? snapshot.issuesReport?.summary.total ?? 0} detail="Agent-ready findings" />
       <div className="span-12">
         <AgentForwardWorkflow snapshot={snapshot} runAction={runAction} busyAction={busyAction} connection={connection} mode={mode} />
+      </div>
+      <div className="span-12">
+        <IssueQueuePanel snapshot={snapshot} connection={connection} mode={mode} />
       </div>
       <div className="span-12">
         <FailureInbox snapshot={snapshot} connection={connection} />
@@ -674,8 +678,95 @@ function ReviewWorkspace({
       <div className="span-12">
         <Runs snapshot={snapshot} connection={connection} />
       </div>
-      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, runHistory: snapshot.runHistory, evidencePacket: snapshot.evidencePacket, verdictReport: snapshot.verdictReport, handoffPacket: snapshot.handoffPacket, agentPacket: snapshot.agentPacket, handoffAgentPacket: snapshot.handoffAgentPacket, providerAgentPacket: snapshot.providerAgentPacket, testCreationPlan: snapshot.testCreationPlan }} />}
+      {mode === "expert" && <EvidenceDisclosure className="span-12" title="Review raw evidence" data={{ report: snapshot.report, mutationReport: snapshot.mutationReport, triageReport: snapshot.triageReport, runHistory: snapshot.runHistory, evidencePacket: snapshot.evidencePacket, verdictReport: snapshot.verdictReport, handoffPacket: snapshot.handoffPacket, agentPacket: snapshot.agentPacket, handoffAgentPacket: snapshot.handoffAgentPacket, providerAgentPacket: snapshot.providerAgentPacket, testCreationPlan: snapshot.testCreationPlan, issuesReport: snapshot.issuesReport, issueQueue: snapshot.issueQueue, issuePublishPlan: snapshot.issuePublishPlan, issuePublishDryRun: snapshot.issuePublishDryRun, issuePublishResult: snapshot.issuePublishResult }} />}
     </div>
+  );
+}
+
+function IssueQueuePanel({ snapshot, connection, mode }: { snapshot: Snapshot; connection?: string; mode: UserMode }) {
+  const queue = snapshot.issueQueue;
+  const report = snapshot.issuesReport;
+  const publishPlan = snapshot.issuePublishPlan;
+  const publishResult = snapshot.issuePublishResult;
+  const issuesPath = evidenceArtifactPath(snapshot, "issue-candidates", ".visual-hive/issues.json");
+  const queuePath = evidenceArtifactPath(snapshot, "issue-queue", ".visual-hive/issue-queue.json");
+  const publishPath = evidenceArtifactPath(snapshot, "issue-publish-plan", ".visual-hive/issue-publish-plan.json");
+  const visibleIssues = [
+    ...(queue?.queues.ready_for_hive ?? []),
+    ...(queue?.queues.ready_for_visual_hive_agent ?? []),
+    ...(queue?.queues.blocked_policy ?? []),
+    ...(queue?.queues.blocked_missing_artifact ?? []),
+    ...(queue?.queues.resolved_candidate ?? []),
+    ...(queue?.queues.suppressed ?? [])
+  ];
+  const queueRows: Array<[string, number]> = queue
+    ? [
+        ["Ready for Hive", queue.summary.readyForHive],
+        ["Ready for Visual Hive agent", queue.summary.readyForVisualHiveAgent],
+        ["Blocked by policy", queue.summary.blockedPolicy],
+        ["Missing artifact", queue.summary.blockedMissingArtifact],
+        ["Resolved candidates", queue.summary.resolvedCandidates],
+        ["Suppressed", queue.summary.suppressed]
+      ]
+    : [];
+
+  return (
+    <Card
+      title="Issue queue"
+      action={
+        <div className="row">
+          <ExternalArtifactLink href={artifactUrl(issuesPath, "file", connection)} label="Open issues" />
+          <ExternalArtifactLink href={artifactUrl(queuePath, "file", connection)} label="Open queue" />
+        </div>
+      }
+    >
+      <p className="card-subtext">
+        Issues are the queue for Hive and agents. Visual Hive detects, proves, packages, and routes findings; it does not repair code or create PRs from the local/default path.
+      </p>
+      {queue || report ? (
+        <div className="view-grid">
+          <MetricCard className="span-3" label="Candidates" tone={(report?.summary.total ?? 0) > 0 ? "warning" : "success"} value={report?.summary.total ?? 0} />
+          <MetricCard className="span-3" label="Ready" tone={(queue?.summary.readyForHive ?? 0) + (queue?.summary.readyForVisualHiveAgent ?? 0) > 0 ? "warning" : "success"} value={(queue?.summary.readyForHive ?? 0) + (queue?.summary.readyForVisualHiveAgent ?? 0)} />
+          <MetricCard className="span-3" label="Blocked" tone={(queue?.summary.blockedPolicy ?? 0) + (queue?.summary.blockedMissingArtifact ?? 0) > 0 ? "danger" : "success"} value={(queue?.summary.blockedPolicy ?? 0) + (queue?.summary.blockedMissingArtifact ?? 0)} />
+          <MetricCard className="span-3" label="Publish" tone={statusTone(publishResult?.status ?? publishPlan?.status)} value={publishResult?.status ?? publishPlan?.status ?? "not planned"} />
+          {queueRows.length ? (
+            <div className="span-4">
+              <KeyValueTable rows={queueRows} />
+            </div>
+          ) : null}
+          <div className={queueRows.length ? "span-8" : "span-12"}>
+            {visibleIssues.length ? (
+              <SimpleTable
+                headers={["Issue", "Kind", "Severity", "Owner", "Next validation"]}
+                rows={visibleIssues.slice(0, mode === "expert" ? 12 : 6).map((issue) => [
+                  <div className="stack compact" key={issue.dedupeFingerprint}>
+                    <strong>{issue.title}</strong>
+                    <small>{issue.dedupeFingerprint}</small>
+                  </div>,
+                  issue.issueKind,
+                  <Badge key="severity" tone={statusTone(issue.severity)}>{issue.severity}</Badge>,
+                  issue.owningAgentHint,
+                  <div className="stack compact" key="validation">
+                    <span>{issue.validationCommand}</span>
+                    <CopyButton label="Copy" value={issue.validationCommand} />
+                  </div>
+                ])}
+              />
+            ) : (
+              <EmptyState title="No issue candidates queued">Run `visual-hive issues --write` after triage, coverage, and mutation artifacts exist.</EmptyState>
+            )}
+          </div>
+          <div className="span-12">
+            <ArtifactList artifacts={[issuesPath, queuePath, publishPath, ".visual-hive/issue-publish-dry-run.json", ".visual-hive/issue-publish-result.json"]} connection={connection} />
+          </div>
+          {mode === "expert" && <EvidenceDisclosure className="span-12" title="View raw issue evidence" data={{ issuesReport: report, issueQueue: queue, issuePublishPlan: publishPlan, issuePublishDryRun: snapshot.issuePublishDryRun, issuePublishResult: publishResult }} compact />}
+        </div>
+      ) : (
+        <EmptyState title="No issue queue yet">
+          Run `visual-hive issues --write` to convert findings into stable, deduplicated issue candidates for Hive and agents.
+        </EmptyState>
+      )}
+    </Card>
   );
 }
 

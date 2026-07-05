@@ -63,7 +63,12 @@ import {
   type TriageReport,
   type VerdictReport,
   type VisualHiveConfig,
-  type WorkflowAuditReport
+  type WorkflowAuditReport,
+  type VisualHiveIssuePublishDryRun,
+  type VisualHiveIssuePublishPlan,
+  type VisualHiveIssuePublishResult,
+  type VisualHiveIssueQueue,
+  type VisualHiveIssuesReport
 } from "@visual-hive/core";
 import { readControlPlaneActionHistory } from "./commandExecutor.js";
 import { readLLMDecisionLog } from "./llmDecisions.js";
@@ -135,6 +140,11 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     setupRecommendation,
     setupPullRequestPlan,
     pipelineReport,
+    issuesReport,
+    issueQueue,
+    issuePublishPlan,
+    issuePublishDryRun,
+    issuePublishResult,
     workflowAuditArtifact,
     runHistoryArtifact,
     contextLedger,
@@ -183,6 +193,11 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<SetupRecommendationReport>(path.join(hiveRoot, "recommendations.json")),
     readJsonIfExists<SetupPullRequestPlanReport>(path.join(hiveRoot, "setup-pr-plan.json")),
     readJsonIfExists<ControlPlanePipelineReport>(path.join(hiveRoot, "pipeline.json")),
+    readJsonIfExists<VisualHiveIssuesReport>(path.join(hiveRoot, "issues.json")),
+    readJsonIfExists<VisualHiveIssueQueue>(path.join(hiveRoot, "issue-queue.json")),
+    readJsonIfExists<VisualHiveIssuePublishPlan>(path.join(hiveRoot, "issue-publish-plan.json")),
+    readJsonIfExists<VisualHiveIssuePublishDryRun>(path.join(hiveRoot, "issue-publish-dry-run.json")),
+    readJsonIfExists<VisualHiveIssuePublishResult>(path.join(hiveRoot, "issue-publish-result.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<ContextLedger>(path.join(hiveRoot, "context-ledger.json")),
@@ -329,6 +344,8 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     providerAgentPacket,
     mcpManifest,
     schemaCatalog,
+    issueQueue,
+    issuesReport,
     artifacts
   });
 
@@ -378,6 +395,11 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     setupRecommendation,
     setupPullRequestPlan,
     pipelineReport,
+    issuesReport,
+    issueQueue,
+    issuePublishPlan,
+    issuePublishDryRun,
+    issuePublishResult,
     targetAudit,
     contractAudit,
     flowAudit,
@@ -800,6 +822,8 @@ function buildNavigationBadges(input: {
   providerAgentPacket?: AgentPacket;
   mcpManifest?: ControlPlaneMcpManifest;
   schemaCatalog?: SchemaCatalogReport;
+  issuesReport?: VisualHiveIssuesReport;
+  issueQueue?: VisualHiveIssueQueue;
   artifacts: Array<{ path: string }>;
 }): ControlPlaneNavigationBadges {
   const baselines = input.screenshots.filter((shot) => ["created", "missing_baseline", "failed"].includes(shot.status)).length;
@@ -808,6 +832,13 @@ function buildNavigationBadges(input: {
   const providerBlocks = input.providers.filter((provider) => (provider.costPolicy?.blockedReasons?.length ?? 0) > 0 || (provider.missingEnv?.length ?? 0) > 0).length;
   const failures = input.failures.length;
   const testCreation = Number(input.testCreationPlan?.summary.high ?? 0) + Number(input.testCreationPlan?.summary.medium ?? 0);
+  const issueWork =
+    Number(input.issueQueue?.summary.readyForHive ?? 0) +
+    Number(input.issueQueue?.summary.readyForVisualHiveAgent ?? 0) +
+    Number(input.issueQueue?.summary.blockedPolicy ?? 0) +
+    Number(input.issueQueue?.summary.blockedMissingArtifact ?? 0) +
+    Number(input.issuesReport?.summary.openCandidates ?? 0) +
+    Number(input.issuesReport?.summary.updateCandidates ?? 0);
   const schemaCatalogFailures = input.schemaCatalog?.status === "failed" ? Math.max(1, Number(input.schemaCatalog.summary.failed ?? 0)) : 0;
   const hasSetupArtifacts = input.artifacts.some((artifact) => artifact.path.endsWith("recommendations.json") || artifact.path.endsWith("setup-pr-plan.json"));
   const missingSetupMcpManifest = hasSetupArtifacts && !input.mcpManifest ? 1 : 0;
@@ -825,9 +856,9 @@ function buildNavigationBadges(input: {
     input.providerAgentPacket
   ].filter((artifact) => !artifact).length;
   return {
-    start: Math.min(setup + failures + baselines + testCreation + missingAgentForwardPackets + schemaCatalogFailures + missingSetupMcpManifest, 99),
+    start: Math.min(setup + failures + baselines + testCreation + issueWork + missingAgentForwardPackets + schemaCatalogFailures + missingSetupMcpManifest, 99),
     run: 0,
-    review: Math.min(failures + baselines + testCreation + missingAgentForwardPackets, 99),
+    review: Math.min(failures + baselines + testCreation + issueWork + missingAgentForwardPackets, 99),
     configure: Math.min(setup + risks + providerBlocks + schemaCatalogFailures + missingSetupMcpManifest, 99),
     expert: input.artifacts.length + schemaCatalogFailures,
     failures,

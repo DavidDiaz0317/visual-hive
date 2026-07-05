@@ -372,6 +372,31 @@
       "additionalProperties": true,
       "description": "Optional Context Ledger evidence from .visual-hive/context-ledger.json. Tool calls may include evidenceResources[] so agents can follow every catalog-backed artifact produced by a pipeline step without scraping raw paths."
     },
+    "issuesReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional first-class issue candidate evidence from .visual-hive/issues.json. Visual Hive uses this to show the issue queue without creating or updating GitHub issues from the local/default path."
+    },
+    "issueQueue": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional issue orchestration queue from .visual-hive/issue-queue.json, grouped by readiness for Hive, Visual Hive agents, policy blockers, missing artifacts, resolved candidates, and suppressions."
+    },
+    "issuePublishPlan": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional trusted issue publication plan from .visual-hive/issue-publish-plan.json. This is planning evidence only unless consumed by a trusted workflow."
+    },
+    "issuePublishDryRun": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional no-network issue publication dry-run evidence from .visual-hive/issue-publish-dry-run.json."
+    },
+    "issuePublishResult": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional issue publication result evidence from .visual-hive/issue-publish-result.json. Local/default dry runs should report zero real GitHub issues created or updated."
+    },
     "workflowTemplates": {
       "type": "array",
       "items": {

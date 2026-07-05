@@ -275,6 +275,173 @@ viewports:
     "utf8"
   );
   await writeFile(path.join(repoRoot, ".visual-hive", "issue.md"), "# Issue\n", "utf8");
+  const issueCandidate = {
+    issueKind: "mutation_survivor",
+    severity: "high",
+    status: "open_candidate",
+    dedupeFingerprint: "visual-hive:mutation_survivor:dashboard:remove-demo-badge",
+    title: "[Visual Hive] Mutation survived: remove demo badge",
+    labels: ["visual-hive", "visual-hive/ready", "mutation-survivor", "hive/quality"],
+    body: [
+      "<!-- visual-hive-issue -->",
+      "visual-hive-dedupe: visual-hive:mutation_survivor:dashboard:remove-demo-badge",
+      "Visual Hive does not repair code; it detects, proves, packages, and routes this finding.",
+      "Evidence Packet: .visual-hive/evidence-packet.json",
+      "Repo map: .visual-hive/repo-map.json",
+      "Hive export: .visual-hive/hive/hive-export.json",
+      "Knowledge graph: .visual-hive/hive/knowledge-graph.json",
+      "Agent Packet: .visual-hive/agent-packet.json"
+    ].join("\n"),
+    owningAgentHint: "visual-hive/test-creator",
+    sourceArtifacts: [".visual-hive/mutation-report.json", ".visual-hive/evidence-packet.json", ".visual-hive/repo-map.json"],
+    affected: [{ route: "/", component: "App", contractId: "dashboard", selector: "[data-testid='demo-badge']", viewport: "desktop", targetId: "localPreview" }],
+    reproductionCommand: "visual-hive mutate --operator remove-demo-badge",
+    validationCommand: "visual-hive run --ci && visual-hive mutate",
+    linkedEvidencePacket: ".visual-hive/evidence-packet.json",
+    linkedRepoMap: ".visual-hive/repo-map.json",
+    linkedMutationReport: ".visual-hive/mutation-report.json",
+    linkedHandoff: ".visual-hive/handoff.json",
+    linkedHiveExport: ".visual-hive/hive/hive-export.json",
+    linkedKnowledgeGraph: ".visual-hive/hive/knowledge-graph.json",
+    linkedAgentPacket: ".visual-hive/agent-packet.json",
+    guardrails: ["Do not approve baselines blindly.", "Do not weaken thresholds to make this issue disappear."]
+  };
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "issues.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.issues.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        sourceArtifacts: {
+          report: ".visual-hive/report.json",
+          mutationReport: ".visual-hive/mutation-report.json",
+          triage: ".visual-hive/triage.json",
+          repoMap: ".visual-hive/repo-map.json",
+          evidencePacket: ".visual-hive/evidence-packet.json",
+          handoff: ".visual-hive/handoff.json",
+          hiveExport: ".visual-hive/hive/hive-export.json",
+          knowledgeGraph: ".visual-hive/hive/knowledge-graph.json",
+          agentPacket: ".visual-hive/agent-packet.json"
+        },
+        summary: {
+          total: 1,
+          openCandidates: 1,
+          updateCandidates: 0,
+          resolvedCandidates: 0,
+          suppressed: 0,
+          blocked: 0,
+          byKind: { mutation_survivor: 1 },
+          bySeverity: { high: 1 }
+        },
+        issues: [issueCandidate]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "issues.md"), "# Visual Hive Issues\n\n- [Visual Hive] Mutation survived: remove demo badge\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "issue-queue.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.issue-queue.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        summary: {
+          total: 1,
+          readyForHive: 1,
+          readyForVisualHiveAgent: 1,
+          blockedPolicy: 0,
+          blockedMissingArtifact: 0,
+          resolvedCandidates: 0,
+          suppressed: 0
+        },
+        labels: ["visual-hive", "visual-hive/ready", "visual-hive/agent-test-creator", "hive/quality", "mutation-survivor"],
+        queues: {
+          ready_for_hive: [issueCandidate],
+          ready_for_visual_hive_agent: [issueCandidate],
+          blocked_policy: [],
+          blocked_missing_artifact: [],
+          resolved_candidate: [],
+          suppressed: []
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "issue-publish-plan.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.issue-publish-plan.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        mode: "dry_run",
+        status: "ready",
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        sourceArtifacts: { issues: ".visual-hive/issues.json", handoffValidation: ".visual-hive/hive-handoff-validation.json" },
+        summary: { total: 1, create: 1, update: 0, skip: 0, blocked: 0, suppressed: 0, resolvedCandidates: 0 },
+        blockedReasons: [],
+        decisions: [{ ...issueCandidate, action: "create", reason: "No existing issue was provided for this dedupe fingerprint." }]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "issue-publish-dry-run.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.issue-publish-dry-run.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        status: "ready",
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        wouldCreateIssues: 1,
+        wouldUpdateIssues: 0,
+        wouldSkipIssues: 0,
+        wouldBlockIssues: 0,
+        decisions: [{ ...issueCandidate, action: "create", reason: "No existing issue was provided for this dedupe fingerprint." }]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "issue-publish-result.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.issue-publish-result.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        mode: "dry_run",
+        status: "dry_run_written",
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        realGithubIssuesCreated: 0,
+        realGithubIssuesUpdated: 0,
+        blockedReasons: [],
+        decisions: [{ ...issueCandidate, action: "create", reason: "No existing issue was provided for this dedupe fingerprint." }],
+        createdIssues: [],
+        updatedIssues: []
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
   await writeFile(path.join(repoRoot, ".visual-hive", "pr-comment.md"), "<!-- visual-hive-report -->\n## Visual Hive report\n", "utf8");
   await writeFile(
     path.join(repoRoot, ".visual-hive", "triage.json"),
@@ -3462,6 +3629,25 @@ describe("control plane", () => {
     expect(snapshot.screenshots[0]?.name).toBe("dashboard");
     expect(snapshot.baselineSummary).toMatchObject({ total: 1, passed: 1, pendingReview: 0 });
     expect(snapshot.issueMarkdown).toContain("Issue");
+    expect(snapshot.issuesReport).toMatchObject({
+      schemaVersion: "visual-hive.issues.v1",
+      summary: { total: 1, openCandidates: 1 },
+      issues: [
+        expect.objectContaining({
+          issueKind: "mutation_survivor",
+          dedupeFingerprint: "visual-hive:mutation_survivor:dashboard:remove-demo-badge",
+          owningAgentHint: "visual-hive/test-creator"
+        })
+      ]
+    });
+    expect(snapshot.issueQueue).toMatchObject({
+      schemaVersion: "visual-hive.issue-queue.v1",
+      summary: { total: 1, readyForHive: 1, readyForVisualHiveAgent: 1 }
+    });
+    expect(snapshot.issuePublishPlan).toMatchObject({ schemaVersion: "visual-hive.issue-publish-plan.v1", status: "ready" });
+    expect(snapshot.issuePublishDryRun).toMatchObject({ schemaVersion: "visual-hive.issue-publish-dry-run.v1", wouldCreateIssues: 1 });
+    expect(snapshot.issuePublishResult).toMatchObject({ schemaVersion: "visual-hive.issue-publish-result.v1", status: "dry_run_written", realGithubIssuesCreated: 0 });
+    expect(snapshot.navigationBadges.review).toBeGreaterThanOrEqual(2);
     expect(snapshot.prCommentMarkdown).toContain("Visual Hive report");
     expect(snapshot.missingTestsMarkdown).toContain("Missing Test Suggestions");
     expect(snapshot.baselineReviewMarkdown).toContain("Baseline Review Summary");
@@ -3470,6 +3656,25 @@ describe("control plane", () => {
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("provider-handoff.json"))?.labels).toContain("provider-handoff");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("hive-export.json"))?.labels).toContain("hive-export");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("plans.json"))?.labels).toContain("plan-lanes");
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("issues.json"))).toMatchObject({
+      labels: expect.arrayContaining(["issue-candidates"]),
+      schemaPath: "schemas/visual-hive.issues.schema.json",
+      evidenceResourceId: "issue-candidates",
+      evidenceResourceUri: "visual-hive://issues",
+      evidenceReadToolName: "visual_hive_read_issue_candidates"
+    });
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("issue-queue.json"))).toMatchObject({
+      labels: expect.arrayContaining(["issue-queue"]),
+      schemaPath: "schemas/visual-hive.issue-queue.schema.json",
+      evidenceResourceId: "issue-queue",
+      evidenceReadToolName: "visual_hive_read_issue_queue"
+    });
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("issue-publish-plan.json"))).toMatchObject({
+      labels: expect.arrayContaining(["issue-publish-plan"]),
+      schemaPath: "schemas/visual-hive.issue-publish-plan.schema.json",
+      evidenceResourceId: "issue-publish-plan",
+      evidenceReadToolName: "visual_hive_read_issue_publish_plan"
+    });
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("risk.json"))?.labels).toContain("risk-register");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("security.json"))?.labels).toContain("security-audit");
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("costs.json"))?.labels).toContain("cost-audit");
