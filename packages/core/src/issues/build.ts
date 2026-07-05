@@ -105,9 +105,11 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       keyed.set(previous.dedupeFingerprint, {
         ...previous,
         status: "resolved_candidate",
+        labels: dedupe([...previous.labels, "visual-hive/resolved-candidate"]),
         body: renderIssueBody({
           ...previous,
           status: "resolved_candidate",
+          labels: dedupe([...previous.labels, "visual-hive/resolved-candidate"]),
           sourceArtifacts: dedupe([...previous.sourceArtifacts, sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json"]),
           guardrails: DEFAULT_GUARDRAILS,
           validationCommand: previous.validationCommand || "visual-hive evidence && visual-hive issues --write"
@@ -553,6 +555,16 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string):
     "## Guardrails",
     "",
     ...issue.guardrails.map((guardrail) => `- ${guardrail}`),
+    "",
+    ...(issue.status === "resolved_candidate"
+      ? [
+          "## Resolved Candidate Evidence",
+          "",
+          "Visual Hive no longer detects this finding in the latest artifact set. Treat this as deterministic resolved-candidate evidence for a trusted workflow or human reviewer.",
+          "",
+          "Do not auto-close by default unless repository policy explicitly enables auto-close. Prefer updating the existing issue with this evidence and adding `visual-hive/resolved-candidate`."
+        ]
+      : []),
     "",
     "## Agent Direction",
     "",

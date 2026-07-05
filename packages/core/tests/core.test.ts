@@ -8302,8 +8302,28 @@ describe("issue artifacts", () => {
     await writeJson(path.join(rootDir, ".visual-hive", "issue-suppressions.json"), { suppressions: [] });
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), passedReportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
     const resolved = await buildIssuesReport({ rootDir, project: "lifecycle-demo" });
+    const resolvedIssue = resolved.report.issues.find((issue) => issue.dedupeFingerprint === firstIssue.dedupeFingerprint);
 
-    expect(resolved.report.issues.find((issue) => issue.dedupeFingerprint === firstIssue.dedupeFingerprint)?.status).toBe("resolved_candidate");
+    expect(resolvedIssue?.status).toBe("resolved_candidate");
+    expect(resolvedIssue?.labels).toContain("visual-hive/resolved-candidate");
+    expect(resolvedIssue?.body).toContain("Resolved Candidate Evidence");
+
+    await writeJson(path.join(rootDir, ".visual-hive", "issues.json"), resolved.report);
+    const publish = await writeIssuePublishArtifacts({
+      rootDir,
+      existingIssues: [
+        {
+          number: 77,
+          url: "https://github.com/example/repo/issues/77",
+          dedupeFingerprint: firstIssue.dedupeFingerprint,
+          title: firstIssue.title,
+          labels: firstIssue.labels
+        }
+      ]
+    });
+    expect(publish.plan.decisions[0]).toMatchObject({ action: "update", status: "resolved_candidate", existingIssue: { number: 77 } });
+    expect(publish.plan.decisions[0]?.labels).toContain("visual-hive/resolved-candidate");
+    expect(publish.plan.decisions[0]?.body).toContain("Do not auto-close by default");
   });
 
   it("writes no-network issue publish plan and dry-run artifacts with dedupe decisions", async () => {

@@ -376,6 +376,8 @@ function decision(
   reason: string,
   existingIssue?: VisualHivePublishedIssueRef
 ): VisualHiveIssuePublishDecision {
+  const labels = issue.status === "resolved_candidate" ? dedupe([...issue.labels, "visual-hive/resolved-candidate"]) : issue.labels;
+  const body = issue.status === "resolved_candidate" ? resolvedCandidateBody(issue.body) : issue.body;
   return sanitizeValue({
     dedupeFingerprint: issue.dedupeFingerprint,
     issueKind: issue.issueKind,
@@ -384,13 +386,22 @@ function decision(
     severity: issue.severity,
     action,
     reason,
-    labels: issue.labels,
+    labels,
     owningAgentHint: issue.owningAgentHint,
     validationCommand: issue.validationCommand,
     existingIssue,
     targetIssue: existingIssue,
-    body: issue.body
+    body
   }) as VisualHiveIssuePublishDecision;
+}
+
+function resolvedCandidateBody(body: string): string {
+  if (body.includes("## Resolved Candidate Evidence")) return body;
+  return sanitizeText(`${body}\n\n## Resolved Candidate Evidence\n\nVisual Hive no longer detects this finding in the latest artifact set. Do not auto-close by default unless repository policy explicitly enables auto-close. A trusted workflow or human reviewer should add \`visual-hive/resolved-candidate\` or close the issue after reviewing validation evidence.\n`);
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values.map((value) => sanitizeText(value)).filter(Boolean))];
 }
 
 function artifactSafetyBlocks(issues: VisualHiveIssuesReport, handoffValidation?: HandoffValidationReport): string[] {
