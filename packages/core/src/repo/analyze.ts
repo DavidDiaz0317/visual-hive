@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseConfigText } from "../config/load.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { mutationOperatorId } from "../mutations/operators.js";
+import { writeVisualGraphArtifacts } from "../graph/build.js";
 import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
@@ -90,6 +91,12 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     generatedAt: (options.now ?? new Date()).toISOString(),
     repoRoot: ".",
     outputResource: catalogedRepoOutputResource(".visual-hive/repo-map.json"),
+    visualGraphOutputResources: {
+      graph: catalogedRepoOutputResource(".visual-hive/visual-graph.json"),
+      summary: catalogedRepoOutputResource(".visual-hive/visual-graph-summary.md"),
+      vocabulary: catalogedRepoOutputResource(".visual-hive/visual-graph-vocab.json"),
+      unresolved: catalogedRepoOutputResource(".visual-hive/visual-graph-unresolved.json")
+    },
     project: {
       name: sanitizeText(rootPackage?.name ?? path.basename(repoRoot)),
       packageManager,
@@ -123,6 +130,7 @@ export async function writeRepoMap(options: WriteRepoMapOptions): Promise<{ repo
   const markdownPath = resolveArtifact(repoRoot, options.markdownPath ?? ".visual-hive/repo-context.md");
   await writeJson(reportPath, report);
   await writeText(markdownPath, renderRepoContext(report));
+  await writeVisualGraphArtifacts({ repoRoot, repoMap: report, now: options.now });
   return { report, reportPath, markdownPath };
 }
 
@@ -1079,11 +1087,21 @@ function resolveArtifact(repoRoot: string, filePath: string): string {
 }
 
 function catalogedRepoOutputResource(artifactPath: string): RepoMapOutputResource {
-  const resource = getEvidenceResourceById("repo-map");
+  const resourceId =
+    artifactPath.endsWith("visual-graph.json")
+      ? "visual-graph"
+      : artifactPath.endsWith("visual-graph-summary.md")
+        ? "visual-graph-summary"
+        : artifactPath.endsWith("visual-graph-vocab.json")
+          ? "visual-graph-vocab"
+          : artifactPath.endsWith("visual-graph-unresolved.json")
+            ? "visual-graph-unresolved"
+            : "repo-map";
+  const resource = getEvidenceResourceById(resourceId);
   return {
     artifactPath,
-    evidenceResourceId: resource?.id ?? "repo-map",
-    evidenceResourceUri: resource?.uri ?? "visual-hive://repo-map",
+    evidenceResourceId: resource?.id ?? resourceId,
+    evidenceResourceUri: resource?.uri ?? `visual-hive://${resourceId}`,
     evidenceResourceTitle: resource?.title ?? "Repository Intelligence Map",
     evidenceResourceDescription:
       resource?.description ??

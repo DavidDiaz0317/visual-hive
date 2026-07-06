@@ -3,6 +3,8 @@ import path from "node:path";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
+import { writeVisualGraphArtifacts } from "../graph/build.js";
+import type { RepoMapReport } from "../repo/types.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveSetupIssue } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
@@ -176,6 +178,7 @@ export async function writeIssuesArtifacts(options: WriteIssuesOptions): Promise
   await writeText(markdownPath, built.markdown);
   await writeJson(queuePath, built.queue);
   await writeText(setupIssuePath, built.setupIssue.body);
+  await refreshVisualGraphWithIssues(options.rootDir, built.report);
   return { ...built, issuesPath, markdownPath, queuePath, setupIssuePath };
 }
 
@@ -689,6 +692,20 @@ async function readSuppressions(rootDir: string, artifactPath: string): Promise<
   const parsed = await readOptional<{ suppressions?: VisualHiveIssueSuppression[] } | VisualHiveIssueSuppression[]>(rootDir, artifactPath);
   if (Array.isArray(parsed)) return parsed;
   return parsed?.suppressions ?? [];
+}
+
+async function refreshVisualGraphWithIssues(rootDir: string, issuesReport: VisualHiveIssuesReport): Promise<void> {
+  const repoMap = await readOptional<RepoMapReport>(rootDir, ".visual-hive/repo-map.json");
+  if (!isRepoMapReport(repoMap)) return;
+  await writeVisualGraphArtifacts({ repoRoot: rootDir, repoMap, issuesReport });
+}
+
+function isRepoMapReport(value: unknown): value is RepoMapReport {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const visualMap = (value as { visualMap?: unknown }).visualMap;
+  if (!visualMap || typeof visualMap !== "object" || Array.isArray(visualMap)) return false;
+  const map = visualMap as { nodes?: unknown; edges?: unknown };
+  return Array.isArray(map.nodes) && Array.isArray(map.edges);
 }
 
 function exists(pathValue?: string, object?: unknown): string | undefined {

@@ -45,6 +45,11 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://setup-pr-plan`
 - `visual-hive://repo-map`
 - `visual-hive://repo-context`
+- `visual-hive://visual-graph`
+- `visual-hive://visual-graph-summary`
+- `visual-hive://visual-graph-vocab`
+- `visual-hive://visual-graph-unresolved`
+- `visual-hive://visual-graph-impact`
 - `visual-hive://latest-report`
 - `visual-hive://latest-evidence`
 - `visual-hive://control-plane-snapshot`
@@ -116,6 +121,11 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_setup_pr_plan`
 - `visual_hive_read_repo_map`
 - `visual_hive_read_repo_context`
+- `visual_hive_read_visual_graph`
+- `visual_hive_read_visual_graph_summary`
+- `visual_hive_read_visual_graph_vocab`
+- `visual_hive_read_visual_graph_unresolved`
+- `visual_hive_read_visual_graph_impact`
 - `visual_hive_read_latest_report`
 - `visual_hive_read_evidence_packet`
 - `visual_hive_read_control_plane_snapshot`

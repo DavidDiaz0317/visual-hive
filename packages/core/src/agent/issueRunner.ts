@@ -575,7 +575,10 @@ function parseIssue(issue: VisualHiveIssueCandidate): AgentIssueRun["parsedIssue
       issue.linkedHandoff,
       issue.linkedHiveExport,
       issue.linkedKnowledgeGraph,
-      issue.linkedAgentPacket
+      issue.linkedAgentPacket,
+      ".visual-hive/visual-graph.json",
+      ".visual-hive/visual-impact.json",
+      ".visual-hive/visual-graph-unresolved.json"
     ]),
     reproductionCommand: issue.reproductionCommand,
     validationCommand: issue.validationCommand,
@@ -620,6 +623,15 @@ function recommendationsFor(issue: VisualHiveIssueCandidate, profile: AgentIssue
   return [...common, "Verify the issue is actionable and identify the smallest safe next validation step."];
 }
 
+function impactCommandForIssue(issue: VisualHiveIssueCandidate): string {
+  const contract = issue.affected.find((surface) => surface.contractId)?.contractId;
+  if (contract) return `visual-hive graph impact --contract ${contract}`;
+  const route = issue.affected.find((surface) => surface.route)?.route;
+  if (route) return `visual-hive graph impact --route ${route}`;
+  if (issue.issueKind === "mutation_survivor") return "visual-hive graph impact --mutation <operator>";
+  return `visual-hive graph impact --issue ${issue.dedupeFingerprint}`;
+}
+
 function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun): string {
   return sanitizeText([
     `# Visual Hive Issue Agent Request`,
@@ -643,6 +655,70 @@ function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun)
     `- Validation command: ${issue.validationCommand}`,
     `- Source artifacts: ${issue.sourceArtifacts.join(", ") || "none"}`,
     `- Evidence artifacts: ${run.parsedIssue.evidenceArtifacts.join(", ") || "none"}`,
+    "",
+    "## Issue",
+    "",
+    `- Title: ${issue.title}`,
+    `- Dedupe fingerprint: ${issue.dedupeFingerprint}`,
+    `- Kind: ${issue.issueKind}`,
+    `- Lifecycle status: ${issue.status}`,
+    `- Affected routes: ${run.parsedIssue.affectedRoutes.join(", ") || "none"}`,
+    `- Affected components: ${run.parsedIssue.affectedComponents.join(", ") || "none"}`,
+    `- Affected contracts: ${run.parsedIssue.affectedContracts.join(", ") || "none"}`,
+    `- Affected selectors: ${run.parsedIssue.affectedSelectors.join(", ") || "none"}`,
+    "",
+    "## Evidence Packet Summary",
+    "",
+    `- Evidence Packet: ${issue.linkedEvidencePacket ?? ".visual-hive/evidence-packet.json"}`,
+    `- Repo map: ${issue.linkedRepoMap ?? ".visual-hive/repo-map.json"}`,
+    `- Mutation report: ${issue.linkedMutationReport ?? ".visual-hive/mutation-report.json"}`,
+    `- Handoff packet: ${issue.linkedHandoff ?? ".visual-hive/handoff.json"}`,
+    "",
+    "## Visual Graph Refs",
+    "",
+    "- Visual Graph: .visual-hive/visual-graph.json",
+    "- Visual Graph Summary: .visual-hive/visual-graph-summary.md",
+    "- Unresolved References: .visual-hive/visual-graph-unresolved.json",
+    "- Search command: `visual-hive graph search <selector-route-contract-or-mutation>`",
+    "",
+    "## Impact Analysis",
+    "",
+    "- Impact artifact: .visual-hive/visual-impact.json",
+    `- Suggested impact command: \`${impactCommandForIssue(issue)}\``,
+    "- Use impact output to identify routes, contracts, screenshots, mutation operators, and artifacts affected by the issue.",
+    "",
+    "## Relevant Artifacts",
+    "",
+    ...dedupe([...issue.sourceArtifacts, ...run.parsedIssue.evidenceArtifacts]).map((artifact) => `- ${artifact}`),
+    "",
+    "## Allowed Actions",
+    "",
+    "- Read repo, issue, evidence, visual graph, impact, and artifact files.",
+    "- Propose deterministic contract, selector, route, mutation, or workflow changes.",
+    "- In no-write mode, produce a plan only.",
+    "- In explicit write mode, make the smallest reviewed code/config/test change needed for the selected issue.",
+    "",
+    "## Forbidden Actions",
+    "",
+    "- Do not decide Visual Hive pass/fail status; Visual Hive verdict remains authoritative.",
+    "- Do not approve baselines blindly.",
+    "- Do not weaken screenshot thresholds, selector assertions, mutation thresholds, or workflow safety gates to hide the issue.",
+    "- Do not create branches, pull requests, real GitHub issues, Hive API calls, provider uploads, or LLM calls unless explicitly enabled by trusted policy.",
+    "- Do not mutate source in no-write mode.",
+    "",
+    "## Validation Command",
+    "",
+    `\`${issue.validationCommand}\``,
+    "",
+    "## Output Schema",
+    "",
+    "Return a structured response with:",
+    "- `summary`: short explanation of the issue and recommended repair.",
+    "- `graphNodesUsed`: Visual Graph node ids used as evidence.",
+    "- `artifactsUsed`: artifact paths read.",
+    "- `proposedChanges`: files/contracts/selectors/tests to update.",
+    "- `validationCommand`: exact command to rerun.",
+    "- `safetyNotes`: confirmation that no baseline approval/threshold weakening is proposed.",
     "",
     "## Recommended Agent Plan",
     "",

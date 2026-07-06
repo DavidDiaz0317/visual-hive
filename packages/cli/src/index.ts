@@ -83,6 +83,19 @@ import { formatSnapshotResult, runSnapshotCommand } from "./commands/snapshot.js
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatAnalyzeSummary, runAnalyzeCommand } from "./commands/analyze.js";
+import {
+  formatGraphImpact,
+  formatGraphNode,
+  formatGraphSearch,
+  formatGraphSummary,
+  runGraphContractCommand,
+  runGraphImpactCommand,
+  runGraphMutationCommand,
+  runGraphNodeCommand,
+  runGraphRouteCommand,
+  runGraphSearchCommand,
+  ensureVisualGraph
+} from "./commands/graph.js";
 import { formatSetupRecommendation, runRecommendCommand } from "./commands/recommend.js";
 import { formatCoverageImprovementReport, runImproveCoverageCommand } from "./commands/improve.js";
 import {
@@ -1518,6 +1531,123 @@ program
         format: options.format
       });
       console.log(formatAnalyzeSummary(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const graph = program.command("graph").description("Query Visual Hive Visual Graph evidence");
+
+graph
+  .command("summary")
+  .description("Print the Visual Graph summary")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await ensureVisualGraph(options.repo);
+      console.log(formatGraphSummary(result.graph, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("search <query>")
+  .description("Search graph nodes by selector, route, contract, screenshot, mutation, issue, or label")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (query, options) => {
+    try {
+      const result = await runGraphSearchCommand(query, { repo: options.repo, format: options.format });
+      console.log(formatGraphSearch(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("node <id>")
+  .description("Show a graph node and its adjacent edges")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (id, options) => {
+    try {
+      const result = await runGraphNodeCommand(id, { repo: options.repo, format: options.format });
+      console.log(formatGraphNode(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("impact")
+  .description("Write or print blast-radius evidence for changed files, issue, contract, mutation, or route")
+  .option("--repo <path>", "repository root", ".")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--issue <fingerprint>", "issue candidate fingerprint or node id")
+  .option("--contract <id>", "contract id")
+  .option("--mutation <operator>", "mutation operator")
+  .option("--route <route>", "route path")
+  .option("--output <path>", "output path", ".visual-hive/visual-impact.json")
+  .option("--no-write", "do not write visual-impact.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runGraphImpactCommand({
+        repo: options.repo,
+        changedFiles: options.changedFiles,
+        issue: options.issue,
+        contract: options.contract,
+        mutation: options.mutation,
+        route: options.route,
+        output: options.output,
+        write: options.write,
+        format: options.format
+      });
+      console.log(formatGraphImpact(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("route <route>")
+  .description("Show graph impact for a route")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (route, options) => {
+    try {
+      const result = await runGraphRouteCommand(route, { repo: options.repo, format: options.format });
+      console.log(formatGraphImpact(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("contract <contractId>")
+  .description("Show graph impact for a contract")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (contractId, options) => {
+    try {
+      const result = await runGraphContractCommand(contractId, { repo: options.repo, format: options.format });
+      console.log(formatGraphImpact(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+graph
+  .command("mutation <operatorId>")
+  .description("Show graph impact for a mutation operator")
+  .option("--repo <path>", "repository root", ".")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (operatorId, options) => {
+    try {
+      const result = await runGraphMutationCommand(operatorId, { repo: options.repo, format: options.format });
+      console.log(formatGraphImpact(result, options.format));
     } catch (error) {
       fail(error);
     }

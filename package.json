@@ -98,6 +98,8 @@
     "demo:mcp": "node packages/cli/dist/index.js mcp --config examples/demo-react-app/visual-hive.config.yaml --describe --output .visual-hive/mcp-manifest.json",
     "demo:pipeline": "node packages/cli/dist/index.js pipeline --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt --ci --skip-install --skip-build --enforce-mutation --continue-on-error",
     "demo:recommend": "node packages/cli/dist/index.js recommend --repo examples/demo-react-app",
+    "demo:graph:search": "node packages/cli/dist/index.js graph search login --repo examples/demo-react-app",
+    "demo:graph:impact": "node packages/cli/dist/index.js graph impact --repo examples/demo-react-app --changed-files examples/demo-react-app/changed-files.txt",
     "demo:connections": "node packages/cli/dist/index.js connections list --config examples/demo-react-app/visual-hive.config.yaml --write",
     "demo:kubestellar:auth-plan": "node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-auth-changed-files.txt --output .visual-hive/plan.auth.json",
     "demo:kubestellar:cluster-plan": "node packages/cli/dist/index.js plan --config examples/kubestellar-console/visual-hive.config.yaml --mode pr --changed-files examples/kubestellar-console/sample-cluster-changed-files.txt --output .visual-hive/plan.cluster.json",

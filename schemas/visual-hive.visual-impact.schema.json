@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.visual-impact.schema.json",
+  "title": "Visual Hive Visual Impact",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "query", "affectedNodes", "affectedEdges", "grouped", "validationCommands", "issueContext", "summary"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.visual-impact.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "query": {
+      "type": "object",
+      "required": ["changedFiles"],
+      "properties": {
+        "changedFiles": { "type": "array", "items": { "type": "string" } },
+        "issue": { "type": "string" },
+        "contract": { "type": "string" },
+        "mutation": { "type": "string" },
+        "route": { "type": "string" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "affectedNodes": { "type": "array", "items": { "type": "object", "required": ["id", "kind", "label"], "additionalProperties": true } },
+    "affectedEdges": { "type": "array", "items": { "type": "object", "required": ["id", "from", "to", "relation"], "additionalProperties": true } },
+    "grouped": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+    "validationCommands": { "type": "array", "items": { "type": "string" } },
+    "issueContext": {
+      "type": "object",
+      "required": ["issueNodeIds", "evidenceArtifacts", "suggestedAgentProfiles"],
+      "properties": {
+        "issueNodeIds": { "type": "array", "items": { "type": "string" } },
+        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "suggestedAgentProfiles": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": ["affectedNodeCount", "affectedRouteCount", "affectedContractCount", "affectedScreenshotCount", "affectedMutationCount"],
+      "properties": {
+        "affectedNodeCount": { "type": "integer", "minimum": 0 },
+        "affectedRouteCount": { "type": "integer", "minimum": 0 },
+        "affectedContractCount": { "type": "integer", "minimum": 0 },
+        "affectedScreenshotCount": { "type": "integer", "minimum": 0 },
+        "affectedMutationCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.visual-graph-unresolved.schema.json",
+  "title": "Visual Hive Visual Graph Unresolved References",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "unresolvedReferences", "resolvedReferences"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.visual-graph-unresolved.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "unresolvedReferences": { "type": "array", "items": { "type": "object", "required": ["id", "fromNodeId", "referenceName", "referenceKind", "candidates", "confidence", "nextResolutionStrategy"], "additionalProperties": true } },
+    "resolvedReferences": { "type": "array", "items": { "type": "object", "required": ["id", "fromNodeId", "referenceName", "referenceKind", "targetNodeId", "confidence", "resolvedBy"], "additionalProperties": true } }
+  },
+  "additionalProperties": true
+}

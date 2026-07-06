@@ -90,6 +90,7 @@ import { formatSnapshotResult, runSnapshotCommand } from "../src/commands/snapsh
 import { formatSecurityAudit, runSecurityCommand } from "../src/commands/security.js";
 import { formatCostsReport, runCostsCommand } from "../src/commands/costs.js";
 import { formatAnalyzeSummary, runAnalyzeCommand } from "../src/commands/analyze.js";
+import { formatGraphImpact, formatGraphSearch, runGraphImpactCommand, runGraphSearchCommand } from "../src/commands/graph.js";
 import { formatSetupRecommendation, runRecommendCommand } from "../src/commands/recommend.js";
 import { formatConnectionsIndex, runConnectionsAddCommand, runConnectionsListCommand, runConnectionsRemoveCommand } from "../src/commands/connections.js";
 import { gitChangedFiles } from "../src/commands/gitChangedFiles.js";
@@ -730,6 +731,67 @@ mutation:
     expect(markdown).toContain("Visual Hive Repo Context: analyze-fixture");
     expect(JSON.stringify(report)).not.toContain("secret-value");
     expect(markdown).not.toContain("secret-value");
+  });
+
+  it("graph search and impact read generated Visual Graph artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-graph-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "package.json"),
+      JSON.stringify({ name: "graph-cli-fixture", scripts: { preview: "vite preview" }, dependencies: { react: "^19.0.0", vite: "^6.0.0" } }),
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: graph-cli-fixture
+  type: react-vite
+targets:
+  local:
+    kind: url
+    url: http://127.0.0.1:4173
+    prSafe: true
+contracts:
+  - id: dashboard-visual
+    description: Dashboard visual
+    target: local
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+    screenshots:
+      - name: dashboard-mobile
+        route: /
+        viewport: mobile
+viewports:
+  mobile:
+    width: 390
+    height: 844
+mutation:
+  enabled: true
+  operators:
+    - mobile-overflow
+`,
+      "utf8"
+    );
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), `export function App(){return <main data-testid="dashboard-page">Dashboard</main>}`, "utf8");
+    const changedFiles = path.join(tempRoot, "changed-files.txt");
+    await writeFile(changedFiles, "src/App.tsx\n", "utf8");
+
+    await runAnalyzeCommand({ repo: tempRoot });
+    const search = await runGraphSearchCommand("dashboard", { repo: tempRoot });
+    const searchMarkdown = formatGraphSearch(search);
+    expect(search.results.length).toBeGreaterThan(0);
+    expect(searchMarkdown).toContain("dashboard");
+
+    const impact = await runGraphImpactCommand({ repo: tempRoot, changedFiles, mutation: "mobile-overflow" });
+    const impactMarkdown = formatGraphImpact(impact);
+    expect(impact.outputPath).toBe(path.join(tempRoot, ".visual-hive", "visual-impact.json"));
+    expect(impact.impact.summary.affectedNodeCount).toBeGreaterThan(0);
+    expect(impactMarkdown).toContain("Visual Impact");
+    expect(await readFile(path.join(tempRoot, ".visual-hive", "visual-impact.json"), "utf8")).toContain("visual-hive.visual-impact.v1");
   });
 
   it("passes explicit include and exclude options through plan command", async () => {

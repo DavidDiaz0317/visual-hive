@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.visual-graph-vocab.schema.json",
+  "title": "Visual Hive Visual Graph Vocabulary",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "entries"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.visual-graph-vocab.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["token", "nodeIds", "kinds", "labels"],
+        "properties": {
+          "token": { "type": "string" },
+          "nodeIds": { "type": "array", "items": { "type": "string" } },
+          "kinds": { "type": "array", "items": { "type": "string" } },
+          "labels": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

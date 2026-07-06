@@ -49,6 +49,7 @@ import { VISUAL_HIVE_EVIDENCE_RESOURCES } from "../src/tools/evidenceResources.j
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
 import { verifySchemaCatalog } from "../src/schemas/catalog.js";
 import { analyzeRepository, writeRepoMap } from "../src/repo/analyze.js";
+import { analyzeVisualImpact, readVisualGraph, searchVisualGraph } from "../src/graph/build.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -1233,6 +1234,76 @@ jobs:
       }
     });
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Repo Context: repo-map-write");
+  });
+
+  it("writes Visual Graph artifacts with searchable nodes, unresolved references, and impact evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-visual-graph-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "visual-graph-fixture", scripts: { preview: "vite preview" }, dependencies: { react: "^19.0.0", vite: "^6.0.0" } }), "utf8");
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: visual-graph-fixture
+  type: react-vite
+targets:
+  localPreview:
+    kind: url
+    url: http://127.0.0.1:4173
+    prSafe: true
+contracts:
+  - id: hosted-demo-never-login
+    description: Public demo never exposes login
+    target: localPreview
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+        - "[data-testid='github-login-button']"
+    screenshots:
+      - name: dashboard-mobile
+        route: /
+        viewport: mobile
+viewports:
+  mobile:
+    width: 390
+    height: 844
+mutation:
+  enabled: true
+  operators:
+    - force-login-on-demo
+`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, "src", "App.tsx"),
+      `export function App() {
+  return <main data-testid="dashboard-page"><button data-testid="github-login-button">GitHub</button></main>;
+}
+`,
+      "utf8"
+    );
+
+    await writeRepoMap({ repoRoot: tempRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const graph = await readVisualGraph(tempRoot);
+    const vocab = JSON.parse(await readFile(path.join(tempRoot, ".visual-hive", "visual-graph-vocab.json"), "utf8"));
+    const unresolved = JSON.parse(await readFile(path.join(tempRoot, ".visual-hive", "visual-graph-unresolved.json"), "utf8"));
+
+    await expectMatchesSchema("visual-hive.visual-graph.schema.json", graph);
+    await expectMatchesSchema("visual-hive.visual-graph-vocab.schema.json", vocab);
+    await expectMatchesSchema("visual-hive.visual-graph-unresolved.schema.json", unresolved);
+    expect(graph.nodes.map((node) => node.kind)).toEqual(expect.arrayContaining(["file", "component", "route", "contract", "screenshot", "mutation_operator", "artifact", "agent_profile", "hive_resource"]));
+    expect(graph.edges).toEqual(expect.arrayContaining([expect.objectContaining({ relation: "captures" }), expect.objectContaining({ relation: "mutates" })]));
+    expect(graph.summary.completeChains).toBeGreaterThanOrEqual(1);
+    expect(searchVisualGraph(graph, "login").map((result) => result.node.id)).toEqual(expect.arrayContaining(["selector:data-testid-login-page", "selector:data-testid-github-login-button"]));
+
+    const impact = analyzeVisualImpact(graph, { changedFiles: ["src/App.tsx"], mutation: "force-login-on-demo" }, new Date("2026-06-15T00:00:00.000Z"));
+    await expectMatchesSchema("visual-hive.visual-impact.schema.json", impact);
+    expect(impact.summary.affectedContractCount).toBeGreaterThanOrEqual(1);
+    expect(impact.validationCommands.length).toBeGreaterThanOrEqual(1);
   });
 
   it("reconciles previous visual-map findings by fingerprint", async () => {
@@ -7525,42 +7596,42 @@ describe("tool registry", () => {
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
+      "visual_hive_read_visual_graph",
+      "visual_hive_read_visual_graph_impact",
       "visual_hive_read_latest_report",
       "visual_hive_read_triage_report",
-      "visual_hive_generate_repair_prompt",
-      "visual_hive_read_missing_tests",
-      "visual_hive_list_reproduction_commands"
+      "visual_hive_generate_repair_prompt"
     ]);
     expect(repairProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
     expect(testCreatorProfile?.allowedToolIds).toEqual([
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
+      "visual_hive_read_visual_graph",
+      "visual_hive_read_visual_graph_impact",
       "visual_hive_read_missing_tests",
       "visual_hive_read_testing_layers",
-      "visual_hive_read_coverage_recommendations",
-      "visual_hive_read_test_creation_plan",
-      "visual_hive_read_mutation_report"
+      "visual_hive_read_coverage_recommendations"
     ]);
     expect(reviewProfile?.allowedToolIds).toEqual([
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_latest_report",
+      "visual_hive_read_visual_graph",
+      "visual_hive_read_visual_graph_impact",
       "visual_hive_read_triage_report",
-      "visual_hive_read_baseline_review",
-      "visual_hive_read_run_history",
-      "visual_hive_read_context_ledger"
+      "visual_hive_read_baseline_review"
     ]);
     expect(handoffProfile?.allowedToolIds).toEqual([
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_issue_queue",
+      "visual_hive_read_visual_graph",
+      "visual_hive_read_visual_graph_impact",
       "visual_hive_read_issue_candidates",
-      "visual_hive_read_triage_report",
-      "visual_hive_read_issue_body",
-      "visual_hive_read_pr_comment"
+      "visual_hive_read_triage_report"
     ]);
     expect(registry.tools.find((tool) => tool.id === "visual_hive_read_triage_report")).toMatchObject({
       evidenceResourceId: "triage-report",
@@ -8292,6 +8363,54 @@ describe("issue artifacts", () => {
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
   });
 
+  it("refreshes the Visual Graph with issue candidate nodes when issue artifacts are written", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-graph-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ name: "issues-graph-demo", scripts: { preview: "vite preview" } }), "utf8");
+    await writeFile(
+      path.join(rootDir, "visual-hive.config.yaml"),
+      `project:
+  name: issues-graph-demo
+  type: react-vite
+targets:
+  localPreview:
+    kind: url
+    url: http://127.0.0.1:4173
+    prSafe: true
+contracts:
+  - id: hosted-demo-never-login
+    description: Public demo never exposes login
+    target: localPreview
+    runOn:
+      pullRequest: true
+    selectors:
+      mustExist:
+        - "[data-testid='dashboard-page']"
+      mustNotExist:
+        - "[data-testid='login-page']"
+    screenshots:
+      - name: dashboard
+        route: /
+        viewport: desktop
+viewports:
+  desktop:
+    width: 1440
+    height: 900
+`,
+      "utf8"
+    );
+    await writeFile(path.join(rootDir, "src", "App.tsx"), `export function App() { return <main data-testid="dashboard-page" />; }\n`, "utf8");
+    await writeRepoMap({ repoRoot: rootDir, now: new Date("2026-06-15T00:00:00.000Z") });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+
+    await writeIssuesArtifacts({ rootDir, project: "issues-graph-demo" });
+
+    const graph = await readVisualGraph(rootDir);
+    expect(graph.nodes).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "issue_candidate" })]));
+    expect(graph.edges).toEqual(expect.arrayContaining([expect.objectContaining({ relation: "backs_issue" })]));
+  });
+
   it("marks disappeared findings as resolved candidates and honors suppressions", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-lifecycle-"));
     tempDirs.push(rootDir);
@@ -8699,6 +8818,13 @@ describe("issue artifacts", () => {
     expect(run.run.parsedIssue.validationCommand).toBe("visual-hive mutate --operator force-login-on-demo");
     expect(run.requestMarkdown).toContain("Default run is advisory no-write");
     expect(run.requestMarkdown).toContain("Codex CLI Discovery");
+    expect(run.requestMarkdown).toContain("## Visual Graph Refs");
+    expect(run.requestMarkdown).toContain(".visual-hive/visual-graph.json");
+    expect(run.requestMarkdown).toContain("## Impact Analysis");
+    expect(run.requestMarkdown).toContain("## Allowed Actions");
+    expect(run.requestMarkdown).toContain("## Forbidden Actions");
+    expect(run.requestMarkdown).toContain("## Output Schema");
+    expect(run.requestMarkdown).toContain("Do not weaken screenshot thresholds");
     expect(run.outputMarkdown).toContain("did not run Codex as an agent");
     expect(run.outputMarkdown).toContain("Codex CLI Discovery");
     expect(run.outputMarkdown).toContain("Do not approve baselines blindly");

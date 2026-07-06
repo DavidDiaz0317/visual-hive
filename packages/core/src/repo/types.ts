@@ -171,6 +171,12 @@ export interface RepoMapReport {
   generatedAt: string;
   repoRoot: string;
   outputResource?: RepoMapOutputResource;
+  visualGraphOutputResources?: {
+    graph: RepoMapOutputResource;
+    summary: RepoMapOutputResource;
+    vocabulary: RepoMapOutputResource;
+    unresolved: RepoMapOutputResource;
+  };
   project: {
     name: string;
     packageManager: RepoPackageManager;

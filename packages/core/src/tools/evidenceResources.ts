@@ -107,6 +107,86 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "visual-graph",
+    "visual-hive://visual-graph",
+    "visual-graph",
+    "Visual Graph",
+    "Production Visual Hive graph connecting files, components, routes, selectors, contracts, screenshots, mutations, artifacts, issues, agents, and Hive resources.",
+    ".visual-hive/visual-graph.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_visual_graph",
+      "Read Visual Graph",
+      "Read the deterministic Visual Graph without running targets, creating issues, or invoking agents.",
+      "visual-hive graph search dashboard",
+      ["Read graph evidence only. Do not repair code, approve baselines, weaken thresholds, or create issues from graph evidence alone."]
+    )
+  ),
+  resource(
+    "visual-graph-summary",
+    "visual-hive://visual-graph-summary",
+    "visual-graph-summary",
+    "Visual Graph Summary",
+    "Human-readable Visual Graph summary with node counts, unresolved references, and extractor coverage.",
+    ".visual-hive/visual-graph-summary.md",
+    "text/markdown",
+    readTool(
+      "visual_hive_read_visual_graph_summary",
+      "Read Visual Graph Summary",
+      "Read the Visual Graph summary without changing repository state.",
+      "visual-hive analyze --repo .",
+      ["Read graph summary only. Do not treat unresolved references as failures unless policy explicitly gates them."]
+    )
+  ),
+  resource(
+    "visual-graph-vocab",
+    "visual-hive://visual-graph-vocab",
+    "visual-graph-vocab",
+    "Visual Graph Vocabulary",
+    "Search vocabulary for agent and UI lookup of graph nodes by selectors, routes, contracts, screenshots, mutation operators, and labels.",
+    ".visual-hive/visual-graph-vocab.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_visual_graph_vocab",
+      "Read Visual Graph Vocabulary",
+      "Read graph search vocabulary without rescanning source files.",
+      "visual-hive graph search login",
+      ["Read vocabulary only. Do not infer pass/fail status from vocabulary terms."]
+    )
+  ),
+  resource(
+    "visual-graph-unresolved",
+    "visual-hive://visual-graph-unresolved",
+    "visual-graph-unresolved",
+    "Visual Graph Unresolved References",
+    "Unresolved and resolved graph reference lifecycle evidence for component-route, selector-component, mutation-contract, workflow-command, issue-artifact, and artifact-node links.",
+    ".visual-hive/visual-graph-unresolved.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_visual_graph_unresolved",
+      "Read Visual Graph Unresolved References",
+      "Read unresolved graph reference evidence for map maintenance and issue context.",
+      "visual-hive graph impact",
+      ["Read unresolved reference evidence only. Do not suppress findings or mark references resolved without new deterministic evidence."]
+    )
+  ),
+  resource(
+    "visual-graph-impact",
+    "visual-hive://visual-graph-impact",
+    "visual-graph-impact",
+    "Visual Impact Analysis",
+    "Blast-radius analysis from changed files, routes, contracts, mutations, or issue candidates into affected visual surfaces and validation commands.",
+    ".visual-hive/visual-impact.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_visual_graph_impact",
+      "Read Visual Impact Analysis",
+      "Read the latest Visual Graph impact analysis without running validation commands.",
+      "visual-hive graph impact --changed-files changed-files.txt",
+      ["Read impact evidence only. Do not execute repair or publish issues from impact evidence alone."]
+    )
+  ),
+  resource(
     "latest-report",
     "visual-hive://latest-report",
     "latest-report",

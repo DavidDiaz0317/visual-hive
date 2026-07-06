@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.visual-graph.schema.json",
+  "title": "Visual Hive Visual Graph",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "project", "summary", "extractorArchitecture", "nodes", "edges", "unresolvedReferences", "resolvedReferences"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.visual-graph.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["nodes", "edges", "unresolvedReferences", "resolvedReferences", "completeChains", "nodeKinds"],
+      "properties": {
+        "nodes": { "type": "integer", "minimum": 0 },
+        "edges": { "type": "integer", "minimum": 0 },
+        "unresolvedReferences": { "type": "integer", "minimum": 0 },
+        "resolvedReferences": { "type": "integer", "minimum": 0 },
+        "completeChains": { "type": "integer", "minimum": 0 },
+        "nodeKinds": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+      },
+      "additionalProperties": true
+    },
+    "extractorArchitecture": {
+      "type": "object",
+      "required": ["interface", "extractors", "notes"],
+      "properties": {
+        "interface": { "const": "VisualHiveGraphExtractor" },
+        "extractors": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "unresolvedReferences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unresolvedReference" }
+    },
+    "resolvedReferences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/resolvedReference" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "sourceSpan": {
+      "type": "object",
+      "required": ["filePath"],
+      "properties": {
+        "filePath": { "type": "string" },
+        "startLine": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 },
+        "startColumn": { "type": "integer", "minimum": 1 },
+        "endColumn": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "kind", "label", "provenance", "confidence", "firstSeen", "lastSeen", "status", "evidenceArtifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "enum": [
+            "file",
+            "package",
+            "component",
+            "layout",
+            "route",
+            "state",
+            "viewport",
+            "selector",
+            "target",
+            "contract",
+            "screenshot",
+            "baseline",
+            "mutation_operator",
+            "workflow",
+            "artifact",
+            "issue_candidate",
+            "agent_profile",
+            "hive_resource",
+            "coverage_gap"
+          ]
+        },
+        "label": { "type": "string" },
+        "sourceSpan": { "$ref": "#/$defs/sourceSpan" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "firstSeen": { "type": "string" },
+        "lastSeen": { "type": "string" },
+        "lastValidated": { "type": "string" },
+        "status": { "enum": ["active", "stale", "unresolved", "resolved_candidate", "conflicted", "suppressed"] },
+        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "from", "to", "relation", "provenance", "confidence", "firstSeen", "lastSeen", "evidenceArtifacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "relation": {
+          "enum": [
+            "declares",
+            "imports",
+            "renders",
+            "uses_selector",
+            "covers_route",
+            "captures",
+            "uses_viewport",
+            "targets",
+            "mutates",
+            "killed_by",
+            "survived_by",
+            "produces_artifact",
+            "backs_issue",
+            "assigned_to_agent",
+            "validates",
+            "stale_due_to",
+            "resolved_candidate_for",
+            "has_gap",
+            "impacts"
+          ]
+        },
+        "sourceSpan": { "$ref": "#/$defs/sourceSpan" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "firstSeen": { "type": "string" },
+        "lastSeen": { "type": "string" },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "evidenceArtifacts": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "unresolvedReference": {
+      "type": "object",
+      "required": ["id", "fromNodeId", "referenceName", "referenceKind", "candidates", "confidence", "nextResolutionStrategy"],
+      "properties": {
+        "id": { "type": "string" },
+        "fromNodeId": { "type": "string" },
+        "referenceName": { "type": "string" },
+        "referenceKind": { "$ref": "#/$defs/referenceKind" },
+        "sourceSpan": { "$ref": "#/$defs/sourceSpan" },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["nodeId", "label", "confidence", "reason"],
+            "properties": {
+              "nodeId": { "type": "string" },
+              "label": { "type": "string" },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "reason": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "blockedReason": { "type": "string" },
+        "nextResolutionStrategy": { "enum": ["static_extract", "config_extract", "runtime_dom_observation", "report_evidence", "manual_review"] }
+      },
+      "additionalProperties": false
+    },
+    "resolvedReference": {
+      "type": "object",
+      "required": ["id", "fromNodeId", "referenceName", "referenceKind", "targetNodeId", "confidence", "resolvedBy"],
+      "properties": {
+        "id": { "type": "string" },
+        "fromNodeId": { "type": "string" },
+        "referenceName": { "type": "string" },
+        "referenceKind": { "$ref": "#/$defs/referenceKind" },
+        "targetNodeId": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "resolvedBy": { "enum": ["exact_id", "config", "source_span", "route_match", "selector_match", "runtime_dom", "screenshot_metadata", "mutation_mapping", "workflow_audit", "fuzzy"] }
+      },
+      "additionalProperties": false
+    },
+    "referenceKind": {
+      "enum": [
+        "component_to_route",
+        "selector_to_component",
+        "contract_to_route",
+        "screenshot_to_component",
+        "mutation_to_contract",
+        "workflow_to_command",
+        "issue_to_artifact",
+        "artifact_to_graph_node"
+      ]
+    },
+    "provenance": {
+      "enum": [
+        "static",
+        "config",
+        "runtime_dom",
+        "playwright_report",
+        "screenshot",
+        "mutation_report",
+        "workflow",
+        "manual_suppression",
+        "agent_suggested",
+        "derived"
+      ]
+    }
+  }
+}
