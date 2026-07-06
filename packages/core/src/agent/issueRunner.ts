@@ -407,7 +407,7 @@ async function applyAgentExecution(options: {
     }
   });
   const durationMs = Date.now() - startedAt;
-  const likelyExternal = likelyExternalAgentCommand(command) && run.budgets.allowExternalNetwork;
+  const likelyExternal = likelyExternalAgentCommand(command) && run.budgets.allowExternalNetwork && result.status !== null;
   return {
     ...run,
     status: result.status === 0 ? run.status : "blocked",

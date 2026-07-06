@@ -50,6 +50,7 @@ Use the direct mode only where network access and npm registry calls are accepta
 - PR validation uploads `.visual-hive` artifacts with `include-hidden-files: true`.
 - Trusted issue creation uses `workflow_run`, downloads artifacts, redacts again, and does not checkout or execute PR code.
 - Trusted live issue publication is opt-in. Workflows that create or update issues should require `VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true`, `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true`, or an equivalent trusted `workflow_dispatch` input. See [Issue Publishing Policy](./issue-publishing-policy.md).
+- npm audit findings and accepted dependency risk are tracked in [Security Audit](./security-audit.md).
 - External GitHub Actions should be pinned by full commit SHA in production. Tag-pinned actions are reported as low-severity supply-chain evidence so teams can harden them after reviewing upstream source.
 
 ## Provider and LLM rules

@@ -81,9 +81,19 @@ Codex/OpenAI agent execution is intentionally stricter:
 - Visual Hive runs bounded `--help` discovery first.
 - Visual Hive does not guess Codex CLI flags.
 - `codex`/`openai` commands are blocked unless external network is explicitly allowed and explicit agent args are provided.
+- If the configured Codex binary is unavailable or cannot start, Visual Hive records a blocked `agent-run.json` with the exact sanitized error and keeps source mutation, branch, PR, issue, Hive API, LLM, provider, external-call, and network counters at zero.
 - Even when enabled, Visual Hive records the agent evidence; it does not become the pass/fail authority.
 
-Write-capable repair belongs in a trusted Hive/agent workflow, not in the default Visual Hive local path. `--allow-write` only records a write-preview budget for the agent request; branch creation, repair PRs, and real issue updates still require separate trusted workflows.
+Write-capable repair belongs in a trusted Hive/agent workflow, not in the default Visual Hive local path. `--allow-write` only records a write-preview budget for the agent request.
+
+Visual Hive can now create a guarded local write-preview branch artifact without opening a PR:
+
+```bash
+visual-hive agent write-preview --issue-index 0
+visual-hive agent write-preview --issue-index 0 --allow-write --write-preview-branch
+```
+
+The first command is a dry-run plan only. The second command requires an explicit clean working tree, creates a local branch named from the issue fingerprint, writes `.visual-hive/agents/<dedupe>/write-preview.json`, and still does not push, commit, open a PR, create an issue, approve baselines, call Hive, call LLMs, or call providers by default.
 
 ## Setup Issue Workflow
 

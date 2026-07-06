@@ -9267,4 +9267,52 @@ viewports:
     expect(run.outputMarkdown).toContain("did not complete an agent command successfully");
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
+
+  it("does not count failed Codex spawn as an external network or LLM call", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-codex-eperm-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-codex-eperm-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "medium",
+          title: "Add dashboard visual coverage",
+          description: "Dashboard route lacks coverage.",
+          route: "/",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-codex-eperm-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-codex-eperm-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-codex-eperm-demo" });
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-codex-eperm-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      executeAgent: true,
+      codexCommand: "codex",
+      agentArgs: ["--help"],
+      allowExternalNetwork: true,
+      maxExternalCostUsd: 0,
+      codexDiscoveryRunner: async () => ({ status: null, stdout: "", stderr: "", error: "spawn EPERM" }),
+      agentRunner: async () => ({ status: null, stdout: "", stderr: "", error: "spawn EPERM" }),
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(run.run.status).toBe("blocked");
+    expect(run.run.agentExecution.status).toBe("failed");
+    expect(run.run.agentExecution.errorExcerpt).toContain("spawn EPERM");
+    expect(run.run.safety.externalCallsMade).toBe(0);
+    expect(run.run.safety.networkCallsMade).toBe(0);
+    expect(run.run.safety.llmCallsMade).toBe(0);
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
 });
