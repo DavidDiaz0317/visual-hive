@@ -21,7 +21,7 @@ const optionalTriageResources = [
   resourceFromCatalog("repair-prompt")
 ];
 
-const supportResources = [
+const supportResourceCandidates = [
   resourceFromCatalog("context-ledger"),
   resourceFromCatalog("control-plane-snapshot"),
   resourceFromCatalog("artifacts-index"),
@@ -37,6 +37,9 @@ const supportResources = [
   resourceFromCatalog("provider-results"),
   resourceFromCatalog("provider-upload-argos-manifest")
 ];
+const supportResources = (await Promise.all(
+  supportResourceCandidates.map(async (resource) => ((await exists(resource.artifactPath)) ? resource : undefined))
+)).filter(Boolean);
 
 const triageResources = [
   ...coreTriageResources,
