@@ -61,8 +61,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure'
     steps:
-      # This trusted workflow does not checkout or execute PR code. For stricter
-      # supply-chain hardening, pin third-party actions by SHA instead of tags.
+      # This trusted workflow does not checkout or execute PR code. It consumes
+      # sanitized Visual Hive artifacts, prefers issues.json issue candidates,
+      # and falls back to issue.md only when older artifacts are uploaded. For
+      # stricter supply-chain hardening, pin third-party actions by SHA.
       - uses: actions/download-artifact@v4
         with:
           name: visual-hive
@@ -98,6 +100,11 @@ jobs:
               return issuePath && fs.existsSync(issuePath) ? issuePath : undefined;
             }
 
+            function findIssuesReport() {
+              const issuesPath = findArtifact("issues.json");
+              return issuesPath && fs.existsSync(issuesPath) ? issuesPath : undefined;
+            }
+
             function redactSecretValues(value) {
               return String(value)
                 .replace(/((?:access_token|id_token|refresh_token|token|password|secret|key|code|client_secret)\\s*[:=]\\s*)[^\\s"'&]+/gi, "$1[REDACTED]")
@@ -117,6 +124,54 @@ jobs:
             }
 
             const issuePath = findIssueBody();
+            const issuesReportPath = findIssuesReport();
+            const issuesReport = issuesReportPath ? readJsonArtifact("issues.json") : undefined;
+            const issueCandidates = Array.isArray(issuesReport?.issues)
+              ? issuesReport.issues
+                  .filter((issue) => issue.status === "open_candidate" || issue.status === "update_candidate" || issue.status === "resolved_candidate")
+                  .slice(0, 10)
+              : [];
+            if (issuesReport && (issuesReport.externalCallsMade !== 0 || issuesReport.networkCallsMade !== 0)) {
+              throw new Error("Refusing trusted issue publication because issues.json reports prior external/network calls.");
+            }
+            if (issueCandidates.length) {
+              const { data: openIssues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                labels: "visual-hive"
+              });
+              for (const candidate of issueCandidates) {
+                const marker = "<!-- visual-hive-issue dedupe:" + String(candidate.dedupeFingerprint || "missing") + " -->";
+                const body = redactSecretValues(String(candidate.body || "")).includes("visual-hive-issue dedupe:")
+                  ? redactSecretValues(String(candidate.body || ""))
+                  : marker + "\\n" + redactSecretValues(String(candidate.body || "Visual Hive issue candidate had no body."));
+                const labels = [...new Set([...(Array.isArray(candidate.labels) ? candidate.labels : []), "visual-hive"])]
+                  .map((label) => redactSecretValues(String(label)).trim())
+                  .filter(Boolean)
+                  .slice(0, 10);
+                const existing = openIssues.find((issue) => issue.body && issue.body.includes(String(candidate.dedupeFingerprint)));
+                if (existing) {
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: existing.number,
+                    title: redactSecretValues(String(candidate.title || "Visual Hive issue candidate")),
+                    labels,
+                    body
+                  });
+                } else if (candidate.status !== "resolved_candidate") {
+                  await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: redactSecretValues(String(candidate.title || "Visual Hive issue candidate")),
+                    labels,
+                    body
+                  });
+                }
+              }
+              return;
+            }
             const rawBody = issuePath ? fs.readFileSync(issuePath, "utf8") : "Visual Hive failed, but no issue.md artifact was found.";
             const body = redactSecretValues(rawBody);
             const report = readJsonArtifact("report.json");
@@ -538,7 +593,7 @@ jobs:
           command: pipeline
           arguments: --mode schedule --ci --enforce-mutation --github-step-summary
       # This scheduled workflow may use protected secrets. A separate trusted
-      # workflow_run workflow can create issues from .visual-hive/issue.md.
+      # workflow_run workflow can create issues from .visual-hive/issues.json.
       # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()
@@ -572,7 +627,7 @@ export const githubWorkflowTemplates: GitHubWorkflowTemplate[] = [
     description: "Trusted workflow_run consumer that creates or updates issues from sanitized uploaded artifacts without checking out PR code.",
     safetyNotes: [
       "Does not checkout or execute PR code.",
-      "Recursively discovers uploaded issue.md artifacts.",
+      "Recursively discovers uploaded issues.json artifacts.",
       "Redacts secret-like values again before issue creation.",
       "Dedupes by stable deterministic failure signature."
     ],

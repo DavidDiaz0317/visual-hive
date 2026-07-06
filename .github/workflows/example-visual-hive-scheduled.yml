@@ -48,7 +48,7 @@ jobs:
         if: always()
       - run: npm run demo:artifacts
         if: always()
-      # A trusted workflow_run workflow can create an issue from .visual-hive/issue.md.
+      # A trusted workflow_run workflow can create an issue from .visual-hive/issues.json.
       # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()

@@ -2848,8 +2848,8 @@ jobs:
             function walkArtifacts(dir) {
               return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walkArtifacts(entry.name) : [entry.name]);
             }
-            function findIssueBody() {
-              return walkArtifacts("visual-hive-artifacts").find((file) => file.endsWith("issue.md"));
+            function findIssuesReport() {
+              return walkArtifacts("visual-hive-artifacts").find((file) => file.endsWith("issues.json"));
             }
             function redactSecretValues(value) {
               return String(value)
@@ -2858,9 +2858,10 @@ jobs:
                 .replace(/set-cookie:.*/gi, "set-cookie: [REDACTED]")
                 .replace(/Bearer .*/gi, "Bearer [REDACTED]");
             }
-            const body = redactSecretValues(fs.readFileSync(findIssueBody(), "utf8"));
-            const marker = "<!-- visual-hive-dedupe:stable-signature -->";
-            await github.rest.issues.create({ body: marker + body });
+            const report = JSON.parse(redactSecretValues(fs.readFileSync(findIssuesReport(), "utf8")));
+            const candidate = report.issues.find((issue) => issue.status === "open_candidate");
+            const marker = "<!-- visual-hive-issue dedupe:" + candidate.dedupeFingerprint + " -->";
+            await github.rest.issues.create({ body: marker + redactSecretValues(candidate.body) });
 `
       }
     ]);
@@ -2963,6 +2964,13 @@ jobs:
     expect(scheduledTemplate).toContain("command: pipeline");
     expect(scheduledTemplate).toContain("arguments: --mode schedule --ci --enforce-mutation --github-step-summary");
     expect(scheduledTemplate).not.toContain("npx visual-hive");
+    const failureIssueTemplate = githubWorkflowTemplates.find((template) => template.id === "trusted_failure_issue")?.content ?? "";
+    expect(failureIssueTemplate).toContain("issues.json");
+    expect(failureIssueTemplate).toContain("visual-hive-issue dedupe");
+    expect(failureIssueTemplate).toContain("dedupeFingerprint");
+    expect(failureIssueTemplate).toContain("Refusing trusted issue publication because issues.json reports prior external/network calls.");
+    expect(failureIssueTemplate).toContain("falls back to issue.md only when older artifacts are uploaded");
+    expect(failureIssueTemplate).not.toContain("context.payload.workflow_run.id + \" -->\"");
     expect(hiveHandoffTemplate).toContain("workflow_run:");
     expect(hiveHandoffTemplate).toContain("hive-bead-request.json");
     expect(hiveHandoffTemplate).toContain("hive-handoff-validation.json");

@@ -30,6 +30,7 @@ import {
   runHiveTrustedRepairWorkflowDryRunCommand
 } from "./hive.js";
 import { runImproveCoverageCommand } from "./improve.js";
+import { runIssuesCommand } from "./issues.js";
 import { runLayersCommand } from "./layers.js";
 import { runMutateCommand } from "./mutate.js";
 import { runPlanCommand } from "./plan.js";
@@ -360,6 +361,17 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
   await runStep(context, "handoff-validate", "Hive Handoff Validation", async () => {
     const result = await runHandoffValidateCommand({ config: options.config, cwd });
     return { exitCode: result.exitCode, artifacts: [catalogArtifact("handoff-validation")] };
+  });
+  await runStep(context, "issues", "Issue Queue", async () => {
+    await runIssuesCommand({ config: options.config, cwd, write: true });
+    return {
+      artifacts: [
+        ".visual-hive/issues.json",
+        ".visual-hive/issues.md",
+        ".visual-hive/issue-queue.json",
+        ".visual-hive/setup-issue.md"
+      ]
+    };
   });
   await runStep(context, "test-creation-plan", "Test Creation Plan", async () => {
     await runTestCreationPlanCommand({ config: options.config, cwd });

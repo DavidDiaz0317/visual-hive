@@ -33,7 +33,7 @@ jobs:
       #   env:
       #     ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
       # This scheduled workflow may use protected secrets. A separate trusted
-      # workflow_run workflow can create issues from .visual-hive/issue.md.
+      # workflow_run workflow can create issues from .visual-hive/issues.json.
       # For stricter supply-chain hardening, pin actions by SHA instead of tags.
       - uses: actions/upload-artifact@v4
         if: always()

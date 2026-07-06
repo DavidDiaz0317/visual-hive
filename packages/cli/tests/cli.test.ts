@@ -4012,6 +4012,8 @@ selection:
     const handoffValidation = await readJson<{ status: string; summary: { externalCallsMade: number } }>(
       path.join(tempRoot, ".visual-hive", "hive-handoff-validation.json")
     );
+    const issues = await readJson<{ schemaVersion: string; externalCallsMade: number }>(path.join(tempRoot, ".visual-hive", "issues.json"));
+    const issueQueue = await readJson<{ schemaVersion: string }>(path.join(tempRoot, ".visual-hive", "issue-queue.json"));
     const agentPacket = await readJson<{ profile: string; budgets: { allowExternalNetwork: boolean; maxExternalCostUsd: number } }>(
       path.join(tempRoot, ".visual-hive", "agent-packet.json")
     );
@@ -4043,6 +4045,7 @@ selection:
         "verdict",
         "handoff",
         "handoff-validate",
+        "issues",
         "hive-export",
         "hive-guarded-repair-preview",
         "hive-repair-request-envelope",
@@ -4083,6 +4086,10 @@ selection:
         ".visual-hive/hive/trusted-repair-consumer-summary.md",
         catalogPath("hive-trusted-repair-workflow-dry-run"),
         ".visual-hive/hive/trusted-repair-workflow-dry-run.md",
+        ".visual-hive/issues.json",
+        ".visual-hive/issues.md",
+        ".visual-hive/issue-queue.json",
+        ".visual-hive/setup-issue.md",
         catalogPath("test-creation-plan"),
         catalogPath("agent-packet"),
         catalogPath("handoff-agent-packet"),
@@ -4098,6 +4105,9 @@ selection:
     expect(["dry_run_written", "blocked"]).toContain(handoffResult.status);
     expect(["passed", "warning"]).toContain(handoffValidation.status);
     expect(handoffValidation.summary.externalCallsMade).toBe(0);
+    expect(issues.schemaVersion).toBe("visual-hive.issues.v1");
+    expect(issues.externalCallsMade).toBe(0);
+    expect(issueQueue.schemaVersion).toBe("visual-hive.issue-queue.v1");
     expect(agentPacket.profile).toBe("repair_agent");
     expect(agentPacket.budgets.allowExternalNetwork).toBe(false);
     expect(agentPacket.budgets.maxExternalCostUsd).toBe(0);
@@ -4205,6 +4215,10 @@ contracts:
     expect(scheduledWorkflow).not.toContain("npx visual-hive");
     expect(failureWorkflow).toContain("function walkArtifacts");
     expect(failureWorkflow).toContain("function findIssueBody");
+    expect(failureWorkflow).toContain("function findIssuesReport");
+    expect(failureWorkflow).toContain("issues.json");
+    expect(failureWorkflow).toContain("visual-hive-issue dedupe");
+    expect(failureWorkflow).toContain("dedupeFingerprint");
     expect(failureWorkflow).toContain("redactSecretValues");
     expect(failureWorkflow).toContain("client_secret");
     expect(failureWorkflow).toContain("visual-hive-dedupe");

@@ -178,7 +178,7 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     createsIssues: /github\.rest\.issues|gh\s+issue|issues\s*:\s*write|create-issue/i.test(content),
     downloadsArtifacts: /actions\/download-artifact@/i.test(content),
     checksOutCode: /actions\/checkout@/i.test(content),
-    readsIssueArtifact: /issue\.md/i.test(content),
+    readsIssueArtifact: /issues\.json|issue\.md/i.test(content),
     readsHiveHandoffArtifacts:
       /evidence-packet\.json|handoff\.json|hive-bead-request\.json|hive-handoff-result\.json|hive-export\.json|guarded-repair-preview\.json|repair-request-envelope\.json|trusted-repair-consumer-summary\.json|trusted-repair-workflow-dry-run\.json/i.test(content),
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
@@ -301,13 +301,13 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
       add("missing_artifact_download", "high", "Trusted issue workflow should download Visual Hive artifacts.", "actions/download-artifact");
     }
     if (!workflow.readsIssueArtifact) {
-      add("missing_issue_artifact", "high", "Trusted issue workflow should read `.visual-hive/issue.md` from uploaded artifacts.", "issue.md");
+      add("missing_issue_artifact", "high", "Trusted issue workflow should read `.visual-hive/issues.json` from uploaded artifacts.", "issues.json");
     }
     if (workflow.downloadsArtifacts && workflow.readsIssueArtifact && !workflow.usesRecursiveArtifactDiscovery) {
       add(
         "brittle_issue_artifact_path",
         "medium",
-        "Trusted issue workflow should discover `issue.md` recursively because uploaded artifact roots vary by workflow.",
+        "Trusted issue workflow should discover `issues.json` recursively because uploaded artifact roots vary by workflow.",
         "recursive artifact discovery"
       );
     }
@@ -415,7 +415,7 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   if (workflow.kind === "trusted_issue") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
     recommendations.add("Use issues: write only in this trusted workflow and dedupe by signature.");
-    recommendations.add("Discover issue.md recursively from downloaded artifacts and redact again before issue creation.");
+    recommendations.add("Discover issues.json recursively from downloaded artifacts and redact again before issue creation.");
   }
   if (workflow.kind === "trusted_handoff") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
