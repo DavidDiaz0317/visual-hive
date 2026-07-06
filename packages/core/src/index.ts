@@ -41,6 +41,7 @@ export * from "./repo/types.js";
 export * from "./repo/analyze.js";
 export * from "./graph/types.js";
 export * from "./graph/build.js";
+export * from "./graph/extractors.js";
 export * from "./targets/audit.js";
 export * from "./targets/resolve.js";
 export * from "./schedules/audit.js";

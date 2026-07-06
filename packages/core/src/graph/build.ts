@@ -5,6 +5,7 @@ import type { VisualHiveIssueCandidate, VisualHiveIssuesReport } from "../issues
 import type { RepoMapReport, RepoVisualMapEdge, RepoVisualMapNode } from "../repo/types.js";
 import { writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
+import { detectVisualGraphExtractors } from "./extractors.js";
 import type {
   VisualGraph,
   VisualGraphEdge,
@@ -129,6 +130,12 @@ export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph 
   const resolvedReferences = buildResolvedReferences([...edges.values()]);
   const nodeList = [...nodes.values()].sort(compareById);
   const edgeList = [...edges.values()].sort(compareById);
+  const detectedExtractors = detectVisualGraphExtractors(options.repoMap, [
+    ...DEFAULT_ARTIFACTS,
+    ...(options.report?.artifacts ?? []),
+    ...(options.mutationReport?.results?.flatMap((result) => result.artifacts ?? []) ?? []),
+    ...(options.issuesReport?.issues?.flatMap((issue) => issue.sourceArtifacts ?? []) ?? [])
+  ]);
   const graph: VisualGraph = {
     schemaVersion: GRAPH_SCHEMA_VERSION,
     generatedAt,
@@ -143,19 +150,10 @@ export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph 
     },
     extractorArchitecture: {
       interface: "VisualHiveGraphExtractor",
-      extractors: [
-        "visual-hive-config",
-        "react-vite",
-        "react-router",
-        "storybook",
-        "github-actions",
-        "playwright-report-artifact",
-        "mutation-report-artifact",
-        "baseline-artifact",
-        "issue-artifact"
-      ],
+      extractors: detectedExtractors.map((extractor) => extractor.id),
       notes: [
         "v0.2 derives the production graph from deterministic repo-map, config, reports, mutation reports, and issue artifacts.",
+        `Detected extractor registry: ${detectedExtractors.map((extractor) => `${extractor.id}(${extractor.evidenceKinds.join("/")})`).join(", ") || "none"}.`,
         "Framework-specific extractors can replace individual derivation steps without changing the graph contract."
       ]
     },

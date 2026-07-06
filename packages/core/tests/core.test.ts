@@ -50,6 +50,7 @@ import { buildContextLedger, writeContextLedger } from "../src/context/build.js"
 import { verifySchemaCatalog } from "../src/schemas/catalog.js";
 import { analyzeRepository, writeRepoMap } from "../src/repo/analyze.js";
 import { analyzeVisualImpact, readVisualGraph, searchVisualGraph } from "../src/graph/build.js";
+import { detectVisualGraphExtractors, VISUAL_HIVE_GRAPH_EXTRACTORS } from "../src/graph/extractors.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
@@ -67,6 +68,8 @@ import { buildSetupProgress } from "../src/setup/progress.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
 import type { MutationReport, Report } from "../src/reports/types.js";
+
+const sourceRepoRoot = process.cwd().endsWith(path.join("packages", "core")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
 
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -1295,6 +1298,21 @@ mutation:
     await expectMatchesSchema("visual-hive.visual-graph.schema.json", graph);
     await expectMatchesSchema("visual-hive.visual-graph-vocab.schema.json", vocab);
     await expectMatchesSchema("visual-hive.visual-graph-unresolved.schema.json", unresolved);
+    expect(VISUAL_HIVE_GRAPH_EXTRACTORS.map((extractor) => extractor.id)).toEqual(
+      expect.arrayContaining([
+        "visual-hive-config",
+        "react-vite",
+        "react-router",
+        "storybook",
+        "github-actions",
+        "playwright-report-artifact",
+        "mutation-report-artifact",
+        "baseline-artifact",
+        "issue-artifact"
+      ])
+    );
+    expect(graph.extractorArchitecture.extractors).toEqual(expect.arrayContaining(["visual-hive-config", "react-vite", "react-router"]));
+    expect(graph.extractorArchitecture.notes.join(" ")).toContain("Detected extractor registry");
     expect(graph.nodes.map((node) => node.kind)).toEqual(expect.arrayContaining(["file", "component", "route", "contract", "screenshot", "mutation_operator", "artifact", "agent_profile", "hive_resource"]));
     expect(graph.edges).toEqual(expect.arrayContaining([expect.objectContaining({ relation: "captures" }), expect.objectContaining({ relation: "mutates" })]));
     expect(graph.summary.completeChains).toBeGreaterThanOrEqual(1);
@@ -1304,6 +1322,36 @@ mutation:
     await expectMatchesSchema("visual-hive.visual-impact.schema.json", impact);
     expect(impact.summary.affectedContractCount).toBeGreaterThanOrEqual(1);
     expect(impact.validationCommands.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("detects graph extractors from external-repo-style source, workflow, storybook, and artifact evidence", async () => {
+    const repoMap = await analyzeRepository({
+      repoRoot: path.join(sourceRepoRoot, "examples", "demo-react-app"),
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const detected = detectVisualGraphExtractors(repoMap, [
+      ".github/workflows/visual-hive-pr.yml",
+      ".storybook/main.ts",
+      "src/App.stories.tsx",
+      ".visual-hive/report.json",
+      ".visual-hive/mutation-report.json",
+      ".visual-hive/issues.json",
+      ".visual-hive/snapshots/dashboard.png"
+    ]).map((extractor) => extractor.id);
+
+    expect(detected).toEqual(
+      expect.arrayContaining([
+        "visual-hive-config",
+        "react-vite",
+        "react-router",
+        "storybook",
+        "github-actions",
+        "playwright-report-artifact",
+        "mutation-report-artifact",
+        "baseline-artifact",
+        "issue-artifact"
+      ])
+    );
   });
 
   it("reconciles previous visual-map findings by fingerprint", async () => {
