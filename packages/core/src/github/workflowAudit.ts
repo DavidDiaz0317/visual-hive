@@ -584,10 +584,14 @@ function classifyWorkflow(path: string, triggers: string[], content: string): Wo
   const lowerContent = content.toLowerCase();
   if (lowerPath.includes("hive-handoff") || lowerContent.includes("hive-bead-request.json")) return "trusted_handoff";
   if (triggers.includes("workflow_run") || lowerPath.includes("failure-issue") || lowerPath.includes("trusted")) return "trusted_issue";
-  if (triggers.includes("pull_request") || triggers.includes("pull_request_target") || lowerPath.includes("-pr")) return "pull_request";
+  if (triggers.includes("pull_request") || triggers.includes("pull_request_target") || looksLikePullRequestWorkflowPath(lowerPath)) return "pull_request";
   if (triggers.includes("schedule") || lowerPath.includes("scheduled")) return "scheduled";
   if (lowerContent.includes("visual-hive") && lowerContent.includes("workflow_dispatch")) return "scheduled";
   return "unknown";
+}
+
+function looksLikePullRequestWorkflowPath(lowerPath: string): boolean {
+  return /(^|[\\/_.-])(pr|pull-request|pull_request|pullrequest)([\\/_.-]|$)/i.test(lowerPath);
 }
 
 function hasWritePermission(permissions: Record<string, string>): boolean {

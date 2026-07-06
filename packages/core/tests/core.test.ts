@@ -2941,6 +2941,38 @@ jobs:
     expect(audit.findings.find((finding) => finding.kind === "missing_baseline_review_artifact")?.severity).toBe("low");
   });
 
+  it("does not classify product-proof workflows as pull_request workflows by filename substring", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/product-proof.yml",
+        content: `name: Product Proof
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/control-plane-guided-cockpit
+permissions:
+  contents: read
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm run demo:full-run
+      - uses: actions/upload-artifact@v4
+        with:
+          path: examples/demo-react-app/.visual-hive
+          include-hidden-files: true
+`
+      }
+    ]);
+
+    expect(audit.workflows[0]?.kind).toBe("scheduled");
+    expect(audit.summary.pullRequestWorkflows).toBe(0);
+    expect(audit.summary.scheduledWorkflows).toBe(1);
+    expect(audit.findings.map((finding) => finding.kind)).not.toContain("missing_pull_request_trigger");
+  });
+
   it("recognizes a safe trusted issue workflow with recursive artifact discovery and redaction", () => {
     const audit = auditWorkflows(sampleConfig(), [
       {

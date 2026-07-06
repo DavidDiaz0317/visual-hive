@@ -1,0 +1,42 @@
+name: Product Proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/control-plane-guided-cockpit
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run lint
+      - run: npx playwright install --with-deps chromium
+      - run: npm run demo:full-run
+      - run: npm run demo:graph:search
+      - run: npm run demo:graph:impact
+      - run: npm run demo:issues
+      - run: npm run demo:issue-publish
+      - run: npm run demo:agent-issue-run
+      - run: npm run smoke:ui
+      - run: npm run smoke:ui:browser
+      - run: npm test -w @visual-hive/github-app
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-hive-product-proof
+          path: examples/demo-react-app/.visual-hive
+          include-hidden-files: true
