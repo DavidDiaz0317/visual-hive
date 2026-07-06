@@ -27,6 +27,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && node dist/server.js",
+    "start": "node dist/server.js",
+    "smoke:mock": "node dist/mock.js --event workflow_run --output-dir .visual-hive",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run packages/github-app/tests/githubApp.test.ts --root ../.."
   },

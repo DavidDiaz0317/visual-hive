@@ -48,6 +48,7 @@
         "workflowsMissingHiddenArtifactUpload",
         "trustedIssueWorkflowsCheckingOutCode",
         "trustedHandoffWorkflowsCheckingOutCode",
+        "trustedIssueWorkflowsMissingLivePublishGuard",
         "workflowsUsingUnpinnedActions",
         "unpinnedActionReferences"
       ],
@@ -109,6 +110,10 @@
           "minimum": 0
         },
         "trustedHandoffWorkflowsCheckingOutCode": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trustedIssueWorkflowsMissingLivePublishGuard": {
           "type": "integer",
           "minimum": 0
         },
@@ -195,6 +200,7 @@
         "readsHiveHandoffArtifacts",
         "usesRecursiveArtifactDiscovery",
         "reSanitizesIssueBody",
+        "hasLiveIssuePublishGuard",
         "runsVisualHive",
         "runsMutation",
         "writesBaselineReview",
@@ -271,6 +277,9 @@
           "type": "boolean"
         },
         "reSanitizesIssueBody": {
+          "type": "boolean"
+        },
+        "hasLiveIssuePublishGuard": {
           "type": "boolean"
         },
         "runsVisualHive": {

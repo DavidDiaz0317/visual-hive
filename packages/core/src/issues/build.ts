@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { readJson, writeJson, writeText } from "../utils/files.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
@@ -92,7 +92,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
 
   const keyed = new Map<string, VisualHiveIssueCandidate>();
   for (const issue of current) {
-    const candidate = normalizeIssue(issue, {
+    const candidate = normalizeIssue(issue, rootDir, {
       evidencePacket: exists(sourceArtifacts.evidencePacket, evidencePacket),
       repoMap: exists(sourceArtifacts.repoMap, repoMap),
       visualGraph: exists(sourceArtifacts.visualGraph, visualGraph),
@@ -119,7 +119,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
           sourceArtifacts: dedupe([...previous.sourceArtifacts, sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json"]),
           guardrails: DEFAULT_GUARDRAILS,
           validationCommand: previous.validationCommand || "visual-hive evidence && visual-hive issues --write"
-        })
+        }, undefined, rootDir)
       });
     }
   }
@@ -135,7 +135,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     project,
     externalCallsMade: 0,
     networkCallsMade: 0,
-    sourceArtifacts: presentSourceArtifacts(sourceArtifacts, {
+    sourceArtifacts: presentSourceArtifacts(rootDir, sourceArtifacts, {
       report,
       mutationReport,
       triage,
@@ -156,7 +156,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     issues
   }) as VisualHiveIssuesReport;
   const queue = buildIssueQueue(issuesReport, generatedAt);
-  const setupIssue = buildSetupIssue({ project, generatedAt, sourceArtifacts: issuesReport.sourceArtifacts, repoMap, readiness });
+  const setupIssue = buildSetupIssue({ project, generatedAt, sourceArtifacts: issuesReport.sourceArtifacts, repoMap, readiness, rootDir });
   return {
     report: issuesReport,
     markdown: renderIssuesMarkdown(issuesReport),
@@ -500,21 +500,21 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
   return partial;
 }
 
-function normalizeIssue(issue: VisualHiveIssueCandidate, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
+function normalizeIssue(issue: VisualHiveIssueCandidate, rootDir: string, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
   const normalized = {
     ...issue,
-    linkedEvidencePacket: links.evidencePacket,
-    linkedRepoMap: links.repoMap,
-    linkedVisualGraph: links.visualGraph,
-    linkedVisualImpact: links.visualImpact,
-    linkedMutationReport: issue.issueKind === "mutation_survivor" ? links.mutationReport : issue.linkedMutationReport,
-    linkedHandoff: links.handoff,
-    linkedHiveExport: links.hiveExport,
-    linkedKnowledgeGraph: links.knowledgeGraph,
-    linkedAgentPacket: links.agentPacket
+    linkedEvidencePacket: links.evidencePacket ? sanitizeArtifactPathForIssue(rootDir, links.evidencePacket) : undefined,
+    linkedRepoMap: links.repoMap ? sanitizeArtifactPathForIssue(rootDir, links.repoMap) : undefined,
+    linkedVisualGraph: links.visualGraph ? sanitizeArtifactPathForIssue(rootDir, links.visualGraph) : undefined,
+    linkedVisualImpact: links.visualImpact ? sanitizeArtifactPathForIssue(rootDir, links.visualImpact) : undefined,
+    linkedMutationReport: issue.issueKind === "mutation_survivor" && links.mutationReport ? sanitizeArtifactPathForIssue(rootDir, links.mutationReport) : issue.linkedMutationReport ? sanitizeArtifactPathForIssue(rootDir, issue.linkedMutationReport) : undefined,
+    linkedHandoff: links.handoff ? sanitizeArtifactPathForIssue(rootDir, links.handoff) : undefined,
+    linkedHiveExport: links.hiveExport ? sanitizeArtifactPathForIssue(rootDir, links.hiveExport) : undefined,
+    linkedKnowledgeGraph: links.knowledgeGraph ? sanitizeArtifactPathForIssue(rootDir, links.knowledgeGraph) : undefined,
+    linkedAgentPacket: links.agentPacket ? sanitizeArtifactPathForIssue(rootDir, links.agentPacket) : undefined
   };
   normalized.sourceArtifacts = dedupe([
-    ...normalized.sourceArtifacts,
+    ...normalized.sourceArtifacts.map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact)),
     normalized.linkedEvidencePacket,
     normalized.linkedRepoMap,
     normalized.linkedVisualGraph,
@@ -525,11 +525,23 @@ function normalizeIssue(issue: VisualHiveIssueCandidate, links: Partial<Record<"
     normalized.linkedKnowledgeGraph,
     normalized.linkedAgentPacket
   ]);
-  normalized.body = renderIssueBody(normalized);
+  normalized.body = renderIssueBody(normalized, undefined, rootDir);
   return sanitizeValue(normalized) as VisualHiveIssueCandidate;
 }
 
-function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string): string {
+function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string, rootDir?: string): string {
+  const linkedArtifacts = dedupe([
+    issue.linkedEvidencePacket,
+    issue.linkedRepoMap,
+    issue.linkedVisualGraph,
+    issue.linkedVisualImpact,
+    issue.linkedMutationReport,
+    issue.linkedHandoff,
+    issue.linkedHiveExport,
+    issue.linkedKnowledgeGraph,
+    issue.linkedAgentPacket,
+    ...issue.sourceArtifacts
+  ]).map((artifact) => (rootDir ? sanitizeArtifactPathForIssue(rootDir, artifact) : artifact));
   const lines = [
     `<!-- visual-hive-issue dedupe:${issue.dedupeFingerprint} -->`,
     `<!-- visual-hive-issue-kind:${issue.issueKind} -->`,
@@ -550,18 +562,7 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string):
     "",
     "## Linked Artifacts",
     "",
-    ...dedupe([
-      issue.linkedEvidencePacket,
-      issue.linkedRepoMap,
-      issue.linkedVisualGraph,
-      issue.linkedVisualImpact,
-      issue.linkedMutationReport,
-      issue.linkedHandoff,
-      issue.linkedHiveExport,
-      issue.linkedKnowledgeGraph,
-      issue.linkedAgentPacket,
-      ...issue.sourceArtifacts
-    ]).map((artifact) => `- ${artifact}`),
+    ...linkedArtifacts.map((artifact) => `- ${artifact}`),
     "",
     "## Affected Surface",
     "",
@@ -585,11 +586,13 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string):
     "",
     "Hive and agents should use this issue as the queue item. Visual Hive remains the deterministic validation layer and should be rerun after any proposed fix."
   ].filter((line): line is string => line !== undefined);
-  return sanitizeText(lines.join("\n"));
+  const body = lines.join("\n");
+  return rootDir ? sanitizeArtifactPathsForMarkdown(rootDir, body) : sanitizeText(body);
 }
 
-function buildSetupIssue(input: { project: string; generatedAt: string; sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]; repoMap?: JsonObject; readiness?: JsonObject }): VisualHiveSetupIssue {
-  const body = sanitizeText([
+function buildSetupIssue(input: { project: string; generatedAt: string; sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]; repoMap?: JsonObject; readiness?: JsonObject; rootDir: string }): VisualHiveSetupIssue {
+  const artifacts = Object.values(input.sourceArtifacts).filter(Boolean).map((artifact) => sanitizeArtifactPathForIssue(input.rootDir, artifact));
+  const body = sanitizeArtifactPathsForMarkdown(input.rootDir, [
     "<!-- visual-hive-setup-issue -->",
     "# [Visual Hive] Setup visual QA",
     "",
@@ -608,7 +611,7 @@ function buildSetupIssue(input: { project: string; generatedAt: string; sourceAr
     "",
     "## Evidence",
     "",
-    ...Object.values(input.sourceArtifacts).filter(Boolean).map((artifact) => `- ${artifact}`),
+    ...artifacts.map((artifact) => `- ${artifact}`),
     "",
     "## Commands",
     "",
@@ -631,7 +634,7 @@ function buildSetupIssue(input: { project: string; generatedAt: string; sourceAr
     body,
     externalCallsMade: 0,
     networkCallsMade: 0,
-    sourceArtifacts: Object.values(input.sourceArtifacts).filter(Boolean)
+    sourceArtifacts: artifacts
   };
 }
 
@@ -666,9 +669,11 @@ function summarizeIssues(issues: VisualHiveIssueCandidate[]): VisualHiveIssuesRe
   };
 }
 
-function presentSourceArtifacts(sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"], values: Record<string, unknown>): VisualHiveIssuesReport["sourceArtifacts"] {
+function presentSourceArtifacts(rootDir: string, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"], values: Record<string, unknown>): VisualHiveIssuesReport["sourceArtifacts"] {
   return Object.fromEntries(
-    Object.entries(sourceArtifacts).filter(([key, value]) => Boolean(value) && values[key] !== undefined)
+    Object.entries(sourceArtifacts)
+      .filter(([key, value]) => Boolean(value) && values[key] !== undefined)
+      .map(([key, value]) => [key, value ? sanitizeArtifactPathForIssue(rootDir, value) : value])
   ) as VisualHiveIssuesReport["sourceArtifacts"];
 }
 

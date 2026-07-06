@@ -1,6 +1,6 @@
 import path from "node:path";
 import { readJson, readText, writeJson } from "../utils/files.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import type { HandoffValidationReport } from "../handoff/validate.js";
 import type {
   VisualHiveIssueCandidate,
@@ -90,8 +90,8 @@ const DEFAULT_PATHS = {
 
 export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOptions): Promise<VisualHiveIssuePublishPlan> {
   const rootDir = path.resolve(options.rootDir);
-  const issuesPath = normalizeArtifactPath(options.issuesPath ?? DEFAULT_PATHS.issues);
-  const handoffValidationPath = normalizeArtifactPath(options.handoffValidationPath ?? DEFAULT_PATHS.handoffValidation);
+  const issuesPath = normalizeArtifactPath(rootDir, options.issuesPath ?? DEFAULT_PATHS.issues);
+  const handoffValidationPath = normalizeArtifactPath(rootDir, options.handoffValidationPath ?? DEFAULT_PATHS.handoffValidation);
   const issues = await readJson<VisualHiveIssuesReport>(resolveArtifact(rootDir, issuesPath));
   const selectedIssues = filterPublishIssues(issues.issues, options);
   const handoffValidation = await readOptional<HandoffValidationReport>(rootDir, handoffValidationPath);
@@ -103,7 +103,7 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
     ...(!issues.issues.length ? ["issues.json contains no issue candidates to publish."] : []),
     ...(issues.issues.length && !selectedIssues.length ? ["No issue candidates matched the publish filters."] : [])
   ];
-  const decisions = selectedIssues.map((issue) => decisionForIssue(issue, existingByFingerprint.get(issue.dedupeFingerprint), blockedReasons));
+  const decisions = selectedIssues.map((issue) => decisionForIssue(rootDir, issue, existingByFingerprint.get(issue.dedupeFingerprint), blockedReasons));
   const plan = sanitizeValue({
     schemaVersion: "visual-hive.issue-publish-plan.v1",
     generatedAt,
@@ -169,7 +169,7 @@ export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePu
   const existingIssues = await readOptional<VisualHiveIssuesReport>(rootDir, DEFAULT_PATHS.issues);
   const generatedAt = (options.now ?? new Date()).toISOString();
   const project = existingIssues?.project ?? projectFromSetupIssue(setupBody) ?? "unknown";
-  const setupCandidate = setupIssueCandidate(project, setupBody, setupIssuePath);
+  const setupCandidate = setupIssueCandidate(project, setupBody, setupIssuePath, rootDir);
   const setupIssuesReport = sanitizeValue({
     schemaVersion: "visual-hive.issues.v1",
     generatedAt,
@@ -178,7 +178,7 @@ export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePu
     networkCallsMade: 0,
     sourceArtifacts: {
       ...(existingIssues?.sourceArtifacts ?? {}),
-      setupIssue: normalizeArtifactPath(setupIssuePath)
+      setupIssue: normalizeArtifactPath(rootDir, setupIssuePath)
     },
     summary: {
       total: 1,
@@ -346,26 +346,26 @@ async function buildLiveResult(
   }) as VisualHiveIssuePublishResult;
 }
 
-function decisionForIssue(issue: VisualHiveIssueCandidate, existingIssue: VisualHivePublishedIssueRef | undefined, globalBlockedReasons: string[]): VisualHiveIssuePublishDecision {
+function decisionForIssue(rootDir: string, issue: VisualHiveIssueCandidate, existingIssue: VisualHivePublishedIssueRef | undefined, globalBlockedReasons: string[]): VisualHiveIssuePublishDecision {
   if (globalBlockedReasons.length) {
-    return decision(issue, "blocked", globalBlockedReasons[0] ?? "Issue publishing is blocked.", existingIssue);
+    return decision(rootDir, issue, "blocked", globalBlockedReasons[0] ?? "Issue publishing is blocked.", existingIssue);
   }
   if (issue.status === "suppressed") {
-    return decision(issue, "skip", `Suppressed: ${issue.suppressedReason ?? "suppression entry present"}`, existingIssue);
+    return decision(rootDir, issue, "skip", `Suppressed: ${issue.suppressedReason ?? "suppression entry present"}`, existingIssue);
   }
   if (issue.status === "blocked") {
-    return decision(issue, "blocked", "Issue candidate is blocked by Visual Hive policy.", existingIssue);
+    return decision(rootDir, issue, "blocked", "Issue candidate is blocked by Visual Hive policy.", existingIssue);
   }
   if (issue.status === "resolved_candidate" && !existingIssue) {
-    return decision(issue, "skip", "Resolved candidate has no known published issue to update.", existingIssue);
+    return decision(rootDir, issue, "skip", "Resolved candidate has no known published issue to update.", existingIssue);
   }
   if (existingIssue) {
-    return decision(issue, "update", issue.status === "resolved_candidate" ? "Existing issue should receive resolved-candidate evidence." : "Existing issue matches dedupe fingerprint.", existingIssue);
+    return decision(rootDir, issue, "update", issue.status === "resolved_candidate" ? "Existing issue should receive resolved-candidate evidence." : "Existing issue matches dedupe fingerprint.", existingIssue);
   }
-  return decision(issue, "create", "No existing issue was provided for this dedupe fingerprint.", existingIssue);
+  return decision(rootDir, issue, "create", "No existing issue was provided for this dedupe fingerprint.", existingIssue);
 }
 
-function setupIssueCandidate(project: string, setupBody: string, setupIssuePath: string): VisualHiveIssueCandidate {
+function setupIssueCandidate(project: string, setupBody: string, setupIssuePath: string, rootDir: string): VisualHiveIssueCandidate {
   return sanitizeValue({
     issueKind: "setup_needed",
     severity: "medium",
@@ -373,9 +373,9 @@ function setupIssueCandidate(project: string, setupBody: string, setupIssuePath:
     dedupeFingerprint: `visual-hive:setup:${safeFingerprintSegment(project)}`,
     title: "[Visual Hive] Setup visual QA",
     labels: ["visual-hive", "setup", "hive/quality", "visual-hive/agent-setup"],
-    body: `${setupBody.trim()}\n\n## Visual Hive Setup Issue Routing\n\nVisual Hive generated this setup issue as a safe, reviewable entry point for humans, Hive, or setup agents. Visual Hive does not repair code, create repair branches, open pull requests, approve baselines, call Hive, call LLMs, or call paid providers from this default setup path.\n\nvisual-hive-dedupe: visual-hive:setup:${safeFingerprintSegment(project)}\n`,
+    body: sanitizeArtifactPathsForMarkdown(rootDir, `${setupBody.trim()}\n\n## Visual Hive Setup Issue Routing\n\nVisual Hive generated this setup issue as a safe, reviewable entry point for humans, Hive, or setup agents. Visual Hive does not repair code, create repair branches, open pull requests, approve baselines, call Hive, call LLMs, or call paid providers from this default setup path.\n\nvisual-hive-dedupe: visual-hive:setup:${safeFingerprintSegment(project)}\n`),
     owningAgentHint: "visual-hive/setup",
-    sourceArtifacts: [normalizeArtifactPath(setupIssuePath)],
+    sourceArtifacts: [normalizeArtifactPath(rootDir, setupIssuePath)],
     affected: [],
     reproductionCommand: "visual-hive recommend --repo .",
     validationCommand: "visual-hive doctor && visual-hive plan --mode pr && visual-hive issues --write",
@@ -398,6 +398,7 @@ function safeFingerprintSegment(value: string): string {
 }
 
 function decision(
+  rootDir: string,
   issue: VisualHiveIssueCandidate,
   action: VisualHiveIssuePublishDecision["action"],
   reason: string,
@@ -418,7 +419,7 @@ function decision(
     validationCommand: issue.validationCommand,
     existingIssue,
     targetIssue: existingIssue,
-    body
+    body: sanitizeArtifactPathsForMarkdown(rootDir, body)
   }) as VisualHiveIssuePublishDecision;
 }
 
@@ -598,8 +599,8 @@ function resolveArtifact(rootDir: string, artifactPath: string): string {
   return path.isAbsolute(artifactPath) ? artifactPath : path.resolve(rootDir, artifactPath);
 }
 
-function normalizeArtifactPath(value: string): string {
-  return value.replaceAll("\\", "/");
+function normalizeArtifactPath(rootDir: string, value: string): string {
+  return sanitizeArtifactPathForIssue(rootDir, value.replaceAll("\\", "/"));
 }
 
 function sanitizeValue<T>(value: T): T {

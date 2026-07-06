@@ -42,6 +42,7 @@ import {
 } from "../src/hive/build.js";
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { writeAgentIssueRun } from "../src/agent/issueRunner.js";
+import { writeAgentWritePreview } from "../src/agent/writePreview.js";
 import { buildIssuesReport, writeIssuesArtifacts } from "../src/issues/build.js";
 import { writeIssuePublishArtifacts } from "../src/issues/publish.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -67,6 +68,7 @@ import { buildSetupPullRequestPlan } from "../src/setup/prPlan.js";
 import { buildSetupProgress } from "../src/setup/progress.js";
 import { recommendSetup } from "../src/setup/recommend.js";
 import { writeJson } from "../src/utils/files.js";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown } from "../src/utils/sanitize.js";
 import type { MutationReport, Report } from "../src/reports/types.js";
 
 const sourceRepoRoot = process.cwd().endsWith(path.join("packages", "core")) ? path.resolve(process.cwd(), "..", "..") : process.cwd();
@@ -2955,6 +2957,7 @@ permissions:
 jobs:
   create-issue:
     runs-on: ubuntu-latest
+    if: vars.VISUAL_HIVE_AUTO_PUBLISH_ISSUES == 'true'
     steps:
       - uses: actions/download-artifact@1234567890abcdef1234567890abcdef12345678
         with:
@@ -2992,8 +2995,50 @@ jobs:
     expect(trusted?.readsIssueArtifact).toBe(true);
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.hasLiveIssuePublishGuard).toBe(true);
     expect(trusted?.risk).toBe("low");
     expect(audit.findings).toHaveLength(0);
+  });
+
+  it("flags trusted issue workflows that publish without an explicit live guard", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-failure-issue.yml",
+        content: `name: Visual Hive Failure Issue
+on:
+  workflow_run:
+    workflows: ["Visual Hive PR"]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+  issues: write
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            function walkArtifacts(dir) {
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walkArtifacts(entry.name) : [entry.name]);
+            }
+            function redactSecretValues(value) {
+              return String(value).replace(/client_secret=.*/gi, "client_secret=[REDACTED]").replace(/authorization:.*/gi, "authorization: [REDACTED]").replace(/set-cookie:.*/gi, "set-cookie: [REDACTED]").replace(/Bearer .*/gi, "Bearer [REDACTED]");
+            }
+            const report = JSON.parse(redactSecretValues(fs.readFileSync(walkArtifacts("visual-hive-artifacts").find((file) => file.endsWith("issues.json")), "utf8")));
+            const marker = "<!-- visual-hive-issue dedupe:" + report.issues[0].dedupeFingerprint + " -->";
+            await github.rest.issues.create({ body: marker + redactSecretValues(report.issues[0].body) });
+`
+      }
+    ]);
+
+    expect(audit.summary.trustedIssueWorkflowsMissingLivePublishGuard).toBe(1);
+    expect(audit.workflows[0]?.hasLiveIssuePublishGuard).toBe(false);
+    expect(audit.findings.map((finding) => finding.kind)).toContain("missing_live_issue_publish_guard");
+    expect(audit.findings.find((finding) => finding.kind === "missing_live_issue_publish_guard")?.severity).toBe("high");
   });
 
   it("recognizes a safe trusted Hive handoff workflow that only consumes artifacts", () => {
@@ -3011,6 +3056,7 @@ permissions:
 jobs:
   validate-handoff:
     runs-on: ubuntu-latest
+    if: vars.VISUAL_HIVE_AUTO_PUBLISH_ISSUES == 'true'
     steps:
       - uses: actions/download-artifact@1234567890abcdef1234567890abcdef12345678
         with:
@@ -3052,6 +3098,7 @@ jobs:
     expect(trusted?.readsHiveHandoffArtifacts).toBe(true);
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.hasLiveIssuePublishGuard).toBe(true);
     expect(trusted?.risk).toBe("low");
     expect(audit.findings).toHaveLength(0);
   });
@@ -3134,12 +3181,14 @@ jobs:
     expect(audit.workflows.find((workflow) => workflow.kind === "scheduled")?.writesBaselineReview).toBe(true);
     expect(trusted?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trusted?.reSanitizesIssueBody).toBe(true);
+    expect(trusted?.hasLiveIssuePublishGuard).toBe(true);
     expect(trusted?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
     expect(trustedHandoff?.downloadsArtifacts).toBe(true);
     expect(trustedHandoff?.checksOutCode).toBe(false);
     expect(trustedHandoff?.readsHiveHandoffArtifacts).toBe(true);
     expect(trustedHandoff?.usesRecursiveArtifactDiscovery).toBe(true);
     expect(trustedHandoff?.reSanitizesIssueBody).toBe(true);
+    expect(trustedHandoff?.hasLiveIssuePublishGuard).toBe(true);
     expect(trustedHandoff?.createsIssues).toBe(true);
     expect(trustedHandoff?.hasDedupeSignature).toBe(true);
     expect(trustedHandoff?.permissions).toMatchObject({ actions: "read", contents: "read", issues: "write" });
@@ -8362,6 +8411,19 @@ function argosEnabledConfig(upload: Partial<VisualHiveConfig["providers"]["argos
 }
 
 describe("issue artifacts", () => {
+  it("sanitizes issue artifact paths to repo-relative or redacted external paths", () => {
+    const rootDir = "C:/Users/david/OneDrive/Documents/visual-hive-demo-site";
+    expect(sanitizeArtifactPathForIssue(rootDir, "C:\\Users\\david\\OneDrive\\Documents\\visual-hive-demo-site\\.visual-hive\\artifacts\\screenshots\\home.png")).toBe(".visual-hive/artifacts/screenshots/home.png");
+    expect(sanitizeArtifactPathForIssue(rootDir, "C:/Users/david/secret/path/token.png")).toBe("[redacted-external-path]/token.png");
+    expect(sanitizeArtifactPathForIssue("/home/david/work/repo", "/home/david/work/repo/.visual-hive/report.json")).toBe(".visual-hive/report.json");
+    expect(sanitizeArtifactPathForIssue("/home/david/work/repo", "/home/david/.ssh/id_rsa")).toBe("[redacted-external-path]/id_rsa");
+    const markdown = sanitizeArtifactPathsForMarkdown(rootDir, "See C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json and /home/david/private/file.txt");
+    expect(markdown).toContain(".visual-hive/report.json");
+    expect(markdown).toContain("[redacted-external-path]/file.txt");
+    expect(markdown).not.toContain("C:/Users/david");
+    expect(markdown).not.toContain("/home/david/private");
+  });
+
   it("builds deduplicated issue candidates from report and mutation evidence", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-"));
     tempDirs.push(rootDir);
@@ -8415,6 +8477,163 @@ describe("issue artifacts", () => {
     expect(survivor?.body).toContain("Visual Hive does not repair code");
     expect(result.queue.summary.readyForHive).toBeGreaterThan(0);
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
+  });
+
+  it("removes local absolute artifact paths from issue and publish markdown", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-paths-"));
+    tempDirs.push(rootDir);
+    const insideActual = path.join(rootDir, ".visual-hive", "artifacts", "screenshots", "dashboard.png");
+    const insideBaseline = path.join(rootDir, ".visual-hive", "snapshots", "dashboard.png");
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, insideActual, insideBaseline));
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "issue-paths-demo",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      minScore: 0.8,
+      score: 0,
+      killed: 0,
+      total: 1,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["hosted-demo-never-login"],
+          applicable: true,
+          affectedSurfaces: [{ contractId: "hosted-demo-never-login", route: "/" }],
+          expectedFailureKinds: ["login_regression"],
+          durationMs: 10,
+          errors: [],
+          artifacts: [insideActual],
+          validationCommand: "visual-hive mutate",
+          mutationMode: "runtime",
+          sourceMutation: false
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "issue-paths-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "issue-paths-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-graph.json"), { schemaVersion: "visual-hive.visual-graph.v1" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-impact.json"), { schemaVersion: "visual-hive.visual-impact.v1" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "issue-paths-demo" });
+    const issue = issues.report.issues.find((candidate) => candidate.issueKind === "mutation_survivor")!;
+
+    expect(issue.sourceArtifacts.join("\n")).toContain(".visual-hive/artifacts/screenshots/dashboard.png");
+    expect(issue.body).toContain(".visual-hive/artifacts/screenshots/dashboard.png");
+    expect(issue.body).not.toContain(rootDir.replaceAll("\\", "/"));
+    expect(issues.markdown).not.toContain(rootDir.replaceAll("\\", "/"));
+
+    const publish = await writeIssuePublishArtifacts({ rootDir });
+    const serialized = JSON.stringify(publish);
+    expect(serialized).toContain(".visual-hive/artifacts/screenshots/dashboard.png");
+    expect(serialized).not.toContain(rootDir.replaceAll("\\", "/"));
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", publish.plan);
+  });
+
+  it("plans write-preview branches without creating branches by default", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-write-preview-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    await writeJson(path.join(rootDir, ".visual-hive", "mutation-report.json"), {
+      schemaVersion: 2,
+      project: "write-preview-demo",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      minScore: 0.8,
+      score: 0,
+      killed: 0,
+      total: 1,
+      results: [
+        {
+          operator: "force-login-on-demo",
+          status: "survived",
+          killed: false,
+          contractIds: ["hosted-demo-never-login"],
+          applicable: true,
+          affectedSurfaces: [{ contractId: "hosted-demo-never-login", route: "/" }],
+          expectedFailureKinds: ["login_regression"],
+          durationMs: 10,
+          errors: [],
+          artifacts: [".visual-hive/mutation-report.json"],
+          validationCommand: "visual-hive mutate",
+          mutationMode: "runtime",
+          sourceMutation: false
+        }
+      ]
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "write-preview-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "write-preview-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-graph.json"), { schemaVersion: "visual-hive.visual-graph.v1" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-impact.json"), { schemaVersion: "visual-hive.visual-impact.v1" });
+    await writeIssuesArtifacts({ rootDir, project: "write-preview-demo" });
+
+    const gitCalls: string[][] = [];
+    const result = await writeAgentWritePreview({
+      rootDir,
+      project: "write-preview-demo",
+      gitRunner: async (args) => {
+        gitCalls.push(args);
+        return { status: 0, stdout: "", stderr: "" };
+      }
+    });
+
+    expect(result.preview.mode).toBe("dry_run");
+    expect(result.preview.status).toBe("planned");
+    expect(result.preview.branchName).toMatch(/^visual-hive\/issue-visual-hive-/);
+    expect(result.preview.safety.branchesCreated).toBe(0);
+    expect(result.preview.safety.pullRequestsOpened).toBe(0);
+    expect(result.preview.safety.pushesPerformed).toBe(0);
+    expect(gitCalls).toHaveLength(0);
+  });
+
+  it("requires explicit write-preview flags and a clean tree before creating a local branch", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-write-preview-branch-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "write-preview-branch-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "write-preview-branch-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-graph.json"), { schemaVersion: "visual-hive.visual-graph.v1" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-impact.json"), { schemaVersion: "visual-hive.visual-impact.v1" });
+    await writeIssuesArtifacts({ rootDir, project: "write-preview-branch-demo" });
+
+    const dirty = await writeAgentWritePreview({
+      rootDir,
+      project: "write-preview-branch-demo",
+      allowWrite: true,
+      writePreviewBranch: true,
+      gitRunner: async (args) => {
+        if (args[0] === "status") return { status: 0, stdout: " M src/App.tsx\n", stderr: "" };
+        return { status: 0, stdout: "", stderr: "" };
+      }
+    });
+    expect(dirty.preview.status).toBe("blocked");
+    expect(dirty.preview.safety.branchesCreated).toBe(0);
+    expect(dirty.preview.blockedReasons.join("\n")).toContain("working tree is dirty");
+
+    const gitCalls: string[][] = [];
+    const clean = await writeAgentWritePreview({
+      rootDir,
+      project: "write-preview-branch-demo",
+      allowWrite: true,
+      writePreviewBranch: true,
+      gitRunner: async (args) => {
+        gitCalls.push(args);
+        if (args[0] === "status") return { status: 0, stdout: "", stderr: "" };
+        if (args[0] === "switch") return { status: 0, stdout: "Switched to a new branch", stderr: "" };
+        return { status: 1, stdout: "", stderr: "unexpected command" };
+      }
+    });
+
+    expect(clean.preview.mode).toBe("write_preview");
+    expect(clean.preview.status).toBe("created");
+    expect(clean.preview.safety.branchesCreated).toBe(1);
+    expect(clean.preview.safety.commitsCreated).toBe(0);
+    expect(clean.preview.safety.pullRequestsOpened).toBe(0);
+    expect(clean.preview.safety.pushesPerformed).toBe(0);
+    expect(gitCalls.some((args) => args.join(" ") === "status --short")).toBe(true);
+    expect(gitCalls.some((args) => args[0] === "switch" && args[1] === "-c" && args[2] === clean.preview.branchName)).toBe(true);
   });
 
   it("refreshes the Visual Graph with issue candidate nodes when issue artifacts are written", async () => {

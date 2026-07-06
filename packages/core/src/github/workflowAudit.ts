@@ -45,6 +45,7 @@ export interface WorkflowAuditEntry {
   readsHiveHandoffArtifacts: boolean;
   usesRecursiveArtifactDiscovery: boolean;
   reSanitizesIssueBody: boolean;
+  hasLiveIssuePublishGuard: boolean;
   runsVisualHive: boolean;
   runsMutation: boolean;
   writesBaselineReview: boolean;
@@ -79,6 +80,7 @@ export interface WorkflowAuditReport {
     workflowsMissingHiddenArtifactUpload: number;
     trustedIssueWorkflowsCheckingOutCode: number;
     trustedHandoffWorkflowsCheckingOutCode: number;
+    trustedIssueWorkflowsMissingLivePublishGuard: number;
     workflowsUsingUnpinnedActions: number;
     unpinnedActionReferences: number;
   };
@@ -132,6 +134,9 @@ export function auditWorkflows(
       ).length,
       trustedIssueWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_issue" && workflow.checksOutCode).length,
       trustedHandoffWorkflowsCheckingOutCode: workflows.filter((workflow) => workflow.kind === "trusted_handoff" && workflow.checksOutCode).length,
+      trustedIssueWorkflowsMissingLivePublishGuard: workflows.filter(
+        (workflow) => (workflow.kind === "trusted_issue" || workflow.kind === "trusted_handoff") && workflow.createsIssues && !workflow.hasLiveIssuePublishGuard
+      ).length,
       workflowsUsingUnpinnedActions: workflows.filter((workflow) => workflow.usesUnpinnedActions).length,
       unpinnedActionReferences: workflows.reduce((sum, workflow) => sum + workflow.unpinnedActions.length, 0)
     },
@@ -183,6 +188,7 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
       /evidence-packet\.json|handoff\.json|hive-bead-request\.json|hive-handoff-result\.json|hive-export\.json|guarded-repair-preview\.json|repair-request-envelope\.json|trusted-repair-consumer-summary\.json|trusted-repair-workflow-dry-run\.json/i.test(content),
     usesRecursiveArtifactDiscovery: /findIssueBody|walkArtifacts|readdirSync\([^)]*\{\s*withFileTypes\s*:\s*true|recursive artifact/i.test(content),
     reSanitizesIssueBody: /\b(redact|sanitize)\w*\s*\(/i.test(content) && /client_secret|set-cookie|authorization|bearer|cookie/i.test(content),
+    hasLiveIssuePublishGuard: /VISUAL_HIVE_AUTO_PUBLISH_ISSUES|VISUAL_HIVE_LIVE_GITHUB_ISSUE|publish_issues|publish-issues/i.test(content),
     runsVisualHive:
       /\bvisual-hive\s+(plan|run|mutate|triage|report|providers|workflows|baselines|pipeline)\b/i.test(content) ||
       /packages\/cli\/dist\/index\.js/i.test(content) ||
@@ -322,6 +328,14 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
     if (!workflow.createsIssues) {
       add("missing_issue_creation", "medium", "Trusted issue workflow should create or update issues from sanitized artifacts.", "issues.create/update");
     }
+    if (workflow.createsIssues && !workflow.hasLiveIssuePublishGuard) {
+      add(
+        "missing_live_issue_publish_guard",
+        "high",
+        "Trusted issue workflow must require an explicit repository variable or workflow input before live issue publication.",
+        "VISUAL_HIVE_AUTO_PUBLISH_ISSUES"
+      );
+    }
     if (!workflow.hasDedupeSignature) {
       add("missing_dedupe_signature", "medium", "Trusted issue workflow should dedupe issue updates.", "visual-hive-dedupe");
     }
@@ -394,6 +408,14 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
           "visual-hive-hive-handoff-dedupe"
         );
       }
+      if (!workflow.hasLiveIssuePublishGuard) {
+        add(
+          "missing_live_issue_publish_guard",
+          "high",
+          "Trusted handoff issue publication must require an explicit repository variable or workflow input.",
+          "VISUAL_HIVE_AUTO_PUBLISH_ISSUES"
+        );
+      }
     }
   }
 
@@ -415,11 +437,13 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
   if (workflow.kind === "trusted_issue") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
     recommendations.add("Use issues: write only in this trusted workflow and dedupe by signature.");
+    recommendations.add("Gate live issue publication behind VISUAL_HIVE_AUTO_PUBLISH_ISSUES or an explicit workflow_dispatch input.");
     recommendations.add("Discover issues.json recursively from downloaded artifacts and redact again before issue creation.");
   }
   if (workflow.kind === "trusted_handoff") {
     recommendations.add("Do not checkout code; consume sanitized uploaded artifacts only.");
     recommendations.add("Create or update GitHub issues only from sanitized hive-issue.md artifacts after handoff validation is not blocked.");
+    recommendations.add("Gate live issue publication behind VISUAL_HIVE_AUTO_PUBLISH_ISSUES or an explicit workflow_dispatch input.");
     recommendations.add("Validate dry-run Hive artifacts before any future trusted Bead API call.");
     recommendations.add("Keep real Hive network calls behind explicit trusted-lane policy and human approval.");
   }
@@ -441,6 +465,9 @@ function reportRecommendations(workflows: WorkflowAuditEntry[], findings: Workfl
   if (!workflows.some((workflow) => workflow.kind === "trusted_issue")) recommendations.add("Add a trusted failure issue workflow when issue creation is needed.");
   if (!workflows.some((workflow) => workflow.kind === "trusted_handoff")) recommendations.add("Add a trusted Hive handoff workflow when agent handoff is needed.");
   if (findings.some((finding) => finding.severity === "critical")) recommendations.add("Fix critical workflow safety findings before enabling required checks.");
+  if (findings.some((finding) => finding.kind === "missing_live_issue_publish_guard")) {
+    recommendations.add("Require VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true or an explicit workflow_dispatch input before trusted workflows publish live issues.");
+  }
   if (workflows.some((workflow) => workflow.uploadsVisualHiveArtifacts && !workflow.includesHiddenArtifacts)) {
     recommendations.add("Set include-hidden-files: true wherever .visual-hive artifacts are uploaded.");
   }

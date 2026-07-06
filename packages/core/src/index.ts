@@ -32,6 +32,7 @@ export * from "./hive/build.js";
 export * from "./agent/types.js";
 export * from "./agent/build.js";
 export * from "./agent/issueRunner.js";
+export * from "./agent/writePreview.js";
 export * from "./tools/types.js";
 export * from "./tools/build.js";
 export * from "./tools/evidenceResources.js";

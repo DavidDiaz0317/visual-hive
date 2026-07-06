@@ -59,12 +59,14 @@ permissions:
 jobs:
   create-issue:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: github.event.workflow_run.conclusion == 'failure' && vars.VISUAL_HIVE_AUTO_PUBLISH_ISSUES == 'true'
     steps:
       # This trusted workflow does not checkout or execute PR code. It consumes
       # sanitized Visual Hive artifacts, prefers issues.json issue candidates,
-      # and falls back to issue.md only when older artifacts are uploaded. For
-      # stricter supply-chain hardening, pin third-party actions by SHA.
+      # and falls back to issue.md only when older artifacts are uploaded. Live
+      # publishing is disabled unless VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true is set
+      # as a repository/environment variable. For stricter supply-chain hardening,
+      # pin third-party actions by SHA.
       - uses: actions/download-artifact@v4
         with:
           name: visual-hive
@@ -239,13 +241,14 @@ permissions:
 jobs:
   trusted-handoff:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: github.event.workflow_run.conclusion == 'failure' && vars.VISUAL_HIVE_AUTO_PUBLISH_ISSUES == 'true'
     steps:
       # This trusted workflow consumes sanitized Visual Hive artifacts only. It
       # does not checkout or execute PR code, and it makes no Hive network call
       # by default. It may create/update a GitHub issue from the sanitized
-      # hive-issue.md artifact after handoff validation passes. For stricter
-      # supply-chain hardening, pin actions by SHA.
+      # hive-issue.md artifact after handoff validation passes only when
+      # VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true is explicitly configured. For
+      # stricter supply-chain hardening, pin actions by SHA.
       - uses: actions/download-artifact@v4
         with:
           name: visual-hive

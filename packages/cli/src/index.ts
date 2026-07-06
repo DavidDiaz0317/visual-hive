@@ -70,6 +70,7 @@ import {
 } from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
+import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./commands/agentWritePreview.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -952,6 +953,42 @@ agentCommand
       });
       console.log(formatAgentIssueRunnerResult(result, options.format));
       if (result.run.status === "blocked") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+agentCommand
+  .command("write-preview")
+  .description("Plan or create a guarded local write-preview branch for one issue candidate; no push or PR by default")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--issues <path>", "issue candidates path", ".visual-hive/issues.json")
+  .option("--dedupe <fingerprint>", "dedupe fingerprint of the issue candidate to preview")
+  .option("--issue-index <number>", "zero-based issue index when --dedupe is not provided", parseIntegerOption)
+  .option("--allow-write", "explicitly allow write-preview mode")
+  .option("--write-preview-branch", "explicitly create the local preview branch")
+  .option("--allow-dirty", "allow branch creation from a dirty working tree in a trusted local context")
+  .option("--commit-preview", "commit changed files after preview work; disabled by default")
+  .option("--output <path>", "write-preview artifact path")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options, command: Command) => {
+    try {
+      const result = await runAgentWritePreviewCommand({
+        config: nestedConfigOption(options, command),
+        issues: options.issues,
+        dedupe: options.dedupe,
+        issueIndex: options.issueIndex,
+        allowWrite: options.allowWrite,
+        writePreviewBranch: options.writePreviewBranch,
+        allowDirty: options.allowDirty,
+        commitPreview: options.commitPreview,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatAgentWritePreviewResult(result, options.format));
+      if (result.preview.status === "blocked") {
         process.exitCode = 1;
       }
     } catch (error) {

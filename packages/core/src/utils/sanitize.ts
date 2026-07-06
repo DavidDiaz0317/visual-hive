@@ -15,6 +15,7 @@ const SECRET_KEYS = [
 ];
 
 const REDACTION = "[REDACTED]";
+const EXTERNAL_PATH_REDACTION = "[redacted-external-path]";
 
 export function sanitizeText(input: string): string {
   let value = input;
@@ -40,6 +41,51 @@ export function sanitizeText(input: string): string {
   return value;
 }
 
+export function repoRelativeArtifactPath(repoRoot: string, artifactPath: string): string {
+  const cleaned = sanitizeText(artifactPath).replaceAll("\\", "/");
+  if (!cleaned.trim()) return cleaned;
+  if (!looksLikeAbsolutePath(cleaned)) return cleaned;
+
+  const root = normalizePathForCompare(repoRoot);
+  const candidate = normalizePathForCompare(cleaned);
+  if (candidate === root) return ".";
+  if (candidate.startsWith(`${root}/`)) {
+    return candidate.slice(root.length + 1);
+  }
+
+  return `${EXTERNAL_PATH_REDACTION}/${safeBasename(cleaned)}`;
+}
+
+export function sanitizeArtifactPathForIssue(repoRoot: string, artifactPath: string): string {
+  return repoRelativeArtifactPath(repoRoot, artifactPath);
+}
+
+export function sanitizeArtifactPathsForMarkdown(repoRoot: string, markdown: string): string {
+  const windowsAbsolutePath = /[A-Za-z]:[\\/][^\s)\],`'"]+/g;
+  const userPosixPath = /\/(?:Users|home)\/[^\s)\],`'"]+/g;
+  return sanitizeText(markdown)
+    .replace(windowsAbsolutePath, (match) => sanitizeArtifactPathForIssue(repoRoot, match))
+    .replace(userPosixPath, (match) => sanitizeArtifactPathForIssue(repoRoot, match));
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function looksLikeAbsolutePath(value: string): boolean {
+  return /^[A-Za-z]:\//.test(value) || value.startsWith("/");
+}
+
+function normalizePathForCompare(value: string): string {
+  let normalized = value.replaceAll("\\", "/");
+  normalized = normalized.replace(/^file:\/+/i, "");
+  normalized = normalized.replace(/\/+/g, "/");
+  normalized = normalized.replace(/\/$/g, "");
+  return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
+}
+
+function safeBasename(value: string): string {
+  const normalized = value.replaceAll("\\", "/").replace(/\/+$/g, "");
+  const basename = normalized.split("/").filter(Boolean).pop() ?? "artifact";
+  return sanitizeText(basename).replace(/[^A-Za-z0-9_.-]+/g, "-") || "artifact";
 }

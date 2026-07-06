@@ -46,6 +46,8 @@ visual-hive issues publish --live --repo owner/repo
 
 The live mode refuses to run unless the explicit live guard is set, a valid `owner/repo` target is available, and a token environment variable is present. The token value is never written to artifacts. The publisher lists open `visual-hive` issues, dedupes by the `dedupeFingerprint` marker in the issue body, updates a matching open issue, or creates a new issue when no match exists. Use this only from `workflow_run`, `workflow_dispatch`, or another trusted lane that consumes sanitized artifacts and does not checkout or execute untrusted PR code.
 
+For the recommended production policy, including resolved-candidate and suppression behavior, see [Issue Publishing Policy](./issue-publishing-policy.md).
+
 Trusted live publishers should usually scope a run before enabling network access:
 
 ```bash

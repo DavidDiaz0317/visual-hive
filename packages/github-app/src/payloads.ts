@@ -1,4 +1,4 @@
-import { sanitizeText, type VisualHiveIssueCandidate } from "@visual-hive/core";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText, type VisualHiveIssueCandidate } from "@visual-hive/core";
 
 export interface GitHubRepositoryRef {
   fullName: string;
@@ -23,6 +23,7 @@ export interface VisualHiveSetupIssueInput {
 
 export interface ArtifactIssueSummary {
   repository: GitHubRepositoryRef;
+  repoRoot?: string;
   candidate: Pick<
     VisualHiveIssueCandidate,
     | "title"
@@ -75,8 +76,10 @@ export function buildSetupIssuePayload(input: VisualHiveSetupIssueInput): GitHub
 }
 
 export function buildIssuePayloadFromArtifactSummary(input: ArtifactIssueSummary): GitHubIssuePayload {
+  const rootDir = input.repoRoot ?? process.cwd();
+  const sourceArtifacts = input.candidate.sourceArtifacts.map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact));
   const body = [
-    input.candidate.body,
+    sanitizeArtifactPathsForMarkdown(rootDir, input.candidate.body),
     "",
     "## GitHub App Routing",
     "",
@@ -85,7 +88,7 @@ export function buildIssuePayloadFromArtifactSummary(input: ArtifactIssueSummary
     `Severity: ${input.candidate.severity}`,
     `Owning agent hint: ${input.candidate.owningAgentHint}`,
     `Validation command: \`${input.candidate.validationCommand}\``,
-    `Source artifacts: ${input.candidate.sourceArtifacts.join(", ") || "none"}`,
+    `Source artifacts: ${sourceArtifacts.join(", ") || "none"}`,
     "",
     "## Guardrails",
     "",

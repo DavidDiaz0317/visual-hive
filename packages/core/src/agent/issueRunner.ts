@@ -2,7 +2,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { readJson, writeJson, writeText } from "../utils/files.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssuesReport, VisualHiveOwningAgentHint } from "../issues/types.js";
 
 export type AgentIssueRunnerProfile = "setup_agent" | "map_agent" | "test_creator_agent" | "test_maintainer_agent" | "mutation_agent" | "review_agent";
@@ -166,7 +166,7 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
   const generatedAt = (options.now ?? new Date()).toISOString();
   const profile = profileForIssue(issue);
   const mode: AgentIssueRunnerMode = options.allowWrite ? "write_preview" : "no_write";
-  const parsedIssue = parseIssue(issue);
+  const parsedIssue = parseIssue(issue, rootDir);
   const blockedReasons = issue.status === "blocked" ? ["Issue candidate is blocked by Visual Hive policy."] : [];
   const runRelativeDir = issueRunRelativeDir(issue);
   const artifactPaths = {
@@ -231,8 +231,8 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     recommendations,
     blockedReasons
   }) as AgentIssueRun;
-  const requestMarkdown = renderAgentRequest(issue, run);
-  const outputMarkdown = renderAgentOutput(issue, run);
+  const requestMarkdown = renderAgentRequest(issue, run, rootDir);
+  const outputMarkdown = renderAgentOutput(issue, run, rootDir);
   return { run, requestMarkdown, outputMarkdown };
 }
 
@@ -344,12 +344,12 @@ export async function writeAgentIssueRun(options: WriteAgentIssueRunOptions): Pr
     run: relative(rootDir, runPath)
   };
   let run = sanitizeValue({ ...built.run, artifactPaths }) as AgentIssueRun;
-  const requestMarkdown = renderAgentRequestFromRun(built.requestMarkdown, run);
+  const requestMarkdown = renderAgentRequestFromRun(built.requestMarkdown, run, rootDir);
   await writeText(requestPath, requestMarkdown);
   if (options.executeAgent) {
     run = sanitizeValue(await applyAgentExecution({ run, requestMarkdown, requestPath, outputPath, rootDir, options })) as AgentIssueRun;
   }
-  const outputMarkdown = renderAgentOutputFromRun(renderAgentOutputFromSelectedRun(run), run);
+  const outputMarkdown = renderAgentOutputFromRun(renderAgentOutputFromSelectedRun(run, rootDir), run, rootDir);
   await writeText(outputPath, outputMarkdown);
   await writeJson(runPath, run);
   return { run, requestMarkdown, outputMarkdown, requestPath, outputPath, runPath };
@@ -560,14 +560,14 @@ function profileForIssue(issue: VisualHiveIssueCandidate): AgentIssueRunnerProfi
   return byOwner[issue.owningAgentHint] ?? "review_agent";
 }
 
-function parseIssue(issue: VisualHiveIssueCandidate): AgentIssueRun["parsedIssue"] {
+function parseIssue(issue: VisualHiveIssueCandidate, rootDir: string): AgentIssueRun["parsedIssue"] {
   return {
     affectedRoutes: dedupe(issue.affected.map((surface) => surface.route)),
     affectedComponents: dedupe(issue.affected.map((surface) => surface.component)),
     affectedContracts: dedupe(issue.affected.map((surface) => surface.contractId)),
     affectedSelectors: dedupe(issue.affected.map((surface) => surface.selector)),
     affectedViewports: dedupe(issue.affected.map((surface) => surface.viewport)),
-    sourceArtifacts: issue.sourceArtifacts,
+    sourceArtifacts: issue.sourceArtifacts.map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact)),
     evidenceArtifacts: dedupe([
       issue.linkedEvidencePacket,
       issue.linkedRepoMap,
@@ -581,7 +581,7 @@ function parseIssue(issue: VisualHiveIssueCandidate): AgentIssueRun["parsedIssue
       issue.linkedVisualGraph ? undefined : ".visual-hive/visual-graph.json",
       issue.linkedVisualImpact ? undefined : ".visual-hive/visual-impact.json",
       ".visual-hive/visual-graph-unresolved.json"
-    ]),
+    ]).map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact)),
     reproductionCommand: issue.reproductionCommand,
     validationCommand: issue.validationCommand,
     guardrails: issue.guardrails
@@ -634,8 +634,9 @@ function impactCommandForIssue(issue: VisualHiveIssueCandidate): string {
   return `visual-hive graph impact --issue ${issue.dedupeFingerprint}`;
 }
 
-function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun): string {
-  return sanitizeText([
+function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun, rootDir?: string): string {
+  const sourceArtifacts = issue.sourceArtifacts.map((artifact) => rootDir ? sanitizeArtifactPathForIssue(rootDir, artifact) : artifact);
+  return sanitizeArtifactPathsForMarkdown(rootDir ?? process.cwd(), [
     `# Visual Hive Issue Agent Request`,
     "",
     `Issue: ${issue.title}`,
@@ -655,7 +656,7 @@ function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun)
     `- Owning agent hint: ${issue.owningAgentHint}`,
     `- Reproduction command: ${issue.reproductionCommand ?? "not recorded"}`,
     `- Validation command: ${issue.validationCommand}`,
-    `- Source artifacts: ${issue.sourceArtifacts.join(", ") || "none"}`,
+    `- Source artifacts: ${sourceArtifacts.join(", ") || "none"}`,
     `- Evidence artifacts: ${run.parsedIssue.evidenceArtifacts.join(", ") || "none"}`,
     "",
     "## Issue",
@@ -671,27 +672,27 @@ function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun)
     "",
     "## Evidence Packet Summary",
     "",
-    `- Evidence Packet: ${issue.linkedEvidencePacket ?? ".visual-hive/evidence-packet.json"}`,
-    `- Repo map: ${issue.linkedRepoMap ?? ".visual-hive/repo-map.json"}`,
-    `- Mutation report: ${issue.linkedMutationReport ?? ".visual-hive/mutation-report.json"}`,
-    `- Handoff packet: ${issue.linkedHandoff ?? ".visual-hive/handoff.json"}`,
+    `- Evidence Packet: ${issue.linkedEvidencePacket ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedEvidencePacket) : ".visual-hive/evidence-packet.json"}`,
+    `- Repo map: ${issue.linkedRepoMap ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedRepoMap) : ".visual-hive/repo-map.json"}`,
+    `- Mutation report: ${issue.linkedMutationReport ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedMutationReport) : ".visual-hive/mutation-report.json"}`,
+    `- Handoff packet: ${issue.linkedHandoff ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedHandoff) : ".visual-hive/handoff.json"}`,
     "",
     "## Visual Graph Refs",
     "",
-    `- Visual Graph: ${issue.linkedVisualGraph ?? ".visual-hive/visual-graph.json"}`,
+    `- Visual Graph: ${issue.linkedVisualGraph ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedVisualGraph) : ".visual-hive/visual-graph.json"}`,
     "- Visual Graph Summary: .visual-hive/visual-graph-summary.md",
     "- Unresolved References: .visual-hive/visual-graph-unresolved.json",
     "- Search command: `visual-hive graph search <selector-route-contract-or-mutation>`",
     "",
     "## Impact Analysis",
     "",
-    `- Impact artifact: ${issue.linkedVisualImpact ?? ".visual-hive/visual-impact.json"}`,
+    `- Impact artifact: ${issue.linkedVisualImpact ? sanitizeArtifactPathForIssue(rootDir ?? process.cwd(), issue.linkedVisualImpact) : ".visual-hive/visual-impact.json"}`,
     `- Suggested impact command: \`${impactCommandForIssue(issue)}\``,
     "- Use impact output to identify routes, contracts, screenshots, mutation operators, and artifacts affected by the issue.",
     "",
     "## Relevant Artifacts",
     "",
-    ...dedupe([...issue.sourceArtifacts, ...run.parsedIssue.evidenceArtifacts]).map((artifact) => `- ${artifact}`),
+    ...dedupe([...sourceArtifacts, ...run.parsedIssue.evidenceArtifacts]).map((artifact) => `- ${artifact}`),
     "",
     "## Allowed Actions",
     "",
@@ -749,12 +750,12 @@ function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun)
   ].join("\n"));
 }
 
-function renderAgentRequestFromRun(markdown: string, run: AgentIssueRun): string {
-  return sanitizeText(`${markdown}\n\n## Output Artifacts\n\n- Request: ${run.artifactPaths.request}\n- Output: ${run.artifactPaths.output}\n- Run JSON: ${run.artifactPaths.run}\n`);
+function renderAgentRequestFromRun(markdown: string, run: AgentIssueRun, rootDir?: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir ?? process.cwd(), `${markdown}\n\n## Output Artifacts\n\n- Request: ${run.artifactPaths.request}\n- Output: ${run.artifactPaths.output}\n- Run JSON: ${run.artifactPaths.run}\n`);
 }
 
-function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun): string {
-  return sanitizeText([
+function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun, rootDir?: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir ?? process.cwd(), [
     `# Visual Hive Issue Agent Output`,
     "",
     `Status: ${run.status}`,
@@ -796,8 +797,8 @@ function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun):
   ].join("\n"));
 }
 
-function renderAgentOutputFromSelectedRun(run: AgentIssueRun): string {
-  return sanitizeText([
+function renderAgentOutputFromSelectedRun(run: AgentIssueRun, rootDir?: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir ?? process.cwd(), [
     `# Visual Hive Issue Agent Output`,
     "",
     `Status: ${run.status}`,
@@ -851,8 +852,8 @@ function agentExecutionSummary(run: AgentIssueRun): string {
   return "This guarded Visual Hive issue-runner did not complete an agent command successfully. Review the blocked reason or sanitized execution excerpt before retrying in a trusted environment.";
 }
 
-function renderAgentOutputFromRun(markdown: string, run: AgentIssueRun): string {
-  return sanitizeText(`${markdown}\n\n## Output Artifacts\n\n- Request: ${run.artifactPaths.request}\n- Output: ${run.artifactPaths.output}\n- Run JSON: ${run.artifactPaths.run}\n`);
+function renderAgentOutputFromRun(markdown: string, run: AgentIssueRun, rootDir?: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir ?? process.cwd(), `${markdown}\n\n## Output Artifacts\n\n- Request: ${run.artifactPaths.request}\n- Output: ${run.artifactPaths.output}\n- Run JSON: ${run.artifactPaths.run}\n`);
 }
 
 function issueRunRelativeDir(issue: VisualHiveIssueCandidate): string {
