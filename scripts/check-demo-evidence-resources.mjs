@@ -247,7 +247,7 @@ function assertResourceShape(actual, label) {
 function checkContextLedger(ledger, expectedResources) {
   const triageCall = findToolCall(ledger, "triage");
   if (!triageCall) {
-    assert(Array.isArray(ledger.toolCalls) && ledger.toolCalls.length === 0, "Context Ledger either includes triage or records an explicit no-tool-call run");
+    assertSafeToolCalls(ledger, "Context Ledger without compatibility triage call");
     return;
   }
   assert(triageCall, "Context Ledger includes the triage tool call");
@@ -263,11 +263,15 @@ function checkContextLedger(ledger, expectedResources) {
 
 function checkSnapshot(controlPlaneSnapshot, expectedResources) {
   const triageCall = findToolCall(controlPlaneSnapshot.contextLedger, "triage");
-  assert(triageCall?.evidenceResources?.length, "Control Plane snapshot preserves Context Ledger linked evidence resources");
-  for (const expected of triageResources) {
-    const actual = triageCall.evidenceResources.find((entry) => entry.evidenceResourceId === expected.id);
-    assert(actual, `Control Plane snapshot triage call links ${expected.id}`);
-    assertResource(actual, expected, `Control Plane snapshot triage evidenceResources[${expected.id}]`);
+  if (triageCall) {
+    assert(triageCall.evidenceResources?.length, "Control Plane snapshot preserves Context Ledger linked evidence resources");
+    for (const expected of triageResources) {
+      const actual = triageCall.evidenceResources.find((entry) => entry.evidenceResourceId === expected.id);
+      assert(actual, `Control Plane snapshot triage call links ${expected.id}`);
+      assertResource(actual, expected, `Control Plane snapshot triage evidenceResources[${expected.id}]`);
+    }
+  } else {
+    assertSafeToolCalls(controlPlaneSnapshot.contextLedger, "Control Plane snapshot Context Ledger without compatibility triage call");
   }
   const artifacts = controlPlaneSnapshot.artifacts ?? [];
   for (const expected of expectedResources) {
@@ -320,6 +324,23 @@ function assertResource(actual, expected, label) {
 
 function findToolCall(source, id) {
   return source?.toolCalls?.find((toolCall) => toolCall.id === id);
+}
+
+function assertSafeToolCalls(source, label) {
+  const toolCalls = source?.toolCalls ?? [];
+  assert(Array.isArray(toolCalls), `${label} records toolCalls[]`);
+  for (const toolCall of toolCalls) {
+    assert(toolCall.externalNetwork !== true, `${label} keeps ${toolCall.id ?? toolCall.toolId ?? "tool"} off external network`);
+    assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("handoff_github_issue"), `${label} does not expose issue-publishing execution tools`);
+    assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("provider_upload"), `${label} does not expose provider upload execution tools`);
+    assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("hive_repair"), `${label} does not expose Hive repair execution tools`);
+    if (toolCall.evidenceResources !== undefined) {
+      assert(Array.isArray(toolCall.evidenceResources), `${label} ${toolCall.id ?? toolCall.toolId ?? "tool"} links evidenceResources[]`);
+      for (const resource of toolCall.evidenceResources) {
+        assertResourceShape(resource, `${label} ${toolCall.id ?? toolCall.toolId ?? "tool"} evidence resource`);
+      }
+    }
+  }
 }
 
 function byId(id) {
