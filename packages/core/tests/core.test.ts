@@ -8562,6 +8562,12 @@ describe("issue artifacts", () => {
       rootDir,
       project: "agent-issue-demo",
       dedupeFingerprint: survivor.dedupeFingerprint,
+      codexDiscoveryRunner: async (command, args, timeoutMs) => ({
+        status: 0,
+        stdout: `${command} ${args.join(" ")}\nUsage: codex [options]\n  --model <model>\n`,
+        stderr: `timeout=${timeoutMs}`,
+        timedOut: false
+      }),
       now: new Date("2026-01-04T00:00:00.000Z")
     });
 
@@ -8569,6 +8575,11 @@ describe("issue artifacts", () => {
     expect(run.run.mode).toBe("no_write");
     expect(run.run.budgets.allowWrite).toBe(false);
     expect(run.run.budgets.allowExternalNetwork).toBe(false);
+    expect(run.run.codexCli).toMatchObject({
+      command: "codex",
+      discoveryStatus: "available"
+    });
+    expect(run.run.codexCli.helpExcerpt).toContain("Usage: codex");
     expect(run.run.safety).toMatchObject({
       sourceMutations: 0,
       branchesCreated: 0,
@@ -8582,8 +8593,57 @@ describe("issue artifacts", () => {
     });
     expect(run.run.parsedIssue.validationCommand).toBe("visual-hive mutate --operator force-login-on-demo");
     expect(run.requestMarkdown).toContain("Default run is advisory no-write");
-    expect(run.outputMarkdown).toContain("did not call Codex, Hive, LLMs, providers, or GitHub");
+    expect(run.requestMarkdown).toContain("Codex CLI Discovery");
+    expect(run.outputMarkdown).toContain("did not run Codex as an agent");
+    expect(run.outputMarkdown).toContain("Codex CLI Discovery");
     expect(run.outputMarkdown).toContain("Do not approve baselines blindly");
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
+
+  it("records unavailable Codex CLI discovery without blocking no-write issue-agent artifacts", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-unavailable-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-issue-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "medium",
+          title: "Add changed-file selection for dashboard",
+          description: "Dashboard contract is not selected by changed files.",
+          contractId: "dashboard-contract",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-issue-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-issue-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), { schemaVersion: "visual-hive.handoff.v1" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-issue-demo" });
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-issue-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      codexCommand: "missing-codex",
+      codexDiscoveryRunner: async () => ({
+        status: null,
+        stdout: "",
+        stderr: "",
+        error: "spawn missing-codex ENOENT"
+      }),
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(run.run.status).toBe("completed");
+    expect(run.run.codexCli.discoveryStatus).toBe("unavailable");
+    expect(run.run.codexCli.errorExcerpt).toContain("missing-codex");
+    expect(run.run.safety.externalCallsMade).toBe(0);
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 });

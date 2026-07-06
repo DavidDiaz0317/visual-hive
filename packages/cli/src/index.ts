@@ -895,6 +895,7 @@ agentCommand
   .option("--output-dir <path>", "directory for agent-request.md, agent-output.md, and agent-run.json")
   .option("--allow-write", "mark the run as write-preview capable; default remains no-write and performs no code edits")
   .option("--codex-command <command>", "Codex CLI command name to record in the request", "codex")
+  .option("--codex-discovery-timeout-ms <number>", "maximum Codex CLI --help discovery time in milliseconds", parseIntegerOption)
   .option("--max-runtime-ms <number>", "maximum future agent runtime budget in milliseconds", parseIntegerOption)
   .option("--max-tool-calls <number>", "maximum future tool-call budget", parseIntegerOption)
   .option("--max-prompt-tokens <number>", "maximum prompt-token budget", parseIntegerOption)
@@ -910,6 +911,7 @@ agentCommand
         outputDir: options.outputDir,
         allowWrite: options.allowWrite,
         codexCommand: options.codexCommand,
+        codexDiscoveryTimeoutMs: options.codexDiscoveryTimeoutMs,
         maxRuntimeMs: options.maxRuntimeMs,
         maxToolCalls: options.maxToolCalls,
         maxPromptTokens: options.maxPromptTokens,

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
@@ -7,6 +8,17 @@ import type { VisualHiveIssueCandidate, VisualHiveIssuesReport, VisualHiveOwning
 export type AgentIssueRunnerProfile = "setup_agent" | "map_agent" | "test_creator_agent" | "test_maintainer_agent" | "mutation_agent" | "review_agent";
 export type AgentIssueRunnerMode = "no_write" | "write_preview";
 export type AgentIssueRunStatus = "completed" | "blocked";
+export type CodexCliDiscoveryStatus = "available" | "unavailable" | "failed" | "timeout";
+
+export interface CodexCliDiscoveryResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+  error?: string;
+}
+
+export type CodexCliDiscoveryRunner = (command: string, args: string[], timeoutMs: number) => Promise<CodexCliDiscoveryResult>;
 
 export interface AgentIssueRun {
   schemaVersion: "visual-hive.agent-issue-run.v1";
@@ -37,8 +49,10 @@ export interface AgentIssueRun {
   };
   codexCli: {
     command: string;
-    discoveryStatus: "not_executed";
+    discoveryStatus: CodexCliDiscoveryStatus;
     helpExcerpt?: string;
+    errorExcerpt?: string;
+    durationMs: number;
   };
   budgets: {
     maxRuntimeMs: number;
@@ -78,6 +92,8 @@ export interface BuildAgentIssueRunOptions {
   kind?: string;
   allowWrite?: boolean;
   codexCommand?: string;
+  codexDiscoveryTimeoutMs?: number;
+  codexDiscoveryRunner?: CodexCliDiscoveryRunner;
   maxRuntimeMs?: number;
   maxToolCalls?: number;
   maxPromptTokens?: number;
@@ -100,7 +116,8 @@ export interface AgentIssueRunArtifacts {
 const DEFAULT_BUDGETS = {
   maxRuntimeMs: 300000,
   maxToolCalls: 12,
-  maxPromptTokens: 12000
+  maxPromptTokens: 12000,
+  codexDiscoveryTimeoutMs: 5000
 };
 
 export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Promise<Omit<AgentIssueRunArtifacts, "requestPath" | "outputPath" | "runPath">> {
@@ -120,6 +137,11 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     run: `${runRelativeDir}/agent-run.json`
   };
   const recommendations = recommendationsFor(issue, profile, mode);
+  const codexCli = await discoverCodexCli({
+    command: options.codexCommand ?? "codex",
+    timeoutMs: options.codexDiscoveryTimeoutMs ?? DEFAULT_BUDGETS.codexDiscoveryTimeoutMs,
+    runner: options.codexDiscoveryRunner
+  });
   const run: AgentIssueRun = sanitizeValue({
     schemaVersion: "visual-hive.agent-issue-run.v1",
     generatedAt,
@@ -137,9 +159,7 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     },
     parsedIssue,
     codexCli: {
-      command: options.codexCommand ?? "codex",
-      discoveryStatus: "not_executed",
-      helpExcerpt: "Codex CLI execution is disabled in the default no-write Visual Hive issue-runner path."
+      ...codexCli
     },
     budgets: {
       maxRuntimeMs: options.maxRuntimeMs ?? DEFAULT_BUDGETS.maxRuntimeMs,
@@ -168,6 +188,100 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
   const requestMarkdown = renderAgentRequest(issue, run);
   const outputMarkdown = renderAgentOutput(issue, run);
   return { run, requestMarkdown, outputMarkdown };
+}
+
+async function discoverCodexCli(options: {
+  command: string;
+  timeoutMs: number;
+  runner?: CodexCliDiscoveryRunner;
+}): Promise<AgentIssueRun["codexCli"]> {
+  const startedAt = Date.now();
+  const runner = options.runner ?? defaultCodexDiscoveryRunner;
+  const result = await runner(options.command, ["--help"], options.timeoutMs);
+  const durationMs = Date.now() - startedAt;
+  const output = sanitizeText(`${result.stdout}\n${result.stderr}`.trim());
+  if (result.timedOut) {
+    return {
+      command: options.command,
+      discoveryStatus: "timeout",
+      errorExcerpt: "Codex CLI help discovery timed out.",
+      durationMs
+    };
+  }
+  if (result.error && /ENOENT|not found|cannot find/i.test(result.error)) {
+    return {
+      command: options.command,
+      discoveryStatus: "unavailable",
+      errorExcerpt: sanitizeText(result.error).slice(0, 600),
+      durationMs
+    };
+  }
+  if (result.status === 0) {
+    return {
+      command: options.command,
+      discoveryStatus: "available",
+      helpExcerpt: output.slice(0, 1200),
+      durationMs
+    };
+  }
+  return {
+    command: options.command,
+    discoveryStatus: "failed",
+    helpExcerpt: result.stdout ? sanitizeText(result.stdout).slice(0, 600) : undefined,
+    errorExcerpt: sanitizeText(result.error || result.stderr || `Codex CLI help exited with status ${result.status ?? "unknown"}.`).slice(0, 600),
+    durationMs
+  };
+}
+
+function defaultCodexDiscoveryRunner(command: string, args: string[], timeoutMs: number): Promise<CodexCliDiscoveryResult> {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        shell: false
+      });
+    } catch (error) {
+      resolve({
+        status: null,
+        stdout,
+        stderr,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return;
+    }
+    const timerRef: { current?: ReturnType<typeof setTimeout> } = {};
+    const finish = (result: CodexCliDiscoveryResult) => {
+      if (settled) return;
+      settled = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      resolve(result);
+    };
+    timerRef.current = setTimeout(() => {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // Already exited.
+      }
+      finish({ status: null, stdout, stderr, timedOut: true });
+    }, timeoutMs);
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.once("error", (error) => {
+      finish({ status: null, stdout, stderr, error: error.message });
+    });
+    child.once("close", (code) => {
+      finish({ status: code, stdout, stderr });
+    });
+  });
 }
 
 export async function writeAgentIssueRun(options: WriteAgentIssueRunOptions): Promise<AgentIssueRunArtifacts> {
@@ -329,7 +443,15 @@ function renderAgentRequest(issue: VisualHiveIssueCandidate, run: AgentIssueRun)
     `- Max prompt tokens: ${run.budgets.maxPromptTokens}`,
     `- Allow write: ${run.budgets.allowWrite}`,
     `- Allow external network: ${run.budgets.allowExternalNetwork}`,
-    `- Max external cost USD: ${run.budgets.maxExternalCostUsd}`
+    `- Max external cost USD: ${run.budgets.maxExternalCostUsd}`,
+    "",
+    "## Codex CLI Discovery",
+    "",
+    `- Command: ${run.codexCli.command}`,
+    `- Status: ${run.codexCli.discoveryStatus}`,
+    `- Duration ms: ${run.codexCli.durationMs}`,
+    ...(run.codexCli.helpExcerpt ? [`- Help excerpt: ${run.codexCli.helpExcerpt.split("\n")[0]}`] : []),
+    ...(run.codexCli.errorExcerpt ? [`- Error excerpt: ${run.codexCli.errorExcerpt}`] : [])
   ].join("\n"));
 }
 
@@ -345,7 +467,15 @@ function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun):
     `Issue: ${issue.title}`,
     `Profile: ${run.profile}`,
     "",
-    "This default Visual Hive issue-runner did not call Codex, Hive, LLMs, providers, or GitHub. It produced a bounded request and recommendation artifact for a human or trusted agent runner.",
+    "This default Visual Hive issue-runner did not run Codex as an agent, call Hive, call LLMs, call providers, or call GitHub. It only performed bounded Codex CLI help discovery and produced a request/recommendation artifact for a human or trusted agent runner.",
+    "",
+    "## Codex CLI Discovery",
+    "",
+    `- Command: ${run.codexCli.command}`,
+    `- Status: ${run.codexCli.discoveryStatus}`,
+    `- Duration ms: ${run.codexCli.durationMs}`,
+    ...(run.codexCli.helpExcerpt ? [`- Help excerpt: ${run.codexCli.helpExcerpt.split("\n")[0]}`] : []),
+    ...(run.codexCli.errorExcerpt ? [`- Error excerpt: ${run.codexCli.errorExcerpt}`] : []),
     "",
     "## Recommended Next Steps",
     "",

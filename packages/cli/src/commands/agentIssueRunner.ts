@@ -16,6 +16,7 @@ export interface AgentIssueRunnerCommandOptions {
   outputDir?: string;
   allowWrite?: boolean;
   codexCommand?: string;
+  codexDiscoveryTimeoutMs?: number;
   maxRuntimeMs?: number;
   maxToolCalls?: number;
   maxPromptTokens?: number;
@@ -43,6 +44,7 @@ export async function runAgentIssueRunnerCommand(options: AgentIssueRunnerComman
     outputDir: options.outputDir,
     allowWrite: options.allowWrite,
     codexCommand: options.codexCommand,
+    codexDiscoveryTimeoutMs: options.codexDiscoveryTimeoutMs,
     maxRuntimeMs: options.maxRuntimeMs,
     maxToolCalls: options.maxToolCalls,
     maxPromptTokens: options.maxPromptTokens

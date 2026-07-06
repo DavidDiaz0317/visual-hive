@@ -59,12 +59,14 @@
     },
     "codexCli": {
       "type": "object",
-      "required": ["command", "discoveryStatus"],
+      "required": ["command", "discoveryStatus", "durationMs"],
       "additionalProperties": false,
       "properties": {
         "command": { "type": "string" },
-        "discoveryStatus": { "const": "not_executed" },
-        "helpExcerpt": { "type": "string" }
+        "discoveryStatus": { "enum": ["available", "unavailable", "failed", "timeout"] },
+        "helpExcerpt": { "type": "string" },
+        "errorExcerpt": { "type": "string" },
+        "durationMs": { "type": "number", "minimum": 0 }
       }
     },
     "budgets": {
