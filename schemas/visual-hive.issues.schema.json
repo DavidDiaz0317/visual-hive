@@ -107,6 +107,8 @@
         "validationCommand": { "type": "string" },
         "linkedEvidencePacket": { "type": "string" },
         "linkedRepoMap": { "type": "string" },
+        "linkedVisualGraph": { "type": "string" },
+        "linkedVisualImpact": { "type": "string" },
         "linkedMutationReport": { "type": "string" },
         "linkedHandoff": { "type": "string" },
         "linkedHiveExport": { "type": "string" },

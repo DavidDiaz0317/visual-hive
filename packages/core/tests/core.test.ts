@@ -8396,6 +8396,8 @@ describe("issue artifacts", () => {
     });
     await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "issues-demo" });
     await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "issues-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-graph.json"), { schemaVersion: "visual-hive.visual-graph.v1", project: "issues-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "visual-impact.json"), { schemaVersion: "visual-hive.visual-impact.v1", project: "issues-demo" });
 
     const result = await writeIssuesArtifacts({ rootDir, project: "issues-demo" });
 
@@ -8406,6 +8408,10 @@ describe("issue artifacts", () => {
     const survivor = result.report.issues.find((issue) => issue.issueKind === "mutation_survivor");
     expect(survivor?.linkedEvidencePacket).toBe(".visual-hive/evidence-packet.json");
     expect(survivor?.linkedRepoMap).toBe(".visual-hive/repo-map.json");
+    expect(survivor?.linkedVisualGraph).toBe(".visual-hive/visual-graph.json");
+    expect(survivor?.linkedVisualImpact).toBe(".visual-hive/visual-impact.json");
+    expect(survivor?.body).toContain(".visual-hive/visual-graph.json");
+    expect(survivor?.body).toContain(".visual-hive/visual-impact.json");
     expect(survivor?.body).toContain("Visual Hive does not repair code");
     expect(result.queue.summary.readyForHive).toBeGreaterThan(0);
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");

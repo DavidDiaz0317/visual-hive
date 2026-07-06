@@ -50,6 +50,8 @@ export interface VisualHiveIssueCandidate {
   validationCommand: string;
   linkedEvidencePacket?: string;
   linkedRepoMap?: string;
+  linkedVisualGraph?: string;
+  linkedVisualImpact?: string;
   linkedMutationReport?: string;
   linkedHandoff?: string;
   linkedHiveExport?: string;
@@ -79,6 +81,8 @@ export interface VisualHiveIssuesReport {
     coverageRecommendations?: string;
     triage?: string;
     repoMap?: string;
+    visualGraph?: string;
+    visualImpact?: string;
     workflows?: string;
     readiness?: string;
     evidencePacket?: string;

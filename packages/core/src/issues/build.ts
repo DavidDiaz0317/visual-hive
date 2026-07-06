@@ -56,7 +56,7 @@ export interface WriteIssuesOptions extends BuildIssuesOptions {
 export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ report: VisualHiveIssuesReport; markdown: string; queue: VisualHiveIssueQueue; setupIssue: VisualHiveSetupIssue }> {
   const rootDir = path.resolve(options.rootDir);
   const sourceArtifacts = defaultSourceArtifacts(options.sourcePaths);
-  const [report, mutationReport, triage, coverage, coverageRecommendations, repoMap, workflows, readiness, evidencePacket, handoff, hiveExport, knowledgeGraph, agentPacket, previousIssues, suppressions] =
+  const [report, mutationReport, triage, coverage, coverageRecommendations, repoMap, visualGraph, visualImpact, workflows, readiness, evidencePacket, handoff, hiveExport, knowledgeGraph, agentPacket, previousIssues, suppressions] =
     await Promise.all([
       readOptional<Report>(rootDir, sourceArtifacts.report),
       readOptional<MutationReport>(rootDir, sourceArtifacts.mutationReport),
@@ -64,6 +64,8 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       readOptional<JsonObject>(rootDir, sourceArtifacts.coverage),
       readOptional<JsonObject>(rootDir, sourceArtifacts.coverageRecommendations),
       readOptional<JsonObject>(rootDir, sourceArtifacts.repoMap),
+      readOptional<JsonObject>(rootDir, sourceArtifacts.visualGraph),
+      readOptional<JsonObject>(rootDir, sourceArtifacts.visualImpact),
       readOptional<JsonObject>(rootDir, sourceArtifacts.workflows),
       readOptional<JsonObject>(rootDir, sourceArtifacts.readiness),
       readOptional<JsonObject>(rootDir, sourceArtifacts.evidencePacket),
@@ -93,6 +95,8 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     const candidate = normalizeIssue(issue, {
       evidencePacket: exists(sourceArtifacts.evidencePacket, evidencePacket),
       repoMap: exists(sourceArtifacts.repoMap, repoMap),
+      visualGraph: exists(sourceArtifacts.visualGraph, visualGraph),
+      visualImpact: exists(sourceArtifacts.visualImpact, visualImpact),
       mutationReport: exists(sourceArtifacts.mutationReport, mutationReport),
       handoff: exists(sourceArtifacts.handoff, handoff),
       hiveExport: exists(sourceArtifacts.hiveExport, hiveExport),
@@ -138,6 +142,8 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       coverage,
       coverageRecommendations,
       repoMap,
+      visualGraph,
+      visualImpact,
       workflows,
       readiness,
       evidencePacket,
@@ -494,11 +500,13 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
   return partial;
 }
 
-function normalizeIssue(issue: VisualHiveIssueCandidate, links: Partial<Record<"evidencePacket" | "repoMap" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
+function normalizeIssue(issue: VisualHiveIssueCandidate, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
   const normalized = {
     ...issue,
     linkedEvidencePacket: links.evidencePacket,
     linkedRepoMap: links.repoMap,
+    linkedVisualGraph: links.visualGraph,
+    linkedVisualImpact: links.visualImpact,
     linkedMutationReport: issue.issueKind === "mutation_survivor" ? links.mutationReport : issue.linkedMutationReport,
     linkedHandoff: links.handoff,
     linkedHiveExport: links.hiveExport,
@@ -509,6 +517,8 @@ function normalizeIssue(issue: VisualHiveIssueCandidate, links: Partial<Record<"
     ...normalized.sourceArtifacts,
     normalized.linkedEvidencePacket,
     normalized.linkedRepoMap,
+    normalized.linkedVisualGraph,
+    normalized.linkedVisualImpact,
     normalized.linkedMutationReport,
     normalized.linkedHandoff,
     normalized.linkedHiveExport,
@@ -543,6 +553,8 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string):
     ...dedupe([
       issue.linkedEvidencePacket,
       issue.linkedRepoMap,
+      issue.linkedVisualGraph,
+      issue.linkedVisualImpact,
       issue.linkedMutationReport,
       issue.linkedHandoff,
       issue.linkedHiveExport,
@@ -671,6 +683,8 @@ function defaultSourceArtifacts(overrides?: Partial<VisualHiveIssuesReport["sour
     workflows: ".visual-hive/workflows.json",
     readiness: ".visual-hive/readiness.json",
     evidencePacket: ".visual-hive/evidence-packet.json",
+    visualGraph: ".visual-hive/visual-graph.json",
+    visualImpact: ".visual-hive/visual-impact.json",
     handoff: ".visual-hive/handoff.json",
     hiveExport: ".visual-hive/hive/hive-export.json",
     knowledgeGraph: ".visual-hive/hive/knowledge-graph.json",
