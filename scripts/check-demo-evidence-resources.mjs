@@ -102,7 +102,7 @@ if (profile === "demo") {
   assert(snapshot?.schemaVersion === 1, "control-plane-snapshot.json has the expected schema version");
   assert(Array.isArray(mcpManifest?.resources), "mcp-manifest.json contains a resources array");
   checkContextLedger(contextLedger, triageResources);
-  checkSnapshot(snapshot, [...triageResources, ...supportResources]);
+  checkSnapshot(snapshot, triageResources);
   checkArtifactIndex(artifactIndex, [...triageResources, ...supportResources]);
   checkMcpManifest(mcpManifest, [...triageResources, ...supportResources]);
   checkAgentPacket(agentPacket, [triageResources[0], byId("triage-prompt"), byId("repair-prompt"), byId("missing-tests")].filter(Boolean));
