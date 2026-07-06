@@ -5,6 +5,7 @@ import {
   writeIssuesArtifacts,
   writeSetupIssuePublishArtifacts,
   type IssuePublishArtifacts,
+  type VisualHiveIssueKind,
   type VisualHiveIssueCandidate,
   type VisualHiveIssuePublishMode,
   type VisualHiveIssuesReport
@@ -15,7 +16,7 @@ export interface IssuesCommandOptions {
   cwd?: string;
   write?: boolean;
   format?: "markdown" | "json";
-  kind?: string;
+  kind?: VisualHiveIssueKind;
   minSeverity?: "low" | "medium" | "high" | "critical";
 }
 
@@ -40,6 +41,10 @@ export interface IssuePublishCommandOptions {
   tokenEnv?: string;
   liveGuardEnv?: string;
   format?: "markdown" | "json";
+  dedupe?: string;
+  kind?: string;
+  minSeverity?: "low" | "medium" | "high" | "critical";
+  limit?: number;
 }
 
 export interface SetupIssuePublishCommandOptions extends Omit<IssuePublishCommandOptions, "issues"> {
@@ -47,6 +52,22 @@ export interface SetupIssuePublishCommandOptions extends Omit<IssuePublishComman
 }
 
 const SEVERITY_RANK = { low: 0, medium: 1, high: 2, critical: 3 } as const;
+const ISSUE_KINDS = new Set<VisualHiveIssueKind>([
+  "setup_needed",
+  "map_drift",
+  "missing_visual_coverage",
+  "weak_visual_test",
+  "stale_baseline",
+  "baseline_churn",
+  "visual_regression",
+  "selector_contract_failure",
+  "screenshot_diff",
+  "mutation_survivor",
+  "workflow_safety",
+  "provider_governance",
+  "protected_target_blocked",
+  "external_repo_onboarding"
+]);
 
 export async function runIssuesCommand(options: IssuesCommandOptions = {}): Promise<IssuesCommandResult> {
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
@@ -97,7 +118,11 @@ export async function runIssuePublishCommand(options: IssuePublishCommandOptions
     handoffValidationPath: options.handoffValidation,
     githubRepository: options.repository,
     tokenEnv: options.tokenEnv,
-    liveGuardEnv: options.liveGuardEnv
+    liveGuardEnv: options.liveGuardEnv,
+    dedupeFingerprint: options.dedupe,
+    issueKind: parseIssueKindOption(options.kind),
+    minSeverity: options.minSeverity,
+    limit: options.limit
   });
 }
 
@@ -192,6 +217,12 @@ function summarize(issues: VisualHiveIssueCandidate[]): VisualHiveIssuesReport["
     byKind,
     bySeverity
   };
+}
+
+function parseIssueKindOption(value?: string): VisualHiveIssueKind | undefined {
+  if (!value) return undefined;
+  if (ISSUE_KINDS.has(value as VisualHiveIssueKind)) return value as VisualHiveIssueKind;
+  throw new Error(`Invalid issue kind "${value}". Expected one of: ${[...ISSUE_KINDS].join(", ")}`);
 }
 
 export function issueArtifactPaths(rootDir: string): string[] {

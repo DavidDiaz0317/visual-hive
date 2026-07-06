@@ -32,6 +32,16 @@ Visual Hive writes:
 
 Each issue candidate includes kind, severity, status, dedupe fingerprint, labels, owner hint, body, affected surfaces, reproduction command, validation command, linked artifacts, and guardrails.
 
+Issue publishing can be scoped before any live create/update decision:
+
+```bash
+visual-hive issues publish --dry-run --kind mutation_survivor
+visual-hive issues publish --live --repo owner/repo --dedupe visual-hive:mutation_survivor:abc123
+visual-hive issues publish --live --repo owner/repo --kind missing_visual_coverage --limit 1
+```
+
+Use scoped live publishing for trusted smoke tests or staged rollout. Publishing the entire queue is allowed only when the repository intentionally wants every ready candidate routed as an issue.
+
 ## Queue States
 
 - `ready_for_hive`: issue candidates ready for Hive/human routing.

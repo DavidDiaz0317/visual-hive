@@ -41,6 +41,16 @@ visual-hive issues publish --live --repo owner/repo
 
 The live mode refuses to run unless the explicit live guard is set, a valid `owner/repo` target is available, and a token environment variable is present. The token value is never written to artifacts. The publisher lists open `visual-hive` issues, dedupes by the `dedupeFingerprint` marker in the issue body, updates a matching open issue, or creates a new issue when no match exists. Use this only from `workflow_run`, `workflow_dispatch`, or another trusted lane that consumes sanitized artifacts and does not checkout or execute untrusted PR code.
 
+Trusted live publishers should usually scope a run before enabling network access:
+
+```bash
+visual-hive issues publish --live --repo owner/repo --dedupe visual-hive:missing_visual_coverage:abc123
+visual-hive issues publish --live --repo owner/repo --kind mutation_survivor --limit 1
+visual-hive issues publish --dry-run --min-severity high --limit 5
+```
+
+The filters are applied before create/update decisions are made. This lets a trusted smoke update one known issue candidate without publishing the entire queue.
+
 Use `pull_request`, not `pull_request_target`, for untrusted PR validation.
 
 Run `visual-hive workflows` to write `.visual-hive/workflows.json`, which audits actual workflow YAML for PR secret usage, write permissions, `pull_request_target`, hidden artifact upload, baseline review queue generation, external action pinning posture, and trusted `workflow_run` issue patterns. Trusted issue workflow checks include artifact download, recursive `issue.md` discovery, dedupe markers, no checkout, and a defensive redaction pass before issue creation.

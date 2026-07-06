@@ -4,11 +4,13 @@ import { sanitizeText } from "../utils/sanitize.js";
 import type { HandoffValidationReport } from "../handoff/validate.js";
 import type {
   VisualHiveIssueCandidate,
+  VisualHiveIssueKind,
   VisualHiveIssuePublishDecision,
   VisualHiveIssuePublishDryRun,
   VisualHiveIssuePublishMode,
   VisualHiveIssuePublishPlan,
   VisualHiveIssuePublishResult,
+  VisualHiveIssueSeverity,
   VisualHiveIssuesReport,
   VisualHivePublishedIssueRef
 } from "./types.js";
@@ -21,6 +23,10 @@ export interface BuildIssuePublishPlanOptions {
   handoffValidationPath?: string;
   existingIssues?: VisualHivePublishedIssueRef[];
   blockedReasons?: string[];
+  dedupeFingerprint?: string;
+  issueKind?: VisualHiveIssueKind;
+  minSeverity?: VisualHiveIssueSeverity;
+  limit?: number;
 }
 
 export interface WriteIssuePublishArtifactsOptions extends BuildIssuePublishPlanOptions {
@@ -87,15 +93,17 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
   const issuesPath = normalizeArtifactPath(options.issuesPath ?? DEFAULT_PATHS.issues);
   const handoffValidationPath = normalizeArtifactPath(options.handoffValidationPath ?? DEFAULT_PATHS.handoffValidation);
   const issues = await readJson<VisualHiveIssuesReport>(resolveArtifact(rootDir, issuesPath));
+  const selectedIssues = filterPublishIssues(issues.issues, options);
   const handoffValidation = await readOptional<HandoffValidationReport>(rootDir, handoffValidationPath);
   const generatedAt = (options.now ?? new Date()).toISOString();
   const existingByFingerprint = new Map((options.existingIssues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
   const blockedReasons = [
     ...(options.blockedReasons ?? []),
     ...artifactSafetyBlocks(issues, handoffValidation),
-    ...(!issues.issues.length ? ["issues.json contains no issue candidates to publish."] : [])
+    ...(!issues.issues.length ? ["issues.json contains no issue candidates to publish."] : []),
+    ...(issues.issues.length && !selectedIssues.length ? ["No issue candidates matched the publish filters."] : [])
   ];
-  const decisions = issues.issues.map((issue) => decisionForIssue(issue, existingByFingerprint.get(issue.dedupeFingerprint), blockedReasons));
+  const decisions = selectedIssues.map((issue) => decisionForIssue(issue, existingByFingerprint.get(issue.dedupeFingerprint), blockedReasons));
   const plan = sanitizeValue({
     schemaVersion: "visual-hive.issue-publish-plan.v1",
     generatedAt,
@@ -113,6 +121,25 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
     decisions
   }) as VisualHiveIssuePublishPlan;
   return plan;
+}
+
+const SEVERITY_RANK: Record<VisualHiveIssueSeverity, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  critical: 3
+};
+
+function filterPublishIssues(issues: VisualHiveIssueCandidate[], options: BuildIssuePublishPlanOptions): VisualHiveIssueCandidate[] {
+  const filtered = issues.filter((issue) => {
+    if (options.dedupeFingerprint && issue.dedupeFingerprint !== options.dedupeFingerprint) return false;
+    if (options.issueKind && issue.issueKind !== options.issueKind) return false;
+    if (options.minSeverity && SEVERITY_RANK[issue.severity] < SEVERITY_RANK[options.minSeverity]) return false;
+    return true;
+  });
+  if (options.limit === undefined) return filtered;
+  const limit = Math.max(0, Math.floor(options.limit));
+  return filtered.slice(0, limit);
 }
 
 export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtifactsOptions): Promise<IssuePublishArtifacts> {

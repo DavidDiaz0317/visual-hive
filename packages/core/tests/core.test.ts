@@ -8519,6 +8519,103 @@ describe("issue artifacts", () => {
     await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", publish.result);
   });
 
+  it("filters issue publishing by dedupe, kind, severity, and limit before making live decisions", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-filtered-publish-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"));
+    const issues = await writeIssuesArtifacts({ rootDir, project: "filtered-publish-demo" });
+    const first = issues.report.issues[0]!;
+    const second = {
+      ...first,
+      dedupeFingerprint: `${first.dedupeFingerprint}:second`,
+      title: `${first.title} second`,
+      body: first.body.replace(first.dedupeFingerprint, `${first.dedupeFingerprint}:second`)
+    };
+    const third = {
+      ...first,
+      issueKind: "workflow_safety" as const,
+      severity: "low" as const,
+      dedupeFingerprint: `${first.dedupeFingerprint}:third`,
+      title: `${first.title} third`,
+      body: first.body.replace(first.dedupeFingerprint, `${first.dedupeFingerprint}:third`)
+    };
+    await writeJson(path.join(rootDir, ".visual-hive", "issues.json"), {
+      ...issues.report,
+      summary: {
+        ...issues.report.summary,
+        total: 3,
+        openCandidates: 3,
+        byKind: { [first.issueKind]: 2, workflow_safety: 1 },
+        bySeverity: { [first.severity]: 2, low: 1 }
+      },
+      issues: [first, second, third]
+    });
+
+    const dryRun = await writeIssuePublishArtifacts({
+      rootDir,
+      issueKind: first.issueKind,
+      minSeverity: first.severity,
+      limit: 1
+    });
+
+    expect(dryRun.plan.summary.total).toBe(1);
+    expect(dryRun.plan.decisions).toHaveLength(1);
+    expect(dryRun.plan.decisions[0]?.dedupeFingerprint).toBe(first.dedupeFingerprint);
+    expect(dryRun.dryRun.wouldCreateIssues).toBe(1);
+
+    const calls: string[] = [];
+    const live = await writeIssuePublishArtifacts({
+      rootDir,
+      mode: "live",
+      dedupeFingerprint: first.dedupeFingerprint,
+      githubRepository: "DavidDiaz0317/visual-hive-demo-site",
+      env: {
+        VISUAL_HIVE_LIVE_GITHUB_ISSUE: "true",
+        GITHUB_TOKEN: "ghp_filtered-secret"
+      },
+      githubClient: {
+        async listOpenIssues() {
+          calls.push("list");
+          return [
+            {
+              number: 44,
+              url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/44?token=filtered-secret",
+              dedupeFingerprint: first.dedupeFingerprint,
+              title: first.title,
+              labels: first.labels
+            }
+          ];
+        },
+        async createIssue() {
+          calls.push("create");
+          throw new Error("filtered publish should not create");
+        },
+        async updateIssue(input) {
+          calls.push(`update:${input.issueNumber}`);
+          return {
+            number: input.issueNumber,
+            url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/44",
+            dedupeFingerprint: input.dedupeFingerprint,
+            title: input.title,
+            labels: input.labels
+          };
+        }
+      },
+      now: new Date("2026-01-03T01:00:00.000Z")
+    });
+
+    expect(calls).toEqual(["list", "update:44"]);
+    expect(live.plan.summary.total).toBe(1);
+    expect(live.plan.summary.update).toBe(1);
+    expect(live.plan.summary.create).toBe(0);
+    expect(live.result.realGithubIssuesCreated).toBe(0);
+    expect(live.result.realGithubIssuesUpdated).toBe(1);
+    expect(JSON.stringify(live)).not.toContain("filtered-secret");
+    await expectMatchesSchema("visual-hive.issue-publish-plan.schema.json", live.plan);
+    await expectMatchesSchema("visual-hive.issue-publish-result.schema.json", live.result);
+  });
+
   it("writes a no-write issue-driven agent request bundle from an issue candidate", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-run-"));
     tempDirs.push(rootDir);

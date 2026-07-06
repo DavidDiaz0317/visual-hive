@@ -504,6 +504,10 @@ issuesCommand
   .option("--repo <owner/repo>", "GitHub repository for live issue publishing; defaults to GITHUB_REPOSITORY")
   .option("--token-env <name>", "environment variable containing the GitHub token for live publishing")
   .option("--live-guard-env <name>", "environment variable that must be set to true for live publishing", "VISUAL_HIVE_LIVE_GITHUB_ISSUE")
+  .option("--dedupe <fingerprint>", "publish only the issue candidate matching this dedupe fingerprint")
+  .option("--kind <kind>", "publish only issue candidates of this kind")
+  .option("--min-severity <severity>", "publish only issue candidates at or above this severity: low, medium, high, critical")
+  .option("--limit <number>", "maximum number of matching issue candidates to publish", parseIntegerOption)
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options, command: Command) => {
     try {
@@ -517,6 +521,10 @@ issuesCommand
         repository: options.repo,
         tokenEnv: options.tokenEnv,
         liveGuardEnv: options.liveGuardEnv,
+        dedupe: options.dedupe,
+        kind: options.kind,
+        minSeverity: options.minSeverity,
+        limit: options.limit,
         format: options.format
       });
       console.log(formatIssuePublishResult(result, options.format));

@@ -220,6 +220,8 @@ The issue queue groups candidates into `ready_for_hive`, `ready_for_visual_hive_
 
 `visual-hive issues publish --dry-run` writes a no-network publication plan, dry-run summary, and result artifact. `visual-hive issues publish --live --repo owner/repo` is a trusted-lane operation only. Live mode is blocked unless `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true`, a valid GitHub repository is provided or available through `GITHUB_REPOSITORY`, and a token exists in `GITHUB_TOKEN`, `GH_TOKEN`, or an explicitly named `--token-env`. When all gates pass, the publisher lists open `visual-hive` issues, dedupes by `dedupeFingerprint`, updates a matching issue, or creates a new issue. Token values are never written to artifacts; only external/network call counts, create/update counts, decisions, sanitized issue refs, and blocked/failure reasons are recorded.
 
+Publish plans can be filtered with `--dedupe`, `--kind`, `--min-severity`, and `--limit`. The filter is applied before the plan summary and decisions are generated, so a trusted workflow can safely publish or update one candidate without routing the whole queue.
+
 ## Testing Layers
 
 Path: `.visual-hive/testing-layers.json`
