@@ -168,7 +168,7 @@ const e2eRestoreSteps = [
   script("demo:context"),
   script("demo:snapshot"),
   script("demo:artifacts"),
-  script("demo:evidence-resources")
+  command("demo:evidence-resources:general", process.execPath, ["scripts/check-demo-evidence-resources.mjs", "--profile", "general"])
 ];
 
 const e2eSteps = [...e2eCleanSteps, script("demo:e2e:defect"), ...e2eRestoreSteps];
