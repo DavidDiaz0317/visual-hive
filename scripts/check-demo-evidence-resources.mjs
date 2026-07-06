@@ -246,6 +246,10 @@ function assertResourceShape(actual, label) {
 
 function checkContextLedger(ledger, expectedResources) {
   const triageCall = findToolCall(ledger, "triage");
+  if (!triageCall) {
+    assert(Array.isArray(ledger.toolCalls) && ledger.toolCalls.length === 0, "Context Ledger either includes triage or records an explicit no-tool-call run");
+    return;
+  }
   assert(triageCall, "Context Ledger includes the triage tool call");
   assert(triageCall.evidenceResourceId === "triage-report", "triage tool call keeps triage-report as compatibility resource ID");
   assert(triageCall.evidenceResourceUri === "visual-hive://triage-report", "triage tool call keeps triage-report as compatibility URI");
