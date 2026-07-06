@@ -13,6 +13,7 @@
     "selectedIssue",
     "parsedIssue",
     "codexCli",
+    "agentExecution",
     "budgets",
     "safety",
     "artifactPaths",
@@ -69,6 +70,23 @@
         "durationMs": { "type": "number", "minimum": 0 }
       }
     },
+    "agentExecution": {
+      "type": "object",
+      "required": ["enabled", "args", "status", "durationMs", "outputMode"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["not_run", "completed", "failed", "blocked", "timeout"] },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "exitCode": { "type": "number" },
+        "stdoutExcerpt": { "type": "string" },
+        "stderrExcerpt": { "type": "string" },
+        "errorExcerpt": { "type": "string" },
+        "outputMode": { "const": "artifact_only" }
+      }
+    },
     "budgets": {
       "type": "object",
       "required": ["maxRuntimeMs", "maxToolCalls", "maxPromptTokens", "allowWrite", "allowExternalNetwork", "maxExternalCostUsd"],
@@ -78,8 +96,8 @@
         "maxToolCalls": { "type": "number", "minimum": 0 },
         "maxPromptTokens": { "type": "number", "minimum": 0 },
         "allowWrite": { "type": "boolean" },
-        "allowExternalNetwork": { "const": false },
-        "maxExternalCostUsd": { "const": 0 }
+        "allowExternalNetwork": { "type": "boolean" },
+        "maxExternalCostUsd": { "type": "number", "minimum": 0 }
       }
     },
     "safety": {
@@ -87,16 +105,16 @@
       "required": ["sourceMutations", "branchesCreated", "pullRequestsOpened", "externalCallsMade", "networkCallsMade", "realGithubIssuesCreated", "realGithubIssuesUpdated", "hiveApiCallsMade", "llmCallsMade", "paidProviderCallsMade"],
       "additionalProperties": false,
       "properties": {
-        "sourceMutations": { "const": 0 },
-        "branchesCreated": { "const": 0 },
-        "pullRequestsOpened": { "const": 0 },
-        "externalCallsMade": { "const": 0 },
-        "networkCallsMade": { "const": 0 },
-        "realGithubIssuesCreated": { "const": 0 },
-        "realGithubIssuesUpdated": { "const": 0 },
-        "hiveApiCallsMade": { "const": 0 },
-        "llmCallsMade": { "const": 0 },
-        "paidProviderCallsMade": { "const": 0 }
+        "sourceMutations": { "type": "number", "minimum": 0 },
+        "branchesCreated": { "type": "number", "minimum": 0 },
+        "pullRequestsOpened": { "type": "number", "minimum": 0 },
+        "externalCallsMade": { "type": "number", "minimum": 0 },
+        "networkCallsMade": { "type": "number", "minimum": 0 },
+        "realGithubIssuesCreated": { "type": "number", "minimum": 0 },
+        "realGithubIssuesUpdated": { "type": "number", "minimum": 0 },
+        "hiveApiCallsMade": { "type": "number", "minimum": 0 },
+        "llmCallsMade": { "type": "number", "minimum": 0 },
+        "paidProviderCallsMade": { "type": "number", "minimum": 0 }
       }
     },
     "artifactPaths": {

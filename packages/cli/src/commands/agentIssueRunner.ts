@@ -17,6 +17,12 @@ export interface AgentIssueRunnerCommandOptions {
   allowWrite?: boolean;
   codexCommand?: string;
   codexDiscoveryTimeoutMs?: number;
+  executeAgent?: boolean;
+  agentCommand?: string;
+  agentArgs?: string[];
+  agentTimeoutMs?: number;
+  allowExternalNetwork?: boolean;
+  maxExternalCostUsd?: number;
   maxRuntimeMs?: number;
   maxToolCalls?: number;
   maxPromptTokens?: number;
@@ -45,6 +51,12 @@ export async function runAgentIssueRunnerCommand(options: AgentIssueRunnerComman
     allowWrite: options.allowWrite,
     codexCommand: options.codexCommand,
     codexDiscoveryTimeoutMs: options.codexDiscoveryTimeoutMs,
+    executeAgent: options.executeAgent,
+    agentCommand: options.agentCommand,
+    agentArgs: options.agentArgs,
+    agentTimeoutMs: options.agentTimeoutMs,
+    allowExternalNetwork: options.allowExternalNetwork,
+    maxExternalCostUsd: options.maxExternalCostUsd,
     maxRuntimeMs: options.maxRuntimeMs,
     maxToolCalls: options.maxToolCalls,
     maxPromptTokens: options.maxPromptTokens
@@ -71,6 +83,7 @@ export function formatAgentIssueRunnerResult(result: AgentIssueRunnerCommandResu
     `- Validation: \`${result.run.parsedIssue.validationCommand}\``,
     `- Allow write: ${result.run.budgets.allowWrite}`,
     `- External network allowed: ${result.run.budgets.allowExternalNetwork}`,
+    `- Agent execution: ${result.run.agentExecution.status}`,
     `- External calls made: ${result.run.safety.externalCallsMade}`,
     `- Real GitHub issues created: ${result.run.safety.realGithubIssuesCreated}`,
     "",

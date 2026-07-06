@@ -8646,4 +8646,121 @@ describe("issue artifacts", () => {
     expect(run.run.safety.externalCallsMade).toBe(0);
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
+
+  it("runs a guarded local issue-agent command with bounded no-network evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-exec-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-exec-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "high",
+          title: "Add visual coverage for the command matrix",
+          description: "Command matrix route lacks a focused visual contract.",
+          route: "/commands",
+          contractId: "command-matrix-contract",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-exec-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-exec-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-exec-demo" });
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-exec-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      executeAgent: true,
+      agentCommand: "local-agent",
+      agentArgs: ["--no-write"],
+      agentTimeoutMs: 1000,
+      codexDiscoveryRunner: async () => ({ status: 0, stdout: "Usage: codex", stderr: "" }),
+      agentRunner: async ({ command, args, env, stdin }) => {
+        expect(command).toBe("local-agent");
+        expect(args).toEqual(["--no-write"]);
+        expect(env.VISUAL_HIVE_AGENT_PROFILE).toBe("test_creator_agent");
+        expect(env.VISUAL_HIVE_AGENT_ALLOW_WRITE).toBe("false");
+        expect(stdin).toContain("Add visual coverage for the command matrix");
+        return {
+          status: 0,
+          stdout: "Proposed contract: assert [data-testid='command-matrix'] and capture desktop screenshot.",
+          stderr: ""
+        };
+      },
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(run.run.status).toBe("completed");
+    expect(run.run.agentExecution).toMatchObject({
+      enabled: true,
+      command: "local-agent",
+      args: ["--no-write"],
+      status: "completed"
+    });
+    expect(run.outputMarkdown).toContain("Proposed contract");
+    expect(run.run.safety).toMatchObject({
+      sourceMutations: 0,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      llmCallsMade: 0,
+      realGithubIssuesCreated: 0
+    });
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
+
+  it("blocks Codex issue-agent execution unless external network and explicit args are configured", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-codex-block-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-codex-block-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "medium",
+          title: "Add dashboard visual coverage",
+          description: "Dashboard route lacks coverage.",
+          route: "/",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-codex-block-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-codex-block-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-codex-block-demo" });
+    let agentRunnerCalled = false;
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-codex-block-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      executeAgent: true,
+      codexCommand: "codex",
+      codexDiscoveryRunner: async () => ({ status: 0, stdout: "Usage: codex", stderr: "" }),
+      agentRunner: async () => {
+        agentRunnerCalled = true;
+        return { status: 0, stdout: "", stderr: "" };
+      },
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(agentRunnerCalled).toBe(false);
+    expect(run.run.status).toBe("blocked");
+    expect(run.run.agentExecution.status).toBe("blocked");
+    expect(run.run.agentExecution.errorExcerpt).toContain("external network");
+    expect(run.run.safety.networkCallsMade).toBe(0);
+    expect(run.outputMarkdown).toContain("did not complete an agent command successfully");
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
 });

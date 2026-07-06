@@ -896,6 +896,12 @@ agentCommand
   .option("--allow-write", "mark the run as write-preview capable; default remains no-write and performs no code edits")
   .option("--codex-command <command>", "Codex CLI command name to record in the request", "codex")
   .option("--codex-discovery-timeout-ms <number>", "maximum Codex CLI --help discovery time in milliseconds", parseIntegerOption)
+  .option("--execute-agent", "execute the configured local issue-agent command; disabled by default")
+  .option("--agent-command <command>", "local agent command to execute when --execute-agent is set")
+  .option("--agent-arg <arg...>", "argument(s) for --agent-command; repeat after --agent-arg or pass values after it")
+  .option("--agent-timeout-ms <number>", "maximum guarded agent command runtime in milliseconds", parseIntegerOption)
+  .option("--allow-external-network", "allow explicitly configured agent command to use external network; disabled by default")
+  .option("--max-external-cost-usd <number>", "maximum external cost budget for explicitly configured agent execution", parseNumberOption)
   .option("--max-runtime-ms <number>", "maximum future agent runtime budget in milliseconds", parseIntegerOption)
   .option("--max-tool-calls <number>", "maximum future tool-call budget", parseIntegerOption)
   .option("--max-prompt-tokens <number>", "maximum prompt-token budget", parseIntegerOption)
@@ -912,6 +918,12 @@ agentCommand
         allowWrite: options.allowWrite,
         codexCommand: options.codexCommand,
         codexDiscoveryTimeoutMs: options.codexDiscoveryTimeoutMs,
+        executeAgent: options.executeAgent,
+        agentCommand: options.agentCommand,
+        agentArgs: options.agentArg,
+        agentTimeoutMs: options.agentTimeoutMs,
+        allowExternalNetwork: options.allowExternalNetwork,
+        maxExternalCostUsd: options.maxExternalCostUsd,
         maxRuntimeMs: options.maxRuntimeMs,
         maxToolCalls: options.maxToolCalls,
         maxPromptTokens: options.maxPromptTokens,

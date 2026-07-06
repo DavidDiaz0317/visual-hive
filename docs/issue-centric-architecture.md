@@ -54,7 +54,26 @@ visual-hive agent issue-runner --issue-index 0
 
 Default issue-agent artifacts are recommendation-only. They do not edit source, create branches, open PRs, create GitHub issues, call Hive APIs, call LLMs, call paid providers, or use external network.
 
-Write-capable repair belongs in a trusted Hive/agent workflow, not in the default Visual Hive local path.
+Visual Hive can also run a configured local issue-agent command, but only when explicitly requested:
+
+```bash
+visual-hive agent issue-runner \
+  --issue-index 0 \
+  --execute-agent \
+  --agent-command node \
+  --agent-arg scripts/local-issue-agent.mjs
+```
+
+This guarded execution path passes the issue request through stdin and sets `VISUAL_HIVE_AGENT_*` environment variables for the command. It records sanitized stdout/stderr in `.visual-hive/agents/<dedupe>/agent-output.md` and `.visual-hive/agents/<dedupe>/agent-run.json`. The command is timeout-bounded, uses a minimal environment, and remains no-network by default.
+
+Codex/OpenAI agent execution is intentionally stricter:
+
+- Visual Hive runs bounded `--help` discovery first.
+- Visual Hive does not guess Codex CLI flags.
+- `codex`/`openai` commands are blocked unless external network is explicitly allowed and explicit agent args are provided.
+- Even when enabled, Visual Hive records the agent evidence; it does not become the pass/fail authority.
+
+Write-capable repair belongs in a trusted Hive/agent workflow, not in the default Visual Hive local path. `--allow-write` only records a write-preview budget for the agent request; branch creation, repair PRs, and real issue updates still require separate trusted workflows.
 
 ## Setup Issue Workflow
 

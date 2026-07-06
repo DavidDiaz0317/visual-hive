@@ -9,6 +9,7 @@ export type AgentIssueRunnerProfile = "setup_agent" | "map_agent" | "test_creato
 export type AgentIssueRunnerMode = "no_write" | "write_preview";
 export type AgentIssueRunStatus = "completed" | "blocked";
 export type CodexCliDiscoveryStatus = "available" | "unavailable" | "failed" | "timeout";
+export type AgentCommandExecutionStatus = "not_run" | "completed" | "failed" | "blocked" | "timeout";
 
 export interface CodexCliDiscoveryResult {
   status: number | null;
@@ -19,6 +20,23 @@ export interface CodexCliDiscoveryResult {
 }
 
 export type CodexCliDiscoveryRunner = (command: string, args: string[], timeoutMs: number) => Promise<CodexCliDiscoveryResult>;
+
+export interface AgentCommandExecutionResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+  error?: string;
+}
+
+export type AgentCommandRunner = (options: {
+  command: string;
+  args: string[];
+  timeoutMs: number;
+  cwd: string;
+  env: Record<string, string>;
+  stdin: string;
+}) => Promise<AgentCommandExecutionResult>;
 
 export interface AgentIssueRun {
   schemaVersion: "visual-hive.agent-issue-run.v1";
@@ -54,25 +72,37 @@ export interface AgentIssueRun {
     errorExcerpt?: string;
     durationMs: number;
   };
+  agentExecution: {
+    enabled: boolean;
+    command?: string;
+    args: string[];
+    status: AgentCommandExecutionStatus;
+    durationMs: number;
+    exitCode?: number;
+    stdoutExcerpt?: string;
+    stderrExcerpt?: string;
+    errorExcerpt?: string;
+    outputMode: "artifact_only";
+  };
   budgets: {
     maxRuntimeMs: number;
     maxToolCalls: number;
     maxPromptTokens: number;
     allowWrite: boolean;
-    allowExternalNetwork: false;
-    maxExternalCostUsd: 0;
+    allowExternalNetwork: boolean;
+    maxExternalCostUsd: number;
   };
   safety: {
-    sourceMutations: 0;
-    branchesCreated: 0;
-    pullRequestsOpened: 0;
-    externalCallsMade: 0;
-    networkCallsMade: 0;
-    realGithubIssuesCreated: 0;
-    realGithubIssuesUpdated: 0;
-    hiveApiCallsMade: 0;
-    llmCallsMade: 0;
-    paidProviderCallsMade: 0;
+    sourceMutations: number;
+    branchesCreated: number;
+    pullRequestsOpened: number;
+    externalCallsMade: number;
+    networkCallsMade: number;
+    realGithubIssuesCreated: number;
+    realGithubIssuesUpdated: number;
+    hiveApiCallsMade: number;
+    llmCallsMade: number;
+    paidProviderCallsMade: number;
   };
   artifactPaths: {
     request: string;
@@ -94,6 +124,13 @@ export interface BuildAgentIssueRunOptions {
   codexCommand?: string;
   codexDiscoveryTimeoutMs?: number;
   codexDiscoveryRunner?: CodexCliDiscoveryRunner;
+  executeAgent?: boolean;
+  agentCommand?: string;
+  agentArgs?: string[];
+  agentTimeoutMs?: number;
+  agentRunner?: AgentCommandRunner;
+  allowExternalNetwork?: boolean;
+  maxExternalCostUsd?: number;
   maxRuntimeMs?: number;
   maxToolCalls?: number;
   maxPromptTokens?: number;
@@ -117,7 +154,8 @@ const DEFAULT_BUDGETS = {
   maxRuntimeMs: 300000,
   maxToolCalls: 12,
   maxPromptTokens: 12000,
-  codexDiscoveryTimeoutMs: 5000
+  codexDiscoveryTimeoutMs: 5000,
+  agentTimeoutMs: 300000
 };
 
 export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Promise<Omit<AgentIssueRunArtifacts, "requestPath" | "outputPath" | "runPath">> {
@@ -161,13 +199,21 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     codexCli: {
       ...codexCli
     },
+    agentExecution: {
+      enabled: Boolean(options.executeAgent),
+      command: options.executeAgent ? (options.agentCommand ?? options.codexCommand ?? "codex") : undefined,
+      args: options.agentArgs ?? [],
+      status: "not_run",
+      durationMs: 0,
+      outputMode: "artifact_only"
+    },
     budgets: {
       maxRuntimeMs: options.maxRuntimeMs ?? DEFAULT_BUDGETS.maxRuntimeMs,
       maxToolCalls: options.maxToolCalls ?? DEFAULT_BUDGETS.maxToolCalls,
       maxPromptTokens: options.maxPromptTokens ?? DEFAULT_BUDGETS.maxPromptTokens,
       allowWrite: Boolean(options.allowWrite),
-      allowExternalNetwork: false,
-      maxExternalCostUsd: 0
+      allowExternalNetwork: Boolean(options.allowExternalNetwork),
+      maxExternalCostUsd: options.maxExternalCostUsd ?? 0
     },
     safety: {
       sourceMutations: 0,
@@ -297,13 +343,183 @@ export async function writeAgentIssueRun(options: WriteAgentIssueRunOptions): Pr
     output: relative(rootDir, outputPath),
     run: relative(rootDir, runPath)
   };
-  const run = sanitizeValue({ ...built.run, artifactPaths }) as AgentIssueRun;
+  let run = sanitizeValue({ ...built.run, artifactPaths }) as AgentIssueRun;
   const requestMarkdown = renderAgentRequestFromRun(built.requestMarkdown, run);
-  const outputMarkdown = renderAgentOutputFromRun(built.outputMarkdown, run);
   await writeText(requestPath, requestMarkdown);
+  if (options.executeAgent) {
+    run = sanitizeValue(await applyAgentExecution({ run, requestMarkdown, requestPath, outputPath, rootDir, options })) as AgentIssueRun;
+  }
+  const outputMarkdown = renderAgentOutputFromRun(renderAgentOutputFromSelectedRun(run), run);
   await writeText(outputPath, outputMarkdown);
   await writeJson(runPath, run);
   return { run, requestMarkdown, outputMarkdown, requestPath, outputPath, runPath };
+}
+
+async function applyAgentExecution(options: {
+  run: AgentIssueRun;
+  requestMarkdown: string;
+  requestPath: string;
+  outputPath: string;
+  rootDir: string;
+  options: WriteAgentIssueRunOptions;
+}): Promise<AgentIssueRun> {
+  const run = options.run;
+  const command = options.options.agentCommand ?? options.options.codexCommand ?? "codex";
+  const args = options.options.agentArgs ?? [];
+  const startedAt = Date.now();
+  const baseExecution = {
+    enabled: true,
+    command,
+    args: args.map((arg) => sanitizeText(arg)),
+    durationMs: 0,
+    outputMode: "artifact_only" as const
+  };
+  const blocked = executionBlockedReason(run, command, args);
+  if (blocked) {
+    return {
+      ...run,
+      status: "blocked",
+      blockedReasons: dedupe([...run.blockedReasons, blocked]),
+      agentExecution: {
+        ...baseExecution,
+        status: "blocked",
+        durationMs: Date.now() - startedAt,
+        errorExcerpt: blocked
+      }
+    };
+  }
+  const runner = options.options.agentRunner ?? defaultAgentCommandRunner;
+  const result = await runner({
+    command,
+    args,
+    timeoutMs: options.options.agentTimeoutMs ?? options.options.maxRuntimeMs ?? DEFAULT_BUDGETS.agentTimeoutMs,
+    cwd: options.rootDir,
+    stdin: options.requestMarkdown,
+    env: {
+      VISUAL_HIVE_AGENT_REQUEST: relative(options.rootDir, options.requestPath),
+      VISUAL_HIVE_AGENT_OUTPUT: relative(options.rootDir, options.outputPath),
+      VISUAL_HIVE_AGENT_PROFILE: run.profile,
+      VISUAL_HIVE_AGENT_MODE: run.mode,
+      VISUAL_HIVE_AGENT_ISSUE_DEDUPE: run.selectedIssue.dedupeFingerprint,
+      VISUAL_HIVE_AGENT_ALLOW_WRITE: String(run.budgets.allowWrite),
+      VISUAL_HIVE_AGENT_ALLOW_EXTERNAL_NETWORK: String(run.budgets.allowExternalNetwork),
+      VISUAL_HIVE_AGENT_VALIDATION_COMMAND: run.parsedIssue.validationCommand
+    }
+  });
+  const durationMs = Date.now() - startedAt;
+  const likelyExternal = likelyExternalAgentCommand(command) && run.budgets.allowExternalNetwork;
+  return {
+    ...run,
+    status: result.status === 0 ? run.status : "blocked",
+    blockedReasons: result.status === 0 ? run.blockedReasons : dedupe([...run.blockedReasons, "Configured agent command did not complete successfully."]),
+    agentExecution: {
+      ...baseExecution,
+      status: result.timedOut ? "timeout" : result.status === 0 ? "completed" : "failed",
+      durationMs,
+      exitCode: result.status ?? undefined,
+      stdoutExcerpt: result.stdout ? sanitizeText(result.stdout).slice(0, 2000) : undefined,
+      stderrExcerpt: result.stderr ? sanitizeText(result.stderr).slice(0, 2000) : undefined,
+      errorExcerpt: result.error ? sanitizeText(result.error).slice(0, 1000) : undefined,
+      outputMode: "artifact_only"
+    },
+    safety: {
+      ...run.safety,
+      externalCallsMade: likelyExternal ? 1 : run.safety.externalCallsMade,
+      networkCallsMade: likelyExternal ? 1 : run.safety.networkCallsMade,
+      llmCallsMade: likelyExternal ? 1 : run.safety.llmCallsMade
+    }
+  };
+}
+
+function executionBlockedReason(run: AgentIssueRun, command: string, args: string[]): string | undefined {
+  if (run.status === "blocked") {
+    return "Issue candidate is blocked by Visual Hive policy.";
+  }
+  if (likelyExternalAgentCommand(command) && !run.budgets.allowExternalNetwork) {
+    return "Codex/OpenAI agent execution is blocked unless external network is explicitly enabled for this issue-agent run.";
+  }
+  if (likelyExternalAgentCommand(command) && args.length === 0) {
+    return "Codex/OpenAI agent execution requires explicit CLI arguments; Visual Hive records help discovery but does not guess agent CLI flags.";
+  }
+  return undefined;
+}
+
+function defaultAgentCommandRunner(options: {
+  command: string;
+  args: string[];
+  timeoutMs: number;
+  cwd: string;
+  env: Record<string, string>;
+  stdin: string;
+}): Promise<AgentCommandExecutionResult> {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(options.command, options.args, {
+        cwd: options.cwd,
+        env: minimalAgentEnv(options.env),
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+        shell: false
+      });
+    } catch (error) {
+      resolve({
+        status: null,
+        stdout,
+        stderr,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // Already exited.
+      }
+      finish({ status: null, stdout, stderr, timedOut: true });
+    }, options.timeoutMs);
+    const finish = (result: AgentCommandExecutionResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.once("error", (error) => {
+      finish({ status: null, stdout, stderr, error: error.message });
+    });
+    child.once("close", (code) => {
+      finish({ status: code, stdout, stderr });
+    });
+    child.stdin?.write(options.stdin);
+    child.stdin?.end();
+  });
+}
+
+function minimalAgentEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
+  const keep = ["PATH", "Path", "PATHEXT", "SystemRoot", "ComSpec", "HOME", "USERPROFILE", "TEMP", "TMP"];
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of keep) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  for (const [key, value] of Object.entries(extra)) {
+    env[key] = value;
+  }
+  return env;
+}
+
+function likelyExternalAgentCommand(command: string): boolean {
+  const normalized = path.basename(command).toLowerCase();
+  return normalized.includes("codex") || normalized.includes("openai");
 }
 
 function selectIssue(issues: VisualHiveIssueCandidate[], options: BuildAgentIssueRunOptions): VisualHiveIssueCandidate {
@@ -467,7 +683,7 @@ function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun):
     `Issue: ${issue.title}`,
     `Profile: ${run.profile}`,
     "",
-    "This default Visual Hive issue-runner did not run Codex as an agent, call Hive, call LLMs, call providers, or call GitHub. It only performed bounded Codex CLI help discovery and produced a request/recommendation artifact for a human or trusted agent runner.",
+    agentExecutionSummary(run),
     "",
     "## Codex CLI Discovery",
     "",
@@ -476,6 +692,17 @@ function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun):
     `- Duration ms: ${run.codexCli.durationMs}`,
     ...(run.codexCli.helpExcerpt ? [`- Help excerpt: ${run.codexCli.helpExcerpt.split("\n")[0]}`] : []),
     ...(run.codexCli.errorExcerpt ? [`- Error excerpt: ${run.codexCli.errorExcerpt}`] : []),
+    "",
+    "## Agent Command Execution",
+    "",
+    `- Enabled: ${run.agentExecution.enabled}`,
+    `- Status: ${run.agentExecution.status}`,
+    ...(run.agentExecution.command ? [`- Command: ${run.agentExecution.command}`] : []),
+    ...(run.agentExecution.args.length ? [`- Args: ${run.agentExecution.args.join(" ")}`] : []),
+    `- Duration ms: ${run.agentExecution.durationMs}`,
+    ...(run.agentExecution.stdoutExcerpt ? ["", "### Stdout", "", run.agentExecution.stdoutExcerpt] : []),
+    ...(run.agentExecution.stderrExcerpt ? ["", "### Stderr", "", run.agentExecution.stderrExcerpt] : []),
+    ...(run.agentExecution.errorExcerpt ? ["", "### Error", "", run.agentExecution.errorExcerpt] : []),
     "",
     "## Recommended Next Steps",
     "",
@@ -489,6 +716,61 @@ function renderAgentOutput(issue: VisualHiveIssueCandidate, run: AgentIssueRun):
     `- External calls made: ${run.safety.externalCallsMade}`,
     `- Real GitHub issues created: ${run.safety.realGithubIssuesCreated}`
   ].join("\n"));
+}
+
+function renderAgentOutputFromSelectedRun(run: AgentIssueRun): string {
+  return sanitizeText([
+    `# Visual Hive Issue Agent Output`,
+    "",
+    `Status: ${run.status}`,
+    `Issue: ${run.selectedIssue.title}`,
+    `Profile: ${run.profile}`,
+    "",
+    agentExecutionSummary(run),
+    "",
+    "## Codex CLI Discovery",
+    "",
+    `- Command: ${run.codexCli.command}`,
+    `- Status: ${run.codexCli.discoveryStatus}`,
+    `- Duration ms: ${run.codexCli.durationMs}`,
+    ...(run.codexCli.helpExcerpt ? [`- Help excerpt: ${run.codexCli.helpExcerpt.split("\n")[0]}`] : []),
+    ...(run.codexCli.errorExcerpt ? [`- Error excerpt: ${run.codexCli.errorExcerpt}`] : []),
+    "",
+    "## Agent Command Execution",
+    "",
+    `- Enabled: ${run.agentExecution.enabled}`,
+    `- Status: ${run.agentExecution.status}`,
+    ...(run.agentExecution.command ? [`- Command: ${run.agentExecution.command}`] : []),
+    ...(run.agentExecution.args.length ? [`- Args: ${run.agentExecution.args.join(" ")}`] : []),
+    `- Duration ms: ${run.agentExecution.durationMs}`,
+    ...(run.agentExecution.stdoutExcerpt ? ["", "### Stdout", "", run.agentExecution.stdoutExcerpt] : []),
+    ...(run.agentExecution.stderrExcerpt ? ["", "### Stderr", "", run.agentExecution.stderrExcerpt] : []),
+    ...(run.agentExecution.errorExcerpt ? ["", "### Error", "", run.agentExecution.errorExcerpt] : []),
+    "",
+    "## Recommended Next Steps",
+    "",
+    ...run.recommendations.map((recommendation) => `- ${recommendation}`),
+    "",
+    "## Safety Counters",
+    "",
+    `- Source mutations: ${run.safety.sourceMutations}`,
+    `- Branches created: ${run.safety.branchesCreated}`,
+    `- Pull requests opened: ${run.safety.pullRequestsOpened}`,
+    `- External calls made: ${run.safety.externalCallsMade}`,
+    `- Network calls made: ${run.safety.networkCallsMade}`,
+    `- LLM calls made: ${run.safety.llmCallsMade}`,
+    `- Real GitHub issues created: ${run.safety.realGithubIssuesCreated}`
+  ].join("\n"));
+}
+
+function agentExecutionSummary(run: AgentIssueRun): string {
+  if (!run.agentExecution.enabled) {
+    return "This default Visual Hive issue-runner did not run Codex as an agent, call Hive, call LLMs, call providers, or call GitHub. It only performed bounded Codex CLI help discovery and produced a request/recommendation artifact for a human or trusted agent runner.";
+  }
+  if (run.agentExecution.status === "completed") {
+    return "This guarded Visual Hive issue-runner executed the configured local agent command with bounded runtime and recorded sanitized output artifacts. Visual Hive still did not repair code, open pull requests, create GitHub issues, call Hive, or change pass/fail authority.";
+  }
+  return "This guarded Visual Hive issue-runner did not complete an agent command successfully. Review the blocked reason or sanitized execution excerpt before retrying in a trusted environment.";
 }
 
 function renderAgentOutputFromRun(markdown: string, run: AgentIssueRun): string {
