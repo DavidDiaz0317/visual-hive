@@ -158,7 +158,14 @@ export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtif
   await writeJson(planPath, plan);
   await writeJson(dryRunPath, dryRun);
   await writeJson(resultPath, result);
-  return { plan, dryRun, result, planPath, dryRunPath, resultPath };
+  return {
+    plan,
+    dryRun,
+    result,
+    planPath: normalizeArtifactPath(rootDir, options.planPath ?? DEFAULT_PATHS.plan),
+    dryRunPath: normalizeArtifactPath(rootDir, options.dryRunPath ?? DEFAULT_PATHS.dryRun),
+    resultPath: normalizeArtifactPath(rootDir, options.resultPath ?? DEFAULT_PATHS.result)
+  };
 }
 
 export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePublishArtifactsOptions): Promise<IssuePublishArtifacts & { candidatePath: string }> {
@@ -201,7 +208,7 @@ export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePu
     dryRunPath: options.dryRunPath ?? DEFAULT_PATHS.setupDryRun,
     resultPath: options.resultPath ?? DEFAULT_PATHS.setupResult
   });
-  return { ...artifacts, candidatePath: candidateAbsolutePath };
+  return { ...artifacts, candidatePath: normalizeArtifactPath(rootDir, candidatePath) };
 }
 
 async function prepareLiveContext(
