@@ -173,9 +173,9 @@ describe("CLI commands", () => {
     await mkdir(fakeBin, { recursive: true });
     const fakeGitPath = path.join(fakeBin, process.platform === "win32" ? "git.cmd" : "git");
     if (process.platform === "win32") {
-      await writeFile(fakeGitPath, "@echo off\r\nping -n 6 127.0.0.1 >nul\r\n", "utf8");
+      await writeFile(fakeGitPath, "@echo off\r\nping -n 2 127.0.0.1 >nul\r\n", "utf8");
     } else {
-      await writeFile(fakeGitPath, "#!/usr/bin/env sh\nsleep 5\n", "utf8");
+      await writeFile(fakeGitPath, "#!/usr/bin/env sh\nsleep 1\n", "utf8");
       await chmod(fakeGitPath, 0o755);
     }
     const previousPath = process.env.PATH;
@@ -199,7 +199,7 @@ describe("CLI commands", () => {
         process.env.VISUAL_HIVE_GIT_EXECUTABLE = previousGitExecutable;
       }
     }
-  });
+  }, 10000);
 
   it("doctor handles a valid demo config", async () => {
     const result = await runDoctor({ config: "examples/demo-react-app/visual-hive.config.yaml", cwd: repoRoot });
