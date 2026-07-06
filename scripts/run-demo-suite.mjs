@@ -160,6 +160,12 @@ const e2eRestoreSteps = [
   script("demo:handoff-validate"),
   script("demo:e2e:handoff-dry-run"),
   script("demo:test-creation"),
+  script("demo:agent-packet"),
+  script("demo:agent-packet:handoff"),
+  script("demo:agent-packet:provider"),
+  script("demo:tools"),
+  script("demo:mcp"),
+  script("demo:context"),
   script("demo:snapshot"),
   script("demo:artifacts"),
   script("demo:evidence-resources")
