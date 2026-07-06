@@ -93,6 +93,8 @@ try {
   assertCatalogArtifact(snapshot, ".visual-hive/history.json", "run-history", "visual-hive://run-history", "visual_hive_read_run_history");
   assertCatalogArtifact(snapshot, ".visual-hive/repo-map.json", "repo-map", "visual-hive://repo-map", "visual_hive_read_repo_map");
   assertCatalogArtifact(snapshot, ".visual-hive/repo-context.md", "repo-context", "visual-hive://repo-context", "visual_hive_read_repo_context");
+  assertCatalogArtifact(snapshot, ".visual-hive/visual-graph.json", "visual-graph", "visual-hive://visual-graph", "visual_hive_read_visual_graph");
+  assertCatalogArtifact(snapshot, ".visual-hive/visual-impact.json", "visual-graph-impact", "visual-hive://visual-graph-impact", "visual_hive_read_visual_graph_impact");
   assertCatalogArtifact(snapshot, ".visual-hive/evidence-packet.json", "latest-evidence", "visual-hive://latest-evidence", "visual_hive_read_evidence_packet");
   assertCatalogArtifact(snapshot, ".visual-hive/handoff.json", "latest-handoff", "visual-hive://latest-handoff", "visual_hive_generate_handoff_dry_run");
   assertCatalogArtifact(snapshot, ".visual-hive/hive/hive-export.json", "hive-export", "visual-hive://hive-export", "visual_hive_read_hive_export");
@@ -126,6 +128,15 @@ try {
   }
   if (!snapshot.testCreationPlan?.recommendations?.length) {
     throw new Error("snapshot did not include test creation plan recommendations");
+  }
+  if (!snapshot.visualGraph || snapshot.visualGraph.schemaVersion !== "visual-hive.control-plane.visual-graph.v1") {
+    throw new Error("snapshot did not include Control Plane Visual Graph summary");
+  }
+  if (snapshot.visualGraph.counts.nodes < 1 || snapshot.visualGraph.counts.contracts < 1 || snapshot.visualGraph.counts.screenshots < 1) {
+    throw new Error("snapshot Visual Graph summary did not include route/contract/screenshot evidence counts");
+  }
+  if (!snapshot.visualGraph.safeActions?.some((action) => action.command.includes("visual-hive graph impact"))) {
+    throw new Error("snapshot Visual Graph summary did not expose graph impact safe action");
   }
   if (!snapshot.evidencePacket?.verdictSummary?.visualHiveVerdict) {
     throw new Error("snapshot did not include Evidence Packet verdict summary");

@@ -67,6 +67,10 @@ import {
   type VisualHiveIssuePublishDryRun,
   type VisualHiveIssuePublishPlan,
   type VisualHiveIssuePublishResult,
+  type VisualGraph,
+  type VisualGraphNode,
+  type VisualGraphUnresolvedReference,
+  type VisualImpactReport,
   type VisualHiveIssueQueue,
   type VisualHiveIssuesReport
 } from "@visual-hive/core";
@@ -93,6 +97,7 @@ import type {
   ControlPlaneRunbook,
   ControlPlaneRunbookCommand,
   ControlPlaneScreenshot,
+  ControlPlaneVisualGraphSummary,
   ControlPlaneSnapshot,
   ResolvedControlPlaneOptions
 } from "./types.js";
@@ -145,6 +150,9 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     issuePublishPlan,
     issuePublishDryRun,
     issuePublishResult,
+    visualGraphArtifact,
+    visualImpactArtifact,
+    visualGraphUnresolvedArtifact,
     workflowAuditArtifact,
     runHistoryArtifact,
     contextLedger,
@@ -198,6 +206,9 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     readJsonIfExists<VisualHiveIssuePublishPlan>(path.join(hiveRoot, "issue-publish-plan.json")),
     readJsonIfExists<VisualHiveIssuePublishDryRun>(path.join(hiveRoot, "issue-publish-dry-run.json")),
     readJsonIfExists<VisualHiveIssuePublishResult>(path.join(hiveRoot, "issue-publish-result.json")),
+    readJsonIfExists<VisualGraph>(path.join(hiveRoot, "visual-graph.json")),
+    readJsonIfExists<VisualImpactReport>(path.join(hiveRoot, "visual-impact.json")),
+    readJsonIfExists<{ unresolvedReferences?: VisualGraphUnresolvedReference[]; resolvedReferences?: unknown[] }>(path.join(hiveRoot, "visual-graph-unresolved.json")),
     readJsonIfExists<WorkflowAuditReport>(path.join(hiveRoot, "workflows.json")),
     readJsonIfExists<RunHistoryReport>(path.join(hiveRoot, "history.json")),
     readJsonIfExists<ContextLedger>(path.join(hiveRoot, "context-ledger.json")),
@@ -348,6 +359,12 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     issuesReport,
     artifacts
   });
+  const visualGraph = buildVisualGraphSummary({
+    graph: visualGraphArtifact,
+    impact: visualImpactArtifact,
+    unresolved: visualGraphUnresolvedArtifact,
+    artifacts
+  });
 
   return {
     schemaVersion: 1,
@@ -400,6 +417,7 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     issuePublishPlan,
     issuePublishDryRun,
     issuePublishResult,
+    visualGraph,
     targetAudit,
     contractAudit,
     flowAudit,
@@ -433,6 +451,151 @@ export async function createControlPlaneSnapshot(options: ControlPlaneOptions = 
     artifacts,
     connections
   };
+}
+
+function buildVisualGraphSummary(input: {
+  graph?: VisualGraph;
+  impact?: VisualImpactReport;
+  unresolved?: { unresolvedReferences?: VisualGraphUnresolvedReference[]; resolvedReferences?: unknown[] };
+  artifacts: Array<{ path: string }>;
+}): ControlPlaneVisualGraphSummary | undefined {
+  const graph = input.graph;
+  const hasGraphArtifacts = input.artifacts.some((artifact) => artifact.path.endsWith("visual-graph.json"));
+  if (!graph && !input.impact && !hasGraphArtifacts) return undefined;
+  const nodes = graph?.nodes ?? [];
+  const nodeKinds = graph?.summary.nodeKinds ?? {};
+  const unresolvedReferences = input.unresolved?.unresolvedReferences ?? graph?.unresolvedReferences ?? [];
+  const impact = input.impact;
+  return {
+    schemaVersion: "visual-hive.control-plane.visual-graph.v1",
+    project: graph?.project ?? impact?.project ?? "unknown",
+    generatedAt: graph?.generatedAt ?? impact?.generatedAt,
+    artifactPaths: {
+      graph: ".visual-hive/visual-graph.json",
+      summary: ".visual-hive/visual-graph-summary.md",
+      vocabulary: ".visual-hive/visual-graph-vocab.json",
+      unresolved: ".visual-hive/visual-graph-unresolved.json",
+      impact: ".visual-hive/visual-impact.json"
+    },
+    counts: {
+      nodes: graph?.summary.nodes ?? nodes.length,
+      edges: graph?.summary.edges ?? graph?.edges.length ?? 0,
+      routes: Number(nodeKinds.route ?? countNodes(nodes, "route")),
+      contracts: Number(nodeKinds.contract ?? countNodes(nodes, "contract")),
+      screenshots: Number(nodeKinds.screenshot ?? countNodes(nodes, "screenshot")),
+      mutations: Number(nodeKinds.mutation_operator ?? countNodes(nodes, "mutation_operator")),
+      issueCandidates: Number(nodeKinds.issue_candidate ?? countNodes(nodes, "issue_candidate")),
+      unresolvedReferences: graph?.summary.unresolvedReferences ?? unresolvedReferences.length,
+      resolvedReferences: graph?.summary.resolvedReferences ?? input.unresolved?.resolvedReferences?.length ?? 0,
+      completeChains: graph?.summary.completeChains ?? 0,
+      impactedNodes: impact?.summary.affectedNodeCount ?? 0,
+      impactedRoutes: impact?.summary.affectedRouteCount ?? 0,
+      impactedContracts: impact?.summary.affectedContractCount ?? 0,
+      impactedScreenshots: impact?.summary.affectedScreenshotCount ?? 0,
+      impactedMutations: impact?.summary.affectedMutationCount ?? 0
+    },
+    keyChains: buildVisualGraphChains(graph).slice(0, 8),
+    unresolvedReferences: unresolvedReferences.slice(0, 8).map((reference) => ({
+      referenceKind: reference.referenceKind,
+      fromNodeId: reference.fromNodeId,
+      referenceName: reference.referenceName,
+      blockedReason: reference.blockedReason,
+      nextResolutionStrategy: reference.nextResolutionStrategy,
+      candidateCount: reference.candidates.length
+    })),
+    issueContext: {
+      issueNodeIds: impact?.issueContext.issueNodeIds ?? nodes.filter((node) => node.kind === "issue_candidate").map((node) => node.id).slice(0, 12),
+      suggestedAgentProfiles: impact?.issueContext.suggestedAgentProfiles ?? nodes.filter((node) => node.kind === "agent_profile").map((node) => node.id.replace(/^agent_profile:/, "")).slice(0, 8),
+      evidenceArtifacts: impact?.issueContext.evidenceArtifacts ?? []
+    },
+    safeActions: [
+      {
+        label: "Refresh Visual Graph",
+        commandId: "analyze",
+        command: "visual-hive analyze --repo .",
+        writes: true,
+        description: "Rebuild repo-map and Visual Graph artifacts from local repo evidence."
+      },
+      {
+        label: "Search graph",
+        command: "visual-hive graph search login",
+        writes: false,
+        description: "Find login/auth nodes in the local graph vocabulary."
+      },
+      {
+        label: "Calculate impact",
+        command: "visual-hive graph impact --changed-files changed-files.txt",
+        writes: true,
+        description: "Write blast-radius evidence for changed files, contracts, routes, mutations, or issues."
+      },
+      {
+        label: "Build issue queue",
+        commandId: "issues",
+        command: "visual-hive issues --write",
+        writes: true,
+        description: "Convert deterministic findings into graph-backed issue candidates without publishing them."
+      },
+      {
+        label: "Run no-write issue agent",
+        commandId: "agent-issue-run",
+        command: "visual-hive agent issue-runner --issue-index 0 --no-write",
+        writes: true,
+        description: "Create a bounded agent request/output artifact; default policy does not repair code."
+      }
+    ]
+  };
+}
+
+function countNodes(nodes: VisualGraphNode[], kind: VisualGraphNode["kind"]): number {
+  return nodes.filter((node) => node.kind === kind).length;
+}
+
+function buildVisualGraphChains(graph?: VisualGraph): ControlPlaneVisualGraphSummary["keyChains"] {
+  if (!graph) return [];
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const routes = graph.nodes.filter((node) => node.kind === "route").slice(0, 8);
+  const chainMap = new Map<string, ControlPlaneVisualGraphSummary["keyChains"][number]>();
+  for (const route of routes) {
+    const contracts = graph.edges
+      .filter((edge) => edge.relation === "covers_route" && edge.to === route.id)
+      .map((edge) => nodesById.get(edge.from))
+      .filter((node): node is VisualGraphNode => node?.kind === "contract");
+    for (const contract of contracts.length ? contracts : [undefined]) {
+      const screenshots = contract
+        ? graph.edges
+            .filter((edge) => edge.relation === "captures" && edge.from === contract.id)
+            .map((edge) => nodesById.get(edge.to))
+            .filter((node): node is VisualGraphNode => node?.kind === "screenshot")
+        : [];
+      const mutations = contract
+        ? graph.edges
+            .filter((edge) => ["mutates", "killed_by", "survived_by"].includes(edge.relation) && (edge.from === contract.id || edge.to === contract.id))
+            .map((edge) => nodesById.get(edge.from === contract.id ? edge.to : edge.from))
+            .filter((node): node is VisualGraphNode => node?.kind === "mutation_operator")
+        : [];
+      const issues = contract
+        ? graph.edges
+            .filter((edge) => edge.relation === "backs_issue" && edge.from === contract.id)
+            .map((edge) => nodesById.get(edge.to))
+            .filter((node): node is VisualGraphNode => node?.kind === "issue_candidate")
+        : [];
+      const screenshot = screenshots[0];
+      const mutation = mutations[0];
+      const issue = issues[0];
+      const key = [route.id, contract?.id, screenshot?.id, mutation?.id, issue?.id].join("|");
+      if (!chainMap.has(key)) {
+        chainMap.set(key, {
+          route: route.label,
+          contract: contract?.label,
+          screenshot: screenshot?.label,
+          mutation: mutation?.label,
+          issue: issue?.label,
+          artifacts: uniqueStrings([route, contract, screenshot, mutation, issue].flatMap((node) => node?.evidenceArtifacts ?? []))
+        });
+      }
+    }
+  }
+  return [...chainMap.values()];
 }
 
 function buildGuidanceState(input: {

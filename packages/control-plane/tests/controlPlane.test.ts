@@ -378,6 +378,101 @@ viewports:
     "utf8"
   );
   await writeFile(
+    path.join(repoRoot, ".visual-hive", "visual-graph.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.visual-graph.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        summary: {
+          nodes: 6,
+          edges: 5,
+          unresolvedReferences: 1,
+          resolvedReferences: 2,
+          completeChains: 1,
+          nodeKinds: {
+            route: 1,
+            contract: 1,
+            screenshot: 1,
+            mutation_operator: 1,
+            issue_candidate: 1,
+            agent_profile: 1
+          }
+        },
+        extractorArchitecture: {
+          interface: "VisualHiveGraphExtractor",
+          extractors: ["visual-hive-config", "playwright-report", "mutation-report", "issue-artifact"],
+          notes: ["Fixture graph for Control Plane graph summary."]
+        },
+        nodes: [
+          { id: "route:/", kind: "route", label: "/", provenance: "config", confidence: 0.95, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/repo-map.json"] },
+          { id: "contract:dashboard", kind: "contract", label: "dashboard", provenance: "config", confidence: 0.95, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/report.json"] },
+          { id: "screenshot:dashboard:dashboard:desktop", kind: "screenshot", label: "dashboard", provenance: "screenshot", confidence: 0.9, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/report.json"] },
+          { id: "mutation_operator:remove-demo-badge", kind: "mutation_operator", label: "remove-demo-badge", provenance: "mutation_report", confidence: 0.9, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/mutation-report.json"] },
+          { id: "issue_candidate:visual-hive_mutation_survivor_dashboard_remove-demo-badge", kind: "issue_candidate", label: "[Visual Hive] Mutation survived: remove demo badge", provenance: "derived", confidence: 0.95, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/issues.json"] },
+          { id: "agent_profile:test_creator_agent", kind: "agent_profile", label: "test_creator_agent", provenance: "agent_suggested", confidence: 0.85, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", status: "active", evidenceArtifacts: [".visual-hive/issues.json"] }
+        ],
+        edges: [
+          { id: "contract_dashboard_route", from: "contract:dashboard", to: "route:/", relation: "covers_route", provenance: "config", confidence: 0.95, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", evidenceArtifacts: [".visual-hive/report.json"] },
+          { id: "contract_dashboard_screenshot", from: "contract:dashboard", to: "screenshot:dashboard:dashboard:desktop", relation: "captures", provenance: "screenshot", confidence: 0.95, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", evidenceArtifacts: [".visual-hive/report.json"] },
+          { id: "mutation_dashboard", from: "mutation_operator:remove-demo-badge", to: "contract:dashboard", relation: "survived_by", provenance: "mutation_report", confidence: 0.9, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", evidenceArtifacts: [".visual-hive/mutation-report.json"] },
+          { id: "issue_dashboard", from: "contract:dashboard", to: "issue_candidate:visual-hive_mutation_survivor_dashboard_remove-demo-badge", relation: "backs_issue", provenance: "derived", confidence: 0.9, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", evidenceArtifacts: [".visual-hive/issues.json"] },
+          { id: "issue_agent", from: "issue_candidate:visual-hive_mutation_survivor_dashboard_remove-demo-badge", to: "agent_profile:test_creator_agent", relation: "assigned_to_agent", provenance: "agent_suggested", confidence: 0.85, firstSeen: "2026-06-15T00:00:00.000Z", lastSeen: "2026-06-15T00:00:00.000Z", evidenceArtifacts: [".visual-hive/issues.json"] }
+        ],
+        unresolvedReferences: [
+          {
+            id: "unresolved:selector_to_component:selector-demo-badge",
+            fromNodeId: "selector:data-testid-demo-badge",
+            referenceName: "component",
+            referenceKind: "selector_to_component",
+            candidates: [{ nodeId: "contract:dashboard", label: "dashboard", confidence: 0.4, reason: "Fixture candidate" }],
+            confidence: 0.4,
+            blockedReason: "Selector owner requires runtime DOM confirmation.",
+            nextResolutionStrategy: "runtime_dom_observation"
+          }
+        ],
+        resolvedReferences: [
+          { id: "resolved:contract-route", fromNodeId: "contract:dashboard", referenceName: "/", referenceKind: "contract_to_route", targetNodeId: "route:/", confidence: 0.95, resolvedBy: "config" },
+          { id: "resolved:screenshot-contract", fromNodeId: "screenshot:dashboard:dashboard:desktop", referenceName: "dashboard", referenceKind: "screenshot_to_component", targetNodeId: "contract:dashboard", confidence: 0.8, resolvedBy: "screenshot_metadata" }
+        ]
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(path.join(repoRoot, ".visual-hive", "visual-graph-summary.md"), "# Visual Hive Visual Graph: ui-fixture\n", "utf8");
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "visual-graph-vocab.json"),
+    JSON.stringify({ schemaVersion: "visual-hive.visual-graph-vocab.v1", generatedAt: "2026-06-15T00:00:00.000Z", project: "ui-fixture", entries: [{ token: "dashboard", nodeIds: ["contract:dashboard"], kinds: ["contract"], labels: ["dashboard"] }] }, null, 2),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "visual-graph-unresolved.json"),
+    JSON.stringify({ schemaVersion: "visual-hive.visual-graph-unresolved.v1", generatedAt: "2026-06-15T00:00:00.000Z", project: "ui-fixture", unresolvedReferences: [{ id: "unresolved:selector_to_component:selector-demo-badge", fromNodeId: "selector:data-testid-demo-badge", referenceName: "component", referenceKind: "selector_to_component", candidates: [], confidence: 0.4, blockedReason: "Selector owner requires runtime DOM confirmation.", nextResolutionStrategy: "runtime_dom_observation" }], resolvedReferences: [] }, null, 2),
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, ".visual-hive", "visual-impact.json"),
+    JSON.stringify(
+      {
+        schemaVersion: "visual-hive.visual-impact.v1",
+        generatedAt: "2026-06-15T00:00:00.000Z",
+        project: "ui-fixture",
+        query: { changedFiles: ["src/App.tsx"], mutation: "remove-demo-badge" },
+        affectedNodes: [],
+        affectedEdges: [],
+        grouped: { contract: ["contract:dashboard"], screenshot: ["screenshot:dashboard:dashboard:desktop"], mutation_operator: ["mutation_operator:remove-demo-badge"] },
+        validationCommands: ["visual-hive run --ci", "visual-hive mutate"],
+        issueContext: { issueNodeIds: ["issue_candidate:visual-hive_mutation_survivor_dashboard_remove-demo-badge"], evidenceArtifacts: [".visual-hive/issues.json", ".visual-hive/mutation-report.json"], suggestedAgentProfiles: ["test_creator_agent"] },
+        summary: { affectedNodeCount: 5, affectedRouteCount: 1, affectedContractCount: 1, affectedScreenshotCount: 1, affectedMutationCount: 1 }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
     path.join(repoRoot, ".visual-hive", "issue-publish-plan.json"),
     JSON.stringify(
       {
@@ -3644,6 +3739,36 @@ describe("control plane", () => {
       schemaVersion: "visual-hive.issue-queue.v1",
       summary: { total: 1, readyForHive: 1, readyForVisualHiveAgent: 1 }
     });
+    expect(snapshot.visualGraph).toMatchObject({
+      schemaVersion: "visual-hive.control-plane.visual-graph.v1",
+      project: "ui-fixture",
+      counts: {
+        routes: 1,
+        contracts: 1,
+        screenshots: 1,
+        mutations: 1,
+        issueCandidates: 1,
+        unresolvedReferences: 1,
+        completeChains: 1,
+        impactedContracts: 1
+      },
+      issueContext: {
+        issueNodeIds: ["issue_candidate:visual-hive_mutation_survivor_dashboard_remove-demo-badge"],
+        suggestedAgentProfiles: ["test_creator_agent"]
+      }
+    });
+    expect(snapshot.visualGraph?.keyChains[0]).toMatchObject({
+      route: "/",
+      contract: "dashboard",
+      screenshot: "dashboard",
+      mutation: "remove-demo-badge",
+      issue: "[Visual Hive] Mutation survived: remove demo badge"
+    });
+    expect(snapshot.visualGraph?.unresolvedReferences[0]).toMatchObject({
+      referenceKind: "selector_to_component",
+      nextResolutionStrategy: "runtime_dom_observation"
+    });
+    expect(snapshot.visualGraph?.safeActions.map((action) => action.command)).toEqual(expect.arrayContaining(["visual-hive graph search login", "visual-hive graph impact --changed-files changed-files.txt", "visual-hive agent issue-runner --issue-index 0 --no-write"]));
     expect(snapshot.issuePublishPlan).toMatchObject({ schemaVersion: "visual-hive.issue-publish-plan.v1", status: "ready" });
     expect(snapshot.issuePublishDryRun).toMatchObject({ schemaVersion: "visual-hive.issue-publish-dry-run.v1", wouldCreateIssues: 1 });
     expect(snapshot.issuePublishResult).toMatchObject({ schemaVersion: "visual-hive.issue-publish-result.v1", status: "dry_run_written", realGithubIssuesCreated: 0 });
@@ -3668,6 +3793,19 @@ describe("control plane", () => {
       schemaPath: "schemas/visual-hive.issue-queue.schema.json",
       evidenceResourceId: "issue-queue",
       evidenceReadToolName: "visual_hive_read_issue_queue"
+    });
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("visual-graph.json"))).toMatchObject({
+      labels: expect.arrayContaining(["visual-graph"]),
+      schemaPath: "schemas/visual-hive.visual-graph.schema.json",
+      evidenceResourceId: "visual-graph",
+      evidenceResourceUri: "visual-hive://visual-graph",
+      evidenceReadToolName: "visual_hive_read_visual_graph"
+    });
+    expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("visual-impact.json"))).toMatchObject({
+      labels: expect.arrayContaining(["visual-graph-impact"]),
+      schemaPath: "schemas/visual-hive.visual-impact.schema.json",
+      evidenceResourceId: "visual-graph-impact",
+      evidenceReadToolName: "visual_hive_read_visual_graph_impact"
     });
     expect(snapshot.artifacts.find((artifact) => artifact.path.endsWith("issue-publish-plan.json"))).toMatchObject({
       labels: expect.arrayContaining(["issue-publish-plan"]),

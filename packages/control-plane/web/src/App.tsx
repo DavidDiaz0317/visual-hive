@@ -661,6 +661,9 @@ function ReviewWorkspace({
         <IssueQueuePanel snapshot={snapshot} connection={connection} mode={mode} />
       </div>
       <div className="span-12">
+        <VisualGraphPanel snapshot={snapshot} connection={connection} mode={mode} />
+      </div>
+      <div className="span-12">
         <FailureInbox snapshot={snapshot} connection={connection} />
       </div>
       <div className="span-12">
@@ -764,6 +767,109 @@ function IssueQueuePanel({ snapshot, connection, mode }: { snapshot: Snapshot; c
       ) : (
         <EmptyState title="No issue queue yet">
           Run `visual-hive issues --write` to convert findings into stable, deduplicated issue candidates for Hive and agents.
+        </EmptyState>
+      )}
+    </Card>
+  );
+}
+
+function VisualGraphPanel({ snapshot, connection, mode }: { snapshot: Snapshot; connection?: string; mode: UserMode }) {
+  const graph = snapshot.visualGraph;
+  const artifactPaths = graph ? Object.values(graph.artifactPaths) : [
+    ".visual-hive/visual-graph.json",
+    ".visual-hive/visual-graph-summary.md",
+    ".visual-hive/visual-graph-vocab.json",
+    ".visual-hive/visual-graph-unresolved.json",
+    ".visual-hive/visual-impact.json"
+  ];
+
+  return (
+    <Card
+      title="Visual Graph and issue context"
+      action={
+        <div className="row">
+          <ExternalArtifactLink href={artifactUrl(artifactPaths[0] ?? ".visual-hive/visual-graph.json", "file", connection)} label="Open graph" />
+          <ExternalArtifactLink href={artifactUrl(artifactPaths[4] ?? ".visual-hive/visual-impact.json", "file", connection)} label="Open impact" />
+        </div>
+      }
+    >
+      <p className="card-subtext">
+        The Visual Graph connects files, routes, selectors, contracts, screenshots, mutation operators, artifacts, issue candidates, and agent owners. It helps Hive and issue agents act from deterministic evidence instead of scraping raw JSON.
+      </p>
+      {graph ? (
+        <div className="view-grid">
+          <MetricCard className="span-3" label="Graph nodes" tone="info" value={graph.counts.nodes} />
+          <MetricCard className="span-3" label="Complete chains" tone={graph.counts.completeChains > 0 ? "success" : "warning"} value={graph.counts.completeChains} />
+          <MetricCard className="span-3" label="Issue nodes" tone={graph.counts.issueCandidates > 0 ? "warning" : "neutral"} value={graph.counts.issueCandidates} />
+          <MetricCard className="span-3" label="Unresolved refs" tone={graph.counts.unresolvedReferences > 0 ? "warning" : "success"} value={graph.counts.unresolvedReferences} />
+          <div className="span-4">
+            <KeyValueTable
+              rows={[
+                ["Routes", graph.counts.routes],
+                ["Contracts", graph.counts.contracts],
+                ["Screenshots", graph.counts.screenshots],
+                ["Mutations", graph.counts.mutations],
+                ["Impacted nodes", graph.counts.impactedNodes],
+                ["Impacted contracts", graph.counts.impactedContracts]
+              ]}
+            />
+          </div>
+          <div className="span-8">
+            <SimpleTable
+              headers={["Route", "Contract", "Screenshot", "Mutation", "Issue"]}
+              rows={graph.keyChains.slice(0, mode === "expert" ? 8 : 4).map((chain) => [
+                chain.route ?? "n/a",
+                chain.contract ?? "n/a",
+                chain.screenshot ?? "n/a",
+                chain.mutation ?? "n/a",
+                chain.issue ?? "n/a"
+              ])}
+            />
+          </div>
+          <div className="span-6">
+            <Card title="Unresolved references">
+              {graph.unresolvedReferences.length ? (
+                <SimpleTable
+                  headers={["Kind", "Source", "Strategy", "Candidates"]}
+                  rows={graph.unresolvedReferences.slice(0, mode === "expert" ? 8 : 4).map((reference) => [
+                    reference.referenceKind,
+                    <div className="stack compact" key={reference.fromNodeId}>
+                      <span>{compactGraphId(reference.fromNodeId)}</span>
+                      <small>{reference.blockedReason ?? reference.referenceName}</small>
+                    </div>,
+                    reference.nextResolutionStrategy,
+                    reference.candidateCount
+                  ])}
+                />
+              ) : (
+                <EmptyState title="No unresolved references">Current graph evidence has no actionable unresolved references.</EmptyState>
+              )}
+            </Card>
+          </div>
+          <div className="span-6">
+            <Card title="Safe next actions">
+              <div className="stack">
+                {graph.safeActions.map((action) => (
+                  <div className="agent-tool-row" key={action.command}>
+                    <div>
+                      <strong>{action.label}</strong>
+                      <small>{action.description}</small>
+                      <CodeBlock value={action.command} />
+                    </div>
+                    <Badge tone={action.writes ? "warning" : "success"}>{action.writes ? "writes artifact" : "read only"}</Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+          <div className="span-12">
+            <ArtifactList artifacts={artifactPaths} connection={connection} />
+          </div>
+          {mode === "expert" && <EvidenceDisclosure className="span-12" title="View raw graph summary" data={graph} compact />}
+        </div>
+      ) : (
+        <EmptyState title="No Visual Graph yet">
+          Run `visual-hive analyze --repo .` and `visual-hive graph impact --changed-files changed-files.txt` to create graph and impact evidence.
         </EmptyState>
       )}
     </Card>

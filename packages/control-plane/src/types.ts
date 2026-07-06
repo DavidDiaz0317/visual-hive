@@ -231,6 +231,64 @@ export type ControlPlaneArtifact = ArtifactIndexEntry & {
   evidenceReadToolName?: string;
 };
 
+export interface ControlPlaneVisualGraphSummary {
+  schemaVersion: "visual-hive.control-plane.visual-graph.v1";
+  project: string;
+  generatedAt?: string;
+  artifactPaths: {
+    graph: string;
+    summary: string;
+    vocabulary: string;
+    unresolved: string;
+    impact: string;
+  };
+  counts: {
+    nodes: number;
+    edges: number;
+    routes: number;
+    contracts: number;
+    screenshots: number;
+    mutations: number;
+    issueCandidates: number;
+    unresolvedReferences: number;
+    resolvedReferences: number;
+    completeChains: number;
+    impactedNodes: number;
+    impactedRoutes: number;
+    impactedContracts: number;
+    impactedScreenshots: number;
+    impactedMutations: number;
+  };
+  keyChains: Array<{
+    route?: string;
+    contract?: string;
+    screenshot?: string;
+    mutation?: string;
+    issue?: string;
+    artifacts: string[];
+  }>;
+  unresolvedReferences: Array<{
+    referenceKind: string;
+    fromNodeId: string;
+    referenceName: string;
+    blockedReason?: string;
+    nextResolutionStrategy: string;
+    candidateCount: number;
+  }>;
+  issueContext: {
+    issueNodeIds: string[];
+    suggestedAgentProfiles: string[];
+    evidenceArtifacts: string[];
+  };
+  safeActions: Array<{
+    label: string;
+    commandId?: string;
+    command: string;
+    writes: boolean;
+    description: string;
+  }>;
+}
+
 export interface ControlPlaneScreenshot {
   contractId: string;
   name: string;
@@ -425,6 +483,7 @@ export interface ControlPlaneSnapshot {
   issuePublishPlan?: VisualHiveIssuePublishPlan;
   issuePublishDryRun?: VisualHiveIssuePublishDryRun;
   issuePublishResult?: VisualHiveIssuePublishResult;
+  visualGraph?: ControlPlaneVisualGraphSummary;
   issueMarkdown?: string;
   prCommentMarkdown?: string;
   triagePrompt?: string;
