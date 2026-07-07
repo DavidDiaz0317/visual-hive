@@ -9,7 +9,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
 | `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `ada93cfe9bdf91c2cc9da7b0e968987d89ab0bc4` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `5c6598f4cefa734044f57d2ba15b96bbdace3e9f` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `24f24821964c7e62ac331b9f489f223ea0b45602` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
@@ -21,8 +21,8 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
 - Product root `npm run github-app:smoke:server` starts the local GitHub App server, checks `/health`, posts a mock installation event, writes a setup issue preview, and makes zero external/network calls.
 - The GitHub App package now includes a guarded installation-token issue client and `npm run github-app:smoke:live`. It remains blocked unless `VISUAL_HIVE_GITHUB_APP_LIVE=true`, `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true`, and GitHub App id/private-key/installation/webhook-secret env vars are configured. Tests mock the live GitHub API path and prove create/update-by-dedupe behavior without real network calls; the default live smoke writes blocked artifacts with zero external/network calls.
-- Demo-site `Visual Hive Production Smoke` passed on `main` run `28881564304` for commit `d36b576`, including the GitHub App artifact-ingestion smoke.
-- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28881802371` for the production-smoke artifacts from commit `d36b576`.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28907026084` for commit `24f2482`, including the GitHub App artifact-ingestion smoke after consolidating to the single trusted publisher workflow.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28907156152` for the production-smoke artifacts from commit `24f2482`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28892559286` for commit `5c6598f`, after all demo-site workflows were SHA-pinned and the scheduled lane was updated to run `npm run vh:full-run` before the deep evidence chain.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28892981209` for artifacts from the pinned scheduled lane.
 - Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles planning-only diffs without running deterministic contracts. Temporary smoke PR #7 passed the `visual-hive` check on run `28864434672` and was closed/deleted after validation.

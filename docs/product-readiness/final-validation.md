@@ -40,7 +40,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `5c6598f4cefa734044f57d2ba15b96bbdace3e9f` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `24f24821964c7e62ac331b9f489f223ea0b45602` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -52,17 +52,17 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site agent issue | `npm run vh:agent:issue` | No-write local deterministic issue-agent runs | Passed; agent execution completed, external calls 0 | Pass |
 | Demo-site agent validation | `npm run vh:agent:validate`; covered by `npm run vh:full-run` and `npm run vh:production-smoke` | Client repo validates agent request/output/run artifacts and no-write counters | Passed; 1 agent run inspected, forbidden action failures 0 | Pass |
 | Demo-site agent write-preview | `npm run vh:agent:write-preview`; covered by `npm run vh:production-smoke` | Client repo proves the guarded write-preview path in dry-run mode | Passed; mode `dry_run`, status `planned`, branches/commits/pushes/PRs/issues 0 | Pass |
-| Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
+| Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted issue publishing is separated and singular | Passed after removing the legacy duplicate handoff workflow; workflows 5, trusted issue workflows 1, trusted Hive handoff workflows 0, critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
 | Demo-site PR diff planning | GitHub PR #7 and local docs-only branch simulation | PR workflow plans from actual PR changed files and planning-only changes do not run deterministic contracts | Passed; PR run `28864434672` green, `.visual-hive/changed-files.pr.txt` feeds graph impact and plan, local docs-only simulation selected 0 contracts and still wrote issue/MCP/artifact evidence | Pass |
-| Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed locally after adding agent artifact validation; safety counters all zero | Pass |
+| Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed locally for commit `24f2482` after consolidating to one trusted publisher workflow; safety counters all zero | Pass |
 | Demo-site GitHub App artifact smoke | `npm run vh:github-app:artifact-smoke` and workflow step in run `28868555140` | Product GitHub App consumes real `.visual-hive` artifacts without checkout, repo code execution, network calls, or external calls | Passed; create/update issue action generated, path leak scan clean, external/network calls 0 | Pass |
 | Demo-site path leak scan | `npm run vh:path-scan`; covered by `npm run vh:production-smoke` and `npm run vh:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 34 issue-facing artifacts and found 0 leaks | Pass |
-| Demo-site Production Smoke workflow | GitHub Actions run `28881564304`; local `npm run vh:production-smoke` on `d36b576` | Manual production smoke passes and includes GitHub App artifact-ingestion, write-preview proof, and path-scan proof | GitHub workflow passed for commit `d36b576`; local production smoke passed for commit `d36b576` | Pass |
+| Demo-site Production Smoke workflow | GitHub Actions run `28907026084`; local `npm run vh:production-smoke` on `24f2482` | Manual production smoke passes and includes GitHub App artifact-ingestion, write-preview proof, and path-scan proof | GitHub workflow passed for commit `24f2482`; local production smoke passed for commit `24f2482` | Pass |
 | Demo-site Scheduled workflow | GitHub Actions run `28892559286` | Scheduled/deep workflow runs `vh:full-run`, creates prerequisites before MCP smoke, uploads artifacts, and uses SHA-pinned actions | Passed for commit `5c6598f` after scheduled workflow full-run hardening and workflow action pinning | Pass |
-| Demo-site Trusted Publisher workflow | GitHub Actions run `28892981209` | Trusted workflow consumes artifacts, validates sanitized issue-facing paths, and remains dry-run unless guard is enabled | Passed for artifacts from run `28892559286`; no live issue write | Pass |
+| Demo-site Trusted Publisher workflow | GitHub Actions run `28907156152` | Single trusted workflow consumes artifacts, validates sanitized issue-facing paths, and remains dry-run unless guard is enabled | Passed for artifacts from production-smoke run `28907026084`; no live issue write | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |
 | Scheduled workflow exists | `.github/workflows/visual-hive-scheduled.yml` and workflow audit | Scheduled/deep workflow exists and uploads artifacts | Passed by workflow audit | Pass |
-| Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28856599389` | Pass |
+| Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard, and is the only issue-writing workflow in demo-site | Passed by workflow audit and run `28907156152` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` | No stale Visual Hive refs | Passed | Pass |
 
 ## Safety Proofs
