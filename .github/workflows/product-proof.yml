@@ -35,6 +35,7 @@ jobs:
       - run: npm run demo:mcp:smoke
       - run: npm run github-app:smoke:server
       - run: npm run github-app:smoke:artifacts
+      - run: npm run github-app:smoke:live
       - run: npm run smoke:ui
       - run: npm run smoke:ui:browser
       - run: npm test -w @visual-hive/github-app
