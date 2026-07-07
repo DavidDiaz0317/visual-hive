@@ -39,6 +39,22 @@ npm run demo:full-run
 npm run github-app:smoke:artifacts
 ```
 
+Use the dedicated live-smoke command to prove the live path is blocked by default, or to create/update exactly one smoke issue when all trusted credentials and guards are configured:
+
+```bash
+npm run github-app:smoke:live
+
+VISUAL_HIVE_GITHUB_APP_LIVE=true \
+VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true \
+GITHUB_APP_ID=... \
+GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/visual-hive-app.pem \
+GITHUB_APP_INSTALLATION_ID=... \
+GITHUB_WEBHOOK_SECRET=... \
+npm run smoke:live -w @visual-hive/github-app -- --require-live
+```
+
+The live-smoke fingerprint is deterministic: `visual-hive:github-app-live-smoke:<owner/repo>`. The command must create or update exactly one issue; otherwise the `--require-live` form fails.
+
 Health endpoints:
 
 - `GET /health`

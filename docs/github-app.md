@@ -52,6 +52,7 @@ From the product repo root:
 ```bash
 npm run github-app:smoke:mock
 VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run github-app:dev
+npm run github-app:smoke:live
 ```
 
 After generating `.visual-hive` artifacts, the app can also build an issue action from a downloaded artifact directory without network calls:
@@ -94,6 +95,20 @@ The live client:
 - records only counters and issue URLs, not token/private-key/secret values.
 
 Leaving out either `VISUAL_HIVE_GITHUB_APP_LIVE=true` or `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true` keeps the App in blocked/dry planning mode with `externalCallsMade: 0`.
+
+The package includes a dedicated live-smoke command:
+
+```bash
+npm run github-app:smoke:live
+```
+
+By default it writes `.visual-hive/github-app-live-smoke-result.json` and `.visual-hive/github-app-live-publish-result.json` with `status: blocked`, `externalCallsMade: 0`, and `networkCallsMade: 0`. In a trusted environment with all live env vars and the issue-write guard set, it creates or updates exactly one smoke issue using the fingerprint:
+
+```text
+visual-hive:github-app-live-smoke:<owner/repo>
+```
+
+Use `npm run smoke:live -w @visual-hive/github-app -- --require-live` only in a trusted local or workflow context where a failed live issue write should fail the command.
 
 ## Trusted Publishing Pattern
 

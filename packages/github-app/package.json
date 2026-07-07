@@ -30,6 +30,7 @@
     "dev": "npm run build && node dist/server.js",
     "start": "node dist/server.js",
     "smoke:mock": "node dist/mock.js --event workflow_run --output-dir .visual-hive",
+    "smoke:live": "node dist/liveSmoke.js --output-dir .visual-hive",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run packages/github-app/tests/githubApp.test.ts --root ../.."
   },

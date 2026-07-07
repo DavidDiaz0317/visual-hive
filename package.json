@@ -105,6 +105,7 @@
     "github-app:smoke:mock": "npm run build -w @visual-hive/github-app && npm run smoke:mock -w @visual-hive/github-app",
     "github-app:smoke:artifacts": "npm run build -w @visual-hive/github-app && node packages/github-app/dist/mock.js --event workflow_run --artifact-root examples/demo-react-app/.visual-hive --repo-root examples/demo-react-app --output-dir .visual-hive/github-app-artifact-smoke",
     "github-app:smoke:server": "npm run build -w @visual-hive/github-app && node scripts/smoke-github-app-server.mjs",
+    "github-app:smoke:live": "npm run build -w @visual-hive/github-app && npm run smoke:live -w @visual-hive/github-app",
     "demo:pipeline": "node packages/cli/dist/index.js pipeline --config examples/demo-react-app/visual-hive.config.yaml --mode pr --changed-files examples/demo-react-app/changed-files.txt --ci --skip-install --skip-build --enforce-mutation --continue-on-error",
     "demo:recommend": "node packages/cli/dist/index.js recommend --repo examples/demo-react-app",
     "demo:graph:search": "node packages/cli/dist/index.js graph search login --repo examples/demo-react-app",

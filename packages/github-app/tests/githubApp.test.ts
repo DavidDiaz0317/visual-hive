@@ -13,6 +13,7 @@ import {
   getVisualHiveGitHubAppPermissions,
   handleVisualHiveGitHubAppWebhook,
   publishGitHubAppIssuesFromWebhookResult,
+  runGitHubAppLiveSmoke,
   runGitHubAppMock,
   startVisualHiveGitHubAppServer,
   verifyGitHubWebhookSignature,
@@ -315,6 +316,80 @@ describe("Visual Hive GitHub App prototype", () => {
     });
 
     expect(publish.results[0]).toMatchObject({ status: "updated", issueNumber: 6 });
+  });
+
+  it("runs the dedicated live smoke in blocked mode by default without network calls", async () => {
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-live-smoke-blocked-"));
+    try {
+      const result = await runGitHubAppLiveSmoke({
+        repository: "DavidDiaz0317/visual-hive-demo-site",
+        outputDir,
+        requireLive: false,
+        env: {},
+        fetchImpl: async () => {
+          throw new Error("fetch should not be called while live smoke is blocked");
+        }
+      });
+
+      expect(result.status).toBe("blocked");
+      expect(result.expectedIssueCount).toBe(1);
+      expect(result.realGithubIssuesCreated).toBe(0);
+      expect(result.realGithubIssuesUpdated).toBe(0);
+      expect(result.networkCallsMade).toBe(0);
+      expect(result.dedicatedIssueFingerprint).toBe("visual-hive:github-app-live-smoke:daviddiaz0317/visual-hive-demo-site");
+      expect(await readFile(path.join(outputDir, "github-app-live-smoke-result.json"), "utf8")).toContain("blocked");
+      expect(await readFile(path.join(outputDir, "github-app-live-publish-result.json"), "utf8")).toContain("VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE");
+    } finally {
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("runs the dedicated live smoke with mocked GitHub App issue update", async () => {
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-live-smoke-live-"));
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    try {
+      const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+        if (String(url).includes("/issues?")) {
+          return jsonResponse([{
+            number: 9,
+            body: "visual-hive:github-app-live-smoke:daviddiaz0317/visual-hive-demo-site",
+            html_url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/9"
+          }]);
+        }
+        if (String(url).endsWith("/issues/9") && init?.method === "PATCH") {
+          const body = JSON.parse(String(init.body)) as { body: string };
+          expect(body.body).toContain("GitHub App Routing");
+          expect(body.body).not.toContain("C:/Users");
+          return jsonResponse({ number: 9, html_url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/9" });
+        }
+        throw new Error(`Unexpected fetch ${String(url)}`);
+      };
+
+      const result = await runGitHubAppLiveSmoke({
+        repository: "DavidDiaz0317/visual-hive-demo-site",
+        outputDir,
+        requireLive: true,
+        env: {
+          VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+          VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+          GITHUB_APP_ID: "12345",
+          GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+          GITHUB_APP_INSTALLATION_ID: "67890",
+          GITHUB_WEBHOOK_SECRET: "webhook-secret"
+        },
+        fetchImpl
+      });
+
+      expect(result.status).toBe("passed");
+      expect(result.realGithubIssuesCreated).toBe(0);
+      expect(result.realGithubIssuesUpdated).toBe(1);
+      expect(result.networkCallsMade).toBe(3);
+      expect(JSON.stringify(result)).not.toContain("installation-token-secret");
+    } finally {
+      await rm(outputDir, { recursive: true, force: true });
+    }
   });
 
   it("builds setup and artifact issue payloads with explicit Visual Hive boundaries", () => {

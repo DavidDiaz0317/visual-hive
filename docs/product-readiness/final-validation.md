@@ -11,7 +11,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `fc6b946ea62f937dacc3ded1283455fe004450db` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
-| Tests | `npm test` | Unit/integration tests pass | 379 tests passed, including issue-facing path scan coverage, repair-planner issue-agent routing, and guarded GitHub App live issue-client coverage | Pass |
+| Tests | `npm test` | Unit/integration tests pass | 381 tests passed, including issue-facing path scan coverage, repair-planner issue-agent routing, guarded GitHub App live issue-client coverage, and GitHub App live-smoke coverage | Pass |
 | Lint | `npm run lint` | ESLint passes | Passed | Pass |
 | Demo full run | `npm run demo:full-run` | Full product demo proof passes | Passed; external calls 0, network issue dry-run 0, source mutations 0, repair branches/PRs 0, real local issues 0 | Pass |
 | Product graph search | `npm run demo:graph:search` | Visual Graph search works | Passed; login/auth graph nodes returned | Pass |
@@ -24,10 +24,11 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised, real stdio server starts, execution/write tools disabled | Passed; 75 resources, 80 read tools, 9 disabled execution tools, stdioSmoke passed | Pass |
 | Product UI smoke | Covered by `npm run demo:full-run` | Control Plane smoke passes | Passed | Pass |
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
-| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness/live-issue-client tests pass | 20 tests passed, including blocked-by-default, JWT creation, mocked issue create, mocked dedupe update, and private-key path leak protection | Pass |
+| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness/live-issue-client/live-smoke tests pass | 22 tests passed, including blocked-by-default, JWT creation, mocked issue create, mocked dedupe update, private-key path leak protection, and dedicated live-smoke blocked/live-update proof | Pass |
 | Product GitHub App root smoke | `npm run github-app:smoke:mock` | Root command builds app package and writes sanitized no-network workflow-run issue preview | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product GitHub App server smoke | `npm run github-app:smoke:server` | Root command builds app package, starts local server, checks `/health`, posts mock installation, writes sanitized setup preview, and makes no network/external calls | Passed locally; added to Product Proof workflow | Pass |
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
+| Product GitHub App live smoke | `npm run github-app:smoke:live` | Root command builds app package, writes a dedicated live-smoke issue action, and remains blocked by default with zero calls unless live credentials and issue-write guard are set | Passed locally in blocked mode; external calls 0, network calls 0, created 0, updated 0 | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
 | Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
