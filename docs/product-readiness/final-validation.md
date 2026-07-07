@@ -11,7 +11,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `fc6b946ea62f937dacc3ded1283455fe004450db` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
-| Tests | `npm test` | Unit/integration tests pass | 374 tests passed, including issue-facing path scan coverage and repair-planner issue-agent routing | Pass |
+| Tests | `npm test` | Unit/integration tests pass | 379 tests passed, including issue-facing path scan coverage, repair-planner issue-agent routing, and guarded GitHub App live issue-client coverage | Pass |
 | Lint | `npm run lint` | ESLint passes | Passed | Pass |
 | Demo full run | `npm run demo:full-run` | Full product demo proof passes | Passed; external calls 0, network issue dry-run 0, source mutations 0, repair branches/PRs 0, real local issues 0 | Pass |
 | Product graph search | `npm run demo:graph:search` | Visual Graph search works | Passed; login/auth graph nodes returned | Pass |
@@ -24,7 +24,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised, real stdio server starts, execution/write tools disabled | Passed; 75 resources, 80 read tools, 9 disabled execution tools, stdioSmoke passed | Pass |
 | Product UI smoke | Covered by `npm run demo:full-run` | Control Plane smoke passes | Passed | Pass |
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
-| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 15 tests passed | Pass |
+| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness/live-issue-client tests pass | 20 tests passed, including blocked-by-default, JWT creation, mocked issue create, mocked dedupe update, and private-key path leak protection | Pass |
 | Product GitHub App root smoke | `npm run github-app:smoke:mock` | Root command builds app package and writes sanitized no-network workflow-run issue preview | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product GitHub App server smoke | `npm run github-app:smoke:server` | Root command builds app package, starts local server, checks `/health`, posts mock installation, writes sanitized setup preview, and makes no network/external calls | Passed locally; added to Product Proof workflow | Pass |
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
@@ -82,7 +82,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| GitHub App live mode | `packages/github-app` tests and docs | Live mode blocked without explicit env/auth guard | Tests pass; no live GitHub App credentials were provided in this run | Blocked by missing live credentials |
+| GitHub App live issue client | `packages/github-app` tests and docs | Live mode blocked without explicit env/auth guard; mocked live issue create/update path works without real network | Passed in tests; live API calls remain blocked without `VISUAL_HIVE_GITHUB_APP_LIVE=true`, `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true`, and GitHub App credentials | Pass for implementation; live smoke blocked by missing credentials |
 | Live issue update | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke` | Optional trusted live issue update only with explicit guard/token | Passed against demo-site issue #4 with token guard set; created 0 issues and updated 1 existing issue | Pass |
 | Codex CLI no-write agent | `codex --help`; `node packages/cli/dist/index.js agent issue-runner --config examples/demo-react-app/visual-hive.config.yaml --issue-index 0 --codex-command codex --codex-discovery-timeout-ms 5000 --format json` | CLI help should be callable before live Codex adapter execution; if the local Codex binary cannot execute, Visual Hive should record a blocked no-write artifact with zero unsafe counters | `codex.exe` failed with `Access is denied` / `spawn EPERM`; Visual Hive recorded `status: blocked`, a specific blocked reason, and zero source mutations, branches, PRs, issues, external calls, network calls, Hive API calls, LLM calls, and paid provider calls | Blocked by local Codex CLI execution policy; product behavior passes |
 

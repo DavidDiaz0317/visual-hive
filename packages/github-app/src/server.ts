@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { sanitizeText, writeJson, writeText } from "@visual-hive/core";
 import { buildVisualHiveArtifactSummaryFromDirectory } from "./artifacts.js";
 import { getGitHubAppEnvironmentReadiness } from "./env.js";
+import { publishGitHubAppIssuesFromWebhookResult } from "./live.js";
 import { handleVisualHiveGitHubAppWebhook, verifyGitHubWebhookSignature, type VisualHiveGitHubAppEventName, type VisualHiveGitHubAppWebhookResult } from "./webhook.js";
 
 export interface VisualHiveGitHubAppServerOptions {
@@ -112,7 +113,11 @@ async function handleRequest(
       deliveryId: headerString(request.headers["x-github-delivery"])
     });
     await writeGitHubAppArtifacts(options.outputDir, result);
-    writeJsonResponse(response, 200, result);
+    const livePublish = await publishGitHubAppIssuesFromWebhookResult(result, { env: options.env });
+    if (livePublish.mode === "live" || options.env.VISUAL_HIVE_GITHUB_APP_WRITE_BLOCKED_LIVE_RESULT === "true") {
+      await writeJson(path.join(options.outputDir, "github-app-live-publish-result.json"), livePublish);
+    }
+    writeJsonResponse(response, 200, { ...result, livePublish });
     return;
   }
 

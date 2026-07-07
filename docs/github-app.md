@@ -45,6 +45,7 @@ The local/server MVP package is `@visual-hive/github-app`. It provides:
 - `buildIssuePayloadFromArtifactSummary`
 
 The package is mock/local first. It returns payloads and actions, but makes zero network calls unless a future trusted live path is explicitly implemented and guarded.
+The current package also includes a guarded live issue client for the trusted App path. It remains blocked unless `VISUAL_HIVE_GITHUB_APP_LIVE=true`, all GitHub App credential env vars are present, and the extra destructive-operation guard `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true` is set.
 
 From the product repo root:
 
@@ -66,6 +67,33 @@ Local server health endpoints:
 - `GET /healthz`
 
 Health responses include a `readiness` object with boolean credential presence and missing environment variable names only. They never include private key, token, webhook secret, or installation values. In `VISUAL_HIVE_GITHUB_APP_LIVE=true`, the server reports `live_guard_blocked` until `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_WEBHOOK_SECRET` are configured.
+
+## Guarded Live Issue Writes
+
+The server and package can create or update Visual Hive GitHub issues through GitHub App installation authentication, but only in an explicitly trusted environment:
+
+```bash
+VISUAL_HIVE_GITHUB_APP_LIVE=true
+VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true
+GITHUB_APP_ID=...
+GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/visual-hive-app.pem
+GITHUB_APP_INSTALLATION_ID=...
+GITHUB_WEBHOOK_SECRET=...
+npm run start -w @visual-hive/github-app
+```
+
+The live client:
+
+- creates a short-lived GitHub App JWT locally;
+- exchanges it for an installation token;
+- searches existing `visual-hive` issues for the dedupe fingerprint;
+- updates the existing issue when the fingerprint is present;
+- creates exactly one new issue when no matching fingerprint exists;
+- never checks out repo code or executes artifact content;
+- sanitizes issue payloads before publishing;
+- records only counters and issue URLs, not token/private-key/secret values.
+
+Leaving out either `VISUAL_HIVE_GITHUB_APP_LIVE=true` or `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true` keeps the App in blocked/dry planning mode with `externalCallsMade: 0`.
 
 ## Trusted Publishing Pattern
 

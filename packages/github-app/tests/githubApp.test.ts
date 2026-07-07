@@ -8,9 +8,11 @@ import {
   buildVisualHiveArtifactSummaryFromDirectory,
   buildIssuePayloadFromArtifactSummary,
   buildSetupIssuePayload,
+  createGitHubAppJwt,
   getGitHubAppEnvironmentReadiness,
   getVisualHiveGitHubAppPermissions,
   handleVisualHiveGitHubAppWebhook,
+  publishGitHubAppIssuesFromWebhookResult,
   runGitHubAppMock,
   startVisualHiveGitHubAppServer,
   verifyGitHubWebhookSignature,
@@ -154,6 +156,165 @@ describe("Visual Hive GitHub App prototype", () => {
     expect(payload.body).not.toContain("super-secret");
     expect(payload.body).not.toContain("abc123");
     expect(payload.body).toContain("[REDACTED]");
+  });
+
+  it("blocks live GitHub App issue writes by default and reports env var names only", async () => {
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        workflow_run: { conclusion: "failure" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: "super-secret-private-key"
+      },
+      fetchImpl: async () => {
+        throw new Error("fetch should not be called while blocked");
+      }
+    });
+
+    expect(publish.mode).toBe("blocked");
+    expect(publish.networkCallsMade).toBe(0);
+    expect(publish.missingForLive).toEqual(expect.arrayContaining([
+      "GITHUB_APP_INSTALLATION_ID",
+      "GITHUB_WEBHOOK_SECRET",
+      "VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE"
+    ]));
+    expect(JSON.stringify(publish)).not.toContain("super-secret-private-key");
+    expect(publish.results[0]).toMatchObject({ status: "blocked" });
+  });
+
+  it("creates a signed GitHub App JWT without embedding private key material", () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const jwt = createGitHubAppJwt({ appId: "12345", privateKey: privateKeyPem, nowSeconds: 1_700_000_000 });
+    const [header, payload, signature] = jwt.split(".");
+    expect(header).toBeTruthy();
+    expect(payload).toBeTruthy();
+    expect(signature).toBeTruthy();
+    expect(JSON.stringify(jwt)).not.toContain("BEGIN RSA PRIVATE KEY");
+  });
+
+  it("uses guarded live GitHub App credentials to create a deduped issue with mocked fetch", async () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        workflow_run: { conclusion: "failure" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/access_tokens")) {
+        return jsonResponse({ token: "installation-token-secret" });
+      }
+      if (String(url).includes("/issues?")) {
+        return jsonResponse([]);
+      }
+      if (String(url).endsWith("/issues") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { body: string };
+        expect(body.body).toContain("Dedupe fingerprint");
+        expect(body.body).not.toContain("super-secret");
+        return jsonResponse({ number: 6, html_url: "https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/6" });
+      }
+      throw new Error(`Unexpected fetch ${String(url)}`);
+    };
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl
+    });
+
+    expect(publish.mode).toBe("live");
+    expect(publish.externalCallsMade).toBe(3);
+    expect(publish.networkCallsMade).toBe(3);
+    expect(publish.results[0]).toMatchObject({ status: "created", issueNumber: 6 });
+    expect(JSON.stringify(publish)).not.toContain("installation-token-secret");
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://api.github.com/app/installations/67890/access_tokens",
+      "https://api.github.com/repos/DavidDiaz0317/visual-hive-demo-site/issues?state=all&labels=visual-hive&per_page=100",
+      "https://api.github.com/repos/DavidDiaz0317/visual-hive-demo-site/issues"
+    ]);
+  });
+
+  it("does not leak private key paths when guarded live authentication preparation fails", async () => {
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY_PATH: "C:/Users/david/secret/private-key.pem",
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl: async () => {
+        throw new Error("fetch should not be called when auth preparation fails");
+      }
+    });
+
+    expect(publish.results[0]).toMatchObject({ status: "failed" });
+    expect(JSON.stringify(publish)).not.toContain("C:/Users/david");
+    expect(JSON.stringify(publish)).not.toContain("private-key.pem");
+    expect(publish.networkCallsMade).toBe(0);
+  });
+
+  it("updates an existing issue when the dedupe fingerprint is found", async () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+    const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+      if (String(url).includes("/issues?")) {
+        return jsonResponse([{ number: 6, body: `existing ${issueCandidate.dedupeFingerprint}`, html_url: "https://example.test/6" }]);
+      }
+      if (String(url).endsWith("/issues/6") && init?.method === "PATCH") return jsonResponse({ number: 6, html_url: "https://example.test/6" });
+      throw new Error(`Unexpected fetch ${String(url)}`);
+    };
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl
+    });
+
+    expect(publish.results[0]).toMatchObject({ status: "updated", issueNumber: 6 });
   });
 
   it("builds setup and artifact issue payloads with explicit Visual Hive boundaries", () => {
@@ -437,6 +598,13 @@ describe("Visual Hive GitHub App prototype", () => {
     }
   });
 });
+
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
 
 async function writeMinimalVisualHiveArtifacts(root: string, options: { issues: unknown[] }): Promise<void> {
   await mkdir(root, { recursive: true });
