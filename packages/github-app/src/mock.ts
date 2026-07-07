@@ -1,17 +1,26 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { sanitizeText } from "@visual-hive/core";
+import { buildVisualHiveArtifactSummaryFromDirectory } from "./artifacts.js";
 import { handleVisualHiveGitHubAppWebhook, type VisualHiveGitHubAppEventName } from "./webhook.js";
 import { writeGitHubAppArtifacts } from "./server.js";
 
 interface MockArgs {
   eventName: VisualHiveGitHubAppEventName;
   payloadPath?: string;
+  artifactRoot?: string;
+  repoRoot?: string;
   outputDir: string;
 }
 
 export async function runGitHubAppMock(args: MockArgs): Promise<void> {
   const payload = args.payloadPath ? JSON.parse(await readFile(args.payloadPath, "utf8")) as Record<string, unknown> : defaultPayload(args.eventName);
+  if (args.artifactRoot) {
+    payload.visual_hive_artifact_summary = await buildVisualHiveArtifactSummaryFromDirectory({
+      artifactRoot: args.artifactRoot,
+      repoRoot: args.repoRoot
+    });
+  }
   const result = handleVisualHiveGitHubAppWebhook({
     eventName: args.eventName,
     payload,
@@ -58,14 +67,18 @@ function defaultPayload(eventName: VisualHiveGitHubAppEventName): Record<string,
 function parseArgs(argv: string[]): MockArgs {
   let eventName: VisualHiveGitHubAppEventName = "installation";
   let payloadPath: string | undefined;
+  let artifactRoot: string | undefined;
+  let repoRoot: string | undefined;
   let outputDir = ".visual-hive";
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--event") eventName = parseEvent(argv[++index]);
     else if (arg === "--payload") payloadPath = argv[++index];
+    else if (arg === "--artifact-root") artifactRoot = argv[++index];
+    else if (arg === "--repo-root") repoRoot = argv[++index];
     else if (arg === "--output-dir") outputDir = argv[++index] ?? outputDir;
   }
-  return { eventName, payloadPath, outputDir };
+  return { eventName, payloadPath, artifactRoot, repoRoot, outputDir };
 }
 
 function parseEvent(value: string | undefined): VisualHiveGitHubAppEventName {

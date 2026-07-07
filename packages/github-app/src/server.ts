@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdir } from "node:fs/promises";
 import { sanitizeText, writeJson, writeText } from "@visual-hive/core";
+import { buildVisualHiveArtifactSummaryFromDirectory } from "./artifacts.js";
 import { getGitHubAppEnvironmentReadiness } from "./env.js";
 import { handleVisualHiveGitHubAppWebhook, verifyGitHubWebhookSignature, type VisualHiveGitHubAppEventName, type VisualHiveGitHubAppWebhookResult } from "./webhook.js";
 
@@ -93,9 +94,21 @@ async function handleRequest(
       writeJsonResponse(response, 400, { error: "invalid_json", message: "Webhook body must be JSON." });
       return;
     }
+    const enrichment = await enrichPayloadWithLocalArtifacts(payload, options.env, url.pathname.startsWith("/mock/"));
+    if (!enrichment.allowed) {
+      writeJsonResponse(response, 403, {
+        error: "local_artifact_root_blocked",
+        message: enrichment.reason,
+        externalCallsMade: 0,
+        networkCallsMade: 0,
+        checkoutPerformed: false,
+        repoCodeExecuted: false
+      });
+      return;
+    }
     const result = handleVisualHiveGitHubAppWebhook({
       eventName,
-      payload,
+      payload: enrichment.payload,
       deliveryId: headerString(request.headers["x-github-delivery"])
     });
     await writeGitHubAppArtifacts(options.outputDir, result);
@@ -104,6 +117,33 @@ async function handleRequest(
   }
 
   writeJsonResponse(response, 404, { error: "not_found" });
+}
+
+async function enrichPayloadWithLocalArtifacts(
+  payload: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+  isMockEndpoint: boolean
+): Promise<{ allowed: true; payload: Record<string, unknown> } | { allowed: false; reason: string }> {
+  const artifactRoot = stringValue(payload.visual_hive_artifact_root)
+    ?? stringValue(payload.local_artifact_root)
+    ?? env.VISUAL_HIVE_GITHUB_APP_ARTIFACT_ROOT;
+  if (!artifactRoot) return { allowed: true, payload };
+  const allowed = isMockEndpoint || env.VISUAL_HIVE_GITHUB_APP_ALLOW_LOCAL_ARTIFACT_ROOT === "true";
+  if (!allowed) {
+    return { allowed: false, reason: "Refusing to read local Visual Hive artifacts without VISUAL_HIVE_GITHUB_APP_ALLOW_LOCAL_ARTIFACT_ROOT=true or a /mock endpoint." };
+  }
+  const repoRoot = stringValue(payload.repository_root) ?? env.VISUAL_HIVE_GITHUB_APP_REPO_ROOT;
+  const summary = await buildVisualHiveArtifactSummaryFromDirectory({ artifactRoot, repoRoot });
+  return {
+    allowed: true,
+    payload: {
+      ...payload,
+      visual_hive_artifact_summary: {
+        ...summary,
+        ...(objectValue(payload.visual_hive_artifact_summary) ?? {})
+      }
+    }
+  };
 }
 
 export async function writeGitHubAppArtifacts(outputDir: string, result: VisualHiveGitHubAppWebhookResult): Promise<void> {
@@ -163,6 +203,14 @@ function writeJsonResponse(response: http.ServerResponse, statusCode: number, va
 
 function headerString(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function isEventName(value: string | undefined): value is VisualHiveGitHubAppEventName {

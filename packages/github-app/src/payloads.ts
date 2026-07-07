@@ -77,7 +77,7 @@ export function buildSetupIssuePayload(input: VisualHiveSetupIssueInput): GitHub
 
 export function buildIssuePayloadFromArtifactSummary(input: ArtifactIssueSummary): GitHubIssuePayload {
   const rootDir = input.repoRoot ?? process.cwd();
-  const sourceArtifacts = input.candidate.sourceArtifacts.map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact));
+  const sourceArtifacts = (input.candidate.sourceArtifacts ?? []).map((artifact) => sanitizeArtifactPathForIssue(rootDir, artifact));
   const body = [
     sanitizeArtifactPathsForMarkdown(rootDir, input.candidate.body),
     "",
@@ -92,7 +92,7 @@ export function buildIssuePayloadFromArtifactSummary(input: ArtifactIssueSummary
     "",
     "## Guardrails",
     "",
-    ...input.candidate.guardrails.map((guardrail) => `- ${guardrail}`),
+    ...(input.candidate.guardrails ?? []).map((guardrail) => `- ${guardrail}`),
     "",
     `Dedupe fingerprint: ${input.candidate.dedupeFingerprint}`
   ].join("\n");

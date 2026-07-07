@@ -12,6 +12,9 @@ The Visual Hive GitHub App package is a production-oriented local/server MVP. It
 | `GITHUB_WEBHOOK_SECRET` | signed webhook verification | When set, unsigned or invalid webhook requests are rejected. |
 | `GITHUB_APP_INSTALLATION_ID` | future local live smoke | Used only with explicit live guard. |
 | `VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true` | local mock webhook testing | Allows unsigned `/mock/*` payloads only in local/dev mode. |
+| `VISUAL_HIVE_GITHUB_APP_ALLOW_LOCAL_ARTIFACT_ROOT=true` | trusted local artifact ingestion | Allows signed `/webhooks/github` test payloads to read `VISUAL_HIVE_GITHUB_APP_ARTIFACT_ROOT` or `local_artifact_root`; `/mock/*` endpoints can use local artifact roots in mock mode. |
+| `VISUAL_HIVE_GITHUB_APP_ARTIFACT_ROOT` | trusted local artifact ingestion | Directory containing downloaded Visual Hive artifacts such as `issues.json`, `issue-queue.json`, `evidence-packet.json`, and `artifacts-index.json`. |
+| `VISUAL_HIVE_GITHUB_APP_REPO_ROOT` | path sanitization | Optional repo root used to convert artifact paths to repo-relative issue links. |
 | `VISUAL_HIVE_GITHUB_APP_LIVE=true` | guarded live mode | Does not by itself make network calls; future live actions still require credentials and trusted event handling. |
 
 ## Local Run
@@ -26,6 +29,13 @@ Top-level aliases are also available:
 ```bash
 npm run github-app:smoke:mock
 VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run github-app:dev
+```
+
+After a Visual Hive run has produced `.visual-hive` artifacts, use the artifact-root smoke to emulate a trusted workflow downloading artifacts and handing them to the App:
+
+```bash
+npm run demo:full-run
+npm run github-app:smoke:artifacts
 ```
 
 Health endpoints:
@@ -57,7 +67,7 @@ Mock endpoints:
 | Event | Action plan |
 | --- | --- |
 | `installation` / `repository` | Create a setup issue payload with detected project checklist, commands, workflows, and guardrails. |
-| `workflow_run` | Create or update a Visual Hive issue payload from trusted sanitized artifact summary. |
+| `workflow_run` | Create or update a Visual Hive issue payload from a trusted sanitized artifact summary or an explicitly provided local artifact root in mock/trusted mode. |
 | `issues` | Record issue activity. Never execute issue body or comment content. |
 
 ## Safety Invariants

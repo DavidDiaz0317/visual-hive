@@ -17,6 +17,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Product `Product Proof` passed on `main` run `28864611540` for commit `0b8884f`.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
+- Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
 - Demo-site `Visual Hive Production Smoke` passed on `main` run `28862783105`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28862904560` after scheduled-chain artifact prerequisite cleanup.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28863088358`.

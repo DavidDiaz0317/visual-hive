@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertLeastPrivilegePermissions,
+  buildVisualHiveArtifactSummaryFromDirectory,
   buildIssuePayloadFromArtifactSummary,
   buildSetupIssuePayload,
   getGitHubAppEnvironmentReadiness,
@@ -228,6 +229,54 @@ describe("Visual Hive GitHub App prototype", () => {
     }
   });
 
+  it("builds workflow_run issue actions from a downloaded Visual Hive artifact directory", async () => {
+    const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-artifacts-"));
+    const repoRoot = "C:/Users/david/OneDrive/Documents/visual-hive-demo-site";
+    try {
+      await writeMinimalVisualHiveArtifacts(artifactRoot, {
+        issues: [
+          {
+            ...issueCandidate,
+            body: "Artifact issue from C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json token=artifact-secret",
+            sourceArtifacts: [
+              "C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json",
+              "/home/david/private/debug.log"
+            ]
+          }
+        ]
+      });
+      const summary = await buildVisualHiveArtifactSummaryFromDirectory({ artifactRoot, repoRoot });
+      expect(summary.externalCallsMade).toBe(0);
+      expect(summary.networkCallsMade).toBe(0);
+      expect(summary.checkoutPerformed).toBe(false);
+      expect(summary.repoCodeExecuted).toBe(false);
+      expect(summary.missingArtifacts).toEqual([]);
+      expect(summary.discoveredArtifacts).toEqual(expect.arrayContaining([
+        "[redacted-external-path]/issues.json",
+        "[redacted-external-path]/evidence-packet.json"
+      ]));
+
+      const result = handleVisualHiveGitHubAppWebhook({
+        eventName: "workflow_run",
+        payload: {
+          repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+          workflow_run: { conclusion: "failure" },
+          visual_hive_artifact_summary: summary
+        }
+      });
+      const payload = result.actions[0]?.issuePayload as GitHubIssuePayload;
+      expect(result.actions[0]?.action).toBe("create_or_update_visual_hive_issue");
+      expect(payload.body).toContain("Validation command");
+      expect(payload.body).toContain(".visual-hive/report.json");
+      expect(payload.body).toContain("[redacted-external-path]/debug.log");
+      expect(payload.body).not.toContain("C:/Users/david");
+      expect(payload.body).not.toContain("/home/david/private");
+      expect(payload.body).not.toContain("artifact-secret");
+    } finally {
+      await rm(artifactRoot, { recursive: true, force: true });
+    }
+  });
+
   it("does not enter live mode unless explicit live guard and webhook authentication are configured", async () => {
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-live-guard-"));
     const app = await startVisualHiveGitHubAppServer({
@@ -294,6 +343,67 @@ describe("Visual Hive GitHub App prototype", () => {
     }
   });
 
+  it("allows mock server workflow_run events to read an explicit local artifact root", async () => {
+    const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-server-artifacts-"));
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-server-output-"));
+    const app = await startVisualHiveGitHubAppServer({
+      outputDir,
+      env: { VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS: "true" }
+    });
+    try {
+      await writeMinimalVisualHiveArtifacts(artifactRoot, { issues: [issueCandidate] });
+      const response = await fetch(`${app.url}/mock/workflow-run`, {
+        method: "POST",
+        body: JSON.stringify({
+          repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+          workflow_run: { conclusion: "failure" },
+          local_artifact_root: artifactRoot
+        }),
+        headers: { "Content-Type": "application/json" }
+      });
+      expect(response.status).toBe(200);
+      const result = await response.json() as { actions: Array<{ action: string }>; externalCallsMade: number };
+      expect(result.externalCallsMade).toBe(0);
+      expect(result.actions[0]?.action).toBe("create_or_update_visual_hive_issue");
+      const issuePreview = await readFile(path.join(outputDir, "github-app-issue-preview.md"), "utf8");
+      expect(issuePreview).toContain("Dedupe fingerprint");
+      expect(issuePreview).not.toContain(artifactRoot);
+    } finally {
+      await app.close();
+      await rm(artifactRoot, { recursive: true, force: true });
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks local artifact root reads on real webhook paths unless explicitly allowed", async () => {
+    const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-blocked-artifacts-"));
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-blocked-output-"));
+    const secret = "signed-secret";
+    const app = await startVisualHiveGitHubAppServer({ outputDir, env: { GITHUB_WEBHOOK_SECRET: secret } });
+    try {
+      await writeMinimalVisualHiveArtifacts(artifactRoot, { issues: [issueCandidate] });
+      const payload = JSON.stringify({
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        workflow_run: { conclusion: "failure" },
+        local_artifact_root: artifactRoot
+      });
+      const signature = `sha256=${crypto.createHmac("sha256", secret).update(payload).digest("hex")}`;
+      const response = await fetch(`${app.url}/webhooks/github`, {
+        method: "POST",
+        body: payload,
+        headers: { "Content-Type": "application/json", "x-github-event": "workflow_run", "x-hub-signature-256": signature }
+      });
+      expect(response.status).toBe(403);
+      const body = await response.json() as { message: string };
+      expect(body.message).toContain("VISUAL_HIVE_GITHUB_APP_ALLOW_LOCAL_ARTIFACT_ROOT=true");
+      expect(body.message).not.toContain(artifactRoot);
+    } finally {
+      await app.close();
+      await rm(artifactRoot, { recursive: true, force: true });
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
   it("runs a no-network mock webhook artifact writer", async () => {
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-mock-"));
     const originalLog = console.log;
@@ -307,4 +417,38 @@ describe("Visual Hive GitHub App prototype", () => {
       await rm(outputDir, { recursive: true, force: true });
     }
   });
+
+  it("runs mock workflow_run from an artifact directory without network calls", async () => {
+    const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-mock-artifacts-"));
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-mock-output-"));
+    const originalLog = console.log;
+    console.log = () => undefined;
+    try {
+      await writeMinimalVisualHiveArtifacts(artifactRoot, { issues: [issueCandidate] });
+      await runGitHubAppMock({ eventName: "workflow_run", artifactRoot, outputDir });
+      const result = await readFile(path.join(outputDir, "github-app-webhook-result.json"), "utf8");
+      expect(result).toContain("create_or_update_visual_hive_issue");
+      expect(result).not.toContain(artifactRoot);
+      expect(await readFile(path.join(outputDir, "github-app-issue-preview.md"), "utf8")).toContain("Dedupe fingerprint");
+    } finally {
+      console.log = originalLog;
+      await rm(artifactRoot, { recursive: true, force: true });
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
 });
+
+async function writeMinimalVisualHiveArtifacts(root: string, options: { issues: unknown[] }): Promise<void> {
+  await mkdir(root, { recursive: true });
+  const files: Record<string, unknown> = {
+    "issues.json": { schemaVersion: "visual-hive.issues.v1", issues: options.issues },
+    "issue-queue.json": { schemaVersion: "visual-hive.issue-queue.v1", queues: {} },
+    "evidence-packet.json": { schemaVersion: "visual-hive.evidence-packet.v1", verdict: "failed" },
+    "handoff.json": { schemaVersion: "visual-hive.handoff.v1", externalCallsMade: 0 },
+    "visual-graph.json": { schemaVersion: "visual-hive.visual-graph.v1", nodes: [] },
+    "visual-impact.json": { schemaVersion: "visual-hive.visual-impact.v1", impacts: [] },
+    "mutation-report.json": { schemaVersion: 2, results: [] },
+    "artifacts-index.json": { schemaVersion: "visual-hive.artifacts-index.v1", artifacts: [] }
+  };
+  await Promise.all(Object.entries(files).map(([file, value]) => writeFile(path.join(root, file), JSON.stringify(value, null, 2))));
+}

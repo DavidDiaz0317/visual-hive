@@ -53,6 +53,13 @@ npm run github-app:smoke:mock
 VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run github-app:dev
 ```
 
+After generating `.visual-hive` artifacts, the app can also build an issue action from a downloaded artifact directory without network calls:
+
+```bash
+npm run demo:full-run
+npm run github-app:smoke:artifacts
+```
+
 Local server health endpoints:
 
 - `GET /health`
