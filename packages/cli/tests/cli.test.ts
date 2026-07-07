@@ -519,6 +519,8 @@ mutation:
     expect(packageJson.scripts["demo:issue-publish"]).toContain(" publish --dry-run");
     expect(packageJson.scripts["demo:agent-issue-run"]).toContain("agent issue-runner");
     expect(packageJson.scripts["demo:agent-issue-run"]).toContain("--issue-index 0");
+    expect(packageJson.scripts["demo:agent-issue-run:local"]).toContain("--execute-agent");
+    expect(packageJson.scripts["demo:agent-issue-run:local"]).toContain("scripts/local-issue-agent.mjs");
     expect(packageJson.scripts["demo:baselines"]).toContain("--write");
     expect(packageJson.scripts["demo:improve"]).toContain("improve-coverage --config");
     expect(demoExhaustiveOutput.indexOf("demo:flows")).toBeLessThan(demoExhaustiveOutput.indexOf("demo:improve"));

@@ -9320,6 +9320,11 @@ viewports:
     expect(run.requestMarkdown).toContain("## Allowed Actions");
     expect(run.requestMarkdown).toContain("## Forbidden Actions");
     expect(run.requestMarkdown).toContain("## Output Schema");
+    expect(run.requestMarkdown).toContain("`diagnosis`");
+    expect(run.requestMarkdown).toContain("`proposedFilesToInspect`");
+    expect(run.requestMarkdown).toContain("`risks`");
+    expect(run.requestMarkdown).toContain("`writeAccessNeeded`");
+    expect(run.requestMarkdown).toContain("`confidence`");
     expect(run.requestMarkdown).toContain("Do not weaken screenshot thresholds");
     expect(run.outputMarkdown).toContain("did not run Codex as an agent");
     expect(run.outputMarkdown).toContain("Codex CLI Discovery");
