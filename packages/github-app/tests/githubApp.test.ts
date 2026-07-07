@@ -267,7 +267,7 @@ describe("Visual Hive GitHub App prototype", () => {
       const payload = result.actions[0]?.issuePayload as GitHubIssuePayload;
       expect(result.actions[0]?.action).toBe("create_or_update_visual_hive_issue");
       expect(payload.body).toContain("Validation command");
-      expect(payload.body).toContain(".visual-hive/report.json");
+      expect(payload.body).toContain("[redacted-external-path]/report.json");
       expect(payload.body).toContain("[redacted-external-path]/debug.log");
       expect(payload.body).not.toContain("C:/Users/david");
       expect(payload.body).not.toContain("/home/david/private");
