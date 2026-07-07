@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | Latest validated local base before this source change: `c712eb309b621f52bdc0b42b8f5aa92e35f6a238`; final pushed SHA is recorded in the handoff response | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `ac5db3bb3673e032c828c8d961ca1026ec20e8fd` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 372 tests passed, including issue-facing path scan coverage | Pass |
@@ -30,15 +30,15 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
-| Product CI | GitHub Actions run `28873030260` | Product CI passes on `main` | Passed for commit `3856937` | Pass |
-| Product Proof | GitHub Actions run `28873030472` | Product proof passes on `main` | Passed for commit `3856937`, including `github-app:smoke:server` | Pass |
+| Product CI | GitHub Actions run `28881557215` | Product CI passes on `main` | Passed for commit `ac5db3b` | Pass |
+| Product Proof | GitHub Actions run `28881557175` | Product proof passes on `main` | Passed for commit `ac5db3b`, including `github-app:smoke:server` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | Latest validated local base before this source change: `ea473f5fa5a12a43052b391dfe6e9c9331cc6aa9`; final pushed SHA is recorded in the handoff response | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `d36b576178cd756d4c9ab819f45cdcdad000a65e` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -55,9 +55,9 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed locally after adding agent artifact validation; safety counters all zero | Pass |
 | Demo-site GitHub App artifact smoke | `npm run vh:github-app:artifact-smoke` and workflow step in run `28868555140` | Product GitHub App consumes real `.visual-hive` artifacts without checkout, repo code execution, network calls, or external calls | Passed; create/update issue action generated, path leak scan clean, external/network calls 0 | Pass |
 | Demo-site path leak scan | `npm run vh:path-scan`; covered by `npm run vh:production-smoke` and `npm run vh:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 34 issue-facing artifacts and found 0 leaks | Pass |
-| Demo-site Production Smoke workflow | GitHub Actions run `28868555140`; local `npm run vh:production-smoke` on `ea473f5` | Manual production smoke passes and includes GitHub App artifact-ingestion and write-preview proof | GitHub workflow passed for commit `145c0d7`; local production smoke passed for commit `ea473f5` | Pass |
+| Demo-site Production Smoke workflow | GitHub Actions run `28881564304`; local `npm run vh:production-smoke` on `d36b576` | Manual production smoke passes and includes GitHub App artifact-ingestion, write-preview proof, and path-scan proof | GitHub workflow passed for commit `d36b576`; local production smoke passed for commit `d36b576` | Pass |
 | Demo-site Scheduled workflow | GitHub Actions run `28862904560` | Scheduled/deep workflow creates prerequisites before MCP smoke and uploads artifacts | Passed after workflow prerequisite fix | Pass |
-| Demo-site Trusted Publisher workflow | GitHub Actions run `28863088358` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
+| Demo-site Trusted Publisher workflow | GitHub Actions run `28881802371` | Trusted workflow consumes artifacts, validates sanitized issue-facing paths, and remains dry-run unless guard is enabled | Passed after path-scan pattern alignment; no live issue write | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |
 | Scheduled workflow exists | `.github/workflows/visual-hive-scheduled.yml` and workflow audit | Scheduled/deep workflow exists and uploads artifacts | Passed by workflow audit | Pass |
 | Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28856599389` | Pass |

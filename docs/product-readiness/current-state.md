@@ -8,18 +8,19 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `3856937c5583918fcc419b1297f567e43337c58c` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Newer documentation-only commits should be validated separately before being cited as a proof point. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `ea473f5fa5a12a43052b391dfe6e9c9331cc6aa9` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `ac5db3bb3673e032c828c8d961ca1026ec20e8fd` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `d36b576178cd756d4c9ab819f45cdcdad000a65e` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28873030260` for commit `3856937`.
-- Product `Product Proof` passed on `main` run `28873030472` for commit `3856937`.
+- Product `CI` passed on `main` run `28881557215` for commit `ac5db3b`.
+- Product `Product Proof` passed on `main` run `28881557175` for commit `ac5db3b`.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
 - Product root `npm run github-app:smoke:server` starts the local GitHub App server, checks `/health`, posts a mock installation event, writes a setup issue preview, and makes zero external/network calls.
-- Demo-site `Visual Hive Production Smoke` passed on `main` run `28868555140` for commit `145c0d7`, including the GitHub App artifact-ingestion smoke.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28881564304` for commit `d36b576`, including the GitHub App artifact-ingestion smoke.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28881802371` for the production-smoke artifacts from commit `d36b576`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28862904560` after scheduled-chain artifact prerequisite cleanup.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28863088358`.
 - Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles planning-only diffs without running deterministic contracts. Temporary smoke PR #7 passed the `visual-hive` check on run `28864434672` and was closed/deleted after validation.
