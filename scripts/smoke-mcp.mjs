@@ -5,6 +5,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { clearTimeout, setTimeout } from "node:timers";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   MCP_DISABLED_EXECUTION_TOOLS,
   callReadOnlyTool,
@@ -23,6 +25,7 @@ const root = process.argv.includes("--root")
   : loaded.rootDir;
 const outputDir = path.join(root, ".visual-hive");
 const summaryPath = path.join(outputDir, "mcp-smoke.json");
+const cliPath = path.join(repoRoot, "packages", "cli", "dist", "index.js");
 
 const requiredArtifacts = [
   ".visual-hive/issues.json",
@@ -121,6 +124,11 @@ if (toolCalls.filter((entry) => entry.ok).length < 10) {
   errors.push("MCP smoke called fewer than 10 concrete read-only tools.");
 }
 
+const stdioSmoke = await runStdioMcpSmoke();
+if (stdioSmoke.status !== "passed") {
+  errors.push(`MCP stdio server smoke failed: ${stdioSmoke.error ?? "unknown error"}`);
+}
+
 const summary = {
   schemaVersion: "visual-hive.mcp-smoke.v1",
   generatedAt: new Date().toISOString(),
@@ -132,6 +140,7 @@ const summary = {
   disabledExecutionTools: manifest.disabledExecutionTools.map((tool) => tool.name),
   resourceReads,
   toolCalls,
+  stdioSmoke,
   safety: {
     readOnly: true,
     externalCallsMade: 0,
@@ -152,6 +161,81 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(`Visual Hive MCP smoke passed: ${summary.resourcesListed} resources, ${summary.toolsListed} read tools, ${summary.disabledExecutionTools.length} disabled execution tools.`);
+
+async function runStdioMcpSmoke() {
+  const stderrChunks = [];
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [cliPath, "mcp", "--config", config, "--stdio"],
+    cwd: repoRoot,
+    stderr: "pipe",
+    env: {
+      PATH: process.env.PATH ?? "",
+      NODE_ENV: process.env.NODE_ENV ?? "test"
+    }
+  });
+  transport.stderr?.on("data", (chunk) => {
+    stderrChunks.push(String(chunk));
+  });
+  const client = new Client({ name: "visual-hive-smoke", version: "0.0.0" }, { capabilities: {} });
+  try {
+    await withTimeout(client.connect(transport), 20_000, "MCP stdio client connect");
+    const resources = await withTimeout(client.listResources(), 10_000, "MCP stdio listResources");
+    const tools = await withTimeout(client.listTools(), 10_000, "MCP stdio listTools");
+    const issues = await withTimeout(client.readResource({ uri: "visual-hive://issues" }), 10_000, "MCP stdio read issues");
+    const issueTool = await withTimeout(client.callTool({ name: "visual_hive_list_issues", arguments: {} }), 10_000, "MCP stdio call visual_hive_list_issues");
+    const executionToolExposed = tools.tools.some((tool) => tool.name === "visual_hive_run" || tool.name === "visual_hive_open_pr");
+    return {
+      status: executionToolExposed ? "failed" : "passed",
+      resourcesListed: resources.resources.length,
+      toolsListed: tools.tools.length,
+      issueResourceBytes: JSON.stringify(issues.contents).length,
+      issueToolBytes: JSON.stringify(issueTool.content ?? issueTool).length,
+      executionToolsCallable: executionToolExposed,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      stderrExcerpt: sanitizeExcerpt(stderrChunks.join(""))
+    };
+  } catch (error) {
+    return {
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+      stderrExcerpt: sanitizeExcerpt(stderrChunks.join("")),
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    };
+  } finally {
+    try {
+      await client.close();
+    } catch {
+      await transport.close().catch(() => {});
+    }
+  }
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function sanitizeExcerpt(text) {
+  return text
+    .replace(/token=[^\s&]+/gi, "token=[redacted]")
+    .replace(/authorization:\s*bearer\s+[^\s]+/gi, "authorization: bearer [redacted]")
+    .replace(/cookie:\s*[^\n]+/gi, "cookie: [redacted]")
+    .slice(0, 1000);
+}
 
 async function ensureArtifacts() {
   const missing = requiredArtifacts.filter((artifact) => !existsSync(path.join(root, artifact)));

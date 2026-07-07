@@ -25,7 +25,7 @@ npm run demo:mcp
 npm run demo:mcp:smoke
 ```
 
-The smoke test reads real Visual Hive artifacts, verifies the manifest, exercises at least ten read-only resources/tools, and confirms execution/write-capable tools are listed as disabled rather than callable.
+The smoke test reads real Visual Hive artifacts, verifies the manifest, exercises at least ten read-only resources/tools, and confirms execution/write-capable tools are listed as disabled rather than callable. It also starts `node packages/cli/dist/index.js mcp --stdio` as a bounded subprocess through the MCP SDK `StdioClientTransport`, then verifies that a real MCP client can initialize, list resources/tools, read `visual-hive://issues`, call `visual_hive_list_issues`, and close cleanly with zero network or external calls.
 
 For first-time setup before a config exists, use manifest-only repo mode:
 
