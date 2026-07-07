@@ -8,13 +8,13 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `f0c3ccc1eece85e60c98e742f811e2c4977e5991` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `0c5da7b2d7a99edb46539155c9a0478706ea143b` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `d36b576178cd756d4c9ab819f45cdcdad000a65e` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28882736447` for commit `f0c3ccc`.
-- Product `Product Proof` passed on `main` run `28882736444` for commit `f0c3ccc`.
+- Product `CI` passed on `main` run `28883222683` for commit `0c5da7b`.
+- Product `Product Proof` passed on `main` run `28883222687` for commit `0c5da7b`.
 - Product workflow audit reports zero critical/high findings, zero `pull_request_target` workflows, zero PR secrets/write permissions, and zero tag/unpinned external actions.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
@@ -27,6 +27,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles planning-only diffs without running deterministic contracts. Temporary smoke PR #7 passed the `visual-hive` check on run `28864434672` and was closed/deleted after validation.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
+- Guarded live issue smoke updated existing demo-site issue #4 (`https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/4`) with `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true`; it reported `realGithubIssuesCreated: 0`, `realGithubIssuesUpdated: 1`, and no local absolute path leaks in the published body.
 - Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
 - `visual-hive path-scan` is the first-class issue-facing path leak scanner. It writes `.visual-hive/path-leak-scan.json`, is cataloged as `visual-hive://path-leak-scan` / `visual_hive_read_path_leak_scan`, and is wired into both the product demo full-run and the external demo-site production/full-run gates.
 

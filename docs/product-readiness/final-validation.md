@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `f0c3ccc1eece85e60c98e742f811e2c4977e5991` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `0c5da7b2d7a99edb46539155c9a0478706ea143b` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 372 tests passed, including issue-facing path scan coverage | Pass |
@@ -31,8 +31,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
 | Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
-| Product CI | GitHub Actions run `28882736447` | Product CI passes on `main` | Passed for commit `f0c3ccc` | Pass |
-| Product Proof | GitHub Actions run `28882736444` | Product proof passes on `main` | Passed for commit `f0c3ccc`, including `github-app:smoke:server` and pinned workflow actions | Pass |
+| Product CI | GitHub Actions run `28883222683` | Product CI passes on `main` | Passed for commit `0c5da7b` | Pass |
+| Product Proof | GitHub Actions run `28883222687` | Product proof passes on `main` | Passed for commit `0c5da7b`, including `github-app:smoke:server` and pinned workflow actions | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
@@ -76,13 +76,14 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Baseline safety | Demo-site workflow audit and production smoke | Baseline review artifact exists; no silent approval | Passed; production smoke generates baseline review before upload | Pass |
 | Paid provider/Hive/LLM calls | Smoke summaries and issue publish dry-runs | No paid provider, Hive API, or LLM calls by default | External/network counters remain zero on local/default path | Pass |
 | Issue #6 dedupe/resolved candidate | `gh issue view 6 --repo DavidDiaz0317/visual-hive-demo-site` | Existing live proof issue has dedupe marker, resolved-candidate label, and no local path leaks | Passed; issue is open, labeled `visual-hive/resolved-candidate`, body contains Visual Hive dedupe marker, local path scan false | Pass |
+| Issue #4 guarded live smoke | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke`; `gh issue view 4 --repo DavidDiaz0317/visual-hive-demo-site` | Explicit trusted live smoke updates exactly one issue, creates no duplicate, and publishes only repo-relative artifact paths | Passed; `.visual-hive/live-issue-smoke.json` reports `realGithubIssuesCreated: 0`, `realGithubIssuesUpdated: 1`, issue URL `https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/4`, and body path scan found no `C:/Users`, `OneDrive`, `/Users/`, `/home/`, or drive-letter artifact paths | Pass |
 
 ## Guarded Live Paths
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | GitHub App live mode | `packages/github-app` tests and docs | Live mode blocked without explicit env/auth guard | Tests pass; no live GitHub App credentials were provided in this run | Blocked by missing live credentials |
-| Live issue update | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke` | Optional trusted live issue update only with explicit guard/token | Not run in this validation pass; previous issue #6 proof remains clean and deduped | Blocked by missing explicit live guard/token |
+| Live issue update | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke` | Optional trusted live issue update only with explicit guard/token | Passed against demo-site issue #4 with token guard set; created 0 issues and updated 1 existing issue | Pass |
 | Codex CLI no-write agent | `codex --help` before attempting a real Codex issue-agent run | CLI help should be callable before adapter execution | `codex.exe` failed with `Access is denied`; deterministic local no-write agent remains passing | Blocked by local Codex CLI execution policy |
 
 ## Notes
