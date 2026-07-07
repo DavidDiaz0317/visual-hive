@@ -21,6 +21,13 @@ npm run build -w @visual-hive/github-app
 VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run dev -w @visual-hive/github-app
 ```
 
+Top-level aliases are also available:
+
+```bash
+npm run github-app:smoke:mock
+VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run github-app:dev
+```
+
 Health endpoints:
 
 - `GET /health`

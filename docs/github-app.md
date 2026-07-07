@@ -46,6 +46,13 @@ The local/server MVP package is `@visual-hive/github-app`. It provides:
 
 The package is mock/local first. It returns payloads and actions, but makes zero network calls unless a future trusted live path is explicitly implemented and guarded.
 
+From the product repo root:
+
+```bash
+npm run github-app:smoke:mock
+VISUAL_HIVE_GITHUB_APP_ALLOW_UNSIGNED_MOCKS=true npm run github-app:dev
+```
+
 Local server health endpoints:
 
 - `GET /health`

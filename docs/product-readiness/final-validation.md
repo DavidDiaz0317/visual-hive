@@ -23,6 +23,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product UI smoke | Covered by `npm run demo:full-run` | Control Plane smoke passes | Passed | Pass |
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 11 tests passed | Pass |
+| Product GitHub App root smoke | `npm run github-app:smoke:mock` | Root command builds app package and writes sanitized no-network workflow-run issue preview | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
 | Product CI | GitHub Actions run `28864611361` | Product CI passes on `main` | Passed for commit `0b8884f` | Pass |
