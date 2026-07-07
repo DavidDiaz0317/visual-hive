@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdir } from "node:fs/promises";
 import { sanitizeText, writeJson, writeText } from "@visual-hive/core";
+import { getGitHubAppEnvironmentReadiness } from "./env.js";
 import { handleVisualHiveGitHubAppWebhook, verifyGitHubWebhookSignature, type VisualHiveGitHubAppEventName, type VisualHiveGitHubAppWebhookResult } from "./webhook.js";
 
 export interface VisualHiveGitHubAppServerOptions {
@@ -54,10 +55,12 @@ async function handleRequest(
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/health")) {
+    const readiness = getGitHubAppEnvironmentReadiness(options.env);
     writeJsonResponse(response, 200, {
       status: "ok",
       service: "visual-hive-github-app",
-      mode: options.env.VISUAL_HIVE_GITHUB_APP_LIVE === "true" ? "live_guarded" : "mock_or_plan",
+      mode: readiness.mode,
+      readiness,
       externalCallsMade: 0,
       networkCallsMade: 0,
       checkoutPerformed: false,

@@ -22,7 +22,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised and execution/write tools disabled | Passed; 73 resources, 78 read tools, 9 disabled execution tools | Pass |
 | Product UI smoke | Covered by `npm run demo:full-run` | Control Plane smoke passes | Passed | Pass |
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
-| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-guard tests pass | 10 tests passed | Pass |
+| Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 11 tests passed | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
 | Product CI | GitHub Actions run `28856849311` | Product CI passes on `main` | Passed before latest sanitizer hardening commit; rerun after push required for new head | Pass |

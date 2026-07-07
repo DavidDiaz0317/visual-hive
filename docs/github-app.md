@@ -34,21 +34,24 @@ See also: `docs/product-readiness/github-app-production-mvp.md`.
 - `workflow_run`: after a trusted Visual Hive workflow completes, read uploaded artifacts and create/update Visual Hive issues from sanitized issue candidates.
 - `issues`: observe issue activity and validation labels; never execute code from issue content.
 
-The prototype package is `@visual-hive/github-app`. It provides:
+The local/server MVP package is `@visual-hive/github-app`. It provides:
 
 - `getVisualHiveGitHubAppPermissions`
 - `assertLeastPrivilegePermissions`
+- `getGitHubAppEnvironmentReadiness`
 - `verifyGitHubWebhookSignature`
 - `handleVisualHiveGitHubAppWebhook`
 - `buildSetupIssuePayload`
 - `buildIssuePayloadFromArtifactSummary`
 
-The package is mock/local first. It returns payloads and actions, but makes zero network calls.
+The package is mock/local first. It returns payloads and actions, but makes zero network calls unless a future trusted live path is explicitly implemented and guarded.
 
 Local server health endpoints:
 
 - `GET /health`
 - `GET /healthz`
+
+Health responses include a `readiness` object with boolean credential presence and missing environment variable names only. They never include private key, token, webhook secret, or installation values. In `VISUAL_HIVE_GITHUB_APP_LIVE=true`, the server reports `live_guard_blocked` until `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_WEBHOOK_SECRET` are configured.
 
 ## Trusted Publishing Pattern
 

@@ -26,6 +26,15 @@ Health endpoints:
 - `GET /health`
 - `GET /healthz`
 
+The health payload includes:
+
+- `mode`: `mock_or_plan`, `live_guard_blocked`, or `live_ready`.
+- `readiness.requiredForLive`: the exact environment variable names required for live operation.
+- `readiness.missingForLive`: missing environment variable names only.
+- boolean flags for whether app id, private key, installation id, webhook secret, mock mode, and live mode are configured.
+
+The health payload never includes private key contents, webhook secret contents, installation id values, tokens, or file path values. Path-based private key configuration is reported only as `privateKeySource: GITHUB_APP_PRIVATE_KEY_PATH`.
+
 Webhook endpoint:
 
 - `POST /webhooks/github`
@@ -52,6 +61,6 @@ Mock endpoints:
 - The app does not check out repository code.
 - The app does not run tests, approve baselines, repair code, push branches, open PRs, call Hive, call LLMs, or upload provider artifacts.
 
-## Current Live Gap
+## Current Live Boundary
 
-The current package produces safe action plans and issue payloads. Full live GitHub App artifact download and installation-token issue writes are intentionally still guarded direction work. The trusted `workflow_run` publisher in client repos provides the current live issue publishing path from sanitized artifacts.
+The current package produces safe action plans and issue payloads. It can report whether live GitHub App credentials are present, but full live GitHub App artifact download and installation-token issue writes remain guarded direction work. The trusted `workflow_run` publisher in client repos provides the current live issue publishing path from sanitized artifacts.

@@ -7,6 +7,7 @@ import {
   assertLeastPrivilegePermissions,
   buildIssuePayloadFromArtifactSummary,
   buildSetupIssuePayload,
+  getGitHubAppEnvironmentReadiness,
   getVisualHiveGitHubAppPermissions,
   handleVisualHiveGitHubAppWebhook,
   runGitHubAppMock,
@@ -69,6 +70,34 @@ describe("Visual Hive GitHub App prototype", () => {
     expect(verifyGitHubWebhookSignature(secret, payload, signature)).toBe(true);
     expect(verifyGitHubWebhookSignature(secret, payload, "sha256=bad")).toBe(false);
     expect(verifyGitHubWebhookSignature(secret, payload, undefined)).toBe(false);
+  });
+
+  it("reports GitHub App live readiness by env var name without leaking values", () => {
+    const blocked = getGitHubAppEnvironmentReadiness({
+      VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+      GITHUB_APP_ID: "12345",
+      GITHUB_APP_PRIVATE_KEY: "super-secret-private-key"
+    });
+    expect(blocked.mode).toBe("live_guard_blocked");
+    expect(blocked.missingForLive).toEqual(expect.arrayContaining(["GITHUB_APP_INSTALLATION_ID", "GITHUB_WEBHOOK_SECRET"]));
+    expect(JSON.stringify(blocked)).not.toContain("super-secret-private-key");
+
+    const ready = getGitHubAppEnvironmentReadiness({
+      VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+      GITHUB_APP_ID: "12345",
+      GITHUB_APP_PRIVATE_KEY_PATH: "/run/secrets/github-app.pem",
+      GITHUB_APP_INSTALLATION_ID: "67890",
+      GITHUB_WEBHOOK_SECRET: "webhook-secret"
+    });
+    expect(ready).toMatchObject({
+      mode: "live_ready",
+      privateKeySource: "GITHUB_APP_PRIVATE_KEY_PATH",
+      missingForLive: [],
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    });
+    expect(JSON.stringify(ready)).not.toContain("webhook-secret");
+    expect(JSON.stringify(ready)).not.toContain("/run/secrets/github-app.pem");
   });
 
   it("creates setup issue actions from installation events without executing repo code", () => {
@@ -152,7 +181,13 @@ describe("Visual Hive GitHub App prototype", () => {
     try {
       const health = await fetch(`${app.url}/healthz`);
       expect(health.status).toBe(200);
-      expect(await health.json()).toMatchObject({ status: "ok", mode: "mock_or_plan", externalCallsMade: 0, repoCodeExecuted: false });
+      expect(await health.json()).toMatchObject({
+        status: "ok",
+        mode: "mock_or_plan",
+        readiness: { mode: "mock_or_plan", mockModeEnabled: true, liveModeRequested: false, externalCallsMade: 0 },
+        externalCallsMade: 0,
+        repoCodeExecuted: false
+      });
 
       const healthAlias = await fetch(`${app.url}/health`);
       expect(healthAlias.status).toBe(200);
@@ -201,7 +236,22 @@ describe("Visual Hive GitHub App prototype", () => {
     });
     try {
       const health = await fetch(`${app.url}/health`);
-      expect(await health.json()).toMatchObject({ mode: "live_guarded", externalCallsMade: 0, repoCodeExecuted: false });
+      const healthBody = await health.json();
+      expect(healthBody).toMatchObject({
+        mode: "live_guard_blocked",
+        readiness: {
+          mode: "live_guard_blocked",
+          missingForLive: expect.arrayContaining([
+            "GITHUB_APP_ID",
+            "GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH",
+            "GITHUB_APP_INSTALLATION_ID",
+            "GITHUB_WEBHOOK_SECRET"
+          ])
+        },
+        externalCallsMade: 0,
+        repoCodeExecuted: false
+      });
+      expect(JSON.stringify(healthBody)).not.toContain("secret-value");
       const response = await fetch(`${app.url}/webhooks/github`, {
         method: "POST",
         body: JSON.stringify({ repositories: [] }),
