@@ -25,6 +25,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 15 tests passed | Pass |
 | Product GitHub App root smoke | `npm run github-app:smoke:mock` | Root command builds app package and writes sanitized no-network workflow-run issue preview | Passed; external calls 0, network calls 0, repo code executed false | Pass |
+| Product GitHub App server smoke | `npm run github-app:smoke:server` | Root command builds app package, starts local server, checks `/health`, posts mock installation, writes sanitized setup preview, and makes no network/external calls | Passed locally; added to Product Proof workflow | Pass |
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |

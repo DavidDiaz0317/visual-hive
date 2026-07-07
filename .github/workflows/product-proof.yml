@@ -33,6 +33,7 @@ jobs:
       - run: npm run demo:agent-issue-run
       - run: npm run demo:mcp
       - run: npm run demo:mcp:smoke
+      - run: npm run github-app:smoke:server
       - run: npm run github-app:smoke:artifacts
       - run: npm run smoke:ui
       - run: npm run smoke:ui:browser
