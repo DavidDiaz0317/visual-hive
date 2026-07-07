@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { VISUAL_HIVE_EVIDENCE_RESOURCES, type EvidenceResourceDefinition } from "../tools/evidenceResources.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 
 export type ArtifactKind = "json" | "markdown" | "image" | "text" | "typescript" | "yaml" | "log" | "other";
 
@@ -176,7 +176,7 @@ async function artifactEntry(input: {
   const contentType = artifactContentType(kind, input.filePath);
   const repoRelativePath = toRepoRelativePath(input.repoRoot, input.filePath);
   const evidenceResource = evidenceResourceFor(repoRelativePath);
-  const preview = await previewFor(input.filePath, kind, input.maxPreviewBytes);
+  const preview = await previewFor(input.repoRoot, input.filePath, kind, input.maxPreviewBytes);
   const labels = labelsFor(input.filePath, kind);
   if (evidenceResource) labels.push(evidenceResource.id, "evidence-resource");
   const schemaPath = schemaPathFor(input.filePath, kind);
@@ -214,6 +214,7 @@ function evidenceResourceFor(repoRelativePath: string): EvidenceResourceDefiniti
 }
 
 async function previewFor(
+  repoRoot: string,
   filePath: string,
   kind: ArtifactKind,
   maxPreviewBytes: number
@@ -222,7 +223,7 @@ async function previewFor(
   const raw = await readFile(filePath);
   const slice = raw.subarray(0, maxPreviewBytes);
   const before = slice.toString("utf8");
-  const text = sanitizeText(before);
+  const text = sanitizeArtifactPathsForMarkdown(repoRoot, sanitizeText(before));
   return {
     text,
     truncated: raw.length > maxPreviewBytes,

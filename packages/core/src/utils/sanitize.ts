@@ -16,6 +16,7 @@ const SECRET_KEYS = [
 
 const REDACTION = "[REDACTED]";
 const EXTERNAL_PATH_REDACTION = "[redacted-external-path]";
+const LOCAL_PATH_SLUG_REDACTION = "[redacted-local-path-slug]";
 
 export function sanitizeText(input: string): string {
   let value = input;
@@ -80,10 +81,12 @@ export function sanitizeArtifactPathForIssue(rootDir: string, artifactPath: stri
 
 export function sanitizeArtifactPathsForMarkdown(rootDir: string, markdown: string): string {
   let value = sanitizeText(markdown);
-  value = value.replace(/[A-Za-z]:[\\/][^\s`)\]]+/g, (match) => sanitizeArtifactPathForIssue(rootDir, trimPathMatch(match)));
-  value = value.replace(/(^|[\s([])(\/(?:Users|home)\/[^\s`)\]]+)/g, (_match, prefix: string, absolutePath: string) => {
+  value = value.replace(/[A-Za-z]:[\\/][^\s`)\]}",']+/g, (match) => sanitizeArtifactPathForIssue(rootDir, trimPathMatch(match)));
+  value = value.replace(/(^|[\s(["'])(\/(?:Users|home)\/[^\s`)\]}",']+)/g, (_match, prefix: string, absolutePath: string) => {
     return `${prefix}${sanitizeArtifactPathForIssue(rootDir, trimPathMatch(absolutePath))}`;
   });
+  value = value.replace(/\b[A-Za-z]__Users_[A-Za-z0-9._-]+(?:_OneDrive)?(?:_[A-Za-z0-9._-]+){2,}/g, LOCAL_PATH_SLUG_REDACTION);
+  value = value.replace(/\b(?:Users|home)_[A-Za-z0-9._-]+(?:_[A-Za-z0-9._-]+){2,}/g, LOCAL_PATH_SLUG_REDACTION);
   return value;
 }
 

@@ -5193,6 +5193,46 @@ describe("artifact index", () => {
     expect(artifactIndex.warnings.join(" ")).toContain("maxArtifacts=3");
   });
 
+  it("sanitizes absolute local paths in artifact previews", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-sanitize-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(hiveRoot, { recursive: true });
+    const insideReportPath = path.join(hiveRoot, "report.json");
+    await writeFile(
+      insideReportPath,
+      JSON.stringify(
+        {
+          schemaVersion: 2,
+          status: "failed",
+          generatedSpecPath: insideReportPath,
+          windowsExternalPath: "C:\\Users\\david\\OneDrive\\Documents\\secret\\debug.log",
+          windowsSlashExternalPath: "C:/Users/david/OneDrive/Documents/secret/debug.log",
+          posixExternalPath: "/home/david/private/token.txt",
+          macExternalPath: "/Users/david/private/token.txt",
+          pathDerivedNodeId: "baseline:C__Users_david_OneDrive_Documents_visual-hive-demo-site_.visual-hive_snapshots_dashboard.png"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const artifactIndex = await indexArtifacts({ repoRoot: tempRoot });
+    const report = artifactIndex.artifacts.find((artifact) => artifact.path === ".visual-hive/report.json");
+
+    expect(report?.preview).toContain(".visual-hive/report.json");
+    expect(report?.preview).toContain("[redacted-external-path]/debug.log");
+    expect(report?.preview).toContain("[redacted-external-path]/token.txt");
+    expect(report?.preview).toContain("[redacted-local-path-slug]");
+    expect(report?.preview).not.toContain("C:\\Users");
+    expect(report?.preview).not.toContain("C:/Users");
+    expect(report?.preview).not.toContain("OneDrive");
+    expect(report?.preview).not.toContain("/home/david");
+    expect(report?.preview).not.toContain("/Users/david");
+    expect(report?.previewRedacted).toBe(true);
+  });
+
   it("labels setup recommendation artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-recommend-"));
     tempDirs.push(tempRoot);

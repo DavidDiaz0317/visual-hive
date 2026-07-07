@@ -5057,6 +5057,7 @@ contracts:
 
     const result = await runSnapshotCommand({ cwd: tempRoot });
     const summary = formatSnapshotResult(result);
+    const rawSnapshotText = await readFile(result.snapshotPath, "utf8");
     const written = await readJson<{ schemaVersion: number; guidanceState: { adoptionChecklist: Array<{ commandId?: string }> }; runbook: { commands: Array<{ id: string }> } }>(
       result.snapshotPath
     );
@@ -5066,6 +5067,12 @@ contracts:
     expect(written.schemaVersion).toBe(1);
     expect(written.guidanceState.adoptionChecklist.map((item) => item.commandId)).toContain("plan-pr");
     expect(written.runbook.commands.map((command) => command.id)).toContain("doctor");
+    expect(rawSnapshotText).not.toContain(tempRoot);
+    expect(rawSnapshotText).not.toContain("C:\\Users");
+    expect(rawSnapshotText).not.toContain("C:/Users");
+    expect(rawSnapshotText).not.toContain("OneDrive");
+    expect(rawSnapshotText).not.toContain("/home/");
+    expect(rawSnapshotText).not.toContain("/Users/");
     expect(summary).toContain("Control Plane Snapshot");
     expect(summary).toContain("Schema: schemas/visual-hive.control-plane-snapshot.schema.json");
 

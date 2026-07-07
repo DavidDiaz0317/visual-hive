@@ -1,6 +1,6 @@
 import path from "node:path";
 import { createControlPlaneSnapshot, type ControlPlaneSnapshot } from "@visual-hive/control-plane";
-import { sanitizeText, writeJson } from "@visual-hive/core";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText, writeJson } from "@visual-hive/core";
 
 export interface SnapshotCommandOptions {
   cwd?: string;
@@ -22,15 +22,14 @@ export async function runSnapshotCommand(options: SnapshotCommandOptions = {}): 
   const cwd = options.cwd ?? process.cwd();
   const repo = path.resolve(cwd, options.repo ?? ".");
   const config = path.resolve(cwd, options.config ?? path.join(repo, "visual-hive.config.yaml"));
-  const snapshot = sanitizeSnapshot(
-    await createControlPlaneSnapshot({
-      repo,
-      config,
-      readOnly: options.readOnly ?? true,
-      cliPath: process.argv[1]?.endsWith(".js") ? process.argv[1] : undefined
-    })
-  );
-  const snapshotPath = resolveSnapshotOutput(snapshot.configRoot, options.output ?? DEFAULT_SNAPSHOT_PATH);
+  const rawSnapshot = await createControlPlaneSnapshot({
+    repo,
+    config,
+    readOnly: options.readOnly ?? true,
+    cliPath: process.argv[1]?.endsWith(".js") ? process.argv[1] : undefined
+  });
+  const snapshotPath = resolveSnapshotOutput(rawSnapshot.configRoot, options.output ?? DEFAULT_SNAPSHOT_PATH);
+  const snapshot = sanitizeSnapshot(rawSnapshot);
   await writeJson(snapshotPath, snapshot);
   return { snapshot, snapshotPath };
 }
@@ -64,7 +63,42 @@ function resolveSnapshotOutput(configRoot: string, output: string): string {
 }
 
 function sanitizeSnapshot(snapshot: ControlPlaneSnapshot): ControlPlaneSnapshot {
-  return JSON.parse(sanitizeText(JSON.stringify(snapshot))) as ControlPlaneSnapshot;
+  return sanitizeSnapshotValue(snapshot, snapshot.repoRoot) as ControlPlaneSnapshot;
+}
+
+function sanitizeSnapshotValue(value: unknown, repoRoot: string): unknown {
+  if (typeof value === "string") {
+    const text = sanitizeText(value);
+    if (!hasPathLikeContent(text)) {
+      return text;
+    }
+    return isLikelyAbsolutePath(text) ? sanitizeArtifactPathForIssue(repoRoot, text) : sanitizeArtifactPathsForMarkdown(repoRoot, text);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeSnapshotValue(entry, repoRoot));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeSnapshotValue(entry, repoRoot)]));
+  }
+  return value;
+}
+
+function isLikelyAbsolutePath(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/");
+  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("/Users/") || normalized.startsWith("/home/") || normalized.startsWith("/");
+}
+
+function hasPathLikeContent(value: string): boolean {
+  return (
+    value.includes(":\\") ||
+    value.includes(":/") ||
+    value.includes("/Users/") ||
+    value.includes("/home/") ||
+    value.includes("OneDrive") ||
+    value.includes("__Users_") ||
+    value.includes("Users_") ||
+    value.includes("home_")
+  );
 }
 
 function isInsideOrEqual(parent: string, child: string): boolean {

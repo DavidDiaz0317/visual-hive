@@ -6,8 +6,8 @@ Generated for the production installation hardening pass.
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `86cc790d58786ee2a867fec89e6066af46a59654` at inspection time | `main` is fresher than `codex/control-plane-guided-cockpit`; product workflows should use `main`. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `7662561e2106fe4ee944a5fcfce403dd43894bf9` at inspection time | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | `6c037bdbfd1ece3ed1095b129c5fd1002306d5ee` before the path-sanitization hardening commit | `main` is fresher than `codex/control-plane-guided-cockpit`; product workflows should use `main`. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `17e327e44bf20bb5a1905a6537bb8deea4e1af44` at inspection time | Demo-site is the canonical external client installation. |
 
 ## Stale Reference Cleanup
 
@@ -31,3 +31,7 @@ The local/default path remains no-network:
 - no source mutation.
 
 Live GitHub issue publishing and GitHub App operation require explicit trusted workflow or local live-smoke guards.
+
+## Current Cleanup Focus
+
+The latest hardening pass closes a trusted-publisher blocker where `artifacts-index.json` previews could retain local absolute path evidence or path-derived slugs. Artifact previews and persisted Control Plane snapshots now sanitize repo-local paths to repo-relative form and redact external/user-home paths before they are exposed to issue publishers, MCP readers, or trusted workflow scans.
