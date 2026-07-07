@@ -8,13 +8,13 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `fc6b946ea62f937dacc3ded1283455fe004450db` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `ada93cfe9bdf91c2cc9da7b0e968987d89ab0bc4` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `5c6598f4cefa734044f57d2ba15b96bbdace3e9f` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28893111855` for commit `fc6b946e`.
-- Product `Product Proof` passed on `main` run `28893111852` for commit `fc6b946e`.
+- Product `CI` passed on `main` run `28905676585` for commit `ada93cfe`.
+- Product `Product Proof` passed on `main` run `28905676573` for commit `ada93cfe`, including the blocked-by-default GitHub App live-smoke proof.
 - Product workflow audit reports zero critical/high findings, zero `pull_request_target` workflows, zero PR secrets/write permissions, and zero tag/unpinned external actions.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
