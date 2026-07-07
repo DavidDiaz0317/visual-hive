@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -15,6 +15,50 @@ const summaryJsonPath = path.join(demoHive, "full-demo-summary.json");
 const summaryMarkdownPath = path.join(demoHive, "full-demo-summary.md");
 
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEMO_TARGET_URL = "http://127.0.0.1:4173";
+const DEMO_TARGET_IDLE_TIMEOUT_MS = 15_000;
+const TARGET_OWNING_SCRIPTS = new Set(["demo:run:seed", "demo:run:ci", "demo:mutate", "demo:e2e:defect", "smoke:ui:browser"]);
+const NORMAL_PLAN_TARGET_SCRIPTS = new Set(["demo:run:seed", "demo:run:ci", "demo:mutate"]);
+const DIRECT_SCRIPT_COMMANDS = new Map([
+  [
+    "demo:run:seed",
+    [
+      "scripts/run-with-env.mjs",
+      "VISUAL_HIVE_CI=false",
+      "--",
+      process.execPath,
+      "packages/cli/dist/index.js",
+      "run",
+      "--config",
+      "examples/demo-react-app/visual-hive.config.yaml",
+      "--plan",
+      ".visual-hive/plan.json",
+      "--skip-install",
+      "--skip-build"
+    ]
+  ],
+  [
+    "demo:run:ci",
+    [
+      "scripts/run-with-env.mjs",
+      "VISUAL_HIVE_CI=true",
+      "--",
+      process.execPath,
+      "packages/cli/dist/index.js",
+      "run",
+      "--config",
+      "examples/demo-react-app/visual-hive.config.yaml",
+      "--plan",
+      ".visual-hive/plan.json",
+      "--ci",
+      "--skip-install",
+      "--skip-build"
+    ]
+  ],
+  ["demo:mutate", ["packages/cli/dist/index.js", "mutate", "--config", "examples/demo-react-app/visual-hive.config.yaml", "--skip-install", "--skip-build"]],
+  ["demo:e2e:defect", ["scripts/run-demo-defect.mjs"]],
+  ["smoke:ui:browser", ["scripts/smoke-ui-browser.mjs"]]
+]);
 const TIMEOUTS_BY_SCRIPT = {
   "demo:build": 180_000,
   "demo:run:seed": 180_000,
@@ -175,6 +219,7 @@ const sections = [
       "demo:agent-packet:provider",
       "demo:tools",
       "demo:mcp",
+      "demo:history",
       "demo:context",
       "demo:schemas"
     ],
@@ -208,6 +253,7 @@ const results = [];
 let seededDefectGeneratedAtMs = 0;
 
 console.log("[demo:full-run] starting complete Visual Hive demo tool-suite acceptance run");
+await cleanupDemoTargetListeners("suite start");
 
 for (const currentSection of sections) {
   console.log(`\n[demo:full-run] ${currentSection.name}`);
@@ -746,14 +792,120 @@ async function getGitHeadSha() {
 async function runScript(scriptName) {
   const timeoutMs = TIMEOUTS_BY_SCRIPT[scriptName] ?? DEFAULT_TIMEOUT_MS;
   const step = scriptCommand(scriptName, timeoutMs);
+  if (NORMAL_PLAN_TARGET_SCRIPTS.has(scriptName)) {
+    await ensureNormalDemoPlan(scriptName);
+  }
+  if (TARGET_OWNING_SCRIPTS.has(scriptName)) {
+    await cleanupDemoTargetListeners(`before ${scriptName}`);
+    await waitForDemoTargetIdle(`${scriptName} cannot start`);
+  }
   console.log(`[demo:full-run] running ${scriptName} (${Math.round(timeoutMs / 1000)}s timeout)`);
   const result = await runStep(step);
   if (result.status !== 0) {
     throw new Error(`${scriptName} failed with exit code ${result.status}.`);
   }
+  if (TARGET_OWNING_SCRIPTS.has(scriptName)) {
+    await cleanupDemoTargetListeners(`after ${scriptName}`);
+    await waitForDemoTargetIdle(`${scriptName} did not finish cleanly`);
+  }
+}
+
+async function ensureNormalDemoPlan(scriptName) {
+  const planPath = path.join(demoHive, "plan.json");
+  if (!(await planContainsSeededDefect(planPath))) return;
+  console.log(`[demo:full-run] regenerating normal demo plan before ${scriptName}`);
+  const result = await runStep({
+    label: "restore-normal-demo-plan",
+    executable: process.execPath,
+    args: [
+      "packages/cli/dist/index.js",
+      "plan",
+      "--config",
+      "examples/demo-react-app/visual-hive.config.yaml",
+      "--mode",
+      "pr",
+      "--changed-files",
+      "examples/demo-react-app/changed-files.txt"
+    ],
+    timeoutMs: DEFAULT_TIMEOUT_MS
+  });
+  if (result.status !== 0) {
+    throw new Error(`Could not regenerate normal demo plan before ${scriptName}; plan command exited ${result.status}.`);
+  }
+  if (await planContainsSeededDefect(planPath)) {
+    throw new Error(`Normal demo plan still contains seeded defect contract before ${scriptName}.`);
+  }
+}
+
+async function planContainsSeededDefect(planPath) {
+  if (!existsSync(planPath)) return false;
+  const plan = await readJson(planPath);
+  return JSON.stringify(plan).includes("seeded-force-login-public-demo");
+}
+
+async function waitForDemoTargetIdle(context) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < DEMO_TARGET_IDLE_TIMEOUT_MS) {
+    if (!(await isDemoTargetReachable())) return;
+    await sleep(500);
+  }
+  throw new Error(`${context} because ${DEMO_TARGET_URL} is still reachable after ${DEMO_TARGET_IDLE_TIMEOUT_MS}ms.`);
+}
+
+async function cleanupDemoTargetListeners(context) {
+  if (process.platform !== "win32") {
+    return;
+  }
+  const parsed = new globalThis.URL(DEMO_TARGET_URL);
+  const pids = windowsListenerPidsForPort(parsed.port);
+  if (pids.size === 0) {
+    return;
+  }
+  console.log(`[demo:full-run] cleaning ${pids.size} stale demo listener(s) on ${DEMO_TARGET_URL} (${context})`);
+  for (const pid of pids) {
+    spawnSync("taskkill", ["/pid", pid, "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  }
+  await waitForDemoTargetIdle(`demo target cleanup for ${context} did not finish`);
+}
+
+function windowsListenerPidsForPort(port) {
+  const netstat = spawnSync("netstat", ["-ano"], { encoding: "utf8", windowsHide: true });
+  const output = `${netstat.stdout ?? ""}\n${netstat.stderr ?? ""}`;
+  const pids = new Set();
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.includes("LISTENING")) continue;
+    const columns = line.trim().split(/\s+/);
+    const localAddress = columns[1] ?? "";
+    const pid = columns[columns.length - 1];
+    if (localAddress.endsWith(`:${port}`) && /^\d+$/.test(pid)) {
+      pids.add(pid);
+    }
+  }
+  return pids;
+}
+
+async function isDemoTargetReachable() {
+  const controller = new globalThis.AbortController();
+  const timer = setTimeout(() => controller.abort(), 500);
+  try {
+    await fetch(DEMO_TARGET_URL, { signal: controller.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function scriptCommand(name, timeoutMs) {
+  const directArgs = DIRECT_SCRIPT_COMMANDS.get(name);
+  if (directArgs) {
+    return { label: name, executable: process.execPath, args: directArgs, timeoutMs };
+  }
   if (process.platform === "win32") {
     return { label: name, executable: process.env.ComSpec ?? "cmd.exe", args: ["/d", "/s", "/c", "npm", "run", name], timeoutMs };
   }

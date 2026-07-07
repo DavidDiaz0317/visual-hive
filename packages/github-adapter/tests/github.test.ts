@@ -264,6 +264,57 @@ describe("buildIssueBody", () => {
     expect(body).not.toContain("secret-token");
     expect(body).not.toContain("secret-value");
   });
+
+  it("sanitizes absolute artifact paths in issue markdown", () => {
+    const rootDir = "C:/Users/david/OneDrive/Documents/visual-hive-demo-site";
+    const body = buildIssueBody({
+      rootDir,
+      artifacts: [
+        "C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/artifacts/screenshots/home.png",
+        "C:/Users/david/private/tokens/debug.log",
+        "/home/david/private/outside.png"
+      ],
+      report: {
+        schemaVersion: 2,
+        project: "sample",
+        repository: sampleRepository,
+        mode: "pr",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        status: "passed",
+        changedFiles: [],
+        selectedTargets: [],
+        selectedContracts: [],
+        excludedContracts: [],
+        targetLifecycle: [],
+        generatedSpecPath: "C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/generated/visual-hive.generated.spec.ts",
+        summary: {
+          passed: 1,
+          failed: 0,
+          screenshotsPassed: 0,
+          screenshotsFailed: 0,
+          baselinesCreated: 0,
+          createdBaselines: 0,
+          missingBaselines: 0,
+          visualDiffs: 0,
+          consoleErrors: 0,
+          pageErrors: 0
+        },
+        consoleErrors: [],
+        pageErrors: [],
+        artifacts: ["C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json"],
+        providerResults: [],
+        reproductionCommands: ["visual-hive run --ci"],
+        results: []
+      }
+    });
+
+    expect(body).toContain(".visual-hive/artifacts/screenshots/home.png");
+    expect(body).toContain("[redacted-external-path]/debug.log");
+    expect(body).toContain("[redacted-external-path]/outside.png");
+    expect(body).not.toContain("C:/Users/david");
+    expect(body).not.toContain("/home/david/private");
+    expect(body).not.toContain("OneDrive");
+  });
 });
 
 describe("buildPrComment", () => {

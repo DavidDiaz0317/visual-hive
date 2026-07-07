@@ -41,51 +41,68 @@ export function sanitizeText(input: string): string {
   return value;
 }
 
-export function repoRelativeArtifactPath(repoRoot: string, artifactPath: string): string {
-  const cleaned = sanitizeText(artifactPath).replaceAll("\\", "/");
-  if (!cleaned.trim()) return cleaned;
-  if (!looksLikeAbsolutePath(cleaned)) return cleaned;
+export function repoRelativeArtifactPath(rootDir: string, artifactPath: string): string | undefined {
+  const root = normalizePathForIssue(rootDir).replace(/\/+$/g, "");
+  const candidate = normalizePathForIssue(artifactPath);
+  const rootKey = lowerDrivePath(root);
+  const candidateKey = lowerDrivePath(candidate);
 
-  const root = normalizePathForCompare(repoRoot);
-  const candidate = normalizePathForCompare(cleaned);
-  if (candidate === root) return ".";
-  if (candidate.startsWith(`${root}/`)) {
+  if (candidateKey === rootKey) {
+    return ".";
+  }
+
+  if (candidateKey.startsWith(`${rootKey}/`)) {
     return candidate.slice(root.length + 1);
   }
 
-  return `${EXTERNAL_PATH_REDACTION}/${safeBasename(cleaned)}`;
+  return undefined;
 }
 
-export function sanitizeArtifactPathForIssue(repoRoot: string, artifactPath: string): string {
-  return repoRelativeArtifactPath(repoRoot, artifactPath);
+export function sanitizeArtifactPathForIssue(rootDir: string, artifactPath: string | undefined): string {
+  if (!artifactPath) {
+    return "";
+  }
+
+  const sanitized = sanitizeText(artifactPath);
+  const normalized = normalizePathForIssue(sanitized);
+  if (!isLikelyAbsolutePath(normalized)) {
+    return normalized;
+  }
+
+  const relative = repoRelativeArtifactPath(rootDir, normalized);
+  if (relative) {
+    return relative;
+  }
+
+  const basename = normalized.split("/").filter(Boolean).at(-1) ?? "artifact";
+  return `${EXTERNAL_PATH_REDACTION}/${basename}`;
 }
 
-export function sanitizeArtifactPathsForMarkdown(repoRoot: string, markdown: string): string {
-  const windowsAbsolutePath = /[A-Za-z]:[\\/][^\s)\],`'"]+/g;
-  const userPosixPath = /\/(?:Users|home)\/[^\s)\],`'"]+/g;
-  return sanitizeText(markdown)
-    .replace(windowsAbsolutePath, (match) => sanitizeArtifactPathForIssue(repoRoot, match))
-    .replace(userPosixPath, (match) => sanitizeArtifactPathForIssue(repoRoot, match));
+export function sanitizeArtifactPathsForMarkdown(rootDir: string, markdown: string): string {
+  let value = sanitizeText(markdown);
+  value = value.replace(/[A-Za-z]:[\\/][^\s`)\]]+/g, (match) => sanitizeArtifactPathForIssue(rootDir, trimPathMatch(match)));
+  value = value.replace(/(^|[\s([])(\/(?:Users|home)\/[^\s`)\]]+)/g, (_match, prefix: string, absolutePath: string) => {
+    return `${prefix}${sanitizeArtifactPathForIssue(rootDir, trimPathMatch(absolutePath))}`;
+  });
+  return value;
 }
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function looksLikeAbsolutePath(value: string): boolean {
-  return /^[A-Za-z]:\//.test(value) || value.startsWith("/");
+function normalizePathForIssue(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
 }
 
-function normalizePathForCompare(value: string): string {
-  let normalized = value.replaceAll("\\", "/");
-  normalized = normalized.replace(/^file:\/+/i, "");
-  normalized = normalized.replace(/\/+/g, "/");
-  normalized = normalized.replace(/\/$/g, "");
-  return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
+function lowerDrivePath(value: string): string {
+  return /^[A-Za-z]:\//.test(value) ? value.toLowerCase() : value;
 }
 
-function safeBasename(value: string): string {
-  const normalized = value.replaceAll("\\", "/").replace(/\/+$/g, "");
-  const basename = normalized.split("/").filter(Boolean).pop() ?? "artifact";
-  return sanitizeText(basename).replace(/[^A-Za-z0-9_.-]+/g, "-") || "artifact";
+function isLikelyAbsolutePath(value: string): boolean {
+  return /^[A-Za-z]:\//.test(value) || value.startsWith("/Users/") || value.startsWith("/home/") || value.startsWith("/");
+}
+
+function trimPathMatch(value: string): string {
+  return value.replace(/[.,;:]+$/g, "");
 }

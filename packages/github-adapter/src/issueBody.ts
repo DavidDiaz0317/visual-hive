@@ -1,4 +1,4 @@
-import type { MockProviderRunReport, MutationReport, ReadinessReport, Report, TriageFinding, WorkflowAuditReport } from "@visual-hive/core";
+import { sanitizeArtifactPathsForMarkdown, type MockProviderRunReport, type MutationReport, type ReadinessReport, type Report, type TriageFinding, type WorkflowAuditReport } from "@visual-hive/core";
 import { sanitizeMarkdown } from "./sanitize.js";
 
 export interface IssueBodyInput {
@@ -10,6 +10,7 @@ export interface IssueBodyInput {
   findings?: TriageFinding[];
   reproductionCommands?: string[];
   artifacts?: string[];
+  rootDir?: string;
 }
 
 export function buildIssueBody(input: IssueBodyInput): string {
@@ -171,7 +172,7 @@ export function buildIssueBody(input: IssueBodyInput): string {
     }
   }
 
-  return sanitizeMarkdown(`${lines.join("\n")}\n`);
+  return sanitizeArtifactPathsForMarkdown(input.rootDir ?? process.cwd(), sanitizeMarkdown(`${lines.join("\n")}\n`));
 }
 
 function formatReadiness(report?: ReadinessReport): string {

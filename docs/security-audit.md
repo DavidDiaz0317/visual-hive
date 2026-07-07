@@ -1,51 +1,39 @@
-# npm Audit Risk Acceptance
+# Security Audit Posture
 
-Last reviewed: 2026-07-06
+Last reviewed: 2026-07-07
 
-Revisit by: 2026-08-06 or before the next public package release, whichever comes first.
+## Current npm audit result
 
-## Current Audit Result
+`npm audit --workspaces` currently reports 5 findings through the development test/build chain:
 
-Command:
+- `esbuild <=0.24.2` via `vite`
+- `vite <=6.4.2`
+- `@vitest/mocker <=3.0.0-beta.4`
+- `vite-node <=2.2.0-beta.2`
+- `vitest <=3.2.5`
 
-```bash
-npm audit --workspaces --json
-```
+The reported fix path is `npm audit fix --force`, which upgrades Vitest to a newer major line and is treated as a breaking dependency change for this workspace.
 
-Result:
+## Risk decision
 
-- 5 findings total
-- 3 moderate
-- 1 high
-- 1 critical
-
-Affected dependency path:
-
-- `vitest` -> `@vitest/mocker` / `vite-node` / `vite` / `esbuild`
-
-Notable advisories:
-
-- `vitest` `<3.2.6`: Vitest UI server arbitrary file read/execute advisory.
-- `vite` `<=6.4.2`: dev-server path traversal / Windows alternate path advisories.
-- `esbuild` `<=0.24.2`: dev-server request exposure advisory.
-
-## Risk Decision
-
-Accepted temporarily for this branch.
+Status: accepted temporarily for development tooling only.
 
 Reason:
 
-- The affected packages are development/test tooling, not Visual Hive runtime production dependencies.
-- The repository does not enable Vitest UI in CI or default scripts.
-- Visual Hive’s default GitHub workflows run deterministic CLI/browser checks and do not expose a dev server to the public internet.
-- `npm audit` reports the available fix as `vitest@4.1.10`, a semver-major upgrade. That migration is likely safe but broad enough to require its own focused compatibility pass across the workspace.
+- The affected chain is used by local development, tests, and Vite preview/build tooling.
+- Visual Hive does not expose Vite/Vitest dev servers as a production hosted service.
+- PR and local Visual Hive runs remain deterministic-first and do not grant secrets to untrusted workflows.
+- Forcing the major Vitest upgrade is outside the current focused production-hardening scope and should be handled as its own dependency migration with full validation.
 
-## Required Follow-Up
+Mitigations:
 
-Create a focused dependency-hardening pass to:
+- Do not expose Vite preview/dev servers on public networks for Visual Hive validation.
+- Keep GitHub Actions PR workflows read-only and secret-free.
+- Keep issue publishing in trusted, explicit workflows only.
+- Re-run `npm audit --workspaces` during release prep and before publishing packages.
 
-1. Upgrade Vitest to the current stable major.
-2. Re-run `npm run build`, `npm run typecheck`, `npm test`, `npm run lint`, `npm run demo:full-run`, `npm run smoke:ui`, and `npm run smoke:ui:browser`.
-3. Confirm `npm audit --workspaces` is clean or document any remaining transitive runtime risk.
+Revisit by: 2026-08-15
 
-This acceptance must not be used to justify exposing Vitest UI, Vite dev servers, or Playwright/control-plane local servers publicly.
+Recommended next action:
+
+Open a focused dependency-upgrade PR that moves Vitest/Vite/esbuild to non-vulnerable versions, then run the full validation suite including `npm run demo:full-run`, `npm run smoke:ui:browser`, and the external demo-site full run.

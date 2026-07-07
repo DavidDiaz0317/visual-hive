@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import {
   collectRepositoryMetadata,
@@ -18,6 +19,8 @@ import {
 import { generatePlaywrightSpec } from "./generator.js";
 import { collectArtifacts } from "./artifactCollector.js";
 import { startManagedServer, type ManagedServer } from "./serverManager.js";
+
+const require = createRequire(import.meta.url);
 
 export interface RunPlaywrightOptions {
   config: VisualHiveConfig;
@@ -89,8 +92,8 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
 
     const specArg = toPlaywrightPath(path.relative(options.rootDir, spec.path));
     const outputArg = toPlaywrightPath(path.join(".visual-hive", "playwright-results"));
-    playwrightResult = await runShell(
-      `npx playwright test "${specArg}" --reporter=json --output="${outputArg}"`,
+    playwrightResult = await runPlaywrightCli(
+      ["test", specArg, "--reporter=json", `--output=${outputArg}`],
       options.rootDir,
       {
         VISUAL_HIVE_CI: options.ci ? "true" : "false",
@@ -134,7 +137,25 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     executionError,
     mutationBatch: Boolean(options.mutationOperators?.length)
   });
-  return { report, exitCode: playwrightResult?.exitCode ?? (executionError ? 1 : 0) };
+  return { report, exitCode: report.status === "failed" ? 1 : 0 };
+}
+
+function runPlaywrightCli(
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  allowFailure = false
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const playwrightCli = resolvePlaywrightCli(cwd);
+  return runProcess(process.execPath, [playwrightCli, ...args], cwd, env, allowFailure);
+}
+
+export function resolvePlaywrightCli(cwd: string): string {
+  try {
+    return require.resolve("@playwright/test/cli", { paths: [cwd] });
+  } catch {
+    return require.resolve("@playwright/test/cli");
+  }
 }
 
 async function removeGeneratedResults(resultsDir: string): Promise<void> {
@@ -167,6 +188,9 @@ async function buildReportFromPlaywrightOutput(input: {
   executionError?: unknown;
   mutationBatch?: boolean;
 }): Promise<Report> {
+  if (!input.mutationBatch && !input.executionError) {
+    await waitForStructuredContractResults(input.rootDir, input.config.visual.artifactDir, input.plan.items.map((item) => item.contractId));
+  }
   const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
   const structuredResultList = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
   const structuredResults = new Map<string, ContractResult>();
@@ -190,6 +214,7 @@ async function buildReportFromPlaywrightOutput(input: {
       });
     }
   }
+  const globalErrors = parsed ? extractPlaywrightGlobalErrors(parsed) : [];
 
   const results: ContractResult[] = input.mutationBatch && structuredResultList.length
     ? structuredResultList.map((structured) => normalizeStructuredContractResult(structured, artifacts, "visual-hive mutate", "contract-only"))
@@ -199,18 +224,32 @@ async function buildReportFromPlaywrightOutput(input: {
           return normalizeStructuredContractResult(structured, artifacts, "visual-hive run --ci", "include-run-artifacts");
         }
         const parsedResult = resultByContract.get(item.contractId);
-        const failed = input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed");
+        const missingStructuredEvidence = parsedResult?.status === "passed";
+        const failed = missingStructuredEvidence || (input.exitCode !== 0 && (!parsedResult || parsedResult.status === "failed"));
         const executionErrorMessage = input.executionError instanceof Error ? input.executionError.message : input.executionError ? String(input.executionError) : "";
         return {
           contractId: item.contractId,
           targetId: item.targetId,
-          status: parsedResult?.status ?? (failed ? "failed" : "passed"),
+          status: failed ? "failed" : (parsedResult?.status ?? "passed"),
           durationMs: parsedResult?.durationMs ?? input.durationMs,
-          errors: parsedResult?.errors.length
-            ? parsedResult.errors.map((error) => sanitizeText(error))
-            : failed
-              ? [sanitizeText(executionErrorMessage || input.stderr || "Playwright reported a failure without structured error details.")]
-              : [],
+          errors: missingStructuredEvidence
+            ? [
+                sanitizeText(
+                  `Playwright reported contract "${item.contractId}" as passed, but Visual Hive did not find its structured result artifact. This run is treated as failed because report evidence is incomplete.`
+                )
+              ]
+            : parsedResult?.errors.length
+              ? parsedResult.errors.map((error) => sanitizeText(error))
+              : failed
+                ? [
+                    sanitizeText(
+                      executionErrorMessage ||
+                        globalErrors.join("\n\n") ||
+                        input.stderr ||
+                        "Playwright reported a failure without structured error details."
+                    )
+                  ]
+                : [],
           artifacts,
           reproductionCommand: "visual-hive run --ci"
         };
@@ -259,6 +298,39 @@ async function buildReportFromPlaywrightOutput(input: {
     ...reportWithoutVerdict,
     ...reportVerdict
   });
+}
+
+function extractPlaywrightGlobalErrors(report: unknown): string[] {
+  return ((report as any)?.errors ?? [])
+    .map((error: any) => error?.message ?? error?.stack ?? String(error))
+    .filter(Boolean);
+}
+
+async function waitForStructuredContractResults(rootDir: string, artifactDir: string, contractIds: string[]): Promise<void> {
+  if (contractIds.length === 0) return;
+  const resultsDir = path.join(rootDir, artifactDir, "results");
+  const expected = new Set(contractIds.map((contractId) => `${safeResultName(contractId)}.json`));
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const present = new Set(await listResultFiles(resultsDir));
+    if ([...expected].every((file) => present.has(file))) {
+      return;
+    }
+    await delay(100);
+  }
+}
+
+async function listResultFiles(resultsDir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(resultsDir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+function safeResultName(value: string): string {
+  return String(value).replace(/[^a-z0-9_.-]+/gi, "-");
 }
 
 export function normalizeStructuredContractResult(
@@ -562,10 +634,21 @@ async function startLifecycleServer(
 }
 
 function runShell(command: string, cwd: string, env: NodeJS.ProcessEnv, allowFailure = false): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return runProcess(command, [], cwd, env, allowFailure, true);
+}
+
+function runProcess(
+  executable: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  allowFailure = false,
+  shell = false
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, {
+    const child = spawn(executable, args, {
       cwd,
-      shell: true,
+      shell,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...env },
       windowsHide: true
@@ -582,7 +665,7 @@ function runShell(command: string, cwd: string, env: NodeJS.ProcessEnv, allowFai
     child.on("close", (code) => {
       const exitCode = code ?? 1;
       if (exitCode !== 0 && !allowFailure) {
-        reject(new Error(sanitizeText(stderr || `Command failed with exit code ${exitCode}: ${command}`)));
+        reject(new Error(sanitizeText(stderr || `Command failed with exit code ${exitCode}: ${[executable, ...args].join(" ")}`)));
         return;
       }
       resolve({ stdout, stderr, exitCode });

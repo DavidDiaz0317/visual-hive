@@ -3,6 +3,7 @@ import { sanitizeText } from "@visual-hive/core";
 
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const LOG_TAIL_LINES = 30;
+const SERVER_FETCH_TIMEOUT_MS = 750;
 
 export interface ManagedServer {
   command: string;
@@ -74,7 +75,7 @@ export async function startManagedServer(input: {
     await waitForServerUrl({
       url: input.url,
       timeoutMs: input.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
-      getClosed: () => closed,
+      getClosed: () => closed ?? currentChildExit(child),
       logTail: server.logTail,
       command: input.command
     });
@@ -83,6 +84,13 @@ export async function startManagedServer(input: {
     await server.stop();
     throw error;
   }
+}
+
+function currentChildExit(child: ChildProcess): { code: number | null; signal: NodeJS.Signals | null } | undefined {
+  if (child.exitCode === null && child.signalCode === null) {
+    return undefined;
+  }
+  return { code: child.exitCode, signal: child.signalCode };
 }
 
 export async function waitForServerUrl(input: {
@@ -95,28 +103,39 @@ export async function waitForServerUrl(input: {
   const timeoutMs = input.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
+  let stableSuccesses = 0;
 
   while (Date.now() < deadline) {
+    try {
+      const response = await fetchWithTimeout(input.url, SERVER_FETCH_TIMEOUT_MS);
+      if (response.status < 500) {
+        stableSuccesses += 1;
+        if (stableSuccesses >= 3) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      stableSuccesses = 0;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      stableSuccesses = 0;
+      lastError = error;
+    }
+
     const closed = input.getClosed?.();
     if (closed) {
+      if (await isServerReachable(input.url)) {
+        return;
+      }
       throw new Error(
         targetStartupMessage({
           url: input.url,
           command: input.command,
-          reason: `process exited before the target became reachable (code=${closed.code ?? "null"}, signal=${closed.signal ?? "none"})`,
+          reason: `process exited before the target became stably reachable (code=${closed.code ?? "null"}, signal=${closed.signal ?? "none"})`,
           logTail: input.logTail?.()
         })
       );
-    }
-
-    try {
-      const response = await fetch(input.url);
-      if (response.status < 500) {
-        return;
-      }
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -141,7 +160,12 @@ export async function stopProcessTree(child: ChildProcess, url?: string): Promis
     spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
     if (url) {
       await killWindowsListenersForUrl(url);
-      await waitForServerUrlToClose(url);
+      if (!(await waitForServerUrlToClose(url))) {
+        await killWindowsListenersForUrl(url, 10_000);
+      }
+      if (!(await waitForServerUrlToClose(url))) {
+        throw new Error(`Target server did not stop cleanly for ${sanitizeText(url)} after terminating the process tree.`);
+      }
     }
     return;
   }
@@ -156,26 +180,46 @@ export async function stopProcessTree(child: ChildProcess, url?: string): Promis
     }
   }
   if (url) {
-    await waitForServerUrlToClose(url);
+    if (!(await waitForServerUrlToClose(url))) {
+      throw new Error(`Target server did not stop cleanly for ${sanitizeText(url)} after terminating the process tree.`);
+    }
   }
 }
 
-async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<void> {
+async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
+  let stableMisses = 0;
   while (Date.now() < deadline) {
     if (!(await isServerReachable(url))) {
-      return;
+      stableMisses += 1;
+      if (stableMisses >= 3) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      continue;
     }
+    stableMisses = 0;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
+  return !(await isServerReachable(url));
 }
 
 async function isServerReachable(url: string): Promise<boolean> {
   try {
-    await fetch(url);
+    await fetchWithTimeout(url, SERVER_FETCH_TIMEOUT_MS);
     return true;
   } catch {
     return false;
+  }
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

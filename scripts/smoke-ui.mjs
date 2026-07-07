@@ -90,7 +90,7 @@ try {
   if (protectedProfile && (protectedProfile.enabled || protectedProfile.runnable || !protectedProfile.blockedReason)) {
     throw new Error("snapshot did not expose protected-schedule-preview as a blocked run profile with a primary reason");
   }
-  assertOptionalCatalogArtifact(snapshot, ".visual-hive/history.json", "run-history", "visual-hive://run-history", "visual_hive_read_run_history");
+  assertCatalogArtifact(snapshot, ".visual-hive/history.json", "run-history", "visual-hive://run-history", "visual_hive_read_run_history");
   assertCatalogArtifact(snapshot, ".visual-hive/repo-map.json", "repo-map", "visual-hive://repo-map", "visual_hive_read_repo_map");
   assertCatalogArtifact(snapshot, ".visual-hive/repo-context.md", "repo-context", "visual-hive://repo-context", "visual_hive_read_repo_context");
   assertCatalogArtifact(snapshot, ".visual-hive/visual-graph.json", "visual-graph", "visual-hive://visual-graph", "visual_hive_read_visual_graph");
@@ -113,19 +113,14 @@ try {
   assertCatalogArtifact(snapshot, ".visual-hive/provider-upload/argos/manifest.json", "provider-upload-argos-manifest", "visual-hive://provider-upload/argos/manifest", "visual_hive_read_provider_upload_manifest");
   assertCatalogArtifact(snapshot, ".visual-hive/provider-agent-packet.json", "provider-agent-packet", "visual-hive://provider-agent-packet", "visual_hive_read_provider_agent_packet");
   assertCatalogArtifact(snapshot, ".visual-hive/context-ledger.json", "context-ledger", "visual-hive://context-ledger", "visual_hive_read_context_ledger");
-  const triageToolCall = snapshot.contextLedger?.toolCalls?.find((toolCall) => toolCall.id === "triage");
-  if (triageToolCall) {
-    if (!triageToolCall.evidenceResources?.some((resource) => resource.evidenceResourceId === "triage-report")) {
-      throw new Error("snapshot Context Ledger did not expose triage-report as linked evidence");
-    }
-    if (!triageToolCall.evidenceResources.some((resource) => resource.evidenceResourceId === "issue-body")) {
-      throw new Error("snapshot Context Ledger did not expose issue-body as linked evidence");
-    }
-    if (!triageToolCall.evidenceResources.some((resource) => resource.evidenceReadToolName === "visual_hive_read_missing_tests")) {
-      throw new Error("snapshot Context Ledger did not expose missing-test read tool evidence");
-    }
-  } else {
-    assertSafeContextLedger(snapshot.contextLedger);
+  if (!contextLedgerHasResource(snapshot.contextLedger, "triage-report")) {
+    throw new Error("snapshot Context Ledger did not expose triage-report as linked evidence");
+  }
+  if (!contextLedgerHasResource(snapshot.contextLedger, "issue-body")) {
+    throw new Error("snapshot Context Ledger did not expose issue-body as linked evidence");
+  }
+  if (!contextLedgerHasReadTool(snapshot.contextLedger, "visual_hive_read_missing_tests")) {
+    throw new Error("snapshot Context Ledger did not expose missing-test read tool evidence");
   }
   if (!snapshot.coverageImprovementReport?.recommendations?.length) {
     throw new Error("snapshot did not include coverage improvement recommendations");
@@ -480,6 +475,24 @@ function assertArrayIncludes(values, expected, label) {
   }
 }
 
+function contextLedgerHasResource(contextLedger, evidenceResourceId) {
+  return (contextLedger?.toolCalls ?? []).some((toolCall) => {
+    return (
+      toolCall.evidenceResourceId === evidenceResourceId ||
+      (toolCall.evidenceResources ?? []).some((resource) => resource.evidenceResourceId === evidenceResourceId)
+    );
+  });
+}
+
+function contextLedgerHasReadTool(contextLedger, evidenceReadToolName) {
+  return (contextLedger?.toolCalls ?? []).some((toolCall) => {
+    return (
+      toolCall.evidenceReadToolName === evidenceReadToolName ||
+      (toolCall.evidenceResources ?? []).some((resource) => resource.evidenceReadToolName === evidenceReadToolName)
+    );
+  });
+}
+
 function assertCatalogArtifact(snapshot, artifactPath, resourceId, resourceUri, readToolName) {
   const artifact = snapshot.artifacts?.find((candidate) => candidate.path === artifactPath || candidate.path.endsWith(`/${artifactPath}`));
   if (!artifact) {
@@ -491,28 +504,5 @@ function assertCatalogArtifact(snapshot, artifactPath, resourceId, resourceUri, 
     artifact.evidenceReadToolName !== readToolName
   ) {
     throw new Error(`${artifactPath} did not include catalog-backed evidence-resource metadata`);
-  }
-}
-
-function assertOptionalCatalogArtifact(snapshot, artifactPath, resourceId, resourceUri, readToolName) {
-  const artifact = snapshot.artifacts?.find((candidate) => candidate.path === artifactPath || candidate.path.endsWith(`/${artifactPath}`));
-  if (!artifact) {
-    return;
-  }
-  assertCatalogArtifact(snapshot, artifactPath, resourceId, resourceUri, readToolName);
-}
-
-function assertSafeContextLedger(contextLedger) {
-  if (!Array.isArray(contextLedger?.toolCalls)) {
-    throw new Error("snapshot Context Ledger did not expose toolCalls[]");
-  }
-  for (const toolCall of contextLedger.toolCalls) {
-    if (toolCall.externalNetwork === true) {
-      throw new Error(`snapshot Context Ledger exposed external network tool call: ${toolCall.id ?? toolCall.toolId ?? "unknown"}`);
-    }
-    const toolName = String(toolCall.toolId ?? toolCall.id ?? "");
-    if (toolName.includes("handoff_github_issue") || toolName.includes("provider_upload") || toolName.includes("hive_repair")) {
-      throw new Error(`snapshot Context Ledger exposed blocked execution tool: ${toolName}`);
-    }
   }
 }

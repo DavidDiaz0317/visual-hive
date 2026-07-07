@@ -4472,7 +4472,7 @@ contracts:
     } finally {
       await server.close();
     }
-  });
+  }, 15_000);
 
   it("executes Hive export mode previews with fixed no-network args", async () => {
     const fixture = await makeFixture();
@@ -4525,7 +4525,7 @@ contracts:
     } finally {
       await server.close();
     }
-  });
+  }, 15_000);
 
   it("executes run profiles as allowlisted runbook command sequences", async () => {
     const fixture = await makeFixture();

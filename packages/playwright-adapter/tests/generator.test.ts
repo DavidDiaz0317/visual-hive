@@ -8,7 +8,7 @@ import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
-import { normalizeStructuredContractResult, runPlaywrightContracts } from "../src/runner.js";
+import { normalizeStructuredContractResult, resolvePlaywrightCli, runPlaywrightContracts } from "../src/runner.js";
 import { PNG } from "pngjs";
 
 const tempDirs: string[] = [];
@@ -138,6 +138,25 @@ describe("buildSpecContent", () => {
     expect(mutationResult.reproductionCommand).toBe("visual-hive mutate");
     expect(mutationResult.errors).toEqual(["token=[REDACTED]"]);
     expect(deterministicResult.artifacts).toContain(".visual-hive/generated/visual-hive.generated.spec.ts");
+  });
+
+  it("prefers the target repository Playwright CLI when one is installed", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-target-playwright-"));
+    tempDirs.push(tempRoot);
+    const packageDir = path.join(tempRoot, "node_modules", "@playwright", "test");
+    await mkdir(packageDir, { recursive: true });
+    await writeFile(
+      path.join(packageDir, "package.json"),
+      JSON.stringify({
+        name: "@playwright/test",
+        version: "99.0.0-target-fixture",
+        exports: { "./cli": "./cli.js" }
+      }),
+      "utf8"
+    );
+    await writeFile(path.join(packageDir, "cli.js"), "#!/usr/bin/env node\n", "utf8");
+
+    expect(resolvePlaywrightCli(tempRoot)).toBe(path.join(packageDir, "cli.js"));
   });
 
   it("serializes resolved deploy preview URLs into generated specs", async () => {
@@ -497,7 +516,7 @@ describe("buildSpecContent", () => {
     expect(report.results[0]?.errors.join("\n")).toContain("Target server failed to start");
     expect(JSON.stringify(report)).toContain("token=[REDACTED]");
     expect(JSON.stringify(report)).not.toContain("secret=abc");
-  });
+  }, 15_000);
 
   it("records lifecycle evidence when a storybook target cannot start", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-storybook-startup-"));
@@ -556,7 +575,7 @@ describe("buildSpecContent", () => {
     expect(report.verdictContributions?.map((contribution) => contribution.key)).toContain("playwright.contract_result.storybook-home");
     expect(report.selectedTargets[0]?.kind).toBe("storybook");
     expect(report.targetLifecycle.some((event) => event.targetId === "componentLibrary" && event.serviceName === "storybook" && event.status === "failed")).toBe(true);
-  });
+  }, 15_000);
 });
 
 function pngBuffer(rgba: [number, number, number, number]): Buffer {

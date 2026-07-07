@@ -110,6 +110,7 @@ export interface HiveHandoffResult {
 export interface BuildHandoffOptions {
   evidencePacket: EvidencePacket;
   evidencePacketPath: string;
+  rootDir?: string;
   handoffPacketPath?: string;
   issueBodyPath?: string;
   beadRequestPath?: string;

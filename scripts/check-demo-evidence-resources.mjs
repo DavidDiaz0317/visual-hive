@@ -335,8 +335,8 @@ function assertSafeToolCalls(source, label) {
   for (const toolCall of toolCalls) {
     assert(toolCall.externalNetwork !== true, `${label} keeps ${toolCall.id ?? toolCall.toolId ?? "tool"} off external network`);
     assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("handoff_github_issue"), `${label} does not expose issue-publishing execution tools`);
-    assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("provider_upload"), `${label} does not expose provider upload execution tools`);
-    assert(!String(toolCall.toolId ?? toolCall.id ?? "").includes("hive_repair"), `${label} does not expose Hive repair execution tools`);
+    assert(!String(toolCall.toolId ?? toolCall.id ?? "").startsWith("visual_hive_provider_upload"), `${label} does not expose provider upload execution tools`);
+    assert(!String(toolCall.toolId ?? toolCall.id ?? "").startsWith("visual_hive_hive_repair"), `${label} does not expose Hive repair execution tools`);
     if (toolCall.evidenceResources !== undefined) {
       assert(Array.isArray(toolCall.evidenceResources), `${label} ${toolCall.id ?? toolCall.toolId ?? "tool"} links evidenceResources[]`);
       for (const resource of toolCall.evidenceResources) {

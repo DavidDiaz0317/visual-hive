@@ -118,7 +118,7 @@ export async function buildContextLedger(options: BuildContextLedgerOptions): Pr
   const budgets = budgetsFor(agentPacket, toolRegistry, options.budgets);
   const providerUsage = providerUsageFor(providerResultsReport, providerUploadManifest);
   const llmUsage = llmUsageFor(llmUsageReport);
-  const toolCalls = toolCallsFor(pipelineReport, toolRegistry);
+  const toolCalls = toolCallsFor(pipelineReport, toolRegistry, budgets);
   const hiveHandoffUsage = hiveHandoffUsageFor({ handoffPacket, hiveBeadRequest, hiveHandoffResult, sourceArtifacts });
 
   const usage = {
@@ -195,7 +195,7 @@ function budgetsFor(agentPacket?: AgentPacket, registry?: ToolRegistry, override
   };
 }
 
-function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry): ContextToolCall[] {
+function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry, budgets?: { maxToolCalls: number }): ContextToolCall[] {
   const toolByCommand = new Map<string, ToolRegistryEntry>();
   const ambiguousCommandKeys = new Set<string>();
   for (const tool of registry?.tools ?? []) {
@@ -236,7 +236,7 @@ function toolCallsFor(pipeline?: PipelineReportLike, registry?: ToolRegistry): C
 
   return (registry?.tools ?? [])
     .filter((tool) => tool.enabled)
-    .slice(0, 8)
+    .slice(0, Math.max(1, budgets?.maxToolCalls ?? DEFAULT_BUDGETS.maxToolCalls))
     .map((tool) => ({
       id: sanitizeText(tool.id),
       source: "tool-registry" as const,

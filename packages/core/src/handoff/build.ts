@@ -1,5 +1,5 @@
 import path from "node:path";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import type { EvidenceContribution, EvidencePacket } from "../evidence/types.js";
 import type { BuildHandoffOptions, HandoffArtifacts, HandoffMode, HandoffPacket, HandoffPriority, HandoffWorkItem, HiveBeadDryRunRequest, HiveHandoffResult } from "./types.js";
@@ -74,7 +74,7 @@ export function buildHandoffArtifacts(options: BuildHandoffOptions): HandoffArti
     blockedReasons
   }) as HandoffPacket;
 
-  const issueBody = renderHiveIssueBody(handoff, options.evidencePacket);
+  const issueBody = renderHiveIssueBody(handoff, options.evidencePacket, options.rootDir);
   const beadRequest: HiveBeadDryRunRequest = sanitizeValue({
     schemaVersion: "visual-hive.hive-bead-request.v1",
     dryRun: true,
@@ -142,16 +142,16 @@ export async function writeHandoffArtifacts(
   return { ...artifacts, handoffPath, issuePath, beadRequestPath, resultPath };
 }
 
-export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePacket): string {
+export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePacket, rootDir = process.cwd()): string {
   const gating = evidence.evidenceContributions.filter((contribution) => contribution.gating);
   const advisory = evidence.evidenceContributions.filter((contribution) => !contribution.gating);
   const reproduction = evidence.deterministicReport?.reproductionCommands ?? [];
-  const evidenceResources = handoffEvidenceResources(handoff, evidence);
+  const evidenceResources = handoffEvidenceResources(handoff, evidence, rootDir);
   const visualRefs = visualMapReferences(handoff, evidence);
   const validationCommands = handoffValidationCommands(evidence);
   const failedContracts = failedContractLines(evidence);
   const affectedSurfaces = affectedSurfaceLines(evidence);
-  const screenshotEvidence = screenshotEvidenceLines(evidence);
+  const screenshotEvidence = screenshotEvidenceLines(evidence, rootDir);
   const mutationEvidence = mutationEvidenceLines(evidence);
   const lines = [
     `# ${handoff.githubIssue.title}`,
@@ -227,7 +227,7 @@ export function renderHiveIssueBody(handoff: HandoffPacket, evidence: EvidencePa
     "- Rerun Visual Hive after every repair and use the new deterministic verdict as the close signal."
   ];
   if (handoff.blockedReasons.length) lines.splice(15, 0, `- Blocked reasons: ${handoff.blockedReasons.join("; ")}`);
-  return `${sanitizeText(lines.join("\n"))}\n`;
+  return `${sanitizeArtifactPathsForMarkdown(rootDir, lines.join("\n"))}\n`;
 }
 
 function failedContractLines(evidence: EvidencePacket): string[] {
@@ -276,16 +276,16 @@ function affectedSurfaceLines(evidence: EvidencePacket): string[] {
   return dedupe([...screenshotSurfaces, ...mutationSurfaces, ...targetRefs]).map((line) => `- ${line}`).slice(0, 16);
 }
 
-function screenshotEvidenceLines(evidence: EvidencePacket): string[] {
+function screenshotEvidenceLines(evidence: EvidencePacket, rootDir: string): string[] {
   return (evidence.deterministicReport?.screenshotEvidence ?? [])
     .map((shot) =>
       [
         `- ${shot.contractId}/${shot.screenshotName} ${shot.status}`,
         `route=${shot.route}`,
         `viewport=${shot.viewport}`,
-        `baseline=${shot.baselinePath}`,
-        `actual=${shot.actualPath}`,
-        shot.diffPath ? `diff=${shot.diffPath}` : undefined,
+        `baseline=${sanitizeArtifactPathForIssue(rootDir, shot.baselinePath)}`,
+        `actual=${sanitizeArtifactPathForIssue(rootDir, shot.actualPath)}`,
+        shot.diffPath ? `diff=${sanitizeArtifactPathForIssue(rootDir, shot.diffPath)}` : undefined,
         typeof shot.actualDiffPixelRatio === "number" ? `diffRatio=${shot.actualDiffPixelRatio}` : undefined,
         typeof shot.actualDiffPixels === "number" ? `diffPixels=${shot.actualDiffPixels}` : undefined
       ]
@@ -307,7 +307,7 @@ function mutationEvidenceLines(evidence: EvidencePacket): string[] {
   return [...score, ...survived, ...killed, ...notApplicable].slice(0, 18);
 }
 
-function handoffEvidenceResources(handoff: HandoffPacket, evidence: EvidencePacket): Array<{ label: string; path: string }> {
+function handoffEvidenceResources(handoff: HandoffPacket, evidence: EvidencePacket, rootDir: string): Array<{ label: string; path: string }> {
   const resources: Array<{ label: string; path?: string }> = [
     { label: "Evidence packet", path: handoff.hiveBeadRequest.evidencePacketPath },
     { label: "Handoff packet", path: handoff.hiveBeadRequest.handoffPacketPath },
@@ -337,6 +337,7 @@ function handoffEvidenceResources(handoff: HandoffPacket, evidence: EvidencePack
   ];
   return dedupeResources(resources)
     .filter((resource): resource is { label: string; path: string } => Boolean(resource.path))
+    .map((resource) => ({ ...resource, path: sanitizeArtifactPathForIssue(rootDir, resource.path) }))
     .slice(0, 28);
 }
 

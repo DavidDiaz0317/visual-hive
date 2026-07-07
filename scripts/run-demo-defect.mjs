@@ -12,12 +12,23 @@ const TIMEOUT_MS = 180_000;
 const steps = [
   {
     label: "defect-plan",
-    args: ["packages/cli/dist/index.js", "plan", "--config", configPath, "--mode", "pr", "--changed-files", "examples/demo-react-app/changed-files.txt"],
+    args: [
+      "packages/cli/dist/index.js",
+      "plan",
+      "--config",
+      configPath,
+      "--mode",
+      "pr",
+      "--changed-files",
+      "examples/demo-react-app/changed-files.txt",
+      "--output",
+      ".visual-hive/plan.defect.json"
+    ],
     expectFailure: false
   },
   {
     label: "defect-run-expected-failure",
-    args: ["packages/cli/dist/index.js", "run", "--config", configPath, "--skip-install", "--skip-build"],
+    args: ["packages/cli/dist/index.js", "run", "--config", configPath, "--plan", ".visual-hive/plan.defect.json", "--skip-install", "--skip-build"],
     expectFailure: true
   },
   {

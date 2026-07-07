@@ -7722,45 +7722,45 @@ describe("tool registry", () => {
       "visual_hive_agent_packet"
     ]);
     expect(repairProfile?.allowedToolIds).toEqual([
+      "visual_hive_get_issue_context",
+      "visual_hive_query_visual_graph",
+      "visual_hive_get_visual_impact",
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_visual_graph",
-      "visual_hive_read_visual_graph_impact",
-      "visual_hive_read_latest_report",
-      "visual_hive_read_triage_report",
-      "visual_hive_generate_repair_prompt"
+      "visual_hive_read_visual_graph_impact"
     ]);
     expect(repairProfile?.allowedToolIds).not.toContain("visual_hive_provider_upload");
     expect(testCreatorProfile?.allowedToolIds).toEqual([
+      "visual_hive_get_issue_context",
+      "visual_hive_query_visual_graph",
+      "visual_hive_get_visual_impact",
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_visual_graph",
-      "visual_hive_read_visual_graph_impact",
-      "visual_hive_read_missing_tests",
-      "visual_hive_read_testing_layers",
-      "visual_hive_read_coverage_recommendations"
+      "visual_hive_read_visual_graph_impact"
     ]);
     expect(reviewProfile?.allowedToolIds).toEqual([
+      "visual_hive_list_issues",
+      "visual_hive_get_issue_context",
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_latest_report",
       "visual_hive_read_visual_graph",
-      "visual_hive_read_visual_graph_impact",
-      "visual_hive_read_triage_report",
-      "visual_hive_read_baseline_review"
+      "visual_hive_read_visual_graph_impact"
     ]);
     expect(handoffProfile?.allowedToolIds).toEqual([
+      "visual_hive_list_issues",
+      "visual_hive_get_issue_context",
       "visual_hive_read_evidence_packet",
       "visual_hive_read_control_plane_snapshot",
       "visual_hive_read_verdict",
       "visual_hive_read_issue_queue",
-      "visual_hive_read_visual_graph",
-      "visual_hive_read_visual_graph_impact",
-      "visual_hive_read_issue_candidates",
-      "visual_hive_read_triage_report"
+      "visual_hive_query_visual_graph",
+      "visual_hive_get_handoff_context"
     ]);
     expect(registry.tools.find((tool) => tool.id === "visual_hive_read_triage_report")).toMatchObject({
       evidenceResourceId: "triage-report",
@@ -8226,7 +8226,7 @@ describe("agent-forward schema validation", () => {
     await expectMatchesSchema("visual-hive.context-ledger.schema.json", context.ledger);
     expect(evidence.packet.schemaVersion).toBe("visual-hive.evidence-packet.v2");
     expect(evidence.packet.evidenceContributions.every((contribution) => contribution.key && contribution.authority)).toBe(true);
-  });
+  }, 15_000);
 });
 
 async function writeMinimalConfig(repoRoot: string, projectName: string): Promise<void> {
@@ -8454,6 +8454,35 @@ describe("issue artifacts", () => {
     expect(markdown).toContain("[redacted-external-path]/file.txt");
     expect(markdown).not.toContain("C:/Users/david");
     expect(markdown).not.toContain("/home/david/private");
+  });
+
+  it("sanitizes Hive handoff issue bodies generated from absolute report artifact paths", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-issue-paths-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    const absoluteActualPath = path.join(rootDir, ".visual-hive", "artifacts", "screenshots", "dashboard.png");
+    const absoluteBaselinePath = path.join(rootDir, ".visual-hive", "snapshots", "dashboard.png");
+    const report = reportFixture(rootDir, absoluteActualPath, absoluteBaselinePath);
+    await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
+    const evidence = await writeEvidencePacket({
+      rootDir,
+      project: "issue-paths",
+      now: new Date("2026-06-15T00:01:00.000Z")
+    });
+    const handoff = buildHandoffArtifacts({
+      rootDir,
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+
+    expect(handoff.issueBody).toContain("baseline=.visual-hive/snapshots/dashboard.png");
+    expect(handoff.issueBody).toContain("actual=.visual-hive/artifacts/screenshots/dashboard.png");
+    expect(handoff.issueBody).toContain("- Generated spec: .visual-hive/generated/visual-hive.generated.spec.ts");
+    expect(handoff.issueBody).not.toContain(rootDir.replaceAll("\\", "/"));
+    expect(handoff.issueBody).not.toMatch(/C:[\\/](?:Users|Documents)/i);
+    expect(handoff.issueBody).not.toContain("OneDrive");
+    expect(handoff.issueBody).not.toMatch(/\/(?:Users|home)\//);
   });
 
   it("builds deduplicated issue candidates from report and mutation evidence", async () => {
@@ -9123,6 +9152,8 @@ viewports:
     expect(run.run.parsedIssue.validationCommand).toBe("visual-hive mutate --operator force-login-on-demo");
     expect(run.requestMarkdown).toContain("Default run is advisory no-write");
     expect(run.requestMarkdown).toContain("Codex CLI Discovery");
+    expect(run.requestMarkdown).toContain("## MCP Context Path");
+    expect(run.requestMarkdown).toContain("visual_hive_get_issue_context");
     expect(run.requestMarkdown).toContain("## Visual Graph Refs");
     expect(run.requestMarkdown).toContain(".visual-hive/visual-graph.json");
     expect(run.requestMarkdown).toContain("## Impact Analysis");

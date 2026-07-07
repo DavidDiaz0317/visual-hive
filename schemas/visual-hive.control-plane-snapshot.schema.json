@@ -62,29 +62,69 @@
       "type": "object",
       "additionalProperties": true,
       "description": "Compact Control Plane summary of Visual Graph, impact, unresolved reference, and issue-agent context evidence. Full graph artifacts remain linked through artifacts.",
-      "required": ["schemaVersion", "project", "artifactPaths", "counts", "keyChains", "unresolvedReferences", "issueContext", "safeActions"],
+      "required": [
+        "schemaVersion",
+        "project",
+        "artifactPaths",
+        "counts",
+        "keyChains",
+        "unresolvedReferences",
+        "issueContext",
+        "safeActions"
+      ],
       "properties": {
-        "schemaVersion": { "const": "visual-hive.control-plane.visual-graph.v1" },
-        "project": { "type": "string" },
+        "schemaVersion": {
+          "const": "visual-hive.control-plane.visual-graph.v1"
+        },
+        "project": {
+          "type": "string"
+        },
         "artifactPaths": {
           "type": "object",
-          "required": ["graph", "summary", "vocabulary", "unresolved", "impact"],
+          "required": [
+            "graph",
+            "summary",
+            "vocabulary",
+            "unresolved",
+            "impact"
+          ],
           "properties": {
-            "graph": { "type": "string" },
-            "summary": { "type": "string" },
-            "vocabulary": { "type": "string" },
-            "unresolved": { "type": "string" },
-            "impact": { "type": "string" }
+            "graph": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "vocabulary": {
+              "type": "string"
+            },
+            "unresolved": {
+              "type": "string"
+            },
+            "impact": {
+              "type": "string"
+            }
           }
         },
         "counts": {
           "type": "object",
-          "additionalProperties": { "type": "number" }
+          "additionalProperties": {
+            "type": "number"
+          }
         },
-        "keyChains": { "type": "array" },
-        "unresolvedReferences": { "type": "array" },
-        "issueContext": { "type": "object", "additionalProperties": true },
-        "safeActions": { "type": "array" }
+        "keyChains": {
+          "type": "array"
+        },
+        "unresolvedReferences": {
+          "type": "array"
+        },
+        "issueContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "safeActions": {
+          "type": "array"
+        }
       }
     },
     "overview": {
