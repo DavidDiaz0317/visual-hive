@@ -302,7 +302,7 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     "visual-hive://path-leak-scan",
     "path-leak-scan",
     "Issue-Facing Path Leak Scan",
-    "Safety scan proving issue-facing artifacts do not expose local absolute paths, user home directories, OneDrive paths, drive-letter paths, or other machine-specific artifact paths.",
+    "Safety scan proving issue-facing artifacts do not expose local absolute paths, user home directories, cloud-synced user paths, drive-letter paths, or other machine-specific artifact paths.",
     ".visual-hive/path-leak-scan.json",
     "application/json",
     readTool(

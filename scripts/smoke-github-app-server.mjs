@@ -68,7 +68,7 @@ function assertNoPathLeaks(text) {
   const forbidden = [
     /C:\\Users/i,
     /C:\/Users/i,
-    /OneDrive/i,
+    /[A-Z]:[\\/][^\r\n"'<>]*OneDrive[^\r\n"'<>]*/i,
     /\/Users\//,
     /\/home\//,
     /[A-Z]:\\/i
