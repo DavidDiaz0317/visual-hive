@@ -71,6 +71,7 @@ import {
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
 import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./commands/agentWritePreview.js";
+import { formatAgentValidateResult, runAgentValidateCommand } from "./commands/agentValidate.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
@@ -953,6 +954,34 @@ agentCommand
       });
       console.log(formatAgentIssueRunnerResult(result, options.format));
       if (result.run.status === "blocked") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+agentCommand
+  .command("validate")
+  .description("Validate issue-agent request/output/run artifacts and no-write safety counters")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--agents-dir <path>", "agent artifacts directory", ".visual-hive/agents")
+  .option("--dedupe <fingerprint>", "validate only one issue dedupe fingerprint")
+  .option("--allow-write-artifacts", "allow nonzero write-related counters for explicitly trusted write-preview validation")
+  .option("--output <path>", "validation artifact path", ".visual-hive/agent-validation.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options, command: Command) => {
+    try {
+      const result = await runAgentValidateCommand({
+        config: nestedConfigOption(options, command),
+        agentsDir: options.agentsDir,
+        dedupe: options.dedupe,
+        allowWriteArtifacts: options.allowWriteArtifacts,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatAgentValidateResult(result, options.format));
+      if (result.report.status === "failed") {
         process.exitCode = 1;
       }
     } catch (error) {

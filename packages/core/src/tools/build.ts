@@ -395,6 +395,9 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("agent-packet", ["repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], {
       writes: []
     }),
+    evidenceCli("agent-validation", ["test_creator", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], {
+      writes: []
+    }),
     evidenceCli("handoff-agent-packet", ["handoff_agent", "review_agent"], ["local", "pr", "schedule", "manual", "trusted"], {
       writes: []
     }),

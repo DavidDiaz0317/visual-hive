@@ -919,6 +919,22 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     readTool("visual_hive_read_agent_packet", "Read Agent Packet", "Read the latest bounded advisory Agent Packet.", "visual-hive agent-packet")
   ),
   resource(
+    "agent-validation",
+    "visual-hive://agent-validation",
+    "agent-validation",
+    "Agent Artifact Validation",
+    "Validation report proving issue-agent request/output/run artifacts exist, budgets are recorded, validation commands are present, and default no-write safety counters remain zero.",
+    ".visual-hive/agent-validation.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_agent_validation",
+      "Read Agent Artifact Validation",
+      "Read no-write agent artifact validation evidence without running agents or enabling write access.",
+      "visual-hive agent validate",
+      ["Read agent validation evidence only. Do not execute agents, mutate source, create branches, create PRs, create issues, call Hive, call LLMs, or decide the Visual Hive verdict."]
+    )
+  ),
+  resource(
     "handoff-agent-packet",
     "visual-hive://handoff-agent-packet",
     "handoff-agent-packet",

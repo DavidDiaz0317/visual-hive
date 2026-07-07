@@ -104,6 +104,7 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://artifacts/index`
 - `visual-hive://artifact-index`
 - `visual-hive://agent-packet`
+- `visual-hive://agent-validation`
 - `visual-hive://handoff-agent-packet`
 - `visual-hive://provider-agent-packet`
 - `visual-hive://tool-registry`
@@ -187,6 +188,7 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_provider_upload_manifest`
 - `visual_hive_read_artifacts_index`
 - `visual_hive_read_agent_packet`
+- `visual_hive_read_agent_validation`
 - `visual_hive_read_handoff_agent_packet`
 - `visual_hive_read_provider_agent_packet`
 - `visual_hive_read_tool_registry`
@@ -230,7 +232,7 @@ Agents should prefer compact resources and tools before loading broad files:
 13. Use `visual_hive_explain_failure` for a compact failure summary.
 14. Use `visual_hive_list_reproduction_commands` before asking for shell access.
 15. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.
-16. Read `visual-hive://agent-packet`, `visual-hive://handoff-agent-packet`, `visual-hive://provider-agent-packet`, `visual-hive://tool-registry`, and `visual-hive://context-ledger` only when the task requires agent role policy, handoff routing policy, provider-review policy, or budget context.
+16. Read `visual-hive://agent-packet`, `visual-hive://agent-validation`, `visual-hive://handoff-agent-packet`, `visual-hive://provider-agent-packet`, `visual-hive://tool-registry`, and `visual-hive://context-ledger` only when the task requires agent role policy, handoff routing policy, provider-review policy, or budget context.
 17. Read `visual-hive://provider-decisions`, `visual-hive://provider-setup-plan`, `visual-hive://provider-handoff`, `visual-hive://provider-results`, or `visual-hive://provider-upload/argos/manifest` only when external-provider governance, readiness, setup, handoff, or upload evidence is directly relevant; these resources do not grant credential, upload, provider API, provider gating, or verdict authority.
 18. Read `visual-hive://hive-mode-comparison` before requesting Hive repair escalation; it shows the no-network advisory, measured, repair-request, guarded-repair, and full policy choices.
 19. Read the guarded repair preview, repair request envelope, trusted repair consumer summary, and workflow dry-run resources before asking for any repair automation.

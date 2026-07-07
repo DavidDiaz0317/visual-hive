@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.agent-validation.schema.json",
+  "title": "Visual Hive Agent Artifact Validation",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "generatedAt", "rootDir", "agentsDir", "status", "summary", "items"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.agent-artifacts-validation.v1" },
+    "generatedAt": { "type": "string" },
+    "rootDir": { "type": "string" },
+    "agentsDir": { "type": "string" },
+    "status": { "enum": ["passed", "failed"] },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["agentRuns", "passed", "failed", "forbiddenActionFailures"],
+      "properties": {
+        "agentRuns": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "forbiddenActionFailures": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["dedupeFingerprint", "profile", "mode", "status", "requestPath", "outputPath", "runPath", "checks"],
+        "properties": {
+          "dedupeFingerprint": { "type": "string" },
+          "profile": { "type": "string" },
+          "mode": { "type": "string" },
+          "status": { "enum": ["passed", "failed"] },
+          "requestPath": { "type": "string" },
+          "outputPath": { "type": "string" },
+          "runPath": { "type": "string" },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["id", "status", "message"],
+              "properties": {
+                "id": { "type": "string" },
+                "status": { "enum": ["passed", "failed"] },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

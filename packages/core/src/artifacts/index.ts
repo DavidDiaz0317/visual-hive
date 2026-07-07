@@ -297,6 +297,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("test-creation-plan.json")) labels.add("test-creation-plan");
   if (normalized.endsWith("test-creation-plan.md")) labels.add("test-creation-summary");
   if (normalized.endsWith("agent-packet.json")) labels.add("agent-packet");
+  if (normalized.endsWith("agent-validation.json")) labels.add("agent-validation");
   if (normalized.endsWith("handoff-agent-packet.json")) labels.add("handoff-agent-packet");
   if (normalized.endsWith("provider-agent-packet.json")) labels.add("provider-agent-packet");
   if (normalized.endsWith("/agents/agent-run.json") || normalized.endsWith("/agent-run.json")) labels.add("agent-issue-run");
@@ -384,6 +385,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "testing-layers.json": "visual-hive.testing-layers.schema.json",
     "test-creation-plan.json": "visual-hive.test-creation-plan.schema.json",
     "agent-packet.json": "visual-hive.agent-packet.schema.json",
+    "agent-validation.json": "visual-hive.agent-validation.schema.json",
     "handoff-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "provider-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "agent-run.json": "visual-hive.agent-issue-run.schema.json",
