@@ -4,7 +4,7 @@ import type { MutationReport, Report } from "../reports/types.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssuesReport } from "../issues/types.js";
 import type { RepoMapReport, RepoVisualMapEdge, RepoVisualMapNode } from "../repo/types.js";
 import { writeJson, writeText } from "../utils/files.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import { detectVisualGraphExtractors } from "./extractors.js";
 import type {
   VisualGraph,
@@ -89,6 +89,7 @@ export async function writeVisualGraphArtifacts(options: WriteVisualGraphArtifac
 }
 
 export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph {
+  const repoRoot = path.resolve(options.repoRoot);
   const generatedAt = (options.now ?? new Date()).toISOString();
   const nodes = new Map<string, VisualGraphNode>();
   const edges = new Map<string, VisualGraphEdge>();
@@ -96,10 +97,10 @@ export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph 
   const addNode = (node: VisualGraphNode) => {
     const existing = nodes.get(node.id);
     if (!existing) {
-      nodes.set(node.id, sanitizeNode(node));
+      nodes.set(node.id, sanitizeNode(repoRoot, node));
       return;
     }
-    nodes.set(node.id, sanitizeNode({
+    nodes.set(node.id, sanitizeNode(repoRoot, {
       ...existing,
       evidenceArtifacts: unique([...existing.evidenceArtifacts, ...node.evidenceArtifacts]),
       metadata: { ...(existing.metadata ?? {}), ...(node.metadata ?? {}) },
@@ -109,7 +110,7 @@ export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph 
     }));
   };
   const addEdge = (edge: VisualGraphEdge) => {
-    edges.set(edge.id, sanitizeEdge(edge));
+    edges.set(edge.id, sanitizeEdge(repoRoot, edge));
   };
 
   for (const node of options.repoMap.visualMap.nodes) addNode(fromRepoNode(node, generatedAt));
@@ -121,7 +122,7 @@ export function buildVisualGraph(options: BuildVisualGraphOptions): VisualGraph 
   addWorkflowNodes(options.repoMap, generatedAt, addNode, addEdge);
   addArtifactNodes(generatedAt, addNode);
   addAgentAndHiveNodes(generatedAt, addNode);
-  addReportEvidence(options.report, generatedAt, addNode, addEdge);
+  addReportEvidence(options.report, generatedAt, addNode, addEdge, repoRoot);
   addMutationEvidence(options.mutationReport, generatedAt, addNode, addEdge);
   addIssueEvidence(options.issuesReport, generatedAt, addNode, addEdge);
   addDerivedRelations([...nodes.values()], generatedAt, addEdge);
@@ -375,7 +376,7 @@ function addAgentAndHiveNodes(generatedAt: string, addNode: (node: VisualGraphNo
   }
 }
 
-function addReportEvidence(report: Report | undefined, generatedAt: string, addNode: (node: VisualGraphNode) => void, addEdge: (edge: VisualGraphEdge) => void): void {
+function addReportEvidence(report: Report | undefined, generatedAt: string, addNode: (node: VisualGraphNode) => void, addEdge: (edge: VisualGraphEdge) => void, repoRoot: string): void {
   if (!report) return;
   for (const result of report.results ?? []) {
     const contractId = `contract:${result.contractId}`;
@@ -383,12 +384,15 @@ function addReportEvidence(report: Report | undefined, generatedAt: string, addN
     addEdge(baseEdge(contractId, "artifact:visual-hive_report_json", "produces_artifact", "playwright_report", generatedAt, [".visual-hive/report.json"]));
     for (const screenshot of result.screenshotAssertions ?? []) {
       const screenshotId = `screenshot:${result.contractId}:${screenshot.screenshotName ?? screenshot.name ?? "screenshot"}`;
-      addNode(baseNode(screenshotId, "screenshot", String(screenshot.screenshotName ?? screenshot.name ?? "screenshot"), "screenshot", generatedAt, [".visual-hive/report.json", String(screenshot.actualPath ?? "")].filter(Boolean), { ...screenshot }));
+      const screenshotMetadata = sanitizeValue(repoRoot, { ...screenshot }) as Record<string, unknown>;
+      const actualPath = sanitizeArtifactText(repoRoot, String(screenshot.actualPath ?? ""));
+      const baselinePath = sanitizeArtifactText(repoRoot, String(screenshot.baselinePath ?? ""));
+      addNode(baseNode(screenshotId, "screenshot", String(screenshot.screenshotName ?? screenshot.name ?? "screenshot"), "screenshot", generatedAt, [".visual-hive/report.json", actualPath].filter(Boolean), screenshotMetadata));
       addEdge(baseEdge(contractId, screenshotId, "captures", "playwright_report", generatedAt, [".visual-hive/report.json"]));
       if (screenshot.viewport) addEdge(baseEdge(screenshotId, `viewport:${screenshot.viewport}`, "uses_viewport", "playwright_report", generatedAt, [".visual-hive/report.json"]));
-      if (screenshot.baselinePath) {
-        const baselineId = `baseline:${safeId(String(screenshot.baselinePath))}`;
-        addNode(baseNode(baselineId, "baseline", String(screenshot.baselinePath), "screenshot", generatedAt, [String(screenshot.baselinePath)], { ...screenshot }));
+      if (baselinePath) {
+        const baselineId = `baseline:${safeId(baselinePath)}`;
+        addNode(baseNode(baselineId, "baseline", baselinePath, "screenshot", generatedAt, [baselinePath], screenshotMetadata));
         addEdge(baseEdge(screenshotId, baselineId, "validates", "screenshot", generatedAt, [".visual-hive/report.json"]));
       }
     }
@@ -658,30 +662,39 @@ function safeId(value: string): string {
   return sanitizeText(value).replaceAll("\\", "/").replace(/[^a-zA-Z0-9._:/-]+/g, "_").replaceAll("/", "_").replaceAll(":", "_");
 }
 
-function sanitizeNode(node: VisualGraphNode): VisualGraphNode {
+function sanitizeNode(rootDir: string, node: VisualGraphNode): VisualGraphNode {
   return {
     ...node,
-    label: sanitizeText(node.label),
-    evidenceArtifacts: unique(node.evidenceArtifacts.map((artifact) => sanitizeText(artifact))),
-    metadata: sanitizeValue(node.metadata)
+    id: sanitizeArtifactText(rootDir, node.id),
+    label: sanitizeArtifactText(rootDir, node.label),
+    sourceSpan: node.sourceSpan ? { ...node.sourceSpan, filePath: sanitizeArtifactText(rootDir, node.sourceSpan.filePath) } : undefined,
+    evidenceArtifacts: unique(node.evidenceArtifacts.map((artifact) => sanitizeArtifactText(rootDir, artifact))),
+    metadata: sanitizeValue(rootDir, node.metadata)
   };
 }
 
-function sanitizeEdge(edge: VisualGraphEdge): VisualGraphEdge {
+function sanitizeEdge(rootDir: string, edge: VisualGraphEdge): VisualGraphEdge {
   return {
     ...edge,
-    evidenceArtifacts: unique(edge.evidenceArtifacts.map((artifact) => sanitizeText(artifact))),
-    metadata: sanitizeValue(edge.metadata)
+    id: sanitizeArtifactText(rootDir, edge.id),
+    from: sanitizeArtifactText(rootDir, edge.from),
+    to: sanitizeArtifactText(rootDir, edge.to),
+    evidenceArtifacts: unique(edge.evidenceArtifacts.map((artifact) => sanitizeArtifactText(rootDir, artifact))),
+    metadata: sanitizeValue(rootDir, edge.metadata)
   };
 }
 
-function sanitizeValue<T>(value: T): T {
-  if (typeof value === "string") return sanitizeText(value) as T;
-  if (Array.isArray(value)) return value.map((item) => sanitizeValue(item)) as T;
+function sanitizeValue<T>(rootDir: string, value: T): T {
+  if (typeof value === "string") return sanitizeArtifactText(rootDir, value) as T;
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(rootDir, item)) as T;
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)])) as T;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(rootDir, item)])) as T;
   }
   return value;
+}
+
+function sanitizeArtifactText(rootDir: string, value: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir, sanitizeText(value));
 }
 
 function tokensForNode(node: VisualGraphNode): string[] {

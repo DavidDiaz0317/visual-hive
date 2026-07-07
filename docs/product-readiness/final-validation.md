@@ -11,7 +11,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `validated by latest green product runs; see CI/Product Proof rows` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
-| Tests | `npm test` | Unit/integration tests pass | 8 files, 363 tests passed | Pass |
+| Tests | `npm test` | Unit/integration tests pass | 8 files, 364 tests passed | Pass |
 | Lint | `npm run lint` | ESLint passes | Passed | Pass |
 | Demo full run | `npm run demo:full-run` | Full product demo proof passes | Passed; external calls 0, network issue dry-run 0, source mutations 0, repair branches/PRs 0, real local issues 0 | Pass |
 | Product graph search | `npm run demo:graph:search` | Visual Graph search works | Passed; login/auth graph nodes returned | Pass |
@@ -24,9 +24,9 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-guard tests pass | 10 tests passed | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
-| Product path leak scan | Issue-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue-facing artifacts | Passed for 19 issue-facing artifacts | Pass |
-| Product CI | GitHub Actions run `28856397184` | Product CI passes on current `main` | Passed | Pass |
-| Product Proof | GitHub Actions run `28856397257` | Product proof passes on current `main` | Passed | Pass |
+| Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
+| Product CI | GitHub Actions run `28856849311` | Product CI passes on `main` | Passed before latest sanitizer hardening commit; rerun after push required for new head | Pass |
+| Product Proof | GitHub Actions run `28856849312` | Product proof passes on `main` | Passed before latest sanitizer hardening commit; rerun after push required for new head | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
@@ -45,7 +45,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site agent issue | `npm run vh:agent:issue` | No-write local deterministic issue-agent runs | Passed; agent execution completed, external calls 0 | Pass |
 | Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed after resolver hardening | Pass |
-| Demo-site path leak scan | Issue-facing generated artifacts under `.visual-hive` | No local absolute paths in issue-facing artifacts | Passed for 26 issue-facing artifacts | Pass |
+| Demo-site path leak scan | Evidence-facing generated artifacts under `.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run vh:production-smoke` | Pass |
 | Demo-site Production Smoke workflow | GitHub Actions run `28856425414` | Workflow-dispatched production smoke passes | Passed | Pass |
 | Demo-site Trusted Publisher workflow | GitHub Actions run `28856599389` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |

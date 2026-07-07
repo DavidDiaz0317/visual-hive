@@ -103,6 +103,7 @@ export interface AgentPacket {
 }
 
 export interface BuildAgentPacketOptions {
+  rootDir?: string;
   evidencePacket: EvidencePacket;
   evidencePacketPath: string;
   handoffPacket?: HandoffPacket;

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import { readJson, writeJson } from "../utils/files.js";
 import type { EvidencePacket } from "../evidence/types.js";
 import type { HandoffPacket, HandoffWorkItem } from "../handoff/types.js";
@@ -21,10 +21,11 @@ export async function readHandoffPacket(filePath: string): Promise<HandoffPacket
   if (packet.schemaVersion !== "visual-hive.handoff.v1") {
     throw new Error(`Unsupported Handoff Packet schema at ${filePath}: ${String(packet.schemaVersion)}`);
   }
-  return sanitizeValue(packet) as HandoffPacket;
+  return sanitizeValue(process.cwd(), packet) as HandoffPacket;
 }
 
 export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket {
+  const rootDir = options.rootDir ?? process.cwd();
   const profile = options.profile ?? "repair_agent";
   const gatingContributions = options.evidencePacket.evidenceContributions.filter((contribution) => contribution.gating);
   const advisoryContributions = options.evidencePacket.evidenceContributions.filter((contribution) => !contribution.gating);
@@ -42,9 +43,9 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
     ".visual-hive/hive-issue.md",
     ...workItems.flatMap((item) => item.artifacts),
     ...(options.evidencePacket.deterministicReport?.screenshotEvidence.flatMap((screenshot) => [screenshot.actualPath, screenshot.diffPath, screenshot.baselinePath]) ?? [])
-  ]);
+  ], rootDir);
 
-  return sanitizeValue({
+  return sanitizeValue(rootDir, {
     schemaVersion: "visual-hive.agent-packet.v1",
     generatedAt: (options.now ?? new Date()).toISOString(),
     project: options.evidencePacket.project,
@@ -369,8 +370,8 @@ function evidenceTool(id: string, reason: string): AgentToolPermission {
   return tool(resource.readTool.name, resource.readTool.title, "read_only", reason);
 }
 
-function dedupe(values: Array<string | undefined>): string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value)).map((value) => sanitizeText(value)))];
+function dedupe(values: Array<string | undefined>, rootDir = process.cwd()): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)).map((value) => sanitizeArtifactText(rootDir, value)))];
 }
 
 function dedupeWorkItems(items: HandoffWorkItem[]): HandoffWorkItem[] {
@@ -392,11 +393,15 @@ function resolve(rootDir: string, artifactPath: string): string {
   return path.isAbsolute(artifactPath) ? artifactPath : path.resolve(rootDir, artifactPath);
 }
 
-function sanitizeValue(value: unknown): unknown {
-  if (typeof value === "string") return sanitizeText(value);
-  if (Array.isArray(value)) return value.map(sanitizeValue);
+function sanitizeValue(rootDir: string, value: unknown): unknown {
+  if (typeof value === "string") return sanitizeArtifactText(rootDir, value);
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(rootDir, item));
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(rootDir, item)]));
   }
   return value;
+}
+
+function sanitizeArtifactText(rootDir: string, value: string): string {
+  return sanitizeArtifactPathsForMarkdown(rootDir, sanitizeText(value));
 }

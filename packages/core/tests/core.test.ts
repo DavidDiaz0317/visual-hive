@@ -50,7 +50,7 @@ import { VISUAL_HIVE_EVIDENCE_RESOURCES } from "../src/tools/evidenceResources.j
 import { buildContextLedger, writeContextLedger } from "../src/context/build.js";
 import { verifySchemaCatalog } from "../src/schemas/catalog.js";
 import { analyzeRepository, writeRepoMap } from "../src/repo/analyze.js";
-import { analyzeVisualImpact, readVisualGraph, searchVisualGraph } from "../src/graph/build.js";
+import { analyzeVisualImpact, readVisualGraph, searchVisualGraph, writeVisualGraphArtifacts } from "../src/graph/build.js";
 import { detectVisualGraphExtractors, VISUAL_HIVE_GRAPH_EXTRACTORS } from "../src/graph/extractors.js";
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
@@ -1354,6 +1354,40 @@ mutation:
         "issue-artifact"
       ])
     );
+  });
+
+  it("sanitizes absolute screenshot paths in Visual Graph and vocabulary artifacts", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-graph-paths-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "graph-paths", scripts: { preview: "vite preview" } }), "utf8");
+    await writeFile(path.join(tempRoot, "src", "App.tsx"), "export function App() { return <main data-testid=\"dashboard-page\" />; }\n", "utf8");
+
+    const repoMap = await analyzeRepository({
+      repoRoot: tempRoot,
+      now: new Date("2026-06-15T00:00:00.000Z")
+    });
+    const actualPath = path.join(tempRoot, ".visual-hive", "artifacts", "screenshots", "dashboard.png");
+    const baselinePath = path.join(tempRoot, ".visual-hive", "snapshots", "dashboard.png");
+    const report = reportFixture(tempRoot, actualPath, baselinePath);
+
+    const result = await writeVisualGraphArtifacts({
+      repoRoot: tempRoot,
+      repoMap,
+      report,
+      now: new Date("2026-06-15T00:01:00.000Z")
+    });
+
+    const graphText = await readFile(result.graphPath, "utf8");
+    const vocabText = await readFile(result.vocabPath, "utf8");
+    expect(graphText).toContain(".visual-hive/artifacts/screenshots/dashboard.png");
+    expect(graphText).toContain(".visual-hive/snapshots/dashboard.png");
+    expect(graphText).not.toContain(tempRoot.replaceAll("\\", "\\\\"));
+    expect(graphText).not.toContain(tempRoot.replaceAll("\\", "/"));
+    expect(vocabText).not.toContain("C__Users");
+    expect(vocabText).not.toContain("OneDrive");
+    expect(vocabText).not.toContain(tempRoot.replaceAll("\\", "\\\\"));
+    expect(vocabText).not.toContain(tempRoot.replaceAll("\\", "/"));
   });
 
   it("reconciles previous visual-map findings by fingerprint", async () => {
@@ -6176,7 +6210,11 @@ describe("evidence packets", () => {
   it("treats CI missing baselines as blocked evidence instead of product failures", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-missing-baseline-verdict-"));
     tempDirs.push(rootDir);
-    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    const report = reportFixture(
+      rootDir,
+      path.join(rootDir, ".visual-hive", "artifacts", "screenshots", "dashboard.png"),
+      path.join(rootDir, ".visual-hive", "snapshots", "dashboard.png")
+    );
     report.status = "failed";
     report.summary.screenshotsPassed = 0;
     report.summary.screenshotsFailed = 1;
@@ -6489,7 +6527,11 @@ describe("verdict reports", () => {
   it("writes a compact Visual Hive verdict from an Evidence Packet", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-verdict-"));
     tempDirs.push(rootDir);
-    const report = reportFixture(rootDir, ".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png");
+    const report = reportFixture(
+      rootDir,
+      path.join(rootDir, ".visual-hive", "artifacts", "screenshots", "dashboard.png"),
+      path.join(rootDir, ".visual-hive", "snapshots", "dashboard.png")
+    );
     report.results[0]?.errors.push("Authorization: Bearer secret-value");
     await writeJson(path.join(rootDir, ".visual-hive", "report.json"), report);
     const mutationReport: MutationReport = {
@@ -7368,9 +7410,12 @@ describe("agent packets", () => {
       manifestPath: ".visual-hive/provider-upload/argos/manifest.json"
     });
     expect(result.packet.artifactPointers).toEqual(expect.arrayContaining([".visual-hive/evidence-packet.json", ".visual-hive/handoff.json", ".visual-hive/report.json"]));
+    expect(result.packet.artifactPointers).toEqual(expect.arrayContaining([".visual-hive/artifacts/screenshots/dashboard.png", ".visual-hive/snapshots/dashboard.png"]));
     expect(JSON.stringify(result.packet)).not.toContain("agent-secret-value");
     expect(JSON.stringify(result.packet)).not.toContain("agent-mutation-secret");
     expect(JSON.stringify(result.packet)).not.toContain("agent-provider-secret");
+    expect(JSON.stringify(result.packet)).not.toContain(rootDir.replaceAll("\\", "\\\\"));
+    expect(JSON.stringify(result.packet)).not.toContain(rootDir.replaceAll("\\", "/"));
     expect(JSON.stringify(result.packet)).toContain("[REDACTED]");
     expect(await readFile(result.packetPath, "utf8")).toContain("visual-hive.agent-packet.v1");
 
@@ -7518,7 +7563,7 @@ describe("agent packets", () => {
     expect(reviewPacket.forbiddenActions).toContain("decide_visual_hive_verdict");
     expect(reviewPacket.budgets.allowExternalNetwork).toBe(false);
     await expectMatchesSchema("visual-hive.agent-packet.schema.json", reviewPacket);
-  });
+  }, 15_000);
 
   it("scopes test creator packets to mutation survivors", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-test-"));

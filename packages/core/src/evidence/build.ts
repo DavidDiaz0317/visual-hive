@@ -6,7 +6,7 @@ import type { RepoMapReport } from "../repo/types.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { normalizeHiveExportConfig } from "../hive/build.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
-import { sanitizeText } from "../utils/sanitize.js";
+import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import type {
   EvidenceContribution,
   EvidencePacket,
@@ -54,21 +54,21 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     artifactsIndex: resolveArtifact(options.rootDir, options.artifactsIndexPath ?? path.join(".visual-hive", "artifacts-index.json"))
   };
 
-  const plan = await readOptional<Plan>(artifactPaths.plan);
-  const report = await readOptional<Report>(artifactPaths.report);
-  const mutationReport = await readOptional<MutationReport>(artifactPaths.mutationReport);
-  const triageReport = await readOptional<TriageReport>(artifactPaths.triageReport);
-  const providerRunReport = await readOptional<{ providers?: Array<{ result?: ProviderResult }> }>(artifactPaths.providerResults);
-  const readiness = await readOptional<{ status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }>(artifactPaths.readiness);
-  const coverage = await readOptional<{ summary?: Record<string, unknown>; uncoveredAreas?: Array<{ severity?: string; message?: string }> }>(artifactPaths.coverage);
-  const repoMap = await readOptional<RepoMapReport>(artifactPaths.repoMap);
+  const plan = await readOptional<Plan>(options.rootDir, artifactPaths.plan);
+  const report = await readOptional<Report>(options.rootDir, artifactPaths.report);
+  const mutationReport = await readOptional<MutationReport>(options.rootDir, artifactPaths.mutationReport);
+  const triageReport = await readOptional<TriageReport>(options.rootDir, artifactPaths.triageReport);
+  const providerRunReport = await readOptional<{ providers?: Array<{ result?: ProviderResult }> }>(options.rootDir, artifactPaths.providerResults);
+  const readiness = await readOptional<{ status?: string; score?: number; gates?: Array<{ status?: string; title?: string; message?: string }> }>(options.rootDir, artifactPaths.readiness);
+  const coverage = await readOptional<{ summary?: Record<string, unknown>; uncoveredAreas?: Array<{ severity?: string; message?: string }> }>(options.rootDir, artifactPaths.coverage);
+  const repoMap = await readOptional<RepoMapReport>(options.rootDir, artifactPaths.repoMap);
 
   const providerResults = [
     ...(report?.providerResults ?? []),
     ...(providerRunReport?.providers?.map((provider) => provider.result).filter((result): result is ProviderResult => Boolean(result)) ?? [])
   ];
 
-  const evidenceContributions = normalizeEvidenceContributions(sanitizeValue([
+  const evidenceContributions = normalizeEvidenceContributions(sanitizeValue(options.rootDir, [
     ...contributionsFromPlan(plan),
     ...contributionsFromReport(report),
     ...contributionsFromMutation(mutationReport),
@@ -96,7 +96,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
     schemaVersion: "visual-hive.evidence-packet.v2",
     generatedAt,
     project: report?.project ?? mutationReport?.project ?? plan?.project ?? options.project,
-    sourceArtifacts: sanitizeValue({
+    sourceArtifacts: sanitizeValue(options.rootDir, {
       plan: (await exists(artifactPaths.plan)) ? relative(options.rootDir, artifactPaths.plan) : undefined,
       report: (await exists(artifactPaths.report)) ? relative(options.rootDir, artifactPaths.report) : undefined,
       mutationReport: (await exists(artifactPaths.mutationReport)) ? relative(options.rootDir, artifactPaths.mutationReport) : undefined,
@@ -114,14 +114,14 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
       providerAuthority: "policy_gated_when_normalized",
       secretPolicy: "redacted_values_names_only"
     },
-    repo: sanitizeValue({
+    repo: sanitizeValue(options.rootDir, {
       repository: report?.repository.repository,
       branch: report?.repository.branch,
       commitSha: report?.repository.commitSha,
       runContext: report?.repository.provider
     }) as EvidencePacket["repo"],
     repoIntelligence: repoMap
-      ? (sanitizeValue({
+      ? (sanitizeValue(options.rootDir, {
           project: repoMap.project,
           sourceSummary: repoMap.sourceSummary,
           testTools: repoMap.testTools,
@@ -134,7 +134,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
         }) as EvidencePacket["repoIntelligence"])
       : undefined,
     plan: plan
-      ? sanitizeValue({
+      ? sanitizeValue(options.rootDir, {
           schemaVersion: plan.schemaVersion,
           project: plan.project,
           mode: plan.mode,
@@ -147,7 +147,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
         }) as EvidencePacket["plan"]
       : undefined,
     deterministicReport: report
-      ? sanitizeValue({
+      ? sanitizeValue(options.rootDir, {
           schemaVersion: report.schemaVersion,
           project: report.project,
           mode: report.mode,
@@ -188,7 +188,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
         }) as EvidencePacket["deterministicReport"]
       : undefined,
     mutation: mutationReport
-      ? sanitizeValue({
+      ? sanitizeValue(options.rootDir, {
           schemaVersion: mutationReport.schemaVersion,
           project: mutationReport.project,
           generatedAt: mutationReport.generatedAt,
@@ -219,7 +219,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
           notApplicableOperators: mutationReport.results.filter((result) => result.status === "not_applicable").map((result) => result.operator)
         }) as EvidencePacket["mutation"]
       : undefined,
-    providers: sanitizeValue(
+    providers: sanitizeValue(options.rootDir,
       providerResults.map((provider) => ({
         providerId: provider.providerId,
         label: provider.label,
@@ -251,7 +251,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
       }))
     ) as EvidencePacket["providers"],
     triage: triageReport
-      ? sanitizeValue({
+      ? sanitizeValue(options.rootDir, {
           schemaVersion: triageReport.schemaVersion,
           project: triageReport.project,
           generatedAt: triageReport.generatedAt,
@@ -267,7 +267,7 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
           }))
         }) as EvidencePacket["triage"]
       : undefined,
-    testingLayers: sanitizeValue(testingLayers) as EvidencePacketTestingLayer[],
+    testingLayers: sanitizeValue(options.rootDir, testingLayers) as EvidencePacketTestingLayer[],
     evidenceContributions,
     verdictSummary,
     hiveReadiness: {
@@ -856,11 +856,11 @@ function contributionKey(contribution: Pick<EvidenceContribution, "source" | "ki
   return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
 }
 
-function sanitizeValue(value: unknown): unknown {
-  if (typeof value === "string") return sanitizeText(value);
-  if (Array.isArray(value)) return value.map(sanitizeValue);
+function sanitizeValue(rootDir: string, value: unknown): unknown {
+  if (typeof value === "string") return sanitizeArtifactPathsForMarkdown(rootDir, sanitizeText(value));
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(rootDir, item));
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(rootDir, item)]));
   }
   return value;
 }
@@ -873,9 +873,9 @@ function relative(rootDir: string, artifactPath: string): string {
   return path.relative(rootDir, artifactPath).replaceAll(path.sep, "/");
 }
 
-async function readOptional<T>(filePath: string): Promise<T | undefined> {
+async function readOptional<T>(rootDir: string, filePath: string): Promise<T | undefined> {
   try {
-    return sanitizeValue(await readJson<T>(filePath)) as T;
+    return sanitizeValue(rootDir, await readJson<T>(filePath)) as T;
   } catch {
     return undefined;
   }

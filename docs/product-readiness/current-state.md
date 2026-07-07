@@ -8,17 +8,18 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `validated by latest green product runs; see run IDs below` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | validated by local full validation plus latest green product runs | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `9c606dfd8ef818ee971ebd72a727916a0f922bf3` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28856397184`.
-- Product `Product Proof` passed on `main` run `28856397257`.
+- Product `CI` passed on `main` run `28856849311` before the latest sanitizer hardening commit.
+- Product `Product Proof` passed on `main` run `28856849312` before the latest sanitizer hardening commit.
 - Demo-site `Visual Hive Production Smoke` passed on `main` run `28856425414`.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28856599389`.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
+- Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
 
 ## Stale Reference Cleanup
 
@@ -45,4 +46,4 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 ## Current Cleanup Focus
 
-The latest hardening pass fixed local resolver selection for the external demo-site, refreshed issue-facing path sanitization evidence, and confirmed both local and GitHub-hosted production paths are green. Generated `.visual-hive` artifacts remain ignored working outputs.
+The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, and confirmed local product plus external demo-site production paths are green. Generated `.visual-hive` artifacts remain ignored working outputs.
