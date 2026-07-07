@@ -9,7 +9,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
 | `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `c3de6144f3a9637adb6fbce953a62aae2c455c1d` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `e0b5dd2bf2d00b7f13e39d7bf2713c21d5c62865` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `5c6598f984f17c6a3fe4d3ef446a914dfb2b4328` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
@@ -22,8 +22,8 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Product root `npm run github-app:smoke:server` starts the local GitHub App server, checks `/health`, posts a mock installation event, writes a setup issue preview, and makes zero external/network calls.
 - Demo-site `Visual Hive Production Smoke` passed on `main` run `28881564304` for commit `d36b576`, including the GitHub App artifact-ingestion smoke.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28881802371` for the production-smoke artifacts from commit `d36b576`.
-- Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28891395235` for commit `e0b5dd2`, after the scheduled lane was updated to run `npm run vh:full-run` before the deep evidence chain.
-- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28891808154` for artifacts from the updated scheduled lane.
+- Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28892559286` for commit `5c6598f`, after all demo-site workflows were SHA-pinned and the scheduled lane was updated to run `npm run vh:full-run` before the deep evidence chain.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28892981209` for artifacts from the pinned scheduled lane.
 - Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles planning-only diffs without running deterministic contracts. Temporary smoke PR #7 passed the `visual-hive` check on run `28864434672` and was closed/deleted after validation.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.

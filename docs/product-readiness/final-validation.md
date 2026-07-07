@@ -39,7 +39,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `e0b5dd2bf2d00b7f13e39d7bf2713c21d5c62865` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `5c6598f984f17c6a3fe4d3ef446a914dfb2b4328` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -57,8 +57,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site GitHub App artifact smoke | `npm run vh:github-app:artifact-smoke` and workflow step in run `28868555140` | Product GitHub App consumes real `.visual-hive` artifacts without checkout, repo code execution, network calls, or external calls | Passed; create/update issue action generated, path leak scan clean, external/network calls 0 | Pass |
 | Demo-site path leak scan | `npm run vh:path-scan`; covered by `npm run vh:production-smoke` and `npm run vh:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 34 issue-facing artifacts and found 0 leaks | Pass |
 | Demo-site Production Smoke workflow | GitHub Actions run `28881564304`; local `npm run vh:production-smoke` on `d36b576` | Manual production smoke passes and includes GitHub App artifact-ingestion, write-preview proof, and path-scan proof | GitHub workflow passed for commit `d36b576`; local production smoke passed for commit `d36b576` | Pass |
-| Demo-site Scheduled workflow | GitHub Actions run `28891395235` | Scheduled/deep workflow runs `vh:full-run`, creates prerequisites before MCP smoke, and uploads artifacts | Passed for commit `e0b5dd2` after scheduled workflow full-run hardening | Pass |
-| Demo-site Trusted Publisher workflow | GitHub Actions run `28891808154` | Trusted workflow consumes artifacts, validates sanitized issue-facing paths, and remains dry-run unless guard is enabled | Passed for artifacts from run `28891395235`; no live issue write | Pass |
+| Demo-site Scheduled workflow | GitHub Actions run `28892559286` | Scheduled/deep workflow runs `vh:full-run`, creates prerequisites before MCP smoke, uploads artifacts, and uses SHA-pinned actions | Passed for commit `5c6598f` after scheduled workflow full-run hardening and workflow action pinning | Pass |
+| Demo-site Trusted Publisher workflow | GitHub Actions run `28892981209` | Trusted workflow consumes artifacts, validates sanitized issue-facing paths, and remains dry-run unless guard is enabled | Passed for artifacts from run `28892559286`; no live issue write | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |
 | Scheduled workflow exists | `.github/workflows/visual-hive-scheduled.yml` and workflow audit | Scheduled/deep workflow exists and uploads artifacts | Passed by workflow audit | Pass |
 | Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28856599389` | Pass |
