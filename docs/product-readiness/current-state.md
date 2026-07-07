@@ -8,13 +8,13 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `1dd39a97bfaa52b1e614bca5d1fe91bea6047f97` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | `0b8884f85515dab8fa57496174d0b415f1956413` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `92aec709fb17bb20ca154afd71669567779cf2d6` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28861431167` for commit `1dd39a9`.
-- Product `Product Proof` passed on `main` run `28861431149` for commit `1dd39a9`.
+- Product `CI` passed on `main` run `28864611361` for commit `0b8884f`.
+- Product `Product Proof` passed on `main` run `28864611540` for commit `0b8884f`.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Demo-site `Visual Hive Production Smoke` passed on `main` run `28862783105`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28862904560` after scheduled-chain artifact prerequisite cleanup.

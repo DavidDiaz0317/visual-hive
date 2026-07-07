@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `1dd39a97bfaa52b1e614bca5d1fe91bea6047f97` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `0b8884f85515dab8fa57496174d0b415f1956413` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 8 files, 364 tests passed | Pass |
@@ -25,8 +25,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 11 tests passed | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
-| Product CI | GitHub Actions run `28861431167` | Product CI passes on `main` | Passed for commit `1dd39a9` | Pass |
-| Product Proof | GitHub Actions run `28861431149` | Product proof passes on `main` | Passed for commit `1dd39a9` | Pass |
+| Product CI | GitHub Actions run `28864611361` | Product CI passes on `main` | Passed for commit `0b8884f` | Pass |
+| Product Proof | GitHub Actions run `28864611540` | Product proof passes on `main` | Passed for commit `0b8884f` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
