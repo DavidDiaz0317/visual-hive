@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `69586875528a379cdbc676d29bdbc69bf7b103b3` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | Latest verified product code commit `b9c9303986026a91e725c6f996d2f80033cbf648` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 369 tests passed | Pass |
@@ -29,15 +29,15 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
-| Product CI | GitHub Actions run `28866859950` | Product CI passes on `main` | Passed for commit `6958687` | Pass |
-| Product Proof | GitHub Actions run `28866860055` | Product proof passes on `main` | Passed for commit `6958687` | Pass |
+| Product CI | GitHub Actions run `28872502832` | Product CI passes on `main` | Passed for commit `b9c9303` | Pass |
+| Product Proof | GitHub Actions run `28872502753` | Product proof passes on `main` | Passed for commit `b9c9303`, including `github-app:smoke:server` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `145c0d720fcb2939c45380fbb7bb1508d5a22100` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `ea473f5fa5a12a43052b391dfe6e9c9331cc6aa9` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -53,7 +53,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed locally with GitHub App artifact-ingestion step; safety counters all zero | Pass |
 | Demo-site GitHub App artifact smoke | `npm run vh:github-app:artifact-smoke` and workflow step in run `28868555140` | Product GitHub App consumes real `.visual-hive` artifacts without checkout, repo code execution, network calls, or external calls | Passed; create/update issue action generated, path leak scan clean, external/network calls 0 | Pass |
 | Demo-site path leak scan | Evidence-facing generated artifacts under `.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run vh:production-smoke` | Pass |
-| Demo-site Production Smoke workflow | GitHub Actions run `28868555140` | Manual production smoke passes on current demo-site head and includes GitHub App artifact-ingestion proof | Passed for commit `145c0d7` | Pass |
+| Demo-site Production Smoke workflow | GitHub Actions run `28868555140`; local `npm run vh:production-smoke` on `ea473f5` | Manual production smoke passes and includes GitHub App artifact-ingestion and write-preview proof | GitHub workflow passed for commit `145c0d7`; local production smoke passed for commit `ea473f5` | Pass |
 | Demo-site Scheduled workflow | GitHub Actions run `28862904560` | Scheduled/deep workflow creates prerequisites before MCP smoke and uploads artifacts | Passed after workflow prerequisite fix | Pass |
 | Demo-site Trusted Publisher workflow | GitHub Actions run `28863088358` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |

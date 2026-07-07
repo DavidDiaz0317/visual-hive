@@ -8,13 +8,13 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `784f6b2628c2f19264c210fdcda3a000a588ab81` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest verified product code commit: `b9c9303986026a91e725c6f996d2f80033cbf648` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Documentation-only refresh commits may be newer than the latest verified code commit. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `ea473f5fa5a12a43052b391dfe6e9c9331cc6aa9` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28871673336` for commit `784f6b2`.
-- Product `Product Proof` passed on `main` run `28871672131` for commit `784f6b2`.
+- Product `CI` passed on `main` run `28872502832` for commit `b9c9303`.
+- Product `Product Proof` passed on `main` run `28872502753` for commit `b9c9303`.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
