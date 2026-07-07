@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `0c5da7b2d7a99edb46539155c9a0478706ea143b` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `cb88259d358368440bf6af05593bcaed81aeaab7` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 372 tests passed, including issue-facing path scan coverage | Pass |
@@ -31,8 +31,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
 | Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
-| Product CI | GitHub Actions run `28883222683` | Product CI passes on `main` | Passed for commit `0c5da7b` | Pass |
-| Product Proof | GitHub Actions run `28883222687` | Product proof passes on `main` | Passed for commit `0c5da7b`, including `github-app:smoke:server` and pinned workflow actions | Pass |
+| Product CI | GitHub Actions run `28883939612` | Product CI passes on `main` | Passed for commit `cb88259d` | Pass |
+| Product Proof | GitHub Actions run `28883939606` | Product proof passes on `main` | Passed for commit `cb88259d`, including `github-app:smoke:server` and pinned workflow actions | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
@@ -84,7 +84,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | --- | --- | --- | --- | --- |
 | GitHub App live mode | `packages/github-app` tests and docs | Live mode blocked without explicit env/auth guard | Tests pass; no live GitHub App credentials were provided in this run | Blocked by missing live credentials |
 | Live issue update | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke` | Optional trusted live issue update only with explicit guard/token | Passed against demo-site issue #4 with token guard set; created 0 issues and updated 1 existing issue | Pass |
-| Codex CLI no-write agent | `codex --help` before attempting a real Codex issue-agent run | CLI help should be callable before adapter execution | `codex.exe` failed with `Access is denied`; deterministic local no-write agent remains passing | Blocked by local Codex CLI execution policy |
+| Codex CLI no-write agent | `codex --help`; `node packages/cli/dist/index.js agent issue-runner --config examples/demo-react-app/visual-hive.config.yaml --issue-index 0 --codex-command codex --codex-discovery-timeout-ms 5000 --format json` | CLI help should be callable before live Codex adapter execution; if the local Codex binary cannot execute, Visual Hive should record a blocked no-write artifact with zero unsafe counters | `codex.exe` failed with `Access is denied` / `spawn EPERM`; Visual Hive recorded `status: blocked`, a specific blocked reason, and zero source mutations, branches, PRs, issues, external calls, network calls, Hive API calls, LLM calls, and paid provider calls | Blocked by local Codex CLI execution policy; product behavior passes |
 
 ## Notes
 

@@ -180,12 +180,14 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     timeoutMs: options.codexDiscoveryTimeoutMs ?? DEFAULT_BUDGETS.codexDiscoveryTimeoutMs,
     runner: options.codexDiscoveryRunner
   });
+  const codexBlockedReason = codexDiscoveryBlockedReason(codexCli);
+  const effectiveBlockedReasons = dedupe([...blockedReasons, codexBlockedReason]);
   const run: AgentIssueRun = sanitizeValue({
     schemaVersion: "visual-hive.agent-issue-run.v1",
     generatedAt,
     project: options.project ?? issuesReport.project,
     mode,
-    status: blockedReasons.length ? "blocked" : "completed",
+    status: effectiveBlockedReasons.length ? "blocked" : "completed",
     profile,
     selectedIssue: {
       dedupeFingerprint: issue.dedupeFingerprint,
@@ -229,11 +231,19 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     },
     artifactPaths,
     recommendations,
-    blockedReasons
+    blockedReasons: effectiveBlockedReasons
   }) as AgentIssueRun;
   const requestMarkdown = renderAgentRequest(issue, run, rootDir);
   const outputMarkdown = renderAgentOutput(issue, run, rootDir);
   return { run, requestMarkdown, outputMarkdown };
+}
+
+function codexDiscoveryBlockedReason(codexCli: AgentIssueRun["codexCli"]): string | undefined {
+  if (codexCli.discoveryStatus === "available") return undefined;
+  const details = codexCli.errorExcerpt ? ` ${codexCli.errorExcerpt}` : "";
+  if (codexCli.discoveryStatus === "timeout") return `Codex CLI discovery timed out for ${codexCli.command}.${details}`;
+  if (codexCli.discoveryStatus === "unavailable") return `Codex CLI is unavailable for issue-agent execution: ${codexCli.command}.${details}`;
+  return `Codex CLI discovery failed for issue-agent execution: ${codexCli.command}.${details}`;
 }
 
 async function discoverCodexCli(options: {
@@ -433,7 +443,7 @@ async function applyAgentExecution(options: {
 
 function executionBlockedReason(run: AgentIssueRun, command: string, args: string[]): string | undefined {
   if (run.status === "blocked") {
-    return "Issue candidate is blocked by Visual Hive policy.";
+    return run.blockedReasons[0] ?? "Issue candidate is blocked by Visual Hive policy.";
   }
   if (likelyExternalAgentCommand(command) && !run.budgets.allowExternalNetwork) {
     return "Codex/OpenAI agent execution is blocked unless external network is explicitly enabled for this issue-agent run.";

@@ -86,6 +86,7 @@ export function formatAgentIssueRunnerResult(result: AgentIssueRunnerCommandResu
     `- Agent execution: ${result.run.agentExecution.status}`,
     `- External calls made: ${result.run.safety.externalCallsMade}`,
     `- Real GitHub issues created: ${result.run.safety.realGithubIssuesCreated}`,
+    ...(result.run.blockedReasons.length ? ["", "## Blocked Reasons", ...result.run.blockedReasons.map((reason) => `- ${reason}`)] : []),
     "",
     "## Recommendations",
     ...result.run.recommendations.map((recommendation) => `- ${recommendation}`)

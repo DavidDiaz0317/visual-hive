@@ -9327,7 +9327,7 @@ viewports:
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 
-  it("records unavailable Codex CLI discovery without blocking no-write issue-agent artifacts", async () => {
+  it("records unavailable Codex CLI discovery as a blocked no-write issue-agent artifact", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-unavailable-"));
     tempDirs.push(rootDir);
     await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
@@ -9367,10 +9367,14 @@ viewports:
       now: new Date("2026-01-04T00:00:00.000Z")
     });
 
-    expect(run.run.status).toBe("completed");
+    expect(run.run.status).toBe("blocked");
     expect(run.run.codexCli.discoveryStatus).toBe("unavailable");
     expect(run.run.codexCli.errorExcerpt).toContain("missing-codex");
+    expect(run.run.blockedReasons.join(" ")).toContain("Codex CLI is unavailable");
     expect(run.run.safety.externalCallsMade).toBe(0);
+    expect(run.run.safety.sourceMutations).toBe(0);
+    expect(run.run.safety.branchesCreated).toBe(0);
+    expect(run.run.safety.pullRequestsOpened).toBe(0);
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 
@@ -9579,6 +9583,7 @@ viewports:
     await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-codex-eperm-demo" });
     const issues = await writeIssuesArtifacts({ rootDir, project: "agent-codex-eperm-demo" });
 
+    let agentRunnerCalled = false;
     const run = await writeAgentIssueRun({
       rootDir,
       project: "agent-codex-eperm-demo",
@@ -9589,13 +9594,18 @@ viewports:
       allowExternalNetwork: true,
       maxExternalCostUsd: 0,
       codexDiscoveryRunner: async () => ({ status: null, stdout: "", stderr: "", error: "spawn EPERM" }),
-      agentRunner: async () => ({ status: null, stdout: "", stderr: "", error: "spawn EPERM" }),
+      agentRunner: async () => {
+        agentRunnerCalled = true;
+        return { status: null, stdout: "", stderr: "", error: "spawn EPERM" };
+      },
       now: new Date("2026-01-04T00:00:00.000Z")
     });
 
+    expect(agentRunnerCalled).toBe(false);
     expect(run.run.status).toBe("blocked");
-    expect(run.run.agentExecution.status).toBe("failed");
+    expect(run.run.agentExecution.status).toBe("blocked");
     expect(run.run.agentExecution.errorExcerpt).toContain("spawn EPERM");
+    expect(run.run.blockedReasons.join(" ")).toContain("Codex CLI discovery failed");
     expect(run.run.safety.externalCallsMade).toBe(0);
     expect(run.run.safety.networkCallsMade).toBe(0);
     expect(run.run.safety.llmCallsMade).toBe(0);

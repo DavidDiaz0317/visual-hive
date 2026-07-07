@@ -8,13 +8,13 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `0c5da7b2d7a99edb46539155c9a0478706ea143b` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `cb88259d358368440bf6af05593bcaed81aeaab7` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `d36b576178cd756d4c9ab819f45cdcdad000a65e` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28883222683` for commit `0c5da7b`.
-- Product `Product Proof` passed on `main` run `28883222687` for commit `0c5da7b`.
+- Product `CI` passed on `main` run `28883939612` for commit `cb88259d`.
+- Product `Product Proof` passed on `main` run `28883939606` for commit `cb88259d`.
 - Product workflow audit reports zero critical/high findings, zero `pull_request_target` workflows, zero PR secrets/write permissions, and zero tag/unpinned external actions.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
@@ -58,4 +58,4 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files, added a demo-site GitHub App artifact-ingestion smoke that feeds real `.visual-hive` artifacts into the product GitHub App mock with zero external calls, zero network calls, no checkout, and no repo code execution, proved MCP stdio with a real client, added guarded issue-agent write-preview dry-run proof in both product and demo-site acceptance paths, and added reusable agent artifact validation for request/output/run bundles and no-write safety counters.
 
-Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` fails with `Access is denied`; the deterministic local issue-agent path remains the passing no-write proof.
+Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` / guarded discovery fails with `Access is denied` / `spawn EPERM`; Visual Hive now records that as a blocked no-write agent artifact with zero source mutations, branches, PRs, issues, external calls, network calls, Hive API calls, LLM calls, or paid provider calls. The deterministic local issue-agent path remains the passing no-write proof.

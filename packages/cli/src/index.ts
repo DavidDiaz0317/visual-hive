@@ -954,7 +954,7 @@ agentCommand
         format: options.format
       });
       console.log(formatAgentIssueRunnerResult(result, options.format));
-      if (result.run.status === "blocked") {
+      if (result.run.status === "blocked" && result.run.agentExecution.enabled) {
         process.exitCode = 1;
       }
     } catch (error) {
