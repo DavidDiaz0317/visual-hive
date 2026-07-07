@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `ac5db3bb3673e032c828c8d961ca1026ec20e8fd` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `f0c3ccc1eece85e60c98e742f811e2c4977e5991` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 372 tests passed, including issue-facing path scan coverage | Pass |
@@ -30,8 +30,9 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
-| Product CI | GitHub Actions run `28881557215` | Product CI passes on `main` | Passed for commit `ac5db3b` | Pass |
-| Product Proof | GitHub Actions run `28881557175` | Product proof passes on `main` | Passed for commit `ac5db3b`, including `github-app:smoke:server` | Pass |
+| Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
+| Product CI | GitHub Actions run `28882736447` | Product CI passes on `main` | Passed for commit `f0c3ccc` | Pass |
+| Product Proof | GitHub Actions run `28882736444` | Product proof passes on `main` | Passed for commit `f0c3ccc`, including `github-app:smoke:server` and pinned workflow actions | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo

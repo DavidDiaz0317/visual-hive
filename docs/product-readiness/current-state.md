@@ -8,13 +8,14 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `ac5db3bb3673e032c828c8d961ca1026ec20e8fd` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `f0c3ccc1eece85e60c98e742f811e2c4977e5991` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `d36b576178cd756d4c9ab819f45cdcdad000a65e` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28881557215` for commit `ac5db3b`.
-- Product `Product Proof` passed on `main` run `28881557175` for commit `ac5db3b`.
+- Product `CI` passed on `main` run `28882736447` for commit `f0c3ccc`.
+- Product `Product Proof` passed on `main` run `28882736444` for commit `f0c3ccc`.
+- Product workflow audit reports zero critical/high findings, zero `pull_request_target` workflows, zero PR secrets/write permissions, and zero tag/unpinned external actions.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
