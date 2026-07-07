@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.path-leak-scan.schema.json",
+  "title": "Visual Hive Issue-Facing Path Leak Scan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "generatedAt", "rootDir", "status", "summary", "scannedFiles", "findings"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.path-leak-scan.v1" },
+    "generatedAt": { "type": "string" },
+    "rootDir": { "type": "string" },
+    "status": { "enum": ["passed", "failed"] },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["filesScanned", "findings"],
+      "properties": {
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "scannedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["file", "patternId", "excerpt"],
+        "properties": {
+          "file": { "type": "string" },
+          "patternId": { "type": "string" },
+          "excerpt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

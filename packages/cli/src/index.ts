@@ -83,6 +83,7 @@ import { formatSetupProgress, runSetupStatusCommand } from "./commands/setupStat
 import { formatRunbookReport, runRunbookCommand } from "./commands/runbook.js";
 import { formatSnapshotResult, runSnapshotCommand } from "./commands/snapshot.js";
 import { formatSecurityAudit, runSecurityCommand } from "./commands/security.js";
+import { formatPathScanResult, runPathScanCommand } from "./commands/pathScan.js";
 import { formatCostsReport, runCostsCommand } from "./commands/costs.js";
 import { formatAnalyzeSummary, runAnalyzeCommand } from "./commands/analyze.js";
 import {
@@ -1551,6 +1552,30 @@ program
         format: options.format
       });
       console.log(formatSecurityAudit(result.report, result.reportPath, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("path-scan")
+  .description("Scan issue-facing Visual Hive artifacts for local absolute path leaks before trusted publishing")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--artifact-root <path>", "Visual Hive artifact root to scan", ".visual-hive")
+  .option("--output <path>", "path leak scan artifact path", ".visual-hive/path-leak-scan.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runPathScanCommand({
+        config: options.config,
+        artifactRoot: options.artifactRoot,
+        output: options.output,
+        format: options.format
+      });
+      console.log(formatPathScanResult(result, options.format));
+      if (result.report.status === "failed") {
+        process.exitCode = 1;
+      }
     } catch (error) {
       fail(error);
     }

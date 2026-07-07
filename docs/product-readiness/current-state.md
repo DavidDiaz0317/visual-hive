@@ -26,6 +26,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 - Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
+- `visual-hive path-scan` is the first-class issue-facing path leak scanner. It writes `.visual-hive/path-leak-scan.json`, is cataloged as `visual-hive://path-leak-scan` / `visual_hive_read_path_leak_scan`, and is wired into both the product demo full-run and the external demo-site production/full-run gates.
 
 ## Stale Reference Cleanup
 

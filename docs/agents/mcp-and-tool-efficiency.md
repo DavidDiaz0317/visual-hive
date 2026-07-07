@@ -60,6 +60,7 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://readiness-gate`
 - `visual-hive://run-history`
 - `visual-hive://workflow-audit`
+- `visual-hive://path-leak-scan`
 - `visual-hive://baseline-review`
 - `visual-hive://baseline-approvals`
 - `visual-hive://baseline-rejections`
@@ -148,6 +149,7 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_read_readiness_gate`
 - `visual_hive_read_run_history`
 - `visual_hive_read_workflow_audit`
+- `visual_hive_read_path_leak_scan`
 - `visual_hive_read_baseline_review`
 - `visual_hive_read_baseline_approvals`
 - `visual_hive_read_baseline_rejections`
@@ -222,7 +224,7 @@ Agents should prefer compact resources and tools before loading broad files:
 3. Read `visual-hive://latest-verdict` when the agent needs the final gating/advisory breakdown without scanning the full report.
 4. Read `visual-hive://readiness-gate` when the task is about whether a repo is safe to enable, merge, schedule, hand off, or repair.
 5. Read `visual-hive://run-history` when the task is about flake trends, baseline stability, mutation adequacy trends, runtime/cost history, or repeated failures. Reading it does not rerun checks, approve baselines, infer a new verdict, or change policy.
-6. Read `visual-hive://workflow-audit` when the task is about PR workflow safety, `pull_request_target`, secret exposure, artifact upload, or trusted `workflow_run` issue/handoff posture.
+6. Read `visual-hive://workflow-audit` when the task is about PR workflow safety, `pull_request_target`, secret exposure, artifact upload, or trusted `workflow_run` issue/handoff posture. Read `visual-hive://path-leak-scan` before trusted issue publishing or agent handoff when the task depends on proving issue-facing artifacts do not contain local absolute paths.
 7. Read `visual-hive://baseline-review`, `visual-hive://baseline-approvals`, and `visual-hive://baseline-rejections` when the task is about created/missing baselines, visual diff review, or approval history. Reading them does not authorize approving, rejecting, copying, or updating baselines.
 8. Read `visual-hive://repo-map`, `visual-hive://repo-context`, `visual-hive://setup-recommendations`, and `visual-hive://setup-pr-plan` when the task is initial adoption, repository orientation, config generation review, setup bundle review, or safe workflow enablement. Repo intelligence resources reduce broad source scanning, but reading them does not authorize setup writes or verdict changes.
 9. Read `visual-hive://testing-layers` when the task is about missing coverage, test creation, mutation survivor follow-up, or whether a layer is only partially measured.

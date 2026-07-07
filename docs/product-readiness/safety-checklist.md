@@ -22,6 +22,8 @@ Use this checklist before marking a client installation production-ready.
 - Uses dedupe fingerprint/marker to update existing issues.
 - Publishes a scoped candidate, not the whole queue by accident.
 
+Run `npm run demo:path-scan` before trusted publishing to verify issue-facing artifacts are repo-relative or redacted.
+
 ## Local Defaults
 
 - `externalCallsMade` remains `0`.
@@ -43,6 +45,8 @@ Issue-facing artifacts must not contain:
 - `/home/`
 - drive-letter paths such as `D:\`
 - token, password, cookie, bearer, authorization, or client secret values
+
+The first-party scanner writes `.visual-hive/path-leak-scan.json` and fails when issue-facing artifacts expose local absolute paths.
 
 ## Baselines and Thresholds
 

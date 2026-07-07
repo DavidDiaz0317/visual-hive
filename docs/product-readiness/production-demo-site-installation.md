@@ -54,6 +54,7 @@ npm run build
 npm run typecheck
 npm run vh:full-run
 npm run vh:mcp:smoke
+npm run vh:path-scan
 npm run vh:production-smoke
 ```
 

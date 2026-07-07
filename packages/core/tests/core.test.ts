@@ -56,6 +56,7 @@ import { detectVisualGraphExtractors, VISUAL_HIVE_GRAPH_EXTRACTORS } from "../sr
 import { analyzeRisk } from "../src/risk/analyze.js";
 import { analyzeReadiness } from "../src/readiness/analyze.js";
 import { analyzeSecurity, npmAuditSummaryFromJson } from "../src/security/audit.js";
+import { scanIssueFacingPaths } from "../src/security/pathScan.js";
 import { analyzeCosts } from "../src/costs/analyze.js";
 import { auditWorkflows } from "../src/github/workflowAudit.js";
 import { githubWorkflowTemplates } from "../src/github/workflowTemplates.js";
@@ -3936,6 +3937,75 @@ jobs:
     expect(audit).toMatchObject({ total: 3, high: 1, moderate: 1, low: 1 });
     expect(security.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining(["dependency:npm-audit-high"]));
     expect(security.findings.some((finding) => finding.id === "dependency:npm-audit-not-run")).toBe(false);
+  });
+});
+
+describe("issue-facing path leak scan", () => {
+  it("passes clean issue-facing artifacts and writes a schema-valid report", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-path-scan-clean-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "agents", "visual-issue"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "issues.md"), "Evidence lives at `.visual-hive/report.json`.", "utf8");
+    await writeFile(
+      path.join(hiveRoot, "issues.json"),
+      JSON.stringify({
+        schemaVersion: "visual-hive.issues.v1",
+        issues: [{ artifactPath: ".visual-hive/artifacts/screenshots/dashboard.png" }]
+      }),
+      "utf8"
+    );
+    await writeFile(path.join(hiveRoot, "agents", "visual-issue", "agent-request.md"), "Inspect `.visual-hive/evidence-packet.json`.", "utf8");
+
+    const { report, outputPath } = await scanIssueFacingPaths({
+      rootDir: tempRoot,
+      outputPath: ".visual-hive/path-leak-scan.json",
+      now: new Date("2026-07-07T12:00:00.000Z")
+    });
+
+    expect(report.status).toBe("passed");
+    expect(report.summary.filesScanned).toBeGreaterThanOrEqual(3);
+    expect(report.summary.findings).toBe(0);
+    expect(report.scannedFiles).toContain(".visual-hive/issues.md");
+    expect(outputPath).toBe(path.join(hiveRoot, "path-leak-scan.json"));
+    await expectMatchesSchema("visual-hive.path-leak-scan.schema.json", report);
+    await expect(readFile(path.join(hiveRoot, "path-leak-scan.json"), "utf8")).resolves.toContain("visual-hive.path-leak-scan.v1");
+  });
+
+  it("fails when issue-facing artifacts expose local absolute paths", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-path-scan-leak-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "agents", "visual-issue"), { recursive: true });
+    await writeFile(
+      path.join(hiveRoot, "issues.md"),
+      [
+        "Screenshot: C:/Users/david/OneDrive/Documents/demo/.visual-hive/artifacts/screenshots/dashboard.png",
+        "Log: /home/runner/work/demo/.visual-hive/report.json"
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      path.join(hiveRoot, "agents", "visual-issue", "agent-output.md"),
+      "Inspect C:\\Users\\david\\OneDrive\\Documents\\demo\\.visual-hive\\evidence-packet.json",
+      "utf8"
+    );
+
+    const { report } = await scanIssueFacingPaths({
+      rootDir: tempRoot,
+      outputPath: ".visual-hive/path-leak-scan.json",
+      now: new Date("2026-07-07T12:00:00.000Z")
+    });
+
+    expect(report.status).toBe("failed");
+    expect(report.summary.findings).toBeGreaterThanOrEqual(3);
+    expect(report.findings.map((finding) => finding.file)).toEqual(
+      expect.arrayContaining([".visual-hive/issues.md", ".visual-hive/agents/visual-issue/agent-output.md"])
+    );
+    expect(report.findings.map((finding) => finding.patternId)).toEqual(
+      expect.arrayContaining(["windows-user-slash-path", "onedrive-path", "posix-home-path", "windows-user-path"])
+    );
+    await expectMatchesSchema("visual-hive.path-leak-scan.schema.json", report);
   });
 });
 

@@ -246,6 +246,7 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("readiness-gate", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("run-history", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("workflow-audit", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("path-leak-scan", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("baseline-review", ["repair_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("baseline-approvals", ["review_agent", "handoff_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("baseline-rejections", ["review_agent", "handoff_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),

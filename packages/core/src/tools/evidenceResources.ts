@@ -298,6 +298,22 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "path-leak-scan",
+    "visual-hive://path-leak-scan",
+    "path-leak-scan",
+    "Issue-Facing Path Leak Scan",
+    "Safety scan proving issue-facing artifacts do not expose local absolute paths, user home directories, OneDrive paths, drive-letter paths, or other machine-specific artifact paths.",
+    ".visual-hive/path-leak-scan.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_path_leak_scan",
+      "Read Issue-Facing Path Leak Scan",
+      "Read path leak scan evidence without publishing issues, mutating artifacts, or executing repository code.",
+      "visual-hive path-scan",
+      ["Read path-leak evidence only. Do not publish issues, create branches, mutate source, or treat a passing scan as proof that deterministic validation passed."]
+    )
+  ),
+  resource(
     "baseline-review",
     "visual-hive://baseline-review",
     "baseline-review",

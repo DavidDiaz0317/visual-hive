@@ -185,6 +185,7 @@ const sections = [
       "demo:provider-upload",
       "demo:risk",
       "demo:security",
+      "demo:path-scan",
       "demo:costs",
       "demo:readiness",
       "demo:setup-status",
@@ -492,6 +493,7 @@ async function verifyGovernance() {
   const providerPlan = await readDemoJson("provider-setup-plan.json");
   const providerHandoff = await readDemoJson("provider-handoff.json");
   const providerUpload = await readDemoJson("provider-upload/argos/manifest.json");
+  const pathLeakScan = await readDemoJson("path-leak-scan.json");
   await readDemoJson("risk.json");
   await readDemoJson("security.json");
   await readDemoJson("costs.json");
@@ -506,7 +508,13 @@ async function verifyGovernance() {
   assert(providerPlan.externalCallsMade === 0, "provider plan must not make external calls.");
   assert(providerHandoff.externalCallsMade === 0, "provider handoff must not make external calls.");
   assert(providerUpload.dryRun === true || providerUpload.externalCallsMade === 0, "provider upload must remain dry-run/mock by default.");
-  assertNoSecretValues([workflows, providers, providerPlan, providerHandoff, providerUpload], "governance/provider artifacts");
+  assert(pathLeakScan.status === "passed", "issue-facing path leak scan must pass.");
+  assert(pathLeakScan.summary?.findings === 0, "issue-facing path leak scan must report zero findings.");
+  assert(
+    pathLeakScan.scannedFiles?.includes(".visual-hive/issues.md") || pathLeakScan.summary?.filesScanned > 0,
+    "path leak scan must inspect issue-facing artifacts."
+  );
+  assertNoSecretValues([workflows, providers, providerPlan, providerHandoff, providerUpload, pathLeakScan], "governance/provider artifacts");
 }
 
 async function verifyEvidence() {

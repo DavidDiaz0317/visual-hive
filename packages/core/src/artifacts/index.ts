@@ -268,6 +268,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("plans.json")) labels.add("plan-lanes");
   if (normalized.endsWith("workflows.json")) labels.add("workflow-audit");
   if (normalized.endsWith("security.json")) labels.add("security-audit");
+  if (normalized.endsWith("path-leak-scan.json")) labels.add("path-leak-scan");
   if (normalized.endsWith("costs.json")) labels.add("cost-audit");
   if (normalized.endsWith("control-plane-actions.json")) labels.add("control-plane-actions");
   if (normalized.endsWith("control-plane-snapshot.json")) labels.add("control-plane-snapshot");
@@ -359,6 +360,7 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "control-plane-snapshot.json": "visual-hive.control-plane-snapshot.schema.json",
     "plans.json": "visual-hive.plans.schema.json",
     "security.json": "visual-hive.security.schema.json",
+    "path-leak-scan.json": "visual-hive.path-leak-scan.schema.json",
     "costs.json": "visual-hive.costs.schema.json",
     "history.json": "visual-hive.history.schema.json",
     "triage.json": "visual-hive.triage.schema.json",
