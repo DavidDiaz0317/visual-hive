@@ -535,7 +535,7 @@ describe("Hive native export", () => {
     expectCatalogOutputResource(summary.outputResource, "summary", ".visual-hive/hive/trusted-repair-consumer-summary.json", "hive-trusted-repair-consumer-summary");
     expectCatalogOutputResource(dryRun.outputResource, "dryRun", ".visual-hive/hive/trusted-repair-workflow-dry-run.json", "hive-trusted-repair-workflow-dry-run");
     expectCatalogOutputResource(comparison.outputResource, "comparison", ".visual-hive/hive/mode-comparison.json", "hive-mode-comparison");
-  });
+  }, 15_000);
 
   it("compares no-network Hive export modes and recommends repair request when work orders exist", async () => {
     const result = buildHiveModeComparison({

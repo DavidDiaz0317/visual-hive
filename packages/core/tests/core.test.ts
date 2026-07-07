@@ -8492,6 +8492,7 @@ describe("issue artifacts", () => {
     const markdown = sanitizeArtifactPathsForMarkdown(rootDir, "See C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json and /home/david/private/file.txt");
     expect(markdown).toContain(".visual-hive/report.json");
     expect(markdown).toContain("[redacted-external-path]/file.txt");
+    expect(sanitizeArtifactPathsForMarkdown(rootDir, 'url: "http://127.0.0.1:4173"')).toContain("http://127.0.0.1:4173");
     expect(markdown).not.toContain("C:/Users/david");
     expect(markdown).not.toContain("/home/david/private");
   });

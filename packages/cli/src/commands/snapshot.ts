@@ -94,6 +94,7 @@ function hasPathLikeContent(value: string): boolean {
     value.includes(":/") ||
     value.includes("/Users/") ||
     value.includes("/home/") ||
+    value.includes("/tmp/") ||
     value.includes("OneDrive") ||
     value.includes("__Users_") ||
     value.includes("Users_") ||

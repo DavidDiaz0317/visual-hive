@@ -5067,6 +5067,7 @@ contracts:
     expect(written.schemaVersion).toBe(1);
     expect(written.guidanceState.adoptionChecklist.map((item) => item.commandId)).toContain("plan-pr");
     expect(written.runbook.commands.map((command) => command.id)).toContain("doctor");
+    expect(rawSnapshotText).toContain("http://127.0.0.1:4173");
     expect(rawSnapshotText).not.toContain(tempRoot);
     expect(rawSnapshotText).not.toContain("C:\\Users");
     expect(rawSnapshotText).not.toContain("C:/Users");
