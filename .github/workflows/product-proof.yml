@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - codex/control-plane-guided-cockpit
+      - main
 
 permissions:
   contents: read
@@ -31,6 +31,8 @@ jobs:
       - run: npm run demo:issues
       - run: npm run demo:issue-publish
       - run: npm run demo:agent-issue-run
+      - run: npm run demo:mcp
+      - run: npm run demo:mcp:smoke
       - run: npm run smoke:ui
       - run: npm run smoke:ui:browser
       - run: npm test -w @visual-hive/github-app

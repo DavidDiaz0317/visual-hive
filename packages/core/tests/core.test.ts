@@ -2950,7 +2950,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - codex/control-plane-guided-cockpit
+      - main
 permissions:
   contents: read
 jobs:

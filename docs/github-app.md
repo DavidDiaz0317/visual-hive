@@ -2,6 +2,8 @@
 
 The GitHub App is the long-term connection model for production repositories. It should connect repositories, read trusted Visual Hive artifacts, and create or update issues from sanitized evidence. It must not execute untrusted pull request code.
 
+See also: `docs/product-readiness/github-app-production-mvp.md`.
+
 ## Responsibilities
 
 - User installs the app on selected repositories.
@@ -42,6 +44,11 @@ The prototype package is `@visual-hive/github-app`. It provides:
 - `buildIssuePayloadFromArtifactSummary`
 
 The package is mock/local first. It returns payloads and actions, but makes zero network calls.
+
+Local server health endpoints:
+
+- `GET /health`
+- `GET /healthz`
 
 ## Trusted Publishing Pattern
 

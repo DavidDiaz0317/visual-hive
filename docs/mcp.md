@@ -18,6 +18,15 @@ Start the stdio server for an MCP client:
 node packages/cli/dist/index.js mcp --config examples/demo-react-app/visual-hive.config.yaml --stdio
 ```
 
+Run the product MCP smoke test:
+
+```bash
+npm run demo:mcp
+npm run demo:mcp:smoke
+```
+
+The smoke test reads real Visual Hive artifacts, verifies the manifest, exercises at least ten read-only resources/tools, and confirms execution/write-capable tools are listed as disabled rather than callable.
+
 For first-time setup before a config exists, use manifest-only repo mode:
 
 ```bash
@@ -59,6 +68,9 @@ Use these read-only tools for issue agents:
 - `visual_hive_get_validation_command`
 - `visual_hive_get_agent_prompt`
 - `visual_hive_get_handoff_context`
+- `visual_hive_read_report`
+- `visual_hive_read_triage`
+- `visual_hive_read_artifacts_index`
 
 The intended flow is:
 

@@ -53,10 +53,11 @@ async function handleRequest(
   options: { env: NodeJS.ProcessEnv; outputDir: string }
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
-  if (request.method === "GET" && url.pathname === "/healthz") {
+  if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/health")) {
     writeJsonResponse(response, 200, {
       status: "ok",
       service: "visual-hive-github-app",
+      mode: options.env.VISUAL_HIVE_GITHUB_APP_LIVE === "true" ? "live_guarded" : "mock_or_plan",
       externalCallsMade: 0,
       networkCallsMade: 0,
       checkoutPerformed: false,

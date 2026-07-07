@@ -152,7 +152,11 @@ describe("Visual Hive GitHub App prototype", () => {
     try {
       const health = await fetch(`${app.url}/healthz`);
       expect(health.status).toBe(200);
-      expect(await health.json()).toMatchObject({ status: "ok", externalCallsMade: 0, repoCodeExecuted: false });
+      expect(await health.json()).toMatchObject({ status: "ok", mode: "mock_or_plan", externalCallsMade: 0, repoCodeExecuted: false });
+
+      const healthAlias = await fetch(`${app.url}/health`);
+      expect(healthAlias.status).toBe(200);
+      expect(await healthAlias.json()).toMatchObject({ status: "ok", mode: "mock_or_plan", networkCallsMade: 0 });
 
       const payload = JSON.stringify({
         repositories: [{ full_name: "DavidDiaz0317/visual-hive-demo-site" }]
@@ -183,6 +187,28 @@ describe("Visual Hive GitHub App prototype", () => {
         headers: { "Content-Type": "application/json", "x-github-event": "installation" }
       });
       expect(response.status).toBe(401);
+    } finally {
+      await app.close();
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not enter live mode unless explicit live guard and webhook authentication are configured", async () => {
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-live-guard-"));
+    const app = await startVisualHiveGitHubAppServer({
+      outputDir,
+      env: { VISUAL_HIVE_GITHUB_APP_LIVE: "true" }
+    });
+    try {
+      const health = await fetch(`${app.url}/health`);
+      expect(await health.json()).toMatchObject({ mode: "live_guarded", externalCallsMade: 0, repoCodeExecuted: false });
+      const response = await fetch(`${app.url}/webhooks/github`, {
+        method: "POST",
+        body: JSON.stringify({ repositories: [] }),
+        headers: { "Content-Type": "application/json", "x-github-event": "installation" }
+      });
+      expect(response.status).toBe(401);
+      expect(await readFile(path.join(outputDir, "github-app-webhook-result.json"), "utf8").catch(() => "")).toBe("");
     } finally {
       await app.close();
       await rm(outputDir, { recursive: true, force: true });
