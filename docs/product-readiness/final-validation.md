@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `4cfa815466bf3fc95ad00640392ce8ab28c9a117` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `352376ae35051953a2b9e590799818ac5997c1c6` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 374 tests passed, including issue-facing path scan coverage and repair-planner issue-agent routing | Pass |
@@ -18,7 +18,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product graph impact | `npm run demo:graph:impact` | Visual Impact artifact generated | Passed; visual-impact.json written | Pass |
 | Product issues | `npm run demo:issues` | Issue candidates, queue, setup issue written without external calls | Passed; 18 candidates, external calls 0 | Pass |
 | Product issue publish dry-run | `npm run demo:issue-publish` | Dry-run publish writes plan/result and creates no real issues | Passed; real GitHub issues created 0 | Pass |
-| Product agent issue | `npm run demo:agent-issue-run` | No-write issue-agent artifacts generated | Passed; agent request/output/run written, external calls 0 | Pass |
+| Product agent issue | `npm run demo:agent-issue-run`; `npm run demo:agent-issue-run:local` | No-write issue-agent artifacts generated; local deterministic agent can produce structured output without network | Passed; agent request/output/run written, local deterministic agent completed, external calls 0 | Pass |
 | Product agent validation | `npm run demo:agent-validate`; covered by `npm run demo:full-run` | Agent request/output/run artifacts, budgets, validation commands, and forbidden-action counters validate | Passed; 2 agent runs inspected, forbidden action failures 0 | Pass |
 | Product agent write-preview | `npm run demo:agent-write-preview`; covered by `npm run demo:full-run` | Default guarded preview writes only `.visual-hive/agents/*/write-preview.json` and creates no branches, commits, pushes, PRs, or issues | Passed; mode `dry_run`, status `planned`, safety counters 0 | Pass |
 | Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised, real stdio server starts, execution/write tools disabled | Passed; 75 resources, 80 read tools, 9 disabled execution tools, stdioSmoke passed | Pass |
@@ -31,8 +31,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
 | Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
-| Product CI | GitHub Actions run `28888902137` | Product CI passes on `main` | Passed for commit `4cfa8154` | Pass |
-| Product Proof | GitHub Actions run `28888902121` | Product proof passes on `main` | Passed for commit `4cfa8154`, including `github-app:smoke:server` and pinned workflow actions | Pass |
+| Product CI | GitHub Actions run `28890368772` | Product CI passes on `main` | Passed for commit `352376ae` | Pass |
+| Product Proof | GitHub Actions run `28890373064` | Product proof passes on `main` | Passed for commit `352376ae`, including `github-app:smoke:server` and pinned workflow actions | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
