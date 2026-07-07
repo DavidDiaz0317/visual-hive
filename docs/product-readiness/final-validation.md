@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | Latest verified product code commit `b9c9303986026a91e725c6f996d2f80033cbf648` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | Latest GitHub-validated product commit at this note: `3856937c5583918fcc419b1297f567e43337c58c` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 369 tests passed | Pass |
@@ -29,8 +29,8 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App artifact smoke | `npm run github-app:smoke:artifacts` after demo artifacts exist | Root command builds app package and creates an issue action from a downloaded-artifact directory without checkout or network calls | Passed; external calls 0, network calls 0, repo code executed false | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
-| Product CI | GitHub Actions run `28872502832` | Product CI passes on `main` | Passed for commit `b9c9303` | Pass |
-| Product Proof | GitHub Actions run `28872502753` | Product proof passes on `main` | Passed for commit `b9c9303`, including `github-app:smoke:server` | Pass |
+| Product CI | GitHub Actions run `28873030260` | Product CI passes on `main` | Passed for commit `3856937` | Pass |
+| Product Proof | GitHub Actions run `28873030472` | Product proof passes on `main` | Passed for commit `3856937`, including `github-app:smoke:server` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo

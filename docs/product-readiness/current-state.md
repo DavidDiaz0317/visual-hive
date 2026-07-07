@@ -6,15 +6,15 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 ## Canonical Branches
 
-| Repo | Canonical branch | Current SHA | Notes |
+| Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest verified product code commit: `b9c9303986026a91e725c6f996d2f80033cbf648` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Documentation-only refresh commits may be newer than the latest verified code commit. |
+| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated product commit at this note: `3856937c5583918fcc419b1297f567e43337c58c` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Newer documentation-only commits should be validated separately before being cited as a proof point. |
 | `DavidDiaz0317/visual-hive-demo-site` | `main` | `ea473f5fa5a12a43052b391dfe6e9c9331cc6aa9` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28872502832` for commit `b9c9303`.
-- Product `Product Proof` passed on `main` run `28872502753` for commit `b9c9303`.
+- Product `CI` passed on `main` run `28873030260` for commit `3856937`.
+- Product `Product Proof` passed on `main` run `28873030472` for commit `3856937`.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.

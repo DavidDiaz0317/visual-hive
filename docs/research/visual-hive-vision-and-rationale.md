@@ -174,9 +174,9 @@ The report is the product boundary. `.visual-hive/report.json`, `.visual-hive/mu
 
 ## Visual Hive Evidence Packet
 
-A future formal Evidence Packet should become the stable handoff object for humans, GitHub, Hive, and optional LLM review.
+The Evidence Packet is the stable handoff object for humans, GitHub, Hive, MCP clients, and optional LLM review. Visual Hive writes the packet as a schema-versioned, sanitized artifact so downstream consumers can inspect the same evidence without becoming verdict authorities.
 
-Minimum fields:
+Core fields:
 
 - source: Visual Hive version, repo, branch, commit, workflow run, mode.
 - plan: selected contracts, selected targets, skipped/excluded contracts, reasons.
@@ -187,7 +187,20 @@ Minimum fields:
 - safety posture: PR-safe status, workflow trigger, permissions, provider/LLM posture, sanitization status.
 - repair guidance: likely classification, suggested files, reproduction commands, suggested missing tests.
 
-The packet should be machine-readable, sanitized, schema-versioned, and stable enough for downstream tools.
+The packet is machine-readable and intentionally conservative. Future work can broaden the packet for longitudinal studies, live Hive API integration, and larger benchmark suites, but the current contract is already sufficient for issue creation, MCP context, Control Plane summaries, and reproducible local demos.
+
+## Paper Evidence Map
+
+The paper should connect each claim to a concrete artifact family rather than relying on narrative claims alone:
+
+| Claim | Evidence family | Primary artifacts |
+| --- | --- | --- |
+| Visual Hive preserves deterministic verdict authority | Verdict and Evidence Packet | `.visual-hive/report.json`, `.visual-hive/evidence-packet.json`, `schemas/visual-hive.evidence-packet.schema.json` |
+| Contract-aware mutation reveals weak UI tests | Mutation adequacy | `.visual-hive/mutation-report.json`, `.visual-hive/issues.json`, `.visual-hive/issue-queue.json` |
+| Changed-file planning reduces unnecessary work | Plan, graph, and impact evidence | `.visual-hive/plan.json`, `.visual-hive/visual-graph.json`, `.visual-hive/visual-impact.json` |
+| Issue/MCP handoff gives agents bounded context | Issue queue and MCP manifest | `.visual-hive/issues.json`, `.visual-hive/issue-queue.json`, `.visual-hive/mcp-manifest.json`, `.visual-hive/artifacts-index.json` |
+| Governance prevents unsafe default automation | Safety and workflow evidence | `.visual-hive/security.json`, `.visual-hive/workflow-audit.json`, `.visual-hive/hive-handoff-validation.json` |
+| The system is reproducible enough for evaluation | Validation and history | `.visual-hive/history.json`, `.visual-hive/context-ledger.json`, `docs/product-readiness/final-validation.md` |
 
 ## KubeStellar Hive Integration Rationale
 
@@ -366,6 +379,8 @@ Track:
 - CI duration and external provider screenshot budget;
 - diagnosis time from failure to actionable issue;
 - repair success rate for human and agent-generated PRs.
+
+For the first paper draft, treat these as operational metrics gathered from generated artifacts and validation logs. Broader benchmark claims should wait until the same protocol is repeated across additional applications and environments.
 
 ## Valuable Additions
 

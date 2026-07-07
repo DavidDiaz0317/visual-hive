@@ -177,6 +177,6 @@ Generated `.visual-hive` files stay ignored unless baseline artifacts are intent
 
 ## Current Status
 
-This branch includes the issue-centric artifact model, Visual Graph and impact commands, no-network issue publishing dry runs, a real first-party MCP stdio server, issue-agent request generation, Control Plane evidence snapshots, and a full local demo acceptance suite.
+Current `main` includes the issue-centric artifact model, Visual Graph and impact commands, no-network issue publishing dry runs, a real first-party MCP stdio server, issue-agent request generation, Control Plane evidence snapshots, and a full local demo acceptance suite.
 
 Use `npm run demo:full-run` as the strongest local proof. Use the external `visual-hive-demo-site` `vh:*` commands in that repo for consumer-proof validation.
