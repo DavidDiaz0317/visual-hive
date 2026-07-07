@@ -1,19 +1,30 @@
 # Current Product Readiness State
 
-Generated for the production installation hardening pass.
+Date: 2026-07-07
+
+This is an engineering readiness note for the production-like Visual Hive installation work. It is not a presentation report.
 
 ## Canonical Branches
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `6c037bdbfd1ece3ed1095b129c5fd1002306d5ee` before the path-sanitization hardening commit | `main` is fresher than `codex/control-plane-guided-cockpit`; product workflows should use `main`. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `17e327e44bf20bb5a1905a6537bb8deea4e1af44` at inspection time | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | `893395cba104c4de819b22222074490ca7ecb016` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `1cf174550385176e9b71f221d6b302a9614b70d8` | Demo-site is the canonical external client installation. |
+
+## Current Verified State
+
+- Product `CI` passed on `main` run `28854470813`.
+- Product `Product Proof` passed on `main` run `28854470800`.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28855015024`.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28855193550`.
+- Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
+- Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 
 ## Stale Reference Cleanup
 
-- Product `product-proof.yml` now runs on pushes to `main`.
-- Demo-site Visual Hive workflows should check out `DavidDiaz0317/visual-hive@main`.
-- Historical Codex branch names should not appear in active workflow references.
+- Product `product-proof.yml` runs on pushes to `main` and `workflow_dispatch`.
+- Demo-site Visual Hive workflows check out `DavidDiaz0317/visual-hive@main` in CI.
+- The only remaining references to older Codex branch names are historical notes in readiness documentation or untracked local proof artifacts.
 
 ## Current Product Boundary
 
@@ -34,4 +45,4 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 ## Current Cleanup Focus
 
-The latest hardening pass closes a trusted-publisher blocker where `artifacts-index.json` previews could retain local absolute path evidence or path-derived slugs. Artifact previews and persisted Control Plane snapshots now sanitize repo-local paths to repo-relative form and redact external/user-home paths before they are exposed to issue publishers, MCP readers, or trusted workflow scans.
+The latest hardening pass fixed local resolver selection for the external demo-site, refreshed issue-facing path sanitization evidence, and confirmed both local and GitHub-hosted production paths are green. Generated `.visual-hive` artifacts remain ignored working outputs.
