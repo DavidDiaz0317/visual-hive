@@ -8534,6 +8534,9 @@ describe("issue artifacts", () => {
     expect(sanitizeArtifactPathForIssue(rootDir, "C:/Users/david/secret/path/token.png")).toBe("[redacted-external-path]/token.png");
     expect(sanitizeArtifactPathForIssue("/home/david/work/repo", "/home/david/work/repo/.visual-hive/report.json")).toBe(".visual-hive/report.json");
     expect(sanitizeArtifactPathForIssue("/home/david/work/repo", "/home/david/.ssh/id_rsa")).toBe("[redacted-external-path]/id_rsa");
+    expect(sanitizeArtifactPathsForMarkdown("/tmp/visual-hive-ci-repo", "See /tmp/visual-hive-ci-repo/.visual-hive/report.json and /tmp/visual-hive-ci-repo/src/App.tsx")).toBe(
+      "See .visual-hive/report.json and src/App.tsx"
+    );
     const markdown = sanitizeArtifactPathsForMarkdown(rootDir, "See C:/Users/david/OneDrive/Documents/visual-hive-demo-site/.visual-hive/report.json and /home/david/private/file.txt");
     expect(markdown).toContain(".visual-hive/report.json");
     expect(markdown).toContain("[redacted-external-path]/file.txt");

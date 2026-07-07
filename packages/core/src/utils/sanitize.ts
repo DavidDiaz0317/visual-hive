@@ -81,6 +81,12 @@ export function sanitizeArtifactPathForIssue(rootDir: string, artifactPath: stri
 
 export function sanitizeArtifactPathsForMarkdown(rootDir: string, markdown: string): string {
   let value = sanitizeText(markdown);
+  const normalizedRoot = normalizePathForIssue(rootDir).replace(/\/+$/g, "");
+  if (normalizedRoot && normalizedRoot !== ".") {
+    const escapedRoot = escapeRegExp(normalizedRoot);
+    value = value.replace(new RegExp(`${escapedRoot}/`, "g"), "");
+    value = value.replace(new RegExp(`${escapedRoot}(?=$|[\\s,;:\\])}"'])`, "g"), ".");
+  }
   value = value.replace(/(^|[^\w])([A-Za-z]:[\\/][^\s`)\]}",']+)/g, (_match, prefix: string, absolutePath: string) => {
     return `${prefix}${sanitizeArtifactPathForIssue(rootDir, trimPathMatch(absolutePath))}`;
   });
