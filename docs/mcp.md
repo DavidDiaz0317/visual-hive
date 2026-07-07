@@ -1,0 +1,93 @@
+# Visual Hive MCP
+
+Visual Hive MCP is a first-party read-only interface over Visual Hive artifacts. It gives Codex, Hive, and other agents a bounded way to read issue context, evidence, graph impact, validation commands, and handoff state without making them verdict authorities.
+
+Visual Hive remains the deterministic verdict layer. MCP tools do not run targets, mutate source, approve baselines, create GitHub issues, create Hive Beads, upload provider artifacts, or decide pass/fail by default.
+
+## Run It
+
+Generate a manifest:
+
+```bash
+node packages/cli/dist/index.js mcp --config examples/demo-react-app/visual-hive.config.yaml --describe --output .visual-hive/mcp-manifest.json
+```
+
+Start the stdio server for an MCP client:
+
+```bash
+node packages/cli/dist/index.js mcp --config examples/demo-react-app/visual-hive.config.yaml --stdio
+```
+
+For first-time setup before a config exists, use manifest-only repo mode:
+
+```bash
+node packages/cli/dist/index.js mcp --repo ../target-repo --describe --output .visual-hive/mcp-manifest.json
+```
+
+Repo mode does not start `--stdio`, write config, run tests, create issues, call Hive, call providers, or enable setup writes.
+
+## Issue Resources
+
+The issue-centric MCP path uses these product-facing resources:
+
+- `visual-hive://issues`
+- `visual-hive://issue-queue`
+- `visual-hive://visual-graph`
+- `visual-hive://visual-impact`
+- `visual-hive://evidence-packet`
+- `visual-hive://report`
+- `visual-hive://mutation-report`
+- `visual-hive://triage`
+- `visual-hive://handoff`
+- `visual-hive://hive-export`
+- `visual-hive://artifact-index`
+
+Compatibility resources such as `visual-hive://latest-evidence`, `visual-hive://latest-report`, `visual-hive://visual-graph-impact`, `visual-hive://triage-report`, `visual-hive://latest-handoff`, and `visual-hive://artifacts/index` remain available.
+
+## Issue Tools
+
+Use these read-only tools for issue agents:
+
+- `visual_hive_list_issues`
+- `visual_hive_get_issue_context`
+- `visual_hive_read_issue_queue`
+- `visual_hive_query_visual_graph`
+- `visual_hive_get_visual_impact`
+- `visual_hive_read_evidence_packet`
+- `visual_hive_read_mutation_report`
+- `visual_hive_list_artifacts`
+- `visual_hive_get_validation_command`
+- `visual_hive_get_agent_prompt`
+- `visual_hive_get_handoff_context`
+
+The intended flow is:
+
+1. Start from an issue candidate or GitHub issue.
+2. Read `visual_hive_get_issue_context`.
+3. Follow the issue queue, Visual Graph, impact, Evidence Packet, mutation report, and artifact index.
+4. Use `visual_hive_get_validation_command` before proposing any write-preview change.
+5. Use `visual_hive_get_handoff_context` only when the issue routes to trusted GitHub or Hive handoff.
+
+## Disabled Execution
+
+These execution or write-capable tools are described in the manifest as disabled by default:
+
+- `visual_hive_run`
+- `visual_hive_mutate`
+- `visual_hive_update_baseline`
+- `visual_hive_handoff_github_issue`
+- `visual_hive_handoff_hive_bead`
+- `visual_hive_hive_repair`
+- `visual_hive_provider_upload`
+
+Trusted workflows may call the CLI directly under explicit policy. MCP clients should treat the default server as read-only context.
+
+## Safety Rules
+
+- Issues are the durable work queue.
+- Visual Hive artifacts are the evidence source.
+- MCP is the structured read path over that evidence.
+- Playwright is the default first-party local browser evidence runner.
+- Visual Hive owns the final deterministic verdict.
+- LLMs, MCP clients, Hive, agents, and optional providers do not override pass/fail.
+- Default local and PR-safe runs create zero real GitHub issues, branches, PRs, provider uploads, Hive calls, or external network calls.

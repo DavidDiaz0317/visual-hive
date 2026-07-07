@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-labelledby="title desc">
+  <title id="title">Visual Graph evidence chain</title>
+  <desc id="desc">A chain from files through components, routes, contracts, screenshots, mutation operators, issue candidates, agents, and Hive resources.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    svg { background: #f8fafc; }
+    text { font-family: Arial, sans-serif; fill: #0f172a; font-size: 15px; }
+    .node { fill: #ffffff; stroke: #0f766e; stroke-width: 2; rx: 8; }
+    .issue { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; rx: 8; }
+    .edge { stroke: #334155; stroke-width: 2; marker-end: url(#arrow); }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #0b1220; }
+      text { fill: #e5e7eb; }
+      .node { fill: #111827; stroke: #2dd4bf; }
+      .issue { fill: #2b1708; stroke: #fb923c; }
+      .edge { stroke: #cbd5e1; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <text x="480" y="38" text-anchor="middle">Visual Graph narrows a visual problem to the evidence chain that can be validated.</text>
+  <g transform="translate(28 90)">
+    <rect class="node" width="96" height="64"/><text x="48" y="38" text-anchor="middle">File</text>
+  </g>
+  <g transform="translate(136 90)">
+    <rect class="node" width="120" height="64"/><text x="60" y="38" text-anchor="middle">Component</text>
+  </g>
+  <g transform="translate(268 90)">
+    <rect class="node" width="96" height="64"/><text x="48" y="38" text-anchor="middle">Route</text>
+  </g>
+  <g transform="translate(376 90)">
+    <rect class="node" width="118" height="64"/><text x="59" y="38" text-anchor="middle">Contract</text>
+  </g>
+  <g transform="translate(506 90)">
+    <rect class="node" width="128" height="64"/><text x="64" y="38" text-anchor="middle">Screenshot</text>
+  </g>
+  <g transform="translate(646 90)">
+    <rect class="node" width="118" height="64"/><text x="59" y="30" text-anchor="middle">Mutation</text><text x="59" y="48" text-anchor="middle">Operator</text>
+  </g>
+  <g transform="translate(776 90)">
+    <rect class="issue" width="136" height="64"/><text x="68" y="30" text-anchor="middle">Issue</text><text x="68" y="48" text-anchor="middle">Candidate</text>
+  </g>
+  <line class="edge" x1="124" y1="122" x2="129" y2="122"/>
+  <line class="edge" x1="256" y1="122" x2="261" y2="122"/>
+  <line class="edge" x1="364" y1="122" x2="369" y2="122"/>
+  <line class="edge" x1="494" y1="122" x2="499" y2="122"/>
+  <line class="edge" x1="634" y1="122" x2="639" y2="122"/>
+  <line class="edge" x1="764" y1="122" x2="769" y2="122"/>
+  <rect class="node" x="270" y="205" width="160" height="58"/>
+  <text x="350" y="240" text-anchor="middle">Issue Agent</text>
+  <rect class="node" x="530" y="205" width="160" height="58"/>
+  <text x="610" y="240" text-anchor="middle">Hive Resource</text>
+  <line class="edge" x1="844" y1="154" x2="430" y2="217"/>
+  <line class="edge" x1="430" y1="234" x2="523" y2="234"/>
+</svg>

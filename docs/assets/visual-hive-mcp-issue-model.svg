@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="380" viewBox="0 0 960 380" role="img" aria-labelledby="title desc">
+  <title id="title">Visual Hive MCP issue model</title>
+  <desc id="desc">An MCP client reads issues, issue queue, Visual Graph, impact, evidence packet, mutation report, validation commands, agent prompt, and handoff context from Visual Hive artifacts.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    svg { background: #f8fafc; }
+    text { font-family: Arial, sans-serif; fill: #0f172a; font-size: 15px; }
+    .small { font-size: 13px; fill: #475569; }
+    .client { fill: #ffffff; stroke: #2563eb; stroke-width: 2; rx: 8; }
+    .tool { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; rx: 8; }
+    .artifact { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; rx: 8; }
+    .line { stroke: #334155; stroke-width: 2; marker-end: url(#arrow); fill: none; }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #0b1220; }
+      text { fill: #e5e7eb; }
+      .small { fill: #cbd5e1; }
+      .client { fill: #111827; stroke: #60a5fa; }
+      .tool { fill: #083344; stroke: #22d3ee; }
+      .artifact { fill: #2b1708; stroke: #fb923c; }
+      .line { stroke: #cbd5e1; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <rect class="client" x="55" y="120" width="175" height="98"/>
+  <text x="142" y="157" text-anchor="middle">MCP Client</text>
+  <text class="small" x="142" y="181" text-anchor="middle">Codex, Hive, agent</text>
+  <rect class="tool" x="300" y="36" width="250" height="72"/>
+  <text x="425" y="67" text-anchor="middle">Issue Context Tools</text>
+  <text class="small" x="425" y="90" text-anchor="middle">list, queue, prompt, validation</text>
+  <rect class="tool" x="300" y="144" width="250" height="72"/>
+  <text x="425" y="175" text-anchor="middle">Graph + Impact Tools</text>
+  <text class="small" x="425" y="198" text-anchor="middle">query graph, get impact</text>
+  <rect class="tool" x="300" y="252" width="250" height="72"/>
+  <text x="425" y="283" text-anchor="middle">Evidence + Handoff Tools</text>
+  <text class="small" x="425" y="306" text-anchor="middle">packet, mutation, handoff</text>
+  <rect class="artifact" x="635" y="36" width="255" height="72"/>
+  <text x="762" y="66" text-anchor="middle">Issues + Queue</text>
+  <text class="small" x="762" y="90" text-anchor="middle">.visual-hive/issues*.json</text>
+  <rect class="artifact" x="635" y="144" width="255" height="72"/>
+  <text x="762" y="174" text-anchor="middle">Visual Graph + Impact</text>
+  <text class="small" x="762" y="198" text-anchor="middle">graph, vocab, impact</text>
+  <rect class="artifact" x="635" y="252" width="255" height="72"/>
+  <text x="762" y="282" text-anchor="middle">Evidence + Handoff</text>
+  <text class="small" x="762" y="306" text-anchor="middle">packet, report, Hive export</text>
+  <path class="line" d="M230 150 C260 110 275 75 293 72"/>
+  <path class="line" d="M230 169 H293"/>
+  <path class="line" d="M230 188 C260 230 275 286 293 288"/>
+  <path class="line" d="M550 72 H628"/>
+  <path class="line" d="M550 180 H628"/>
+  <path class="line" d="M550 288 H628"/>
+  <text class="small" x="480" y="355" text-anchor="middle">MCP is read-only by default; execution and writes stay disabled unless a trusted workflow enables them.</text>
+</svg>

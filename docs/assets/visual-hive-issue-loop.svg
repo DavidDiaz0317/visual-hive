@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">Visual Hive issue-centric loop</title>
+  <desc id="desc">A deterministic loop from plan and Playwright evidence to Visual Hive verdict, GitHub issue, agent or Hive work, and validation.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    svg { background: #f8fafc; }
+    text { font-family: Arial, sans-serif; fill: #0f172a; font-size: 17px; }
+    .label { font-size: 14px; fill: #475569; }
+    .box { fill: #ffffff; stroke: #2563eb; stroke-width: 2; rx: 8; }
+    .gate { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; rx: 8; }
+    .issue { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; rx: 8; }
+    .arrow { stroke: #334155; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #0b1220; }
+      text { fill: #e5e7eb; }
+      .label { fill: #cbd5e1; }
+      .box { fill: #111827; stroke: #60a5fa; }
+      .gate { fill: #083344; stroke: #22d3ee; }
+      .issue { fill: #2b1708; stroke: #fb923c; }
+      .arrow { stroke: #cbd5e1; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <rect class="box" x="40" y="90" width="150" height="88"/>
+  <text x="115" y="125" text-anchor="middle">Plan</text>
+  <text class="label" x="115" y="150" text-anchor="middle">risk, target, cost</text>
+  <rect class="box" x="235" y="90" width="150" height="88"/>
+  <text x="310" y="125" text-anchor="middle">Run Evidence</text>
+  <text class="label" x="310" y="150" text-anchor="middle">Playwright first</text>
+  <rect class="gate" x="430" y="90" width="150" height="88"/>
+  <text x="505" y="122" text-anchor="middle">Verdict</text>
+  <text class="label" x="505" y="148" text-anchor="middle">deterministic layer</text>
+  <rect class="issue" x="625" y="90" width="150" height="88"/>
+  <text x="700" y="122" text-anchor="middle">GitHub Issue</text>
+  <text class="label" x="700" y="148" text-anchor="middle">durable queue item</text>
+  <rect class="box" x="625" y="225" width="150" height="88"/>
+  <text x="700" y="258" text-anchor="middle">Hive / Agent</text>
+  <text class="label" x="700" y="284" text-anchor="middle">advisory or repair</text>
+  <rect class="gate" x="430" y="225" width="150" height="88"/>
+  <text x="505" y="258" text-anchor="middle">Validate</text>
+  <text class="label" x="505" y="284" text-anchor="middle">same command path</text>
+  <path class="arrow" d="M190 134 H228"/>
+  <path class="arrow" d="M385 134 H423"/>
+  <path class="arrow" d="M580 134 H618"/>
+  <path class="arrow" d="M700 178 V218"/>
+  <path class="arrow" d="M625 269 H587"/>
+  <path class="arrow" d="M430 269 C250 269 115 245 115 185"/>
+  <text class="label" x="505" y="40" text-anchor="middle">Issues are the work queue; Visual Hive keeps the verdict deterministic.</text>
+</svg>

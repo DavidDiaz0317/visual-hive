@@ -187,6 +187,14 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "visual-impact",
+    "visual-hive://visual-impact",
+    "visual-impact",
+    "Visual Impact",
+    "Product-facing alias for the latest Visual Impact analysis consumed by issue agents and MCP clients.",
+    ".visual-hive/visual-impact.json"
+  ),
+  resource(
     "latest-report",
     "visual-hive://latest-report",
     "latest-report",
@@ -196,6 +204,7 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     "application/json",
     readTool("visual_hive_read_latest_report", "Read Latest Report", "Read the latest deterministic report artifact.", "visual-hive report")
   ),
+  resource("report", "visual-hive://report", "report", "Report", "Product-facing alias for the latest deterministic Visual Hive report.", ".visual-hive/report.json"),
   resource(
     "latest-evidence",
     "visual-hive://latest-evidence",
@@ -205,6 +214,14 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     ".visual-hive/evidence-packet.json",
     "application/json",
     readTool("visual_hive_read_evidence_packet", "Read Evidence Packet", "Read the latest sanitized Evidence Packet.", "visual-hive evidence")
+  ),
+  resource(
+    "evidence-packet",
+    "visual-hive://evidence-packet",
+    "evidence-packet",
+    "Evidence Packet",
+    "Product-facing alias for the latest sanitized Evidence Packet used by agents, GitHub, Hive, and MCP clients.",
+    ".visual-hive/evidence-packet.json"
   ),
   resource(
     "control-plane-snapshot",
@@ -374,6 +391,14 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
       "Return the existing dry-run handoff packet if it has been generated; no issue or Hive Bead is created.",
       "visual-hive handoff --dry-run"
     )
+  ),
+  resource(
+    "handoff",
+    "visual-hive://handoff",
+    "handoff",
+    "Handoff",
+    "Product-facing alias for the dry-run GitHub/Hive handoff packet.",
+    ".visual-hive/handoff.json"
   ),
   resource(
     "handoff-validation",
@@ -606,6 +631,14 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
       "visual-hive triage",
       ["Read triage evidence only. Do not treat LLM-ready explanations as a verdict authority."]
     )
+  ),
+  resource(
+    "triage",
+    "visual-hive://triage",
+    "triage",
+    "Triage",
+    "Product-facing alias for offline deterministic triage evidence.",
+    ".visual-hive/triage.json"
   ),
   resource(
     "issue-body",
@@ -866,6 +899,14 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     ".visual-hive/artifacts-index.json",
     "application/json",
     readTool("visual_hive_read_artifacts_index", "Read Artifact Index", "Read sanitized artifact inventory and evidence-resource metadata.", "visual-hive mcp/read artifacts-index")
+  ),
+  resource(
+    "artifact-index",
+    "visual-hive://artifact-index",
+    "artifact-index",
+    "Artifact Index",
+    "Product-facing alias for the sanitized Visual Hive artifact inventory.",
+    ".visual-hive/artifacts-index.json"
   ),
   resource(
     "agent-packet",

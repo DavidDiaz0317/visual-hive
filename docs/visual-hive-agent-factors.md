@@ -14,6 +14,8 @@ Agent prompts are generated artifacts. They include structured blocks for issue,
 
 Visual Hive exposes graph, issue, impact, evidence, MCP, tool registry, and context-ledger resources. Agents should read structured artifacts instead of scraping terminal logs.
 
+For issue work, prefer the MCP issue path: `visual_hive_get_issue_context`, `visual_hive_read_issue_queue`, `visual_hive_query_visual_graph`, `visual_hive_get_visual_impact`, `visual_hive_read_evidence_packet`, `visual_hive_read_mutation_report`, `visual_hive_get_validation_command`, `visual_hive_get_agent_prompt`, and `visual_hive_get_handoff_context`. These tools are read-only context adapters over existing artifacts.
+
 ## 4. Unify Execution State And Business State
 
 Issue candidates are business state. Agent runs are execution state. Both are artifacts and can be audited independently.
@@ -43,4 +45,3 @@ Baseline approval, threshold weakening, protected target execution, real issue c
 Visual Hive owns the final deterministic verdict. Playwright is the default first-party browser runner and primary local evidence source, but the Visual Hive verdict engine aggregates deterministic evidence from selectors, user flows, screenshots, console/page/network policy, mutation adequacy, provider-normalized results when configured, and protected canaries.
 
 LLMs, MCP tools, Hive, and agents are consumers and repair actors. They are never sole pass/fail authorities.
-

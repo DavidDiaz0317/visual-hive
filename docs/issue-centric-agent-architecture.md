@@ -32,6 +32,23 @@ An issue-agent prompt must include these context inputs:
 
 The agent must not infer pass/fail authority from any single advisory source. Visual Hive owns the deterministic verdict.
 
+## MCP Context Path
+
+When MCP is available, an issue agent should start with the first-party Visual Hive read-only surface instead of scraping broad `.visual-hive` files:
+
+- `visual_hive_list_issues`
+- `visual_hive_get_issue_context`
+- `visual_hive_read_issue_queue`
+- `visual_hive_query_visual_graph`
+- `visual_hive_get_visual_impact`
+- `visual_hive_read_evidence_packet`
+- `visual_hive_read_mutation_report`
+- `visual_hive_get_validation_command`
+- `visual_hive_get_agent_prompt`
+- `visual_hive_get_handoff_context`
+
+These tools are context and routing helpers only. They do not run targets, mutate source, create GitHub issues, call Hive, upload provider artifacts, approve baselines, or decide pass/fail.
+
 ## Visual Graph Role
 
 The Visual Graph connects:
@@ -81,4 +98,3 @@ Issue-agent output should include:
 - `safetyNotes`
 
 Agents may recommend changes, but Visual Hive validates those changes with deterministic commands before any claim of resolution.
-

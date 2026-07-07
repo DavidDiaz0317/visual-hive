@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -109,6 +109,54 @@ const MCP_STATIC_READ_ONLY_TOOLS: McpToolDefinition[] = [
     name: "visual_hive_list_reproduction_commands",
     title: "List Reproduction Commands",
     description: "List deterministic reproduction commands recorded in the latest report.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_list_issues",
+    title: "List Issues",
+    description: "Summarize Visual Hive issue candidates without creating, updating, or closing GitHub issues.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_issue_context",
+    title: "Get Issue Context",
+    description: "Return the first active issue candidate with linked evidence, graph, impact, artifacts, and validation command context.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_query_visual_graph",
+    title: "Query Visual Graph",
+    description: "Return compact Visual Graph, vocabulary, unresolved-reference, and impact summaries without rescanning or running targets.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_visual_impact",
+    title: "Get Visual Impact",
+    description: "Read the latest Visual Impact analysis without running validation commands or changing issue state.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_list_artifacts",
+    title: "List Artifacts",
+    description: "Summarize the sanitized Visual Hive artifact index for issue and evidence navigation.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_validation_command",
+    title: "Get Validation Command",
+    description: "Return the validation command for the first active issue candidate or the latest report reproduction commands.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_agent_prompt",
+    title: "Get Agent Prompt",
+    description: "Return the latest issue-agent request path and bounded prompt guidance without executing an agent.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_handoff_context",
+    title: "Get Handoff Context",
+    description: "Return compact handoff and Hive export context without creating issues, Beads, branches, or PRs.",
     mode: "read_only"
   }
 ];
@@ -349,6 +397,22 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return explainLatestFailure(loaded.rootDir);
     case "visual_hive_list_reproduction_commands":
       return listReproductionCommands(loaded.rootDir);
+    case "visual_hive_list_issues":
+      return JSON.stringify(await listIssues(loaded.rootDir), null, 2);
+    case "visual_hive_get_issue_context":
+      return JSON.stringify(await getIssueContext(loaded.rootDir), null, 2);
+    case "visual_hive_query_visual_graph":
+      return JSON.stringify(await queryVisualGraph(loaded.rootDir), null, 2);
+    case "visual_hive_get_visual_impact":
+      return JSON.stringify(await readNamedJson(loaded.rootDir, ".visual-hive/visual-impact.json", "Run visual-hive graph impact first."), null, 2);
+    case "visual_hive_list_artifacts":
+      return JSON.stringify(await listArtifacts(loaded.rootDir), null, 2);
+    case "visual_hive_get_validation_command":
+      return JSON.stringify(await getValidationCommand(loaded.rootDir), null, 2);
+    case "visual_hive_get_agent_prompt":
+      return JSON.stringify(await getAgentPrompt(loaded.rootDir), null, 2);
+    case "visual_hive_get_handoff_context":
+      return JSON.stringify(await getHandoffContext(loaded.rootDir), null, 2);
     default:
       return `Tool ${sanitizeText(toolName)} is not registered as a default read-only Visual Hive MCP tool.`;
   }
@@ -490,12 +554,310 @@ async function listReproductionCommands(rootDir: string): Promise<string> {
     : "No reproduction commands were recorded in the latest report.";
 }
 
+async function listIssues(rootDir: string): Promise<Record<string, unknown>> {
+  const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
+  if (!issues) {
+    return missingJson(".visual-hive/issues.json", "Run visual-hive issues --write first.");
+  }
+  const candidates = Array.isArray(issues.issues) ? issues.issues.filter(isRecord) : [];
+  return sanitizeObject({
+    schemaVersion: issues.schemaVersion,
+    project: issues.project,
+    summary: issues.summary,
+    externalCallsMade: issues.externalCallsMade ?? 0,
+    networkCallsMade: issues.networkCallsMade ?? 0,
+    issues: candidates.map((issue) => ({
+      dedupeFingerprint: readString(issue, "dedupeFingerprint"),
+      title: readString(issue, "title"),
+      issueKind: readString(issue, "issueKind"),
+      severity: readString(issue, "severity"),
+      status: readString(issue, "status"),
+      owningAgentHint: readString(issue, "owningAgentHint"),
+      validationCommand: readString(issue, "validationCommand")
+    }))
+  });
+}
+
+async function getIssueContext(rootDir: string): Promise<Record<string, unknown>> {
+  const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
+  const issueQueue = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issue-queue.json"));
+  if (!issues) {
+    return missingJson(".visual-hive/issues.json", "Run visual-hive issues --write first.");
+  }
+  const candidates = Array.isArray(issues.issues) ? issues.issues.filter(isRecord) : [];
+  const selected = candidates.find((issue) => {
+    const status = readString(issue, "status");
+    return status !== "suppressed" && status !== "resolved_candidate";
+  }) ?? candidates[0];
+  if (!selected) {
+    return sanitizeObject({
+      status: "missing",
+      message: "No issue candidates are available.",
+      issuesSummary: issues.summary,
+      issueQueueSummary: issueQueue?.summary
+    });
+  }
+  const evidenceArtifacts = [
+    readString(selected, "linkedEvidencePacket") ?? ".visual-hive/evidence-packet.json",
+    readString(selected, "linkedRepoMap") ?? ".visual-hive/repo-map.json",
+    readString(selected, "linkedVisualGraph") ?? ".visual-hive/visual-graph.json",
+    readString(selected, "linkedVisualImpact") ?? ".visual-hive/visual-impact.json",
+    readString(selected, "linkedMutationReport"),
+    readString(selected, "linkedHandoff"),
+    readString(selected, "linkedHiveExport"),
+    readString(selected, "linkedKnowledgeGraph"),
+    readString(selected, "linkedAgentPacket")
+  ].filter((item): item is string => Boolean(item));
+  return sanitizeObject({
+    issue: {
+      dedupeFingerprint: readString(selected, "dedupeFingerprint"),
+      title: readString(selected, "title"),
+      issueKind: readString(selected, "issueKind"),
+      severity: readString(selected, "severity"),
+      status: readString(selected, "status"),
+      labels: Array.isArray(selected.labels) ? selected.labels.filter((item): item is string => typeof item === "string") : [],
+      owningAgentHint: readString(selected, "owningAgentHint"),
+      affected: selected.affected,
+      sourceArtifacts: selected.sourceArtifacts,
+      evidenceArtifacts,
+      reproductionCommand: readString(selected, "reproductionCommand"),
+      validationCommand: readString(selected, "validationCommand"),
+      guardrails: selected.guardrails
+    },
+    issueQueueSummary: issueQueue?.summary,
+    mcpResourcePath: [
+      "visual_hive_get_issue_context",
+      "visual_hive_read_issue_queue",
+      "visual_hive_query_visual_graph",
+      "visual_hive_get_visual_impact",
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_mutation_report",
+      "visual_hive_get_validation_command",
+      "visual_hive_get_agent_prompt",
+      "visual_hive_get_handoff_context"
+    ],
+    safety: {
+      readOnly: true,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      writesMade: 0
+    }
+  });
+}
+
+async function queryVisualGraph(rootDir: string): Promise<Record<string, unknown>> {
+  const graph = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-graph.json"));
+  const vocab = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-graph-vocab.json"));
+  const unresolved = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-graph-unresolved.json"));
+  const impact = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-impact.json"));
+  return sanitizeObject({
+    graph: graph
+      ? {
+          schemaVersion: graph.schemaVersion,
+          project: graph.project,
+          summary: graph.summary,
+          nodeCount: Array.isArray(graph.nodes) ? graph.nodes.length : undefined,
+          edgeCount: Array.isArray(graph.edges) ? graph.edges.length : undefined
+        }
+      : missingJson(".visual-hive/visual-graph.json", "Run visual-hive analyze or visual-hive graph search first."),
+    vocab: vocab
+      ? {
+          schemaVersion: vocab.schemaVersion,
+          project: vocab.project,
+          summary: vocab.summary,
+          termCount: Array.isArray(vocab.terms) ? vocab.terms.length : undefined
+        }
+      : missingJson(".visual-hive/visual-graph-vocab.json", "Run visual-hive analyze or visual-hive graph search first."),
+    unresolved: unresolved
+      ? {
+          schemaVersion: unresolved.schemaVersion,
+          summary: unresolved.summary,
+          unresolvedCount: Array.isArray(unresolved.unresolved) ? unresolved.unresolved.length : undefined
+        }
+      : missingJson(".visual-hive/visual-graph-unresolved.json", "Run visual-hive graph impact first."),
+    latestImpact: impact
+      ? {
+          schemaVersion: impact.schemaVersion,
+          project: impact.project,
+          summary: impact.summary,
+          validationCommands: impact.validationCommands
+        }
+      : missingJson(".visual-hive/visual-impact.json", "Run visual-hive graph impact first."),
+    searchCommand: "visual-hive graph search <selector-route-contract-or-mutation>",
+    impactCommand: "visual-hive graph impact --changed-files changed-files.txt",
+    safety: {
+      readOnly: true,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      writesMade: 0
+    }
+  });
+}
+
+async function listArtifacts(rootDir: string): Promise<Record<string, unknown>> {
+  const index = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "artifacts-index.json"));
+  if (!index) {
+    return missingJson(".visual-hive/artifacts-index.json", "Run visual-hive artifacts first.");
+  }
+  const artifacts = Array.isArray(index.artifacts) ? index.artifacts.filter(isRecord) : [];
+  return sanitizeObject({
+    schemaVersion: index.schemaVersion,
+    project: index.project,
+    summary: index.summary,
+    artifacts: artifacts.map((artifact) => ({
+      path: readString(artifact, "path"),
+      type: readString(artifact, "type"),
+      schemaPath: readString(artifact, "schemaPath"),
+      evidenceResourceId: readString(artifact, "evidenceResourceId"),
+      evidenceResourceUri: readString(artifact, "evidenceResourceUri"),
+      evidenceReadToolName: readString(artifact, "evidenceReadToolName"),
+      labels: Array.isArray(artifact.labels) ? artifact.labels.filter((item): item is string => typeof item === "string") : []
+    }))
+  });
+}
+
+async function getValidationCommand(rootDir: string): Promise<Record<string, unknown>> {
+  const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
+  const candidates = Array.isArray(issues?.issues) ? issues.issues.filter(isRecord) : [];
+  const selected = candidates.find((issue) => {
+    const status = readString(issue, "status");
+    return status !== "suppressed" && status !== "resolved_candidate";
+  }) ?? candidates[0];
+  if (selected) {
+    return sanitizeObject({
+      source: ".visual-hive/issues.json",
+      dedupeFingerprint: readString(selected, "dedupeFingerprint"),
+      title: readString(selected, "title"),
+      validationCommand: readString(selected, "validationCommand") ?? "not recorded",
+      reproductionCommand: readString(selected, "reproductionCommand")
+    });
+  }
+  const commands = await listReproductionCommands(rootDir);
+  return sanitizeObject({
+    source: ".visual-hive/report.json",
+    validationCommand: commands,
+    note: "No active issue candidate was available, so reproduction commands from the latest report were returned."
+  });
+}
+
+async function getAgentPrompt(rootDir: string): Promise<Record<string, unknown>> {
+  const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
+  const candidates = Array.isArray(issues?.issues) ? issues.issues.filter(isRecord) : [];
+  const selected = candidates.find((issue) => {
+    const status = readString(issue, "status");
+    return status !== "suppressed" && status !== "resolved_candidate";
+  }) ?? candidates[0];
+  const agentRequestPath = selected ? path.join(".visual-hive", "agents", safeSegment(readString(selected, "dedupeFingerprint") ?? "issue"), "agent-request.md").replaceAll(path.sep, "/") : undefined;
+  const latestRequest = await findExistingAgentRequest(rootDir, agentRequestPath);
+  return sanitizeObject({
+    status: latestRequest ? "available" : "not_generated",
+    requestPath: latestRequest,
+    generateCommand: "visual-hive agent issue-runner --config visual-hive.config.yaml --issue-index 0",
+    recommendedMcpPath: [
+      "visual_hive_get_issue_context",
+      "visual_hive_read_issue_queue",
+      "visual_hive_query_visual_graph",
+      "visual_hive_get_visual_impact",
+      "visual_hive_read_evidence_packet",
+      "visual_hive_read_mutation_report",
+      "visual_hive_get_validation_command",
+      "visual_hive_get_handoff_context"
+    ],
+    outputContract: ["summary", "graphNodesUsed", "artifactsUsed", "proposedChanges", "validationCommand", "safetyNotes"],
+    safety: {
+      noWriteDefault: true,
+      visualHiveOwnsVerdict: true,
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    }
+  });
+}
+
+async function getHandoffContext(rootDir: string): Promise<Record<string, unknown>> {
+  const handoff = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "handoff.json"));
+  const hiveExport = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-export.json"));
+  return sanitizeObject({
+    handoff: handoff
+      ? {
+          schemaVersion: handoff.schemaVersion,
+          project: handoff.project,
+          summary: handoff.summary,
+          status: handoff.status,
+          externalCallsMade: handoff.externalCallsMade ?? 0
+        }
+      : missingJson(".visual-hive/handoff.json", "Run visual-hive handoff --dry-run first."),
+    hiveExport: hiveExport
+      ? {
+          schemaVersion: hiveExport.schemaVersion,
+          project: hiveExport.project,
+          summary: hiveExport.summary,
+          externalCallsMade: hiveExport.externalCallsMade ?? 0
+        }
+      : missingJson(".visual-hive/hive/hive-export.json", "Run visual-hive hive export --dry-run first."),
+    safety: {
+      readOnly: true,
+      createsIssues: false,
+      createsHiveBeads: false,
+      createsBranches: false,
+      createsPullRequests: false,
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    }
+  });
+}
+
+async function readNamedJson(rootDir: string, relativePath: string, generateHint: string): Promise<Record<string, unknown>> {
+  return (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, relativePath))) ?? missingJson(relativePath, generateHint);
+}
+
+async function findExistingAgentRequest(rootDir: string, preferredPath?: string): Promise<string | undefined> {
+  if (preferredPath) {
+    const text = await readJsonlessArtifact(path.join(rootDir, preferredPath));
+    if (text !== undefined) return preferredPath;
+  }
+  try {
+    const agentsDir = path.join(rootDir, ".visual-hive", "agents");
+    const entries = await readdir(agentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(".visual-hive", "agents", entry.name, "agent-request.md").replaceAll(path.sep, "/");
+      const text = await readJsonlessArtifact(path.join(rootDir, candidate));
+      if (text !== undefined) return candidate;
+    }
+  } catch {
+    // No issue-agent prompt has been generated yet.
+  }
+  return undefined;
+}
+
+async function readJsonlessArtifact(filePath: string): Promise<string | undefined> {
+  try {
+    return sanitizeText(await readFile(filePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+function missingJson(relativePath: string, generateHint: string): Record<string, unknown> {
+  return sanitizeObject({
+    status: "missing",
+    artifact: relativePath,
+    generateHint,
+    externalCallsMade: 0,
+    networkCallsMade: 0
+  });
+}
+
 function reportResults(report?: Record<string, unknown>): Record<string, unknown>[] {
   const results = report?.results;
   if (Array.isArray(results)) return results.filter(isRecord);
   const legacyResults = report?.contractResults;
   if (Array.isArray(legacyResults)) return legacyResults.filter(isRecord);
   return [];
+}
+
+function safeSegment(value: string): string {
+  return sanitizeText(value).replace(/[^A-Za-z0-9_.-]+/g, "-").slice(0, 96);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

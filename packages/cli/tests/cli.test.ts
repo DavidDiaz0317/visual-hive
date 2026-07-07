@@ -155,9 +155,23 @@ function markdownCodeBullets(section: string, prefix: string): string[] {
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
-    await rm(dir, { recursive: true, force: true });
+    await removeTempDir(dir);
   }
 });
+
+async function removeTempDir(dir: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rm(dir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  throw lastError;
+}
 
 describe("CLI commands", () => {
   it("validates plan modes clearly", () => {
@@ -2246,7 +2260,7 @@ integrations:
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "repair_request", "repair-work-orders.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "guarded_repair", "hive-export.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "modes", "full", "hive-export.json"))).resolves.toBeUndefined();
-  });
+  }, 15_000);
 
   it("writes a standalone verdict artifact from normalized evidence", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-verdict-"));

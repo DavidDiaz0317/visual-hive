@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">Visual Hive safety boundaries</title>
+  <desc id="desc">A boundary diagram showing deterministic verdict authority in Visual Hive, advisory agents and MCP, disabled writes, and trusted workflows.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    svg { background: #f8fafc; }
+    text { font-family: Arial, sans-serif; fill: #0f172a; font-size: 16px; }
+    .small { font-size: 13px; fill: #475569; }
+    .core { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; rx: 8; }
+    .read { fill: #ffffff; stroke: #2563eb; stroke-width: 2; rx: 8; }
+    .stop { fill: #fef2f2; stroke: #dc2626; stroke-width: 2; rx: 8; }
+    .trust { fill: #f0fdf4; stroke: #16a34a; stroke-width: 2; rx: 8; }
+    .line { stroke: #334155; stroke-width: 2; marker-end: url(#arrow); fill: none; }
+    .bar { stroke: #dc2626; stroke-width: 4; }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #0b1220; }
+      text { fill: #e5e7eb; }
+      .small { fill: #cbd5e1; }
+      .core { fill: #083344; stroke: #22d3ee; }
+      .read { fill: #111827; stroke: #60a5fa; }
+      .stop { fill: #2a0d0d; stroke: #f87171; }
+      .trust { fill: #052e16; stroke: #4ade80; }
+      .line { stroke: #cbd5e1; }
+    }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <rect class="core" x="350" y="55" width="260" height="92"/>
+  <text x="480" y="92" text-anchor="middle">Visual Hive Verdict</text>
+  <text class="small" x="480" y="118" text-anchor="middle">deterministic pass/fail authority</text>
+  <rect class="read" x="70" y="210" width="210" height="86"/>
+  <text x="175" y="243" text-anchor="middle">MCP + Agents</text>
+  <text class="small" x="175" y="267" text-anchor="middle">read, explain, recommend</text>
+  <rect class="stop" x="375" y="210" width="210" height="86"/>
+  <text x="480" y="243" text-anchor="middle">Default Writes</text>
+  <text class="small" x="480" y="267" text-anchor="middle">branches, PRs, issues disabled</text>
+  <rect class="trust" x="680" y="210" width="210" height="86"/>
+  <text x="785" y="243" text-anchor="middle">Trusted Workflow</text>
+  <text class="small" x="785" y="267" text-anchor="middle">explicit approval and policy</text>
+  <path class="line" d="M280 235 C330 190 390 165 430 150"/>
+  <path class="line" d="M610 150 C670 165 730 190 760 210"/>
+  <line class="bar" x1="420" y1="288" x2="540" y2="218"/>
+  <text class="small" x="480" y="330" text-anchor="middle">LLMs, MCP tools, Hive, and providers do not override Visual Hive's deterministic verdict.</text>
+</svg>
