@@ -8,15 +8,15 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | `893395cba104c4de819b22222074490ca7ecb016` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `1cf174550385176e9b71f221d6b302a9614b70d8` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | `validated by latest green product runs; see run IDs below` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `9c606dfd8ef818ee971ebd72a727916a0f922bf3` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28854470813`.
-- Product `Product Proof` passed on `main` run `28854470800`.
-- Demo-site `Visual Hive Production Smoke` passed on `main` run `28855015024`.
-- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28855193550`.
+- Product `CI` passed on `main` run `28856397184`.
+- Product `Product Proof` passed on `main` run `28856397257`.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28856425414`.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28856599389`.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 

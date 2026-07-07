@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `893395cba104c4de819b22222074490ca7ecb016` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `validated by latest green product runs; see CI/Product Proof rows` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 8 files, 363 tests passed | Pass |
@@ -25,15 +25,15 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-guard tests pass | 10 tests passed | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Issue-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue-facing artifacts | Passed for 19 issue-facing artifacts | Pass |
-| Product CI | GitHub Actions run `28854470813` | Product CI passes on current `main` | Passed | Pass |
-| Product Proof | GitHub Actions run `28854470800` | Product proof passes on current `main` | Passed | Pass |
+| Product CI | GitHub Actions run `28856397184` | Product CI passes on current `main` | Passed | Pass |
+| Product Proof | GitHub Actions run `28856397257` | Product proof passes on current `main` | Passed | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `1cf174550385176e9b71f221d6b302a9614b70d8` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `9c606dfd8ef818ee971ebd72a727916a0f922bf3` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -46,11 +46,11 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed after resolver hardening | Pass |
 | Demo-site path leak scan | Issue-facing generated artifacts under `.visual-hive` | No local absolute paths in issue-facing artifacts | Passed for 26 issue-facing artifacts | Pass |
-| Demo-site Production Smoke workflow | GitHub Actions run `28855015024` | Workflow-dispatched production smoke passes | Passed | Pass |
-| Demo-site Trusted Publisher workflow | GitHub Actions run `28855193550` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
+| Demo-site Production Smoke workflow | GitHub Actions run `28856425414` | Workflow-dispatched production smoke passes | Passed | Pass |
+| Demo-site Trusted Publisher workflow | GitHub Actions run `28856599389` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |
 | Scheduled workflow exists | `.github/workflows/visual-hive-scheduled.yml` and workflow audit | Scheduled/deep workflow exists and uploads artifacts | Passed by workflow audit | Pass |
-| Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28855193550` | Pass |
+| Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28856599389` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` | No stale Visual Hive refs | Passed | Pass |
 
 ## Safety Proofs
