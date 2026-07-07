@@ -67,6 +67,7 @@ Visual Hive defines focused issue-agent profiles:
 - `test_maintainer_agent`: flaky, stale, or weak tests and baselines.
 - `mutation_agent`: mutation adequacy mapping and survivor analysis.
 - `review_agent`: general review and triage.
+- `repair_planner_agent`: deterministic failure repair planning from issue, Evidence Packet, Visual Graph, Visual Impact, artifact, and validation-command context. This profile proposes bounded repair steps but does not decide pass/fail, create branches, open PRs, update issues, call Hive, call providers, or write source unless a trusted write-preview path explicitly enables that later.
 
 Default local runs are no-write. Write mode must be explicit and governed.
 
@@ -91,10 +92,15 @@ For trusted handoff:
 Issue-agent output should include:
 
 - `summary`
+- `diagnosis`
 - `graphNodesUsed`
 - `artifactsUsed`
+- `proposedFilesToInspect`
 - `proposedChanges`
 - `validationCommand`
+- `risks`
+- `writeAccessNeeded`
+- `confidence`
 - `safetyNotes`
 
 Agents may recommend changes, but Visual Hive validates those changes with deterministic commands before any claim of resolution.

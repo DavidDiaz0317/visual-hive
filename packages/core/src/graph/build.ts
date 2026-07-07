@@ -53,7 +53,7 @@ const DEFAULT_ARTIFACTS = [
   ".visual-hive/handoff.json",
   ".visual-hive/hive/hive-export.json"
 ];
-const AGENT_PROFILES = ["setup_agent", "map_agent", "test_creator_agent", "test_maintainer_agent", "mutation_agent", "review_agent"];
+const AGENT_PROFILES = ["setup_agent", "map_agent", "test_creator_agent", "test_maintainer_agent", "mutation_agent", "review_agent", "repair_planner_agent"];
 
 export async function writeVisualGraphArtifacts(options: WriteVisualGraphArtifactsOptions): Promise<{
   graph: VisualGraph;
@@ -798,6 +798,8 @@ function relationResolvedBy(relation: VisualGraphEdgeRelation, provenance: Visua
 function agentProfile(issue: VisualHiveIssueCandidate): string {
   const hint = String(issue.owningAgentHint ?? "");
   if (AGENT_PROFILES.includes(hint)) return hint;
+  if (/visual_regression|selector_contract_failure|screenshot_diff/i.test(issue.issueKind)) return "repair_planner_agent";
+  if (hint === "hive/quality" || hint === "hive/architect") return "repair_planner_agent";
   if (/mutation/i.test(issue.issueKind)) return "mutation_agent";
   if (/coverage|test/i.test(issue.issueKind)) return "test_creator_agent";
   if (/setup|workflow/i.test(issue.issueKind)) return "setup_agent";

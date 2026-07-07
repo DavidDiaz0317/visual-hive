@@ -5,7 +5,14 @@ import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssuesReport, VisualHiveOwningAgentHint } from "../issues/types.js";
 
-export type AgentIssueRunnerProfile = "setup_agent" | "map_agent" | "test_creator_agent" | "test_maintainer_agent" | "mutation_agent" | "review_agent";
+export type AgentIssueRunnerProfile =
+  | "setup_agent"
+  | "map_agent"
+  | "test_creator_agent"
+  | "test_maintainer_agent"
+  | "mutation_agent"
+  | "review_agent"
+  | "repair_planner_agent";
 export type AgentIssueRunnerMode = "no_write" | "write_preview";
 export type AgentIssueRunStatus = "completed" | "blocked";
 export type CodexCliDiscoveryStatus = "available" | "unavailable" | "failed" | "timeout";
@@ -569,10 +576,13 @@ function profileForIssue(issue: VisualHiveIssueCandidate): AgentIssueRunnerProfi
     "visual-hive/test-creator": "test_creator_agent",
     "visual-hive/test-maintainer": "test_maintainer_agent",
     "visual-hive/mutation": "mutation_agent",
-    "hive/quality": "review_agent",
+    "hive/quality": "repair_planner_agent",
     "hive/ci": "review_agent",
-    "hive/architect": "review_agent"
+    "hive/architect": "repair_planner_agent"
   };
+  if (issue.issueKind === "visual_regression" || issue.issueKind === "selector_contract_failure" || issue.issueKind === "screenshot_diff") {
+    return "repair_planner_agent";
+  }
   if (issue.issueKind === "mutation_survivor") return "test_creator_agent";
   if (issue.issueKind === "map_drift") return "map_agent";
   if (issue.issueKind === "setup_needed" || issue.issueKind === "external_repo_onboarding") return "setup_agent";
@@ -634,6 +644,14 @@ function recommendationsFor(issue: VisualHiveIssueCandidate, profile: AgentIssue
   }
   if (profile === "test_maintainer_agent") {
     return [...common, "Recommend stronger selectors, waits, masks, or explicit baseline review actions."];
+  }
+  if (profile === "repair_planner_agent") {
+    return [
+      ...common,
+      "Use deterministic failure, Visual Graph, and impact evidence to propose a bounded repair plan.",
+      "Identify the smallest set of files, contracts, routes, or selectors to inspect before any write-preview work.",
+      "Keep repair work governed: no branch, PR, commit, provider upload, Hive API call, or issue update unless an explicit trusted workflow enables it."
+    ];
   }
   if (profile === "setup_agent") {
     return [...common, "Recommend config, workflow, selector, or setup issue changes in a reviewed branch."];

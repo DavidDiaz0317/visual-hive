@@ -9430,6 +9430,74 @@ viewports:
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 
+  it("routes deterministic failure issues to the repair planner agent profile", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-repair-planner-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "issues.json"), {
+      schemaVersion: "visual-hive.issues.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-repair-demo",
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      sourceArtifacts: {
+        report: ".visual-hive/report.json",
+        evidencePacket: ".visual-hive/evidence-packet.json",
+        visualGraph: ".visual-hive/visual-graph.json",
+        visualImpact: ".visual-hive/visual-impact.json"
+      },
+      summary: {
+        total: 1,
+        openCandidates: 1,
+        updateCandidates: 0,
+        resolvedCandidates: 0,
+        suppressed: 0,
+        blocked: 0,
+        byKind: { visual_regression: 1 },
+        bySeverity: { critical: 1 }
+      },
+      issues: [
+        {
+          issueKind: "visual_regression",
+          severity: "critical",
+          status: "open_candidate",
+          dedupeFingerprint: "visual-hive:visual_regression:dashboard-shell",
+          title: "[Visual Hive] Dashboard visual regression",
+          labels: ["visual-hive", "visual-regression"],
+          body: "Dashboard shell changed unexpectedly.",
+          owningAgentHint: "hive/quality",
+          sourceArtifacts: [".visual-hive/report.json", ".visual-hive/evidence-packet.json"],
+          affected: [{ route: "/", component: "Dashboard", contractId: "dashboard-visual-stability", viewport: "desktop" }],
+          reproductionCommand: "visual-hive run --ci",
+          validationCommand: "visual-hive run --ci && visual-hive evidence",
+          linkedEvidencePacket: ".visual-hive/evidence-packet.json",
+          linkedRepoMap: ".visual-hive/repo-map.json",
+          linkedVisualGraph: ".visual-hive/visual-graph.json",
+          linkedVisualImpact: ".visual-hive/visual-impact.json",
+          guardrails: [
+            "Do not approve baselines blindly.",
+            "Do not weaken screenshot thresholds."
+          ]
+        }
+      ]
+    });
+
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-repair-demo",
+      issueIndex: 0,
+      codexDiscoveryRunner: async () => ({ status: 0, stdout: "Usage: codex", stderr: "" }),
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(run.run.profile).toBe("repair_planner_agent");
+    expect(run.run.parsedIssue.affectedContracts).toContain("dashboard-visual-stability");
+    expect(run.requestMarkdown).toContain("repair_planner_agent");
+    expect(run.requestMarkdown).toContain("visual-hive run --ci && visual-hive evidence");
+    expect(run.run.recommendations.join(" ")).toContain("bounded repair plan");
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
+
   it("validates no-write agent artifacts and catches forbidden action counters", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-validation-"));
     tempDirs.push(rootDir);

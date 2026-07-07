@@ -27,7 +27,7 @@
     "project": { "type": "string" },
     "mode": { "enum": ["no_write", "write_preview"] },
     "status": { "enum": ["completed", "blocked"] },
-    "profile": { "enum": ["setup_agent", "map_agent", "test_creator_agent", "test_maintainer_agent", "mutation_agent", "review_agent"] },
+    "profile": { "enum": ["setup_agent", "map_agent", "test_creator_agent", "test_maintainer_agent", "mutation_agent", "review_agent", "repair_planner_agent"] },
     "selectedIssue": {
       "type": "object",
       "required": ["dedupeFingerprint", "issueKind", "severity", "status", "title", "owningAgentHint"],
