@@ -3306,8 +3306,12 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_trusted_repair_workflow_dry_run");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_mode_comparison");
     expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_run");
+    expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_apply_patch");
+    expect(manifest.tools.map((tool) => tool.name)).not.toContain("visual_hive_open_pr");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_run");
     expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_hive_repair");
+    expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_apply_patch");
+    expect(manifest.disabledExecutionTools.map((tool) => tool.name)).toContain("visual_hive_open_pr");
     expect(manifest.policy.externalUploadsFromPr).toBe(false);
     expect(summary).toContain("Visual Hive MCP: cli-mcp");
     expect(summary).toContain("latest-evidence: visual-hive://latest-evidence -> .visual-hive/evidence-packet.json; read tool: visual_hive_read_evidence_packet");

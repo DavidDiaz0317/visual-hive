@@ -91,6 +91,8 @@ These execution or write-capable tools are described in the manifest as disabled
 - `visual_hive_handoff_hive_bead`
 - `visual_hive_hive_repair`
 - `visual_hive_provider_upload`
+- `visual_hive_apply_patch`
+- `visual_hive_open_pr`
 
 Trusted workflows may call the CLI directly under explicit policy. MCP clients should treat the default server as read-only context.
 

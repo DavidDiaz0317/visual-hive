@@ -19,7 +19,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product issues | `npm run demo:issues` | Issue candidates, queue, setup issue written without external calls | Passed; 18 candidates, external calls 0 | Pass |
 | Product issue publish dry-run | `npm run demo:issue-publish` | Dry-run publish writes plan/result and creates no real issues | Passed; real GitHub issues created 0 | Pass |
 | Product agent issue | `npm run demo:agent-issue-run` | No-write issue-agent artifacts generated | Passed; agent request/output/run written, external calls 0 | Pass |
-| Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised and execution tools disabled | Passed; 73 resources, 78 read tools, 7 disabled execution tools | Pass |
+| Product MCP smoke | `npm run demo:mcp:smoke` | MCP manifest/read-only tools/resources exercised and execution/write tools disabled | Passed; 73 resources, 78 read tools, 9 disabled execution tools | Pass |
 | Product UI smoke | Covered by `npm run demo:full-run` | Control Plane smoke passes | Passed | Pass |
 | Product browser UI smoke | Covered by `npm run demo:full-run` | Browser smoke passes | Passed | Pass |
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-guard tests pass | 10 tests passed | Pass |
@@ -41,7 +41,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site graph impact | `npm run vh:graph:impact` | External repo Visual Impact generated | Passed; visual-impact.json written | Pass |
 | Demo-site issues | `npm run vh:issues` | Issue candidates and queue generated without external calls | Passed; 31 candidates, external calls 0 | Pass |
 | Demo-site issue publish dry-run | `npm run vh:issues:publish` | Dry-run publish writes plan/result and creates no real issues | Passed; real GitHub issues created 0 | Pass |
-| Demo-site MCP smoke | `npm run vh:mcp:smoke` | External repo can read Visual Hive MCP evidence | Passed; 73 resources, 78 read tools, 7 disabled execution tools | Pass |
+| Demo-site MCP smoke | `npm run vh:mcp:smoke` | External repo can read Visual Hive MCP evidence with execution/write tools disabled | Passed; 73 resources, 78 read tools, 9 disabled execution tools | Pass |
 | Demo-site agent issue | `npm run vh:agent:issue` | No-write local deterministic issue-agent runs | Passed; agent execution completed, external calls 0 | Pass |
 | Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed after resolver hardening | Pass |

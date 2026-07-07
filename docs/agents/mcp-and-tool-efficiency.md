@@ -206,6 +206,8 @@ Execution-capable tools are intentionally not registered in the default MCP serv
 - `visual_hive_handoff_hive_bead`
 - `visual_hive_hive_repair`
 - `visual_hive_provider_upload`
+- `visual_hive_apply_patch`
+- `visual_hive_open_pr`
 
 Those actions require trusted CLI workflows, human approval, protected credentials, or explicit future policy gates.
 

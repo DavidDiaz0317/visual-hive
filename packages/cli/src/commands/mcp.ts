@@ -193,7 +193,9 @@ export const MCP_DISABLED_EXECUTION_TOOLS: McpToolDefinition[] = [
   "visual_hive_handoff_github_issue",
   "visual_hive_handoff_hive_bead",
   "visual_hive_hive_repair",
-  "visual_hive_provider_upload"
+  "visual_hive_provider_upload",
+  "visual_hive_apply_patch",
+  "visual_hive_open_pr"
 ].map((name) => ({
   name,
   title: name.replaceAll("_", " "),
