@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `validated by latest green product runs; see CI/Product Proof rows` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main` | `1dd39a97bfaa52b1e614bca5d1fe91bea6047f97` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 8 files, 364 tests passed | Pass |
@@ -25,15 +25,15 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product GitHub App tests | `npm test -w @visual-hive/github-app` | GitHub App signature/mock/live-readiness tests pass | 11 tests passed | Pass |
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | Evidence-facing generated artifacts under `examples/demo-react-app/.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run demo:full-run` | Pass |
-| Product CI | GitHub Actions run `28856849311` | Product CI passes on `main` | Passed before latest sanitizer hardening commit; rerun after push required for new head | Pass |
-| Product Proof | GitHub Actions run `28856849312` | Product proof passes on `main` | Passed before latest sanitizer hardening commit; rerun after push required for new head | Pass |
+| Product CI | GitHub Actions run `28861431167` | Product CI passes on `main` | Passed for commit `1dd39a9` | Pass |
+| Product Proof | GitHub Actions run `28861431149` | Product proof passes on `main` | Passed for commit `1dd39a9` | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `9c606dfd8ef818ee971ebd72a727916a0f922bf3` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `7f4a6d87e39ecda459b8cf8cce3dd05f6bae51e0` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -46,8 +46,9 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed after resolver hardening | Pass |
 | Demo-site path leak scan | Evidence-facing generated artifacts under `.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run vh:production-smoke` | Pass |
-| Demo-site Production Smoke workflow | GitHub Actions run `28856425414` | Workflow-dispatched production smoke passes | Passed | Pass |
-| Demo-site Trusted Publisher workflow | GitHub Actions run `28856599389` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
+| Demo-site Production Smoke workflow | GitHub Actions run `28862783105` | Scheduled production smoke passes | Passed | Pass |
+| Demo-site Scheduled workflow | GitHub Actions run `28862904560` | Scheduled/deep workflow creates prerequisites before MCP smoke and uploads artifacts | Passed after workflow prerequisite fix | Pass |
+| Demo-site Trusted Publisher workflow | GitHub Actions run `28863088358` | Trusted workflow consumes artifacts and remains dry-run unless guard is enabled | Passed | Pass |
 | PR workflow exists/safe | `.github/workflows/visual-hive-pr.yml` and workflow audit | Pull request workflow is read-only/no-secret/no issue creation | Passed by workflow audit | Pass |
 | Scheduled workflow exists | `.github/workflows/visual-hive-scheduled.yml` and workflow audit | Scheduled/deep workflow exists and uploads artifacts | Passed by workflow audit | Pass |
 | Trusted publisher exists/safe | `.github/workflows/visual-hive-trusted-publisher.yml` and workflow audit | Trusted publisher uses workflow_run, issues:write, no checkout, live guard | Passed by workflow audit and run `28856599389` | Pass |
@@ -72,6 +73,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | --- | --- | --- | --- | --- |
 | GitHub App live mode | `packages/github-app` tests and docs | Live mode blocked without explicit env/auth guard | Tests pass; no live GitHub App credentials were provided in this run | Blocked by missing live credentials |
 | Live issue update | `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true npm run vh:trusted-publish:live-smoke` | Optional trusted live issue update only with explicit guard/token | Not run in this validation pass; previous issue #6 proof remains clean and deduped | Blocked by missing explicit live guard/token |
+| Codex CLI no-write agent | `codex --help` before attempting a real Codex issue-agent run | CLI help should be callable before adapter execution | `codex.exe` failed with `Access is denied`; deterministic local no-write agent remains passing | Blocked by local Codex CLI execution policy |
 
 ## Notes
 

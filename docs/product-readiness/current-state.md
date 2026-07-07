@@ -8,15 +8,17 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | validated by local full validation plus latest green product runs | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `9c606dfd8ef818ee971ebd72a727916a0f922bf3` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | `1dd39a97bfaa52b1e614bca5d1fe91bea6047f97` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `7f4a6d87e39ecda459b8cf8cce3dd05f6bae51e0` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28856849311` before the latest sanitizer hardening commit.
-- Product `Product Proof` passed on `main` run `28856849312` before the latest sanitizer hardening commit.
-- Demo-site `Visual Hive Production Smoke` passed on `main` run `28856425414`.
-- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28856599389`.
+- Product `CI` passed on `main` run `28861431167` for commit `1dd39a9`.
+- Product `Product Proof` passed on `main` run `28861431149` for commit `1dd39a9`.
+- Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28862783105`.
+- Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28862904560` after scheduled-chain artifact prerequisite cleanup.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28863088358`.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 - Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
@@ -46,4 +48,6 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 ## Current Cleanup Focus
 
-The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, and confirmed local product plus external demo-site production paths are green. Generated `.visual-hive` artifacts remain ignored working outputs.
+The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, and fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources.
+
+Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` fails with `Access is denied`; the deterministic local issue-agent path remains the passing no-write proof.
