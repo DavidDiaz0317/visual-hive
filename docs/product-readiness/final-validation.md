@@ -33,7 +33,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `7f4a6d87e39ecda459b8cf8cce3dd05f6bae51e0` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `92aec709fb17bb20ca154afd71669567779cf2d6` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
@@ -44,6 +44,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Demo-site MCP smoke | `npm run vh:mcp:smoke` | External repo can read Visual Hive MCP evidence with execution/write tools disabled | Passed; 73 resources, 78 read tools, 9 disabled execution tools | Pass |
 | Demo-site agent issue | `npm run vh:agent:issue` | No-write local deterministic issue-agent runs | Passed; agent execution completed, external calls 0 | Pass |
 | Demo-site workflow audit | `npm run vh:workflows` | PR workflow safe; trusted workflows separated | Passed; critical 0, high 0, `pull_request_target` 0, PR secrets 0, PR write permissions 0 | Pass |
+| Demo-site PR diff planning | GitHub PR workflow and local docs-only branch simulation | PR workflow plans from actual PR changed files and docs-only changes stay planning-only | Passed; `.visual-hive/changed-files.pr.txt` feeds graph impact and plan, docs-only simulation selected 0 contracts and still wrote issue/MCP/artifact evidence | Pass |
 | Demo-site production smoke | `npm run vh:production-smoke` | Continuous client proof passes locally | Passed after resolver hardening | Pass |
 | Demo-site path leak scan | Evidence-facing generated artifacts under `.visual-hive` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed for 18 evidence-facing artifacts after `npm run vh:production-smoke` | Pass |
 | Demo-site Production Smoke workflow | GitHub Actions run `28862783105` | Scheduled production smoke passes | Passed | Pass |

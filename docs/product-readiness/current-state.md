@@ -9,7 +9,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 | Repo | Canonical branch | Current SHA | Notes |
 | --- | --- | --- | --- |
 | `DavidDiaz0317/visual-hive` | `main` | `1dd39a97bfaa52b1e614bca5d1fe91bea6047f97` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `7f4a6d87e39ecda459b8cf8cce3dd05f6bae51e0` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `92aec709fb17bb20ca154afd71669567779cf2d6` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
@@ -19,6 +19,7 @@ This is an engineering readiness note for the production-like Visual Hive instal
 - Demo-site `Visual Hive Production Smoke` passed on `main` run `28862783105`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28862904560` after scheduled-chain artifact prerequisite cleanup.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28863088358`.
+- Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles docs-only PRs as planning-only evidence without running deterministic contracts.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 - Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
@@ -48,6 +49,6 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 ## Current Cleanup Focus
 
-The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, and fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources.
+The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, and made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files.
 
 Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` fails with `Access is denied`; the deterministic local issue-agent path remains the passing no-write proof.
