@@ -180,7 +180,10 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     timeoutMs: options.codexDiscoveryTimeoutMs ?? DEFAULT_BUDGETS.codexDiscoveryTimeoutMs,
     runner: options.codexDiscoveryRunner
   });
-  const codexBlockedReason = codexDiscoveryBlockedReason(codexCli);
+  const configuredAgentCommand = options.agentCommand ?? options.codexCommand ?? "codex";
+  const codexBlockedReason = codexDiscoveryShouldBlock(codexCli, options.executeAgent, configuredAgentCommand)
+    ? codexDiscoveryBlockedReason(codexCli)
+    : undefined;
   const effectiveBlockedReasons = dedupe([...blockedReasons, codexBlockedReason]);
   const run: AgentIssueRun = sanitizeValue({
     schemaVersion: "visual-hive.agent-issue-run.v1",
@@ -236,6 +239,12 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
   const requestMarkdown = renderAgentRequest(issue, run, rootDir);
   const outputMarkdown = renderAgentOutput(issue, run, rootDir);
   return { run, requestMarkdown, outputMarkdown };
+}
+
+function codexDiscoveryShouldBlock(codexCli: AgentIssueRun["codexCli"], executeAgent: boolean | undefined, agentCommand: string): boolean {
+  if (codexCli.discoveryStatus === "available") return false;
+  if (!executeAgent) return true;
+  return likelyExternalAgentCommand(agentCommand);
 }
 
 function codexDiscoveryBlockedReason(codexCli: AgentIssueRun["codexCli"]): string | undefined {

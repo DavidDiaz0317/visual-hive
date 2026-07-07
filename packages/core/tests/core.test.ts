@@ -9378,6 +9378,58 @@ viewports:
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
   });
 
+  it("allows deterministic local issue-agent execution when Codex discovery is unavailable", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-issue-local-agent-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-local-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "medium",
+          title: "Add dashboard visual coverage",
+          description: "Dashboard route lacks coverage.",
+          route: "/",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-local-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-local-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-local-demo" });
+
+    let agentRunnerCalled = false;
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-local-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      executeAgent: true,
+      agentCommand: "node",
+      agentArgs: ["scripts/local-issue-agent.mjs"],
+      codexDiscoveryRunner: async () => ({ status: null, stdout: "", stderr: "", error: "spawn EPERM" }),
+      agentRunner: async () => {
+        agentRunnerCalled = true;
+        return { status: 0, stdout: "local agent completed", stderr: "" };
+      },
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    expect(agentRunnerCalled).toBe(true);
+    expect(run.run.status).toBe("completed");
+    expect(run.run.codexCli.discoveryStatus).toBe("failed");
+    expect(run.run.agentExecution.status).toBe("completed");
+    expect(run.run.blockedReasons).toEqual([]);
+    expect(run.run.safety.externalCallsMade).toBe(0);
+    expect(run.run.safety.networkCallsMade).toBe(0);
+    expect(run.run.safety.llmCallsMade).toBe(0);
+    await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
+
   it("validates no-write agent artifacts and catches forbidden action counters", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-validation-"));
     tempDirs.push(rootDir);
