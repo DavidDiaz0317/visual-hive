@@ -11,6 +11,7 @@ It is a deterministic-first visual QA control plane for web projects. Playwright
 - [Issue-agent architecture](docs/issue-centric-agent-architecture.md)
 - [MCP / agent interface](docs/mcp.md)
 - [GitHub App model](docs/github-app.md)
+- [Public info site](apps/visual-hive-site)
 - [Agent factors](docs/visual-hive-agent-factors.md)
 - External demo repo: `visual-hive-demo-site` uses the `vh:*` commands shown below.
 
@@ -122,6 +123,18 @@ npm run demo:full-run
 ```
 
 That command exercises the major demo surfaces and verifies the local safety boundary: zero external calls, zero real GitHub issues, zero branches, zero PRs, and no provider uploads.
+
+## Public Info Site
+
+The public landing/onboarding site lives in `apps/visual-hive-site`. It is separate from the local-first Control Plane in `packages/control-plane`.
+
+```bash
+npm run site:dev
+npm run site:typecheck
+npm run site:build
+```
+
+The site is a static Vite app designed for Vercel with the project root set to `apps/visual-hive-site`, build command `npm run build`, and output directory `dist`. It explains the issue-centric Visual Hive loop, links to GitHub/docs/demo-site proof, and keeps the current production state honest: GitHub App hosting and live issue publishing are guarded directions, not defaults.
 
 ## External Demo-Site Proof
 

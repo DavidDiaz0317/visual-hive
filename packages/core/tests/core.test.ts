@@ -43,6 +43,7 @@ import {
 import { buildAgentPacket, writeAgentPacket } from "../src/agent/build.js";
 import { writeAgentIssueRun } from "../src/agent/issueRunner.js";
 import { writeAgentWritePreview } from "../src/agent/writePreview.js";
+import { validateAgentArtifacts } from "../src/agent/validate.js";
 import { buildIssuesReport, writeIssuesArtifacts } from "../src/issues/build.js";
 import { writeIssuePublishArtifacts } from "../src/issues/publish.js";
 import { buildToolRegistry, writeToolRegistry } from "../src/tools/build.js";
@@ -9301,6 +9302,69 @@ viewports:
     expect(run.run.codexCli.errorExcerpt).toContain("missing-codex");
     expect(run.run.safety.externalCallsMade).toBe(0);
     await expectMatchesSchema("visual-hive.agent-issue-run.schema.json", run.run);
+  });
+
+  it("validates no-write agent artifacts and catches forbidden action counters", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-agent-validation-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "coverage-recommendations.json"), {
+      schemaVersion: "visual-hive.coverage-recommendations.v1",
+      generatedAt: "2026-01-04T00:00:00.000Z",
+      project: "agent-validation-demo",
+      recommendations: [
+        {
+          id: "coverage-gap-demo",
+          issueKind: "missing_visual_coverage",
+          severity: "medium",
+          title: "Add dashboard visual coverage",
+          description: "Dashboard route lacks coverage.",
+          route: "/",
+          targetId: "localPreview"
+        }
+      ],
+      maintenanceFindings: []
+    });
+    await writeJson(path.join(rootDir, ".visual-hive", "evidence-packet.json"), { project: "agent-validation-demo" });
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), { project: "agent-validation-demo" });
+    const issues = await writeIssuesArtifacts({ rootDir, project: "agent-validation-demo" });
+    const run = await writeAgentIssueRun({
+      rootDir,
+      project: "agent-validation-demo",
+      dedupeFingerprint: issues.report.issues[0]?.dedupeFingerprint,
+      codexDiscoveryRunner: async () => ({ status: 0, stdout: "Usage: codex", stderr: "" }),
+      now: new Date("2026-01-04T00:00:00.000Z")
+    });
+
+    const passed = await validateAgentArtifacts({
+      rootDir,
+      now: new Date("2026-01-04T00:00:00.000Z"),
+      outputPath: ".visual-hive/agent-validation.json"
+    });
+
+    expect(passed.report.status).toBe("passed");
+    expect(passed.report.summary).toMatchObject({
+      agentRuns: 1,
+      failed: 0,
+      forbiddenActionFailures: 0
+    });
+    expect(passed.report.items[0]?.requestPath).toMatch(/^\.visual-hive\//);
+    await expect(readFile(path.join(rootDir, ".visual-hive", "agent-validation.json"), "utf8")).resolves.toContain("visual-hive.agent-artifacts-validation.v1");
+
+    await writeJson(run.runPath, {
+      ...run.run,
+      safety: {
+        ...run.run.safety,
+        branchesCreated: 1
+      }
+    });
+
+    const failed = await validateAgentArtifacts({ rootDir, now: new Date("2026-01-04T00:00:00.000Z") });
+    expect(failed.report.status).toBe("failed");
+    expect(failed.report.summary.forbiddenActionFailures).toBe(1);
+    expect(failed.report.items[0]?.checks.find((check) => check.id === "forbidden_branchesCreated")).toMatchObject({
+      status: "failed"
+    });
   });
 
   it("runs a guarded local issue-agent command with bounded no-network evidence", async () => {

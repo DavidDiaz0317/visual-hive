@@ -144,6 +144,7 @@ const ARTIFACTS_BY_SECTION = {
   "Agent packets/tools/MCP/context": [
     ".visual-hive/test-creation-plan.json",
     ".visual-hive/agent-packet.json",
+    ".visual-hive/agent-validation.json",
     ".visual-hive/agents/*/write-preview.json",
     ".visual-hive/handoff-agent-packet.json",
     ".visual-hive/provider-agent-packet.json",
@@ -216,6 +217,7 @@ const sections = [
       "demo:test-creation",
       "demo:agent-packet",
       "demo:agent-issue-run",
+      "demo:agent-validate",
       "demo:agent-write-preview",
       "demo:agent-packet:handoff",
       "demo:agent-packet:provider",
@@ -587,6 +589,7 @@ async function verifyHiveHandoff() {
 async function verifyAgentTooling() {
   const testCreation = await readDemoJson("test-creation-plan.json");
   const agent = await readDemoJson("agent-packet.json");
+  const validation = await readDemoJson("agent-validation.json");
   const issueAgentRun = await findLatestAgentIssueRun();
   const writePreview = await findLatestAgentArtifact("write-preview.json");
   const handoffAgent = await readDemoJson("handoff-agent-packet.json");
@@ -608,6 +611,10 @@ async function verifyAgentTooling() {
   assert(issueAgentRun.safety?.pullRequestsOpened === 0, "Issue agent run must not open pull requests.");
   assert(issueAgentRun.safety?.realGithubIssuesCreated === 0, "Issue agent run must not create GitHub issues.");
   assert(issueAgentRun.parsedIssue?.validationCommand, "Issue agent run must preserve the issue validation command.");
+  assert(validation.schemaVersion === "visual-hive.agent-artifacts-validation.v1", "Agent validation report must use the expected schema.");
+  assert(validation.status === "passed", "Agent validation report must pass.");
+  assert(validation.summary?.agentRuns >= 1, "Agent validation report must inspect at least one agent run.");
+  assert(validation.summary?.forbiddenActionFailures === 0, "Agent validation report must have zero forbidden action failures.");
   assert(writePreview.schemaVersion === "visual-hive.agent-write-preview.v1", "Write-preview proof must use the expected schema.");
   assert(writePreview.mode === "dry_run", "Write-preview must default to dry_run mode.");
   assert(writePreview.status === "planned", "Write-preview default proof must only plan the guarded branch.");

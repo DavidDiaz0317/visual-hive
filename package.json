@@ -17,6 +17,7 @@
     "node": ">=22"
   },
   "workspaces": [
+    "apps/visual-hive-site",
     "packages/core",
     "packages/control-plane",
     "packages/cli",
@@ -27,10 +28,14 @@
     "examples/demo-react-app"
   ],
   "scripts": {
-    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/control-plane && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/github-app && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli",
-    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/control-plane && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/github-app && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app",
+    "build": "npm run build -w @visual-hive/core && npm run build -w @visual-hive/control-plane && npm run build -w @visual-hive/github-adapter && npm run build -w @visual-hive/github-app && npm run build -w @visual-hive/llm-adapter && npm run build -w @visual-hive/playwright-adapter && npm run build -w @visual-hive/cli && npm run site:build",
+    "typecheck": "npm run typecheck -w @visual-hive/core && npm run typecheck -w @visual-hive/control-plane && npm run typecheck -w @visual-hive/github-adapter && npm run typecheck -w @visual-hive/github-app && npm run typecheck -w @visual-hive/llm-adapter && npm run typecheck -w @visual-hive/playwright-adapter && npm run typecheck -w @visual-hive/cli && npm run typecheck -w demo-react-app && npm run site:typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "site:dev": "npm run -w @visual-hive/site dev --",
+    "site:build": "npm run -w @visual-hive/site build",
+    "site:preview": "npm run -w @visual-hive/site preview --",
+    "site:typecheck": "npm run -w @visual-hive/site typecheck",
     "schema:verify": "node packages/cli/dist/index.js schemas verify --output .visual-hive/schema-catalog.json",
     "demo:build": "npm run build -w demo-react-app",
     "demo:doctor": "node packages/cli/dist/index.js doctor --config examples/demo-react-app/visual-hive.config.yaml",
@@ -92,6 +97,7 @@
     "demo:test-creation": "node packages/cli/dist/index.js test-creation-plan --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:agent-packet": "node packages/cli/dist/index.js agent-packet --config examples/demo-react-app/visual-hive.config.yaml --profile repair_agent",
     "demo:agent-issue-run": "node packages/cli/dist/index.js agent issue-runner --config examples/demo-react-app/visual-hive.config.yaml --issue-index 0",
+    "demo:agent-validate": "node packages/cli/dist/index.js agent validate --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:agent-write-preview": "node packages/cli/dist/index.js agent write-preview --config examples/demo-react-app/visual-hive.config.yaml --issue-index 0",
     "demo:agent-packet:handoff": "node packages/cli/dist/index.js agent-packet --config examples/demo-react-app/visual-hive.config.yaml --profile handoff_agent --output .visual-hive/handoff-agent-packet.json",
     "demo:agent-packet:provider": "node packages/cli/dist/index.js agent-packet --config examples/demo-react-app/visual-hive.config.yaml --profile provider_specialist --output .visual-hive/provider-agent-packet.json",

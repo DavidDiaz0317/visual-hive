@@ -37,6 +37,12 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 Visual Hive detects, proves, packages, routes, and validates visual/UI quality issues. It does not repair code by default. GitHub Issues are the durable work queue. Visual Hive artifacts and MCP are the structured evidence layer. Hive/Codex/agents act from issues under governance, and Visual Hive reruns deterministic validation afterward.
 
+## Public Info Site
+
+The public Visual Hive landing/onboarding site lives in `apps/visual-hive-site`. It is a static Vite/React workspace designed for Vercel and is intentionally separate from the local-first Control Plane UI in `packages/control-plane`.
+
+The site is informational only: it links to the product repo, external demo-site, docs, GitHub App model, MCP interface, Control Plane docs, and KubeStellar Hive context. It does not host the GitHub App, call live APIs, run Visual Hive checks, publish issues, or imply a production SaaS deployment exists.
+
 ## Live-Credential Boundary
 
 The local/default path remains no-network:
@@ -52,6 +58,6 @@ Live GitHub issue publishing and GitHub App operation require explicit trusted w
 
 ## Current Cleanup Focus
 
-The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files, added a demo-site GitHub App artifact-ingestion smoke that feeds real `.visual-hive` artifacts into the product GitHub App mock with zero external calls, zero network calls, no checkout, and no repo code execution, proved MCP stdio with a real client, and added guarded issue-agent write-preview dry-run proof in both product and demo-site acceptance paths.
+The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files, added a demo-site GitHub App artifact-ingestion smoke that feeds real `.visual-hive` artifacts into the product GitHub App mock with zero external calls, zero network calls, no checkout, and no repo code execution, proved MCP stdio with a real client, added guarded issue-agent write-preview dry-run proof in both product and demo-site acceptance paths, and added reusable agent artifact validation for request/output/run bundles and no-write safety counters.
 
 Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` fails with `Access is denied`; the deterministic local issue-agent path remains the passing no-write proof.
