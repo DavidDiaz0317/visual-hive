@@ -144,6 +144,7 @@ const ARTIFACTS_BY_SECTION = {
   "Agent packets/tools/MCP/context": [
     ".visual-hive/test-creation-plan.json",
     ".visual-hive/agent-packet.json",
+    ".visual-hive/agents/*/write-preview.json",
     ".visual-hive/handoff-agent-packet.json",
     ".visual-hive/provider-agent-packet.json",
     ".visual-hive/tools/tool-registry.json",
@@ -215,6 +216,7 @@ const sections = [
       "demo:test-creation",
       "demo:agent-packet",
       "demo:agent-issue-run",
+      "demo:agent-write-preview",
       "demo:agent-packet:handoff",
       "demo:agent-packet:provider",
       "demo:tools",
@@ -586,6 +588,7 @@ async function verifyAgentTooling() {
   const testCreation = await readDemoJson("test-creation-plan.json");
   const agent = await readDemoJson("agent-packet.json");
   const issueAgentRun = await findLatestAgentIssueRun();
+  const writePreview = await findLatestAgentArtifact("write-preview.json");
   const handoffAgent = await readDemoJson("handoff-agent-packet.json");
   const providerAgent = await readDemoJson("provider-agent-packet.json");
   const tools = await readDemoJson("tools/tool-registry.json");
@@ -605,6 +608,16 @@ async function verifyAgentTooling() {
   assert(issueAgentRun.safety?.pullRequestsOpened === 0, "Issue agent run must not open pull requests.");
   assert(issueAgentRun.safety?.realGithubIssuesCreated === 0, "Issue agent run must not create GitHub issues.");
   assert(issueAgentRun.parsedIssue?.validationCommand, "Issue agent run must preserve the issue validation command.");
+  assert(writePreview.schemaVersion === "visual-hive.agent-write-preview.v1", "Write-preview proof must use the expected schema.");
+  assert(writePreview.mode === "dry_run", "Write-preview must default to dry_run mode.");
+  assert(writePreview.status === "planned", "Write-preview default proof must only plan the guarded branch.");
+  assert(writePreview.validationCommand, "Write-preview proof must preserve the validation command.");
+  assert(writePreview.safety?.branchesCreated === 0, "Write-preview default proof must not create branches.");
+  assert(writePreview.safety?.commitsCreated === 0, "Write-preview default proof must not create commits.");
+  assert(writePreview.safety?.pullRequestsOpened === 0, "Write-preview default proof must not open pull requests.");
+  assert(writePreview.safety?.pushesPerformed === 0, "Write-preview default proof must not push.");
+  assert(writePreview.safety?.realGithubIssuesCreated === 0, "Write-preview default proof must not create GitHub issues.");
+  assert(writePreview.safety?.externalCallsMade === 0, "Write-preview default proof must not make external calls.");
   assert(nonEmptyArray(tools.tools), "Tool Registry must include tools.");
   assert(nonEmptyArray(mcp.resources) && nonEmptyArray(mcp.tools), "MCP manifest must include resources and read tools.");
   assert(nonEmptyArray(context.toolCalls) || context.sourceArtifacts, "Context Ledger must include tool/evidence context.");
@@ -1029,13 +1042,18 @@ async function readDemoText(relativePath) {
 }
 
 async function findLatestAgentIssueRun() {
+  return findLatestAgentArtifact("agent-run.json");
+}
+
+async function findLatestAgentArtifact(fileName) {
   const agentsDir = path.join(demoHive, "agents");
   const entries = await readdir(agentsDir, { withFileTypes: true });
-  const runPaths = entries
+  const artifactPaths = entries
     .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(agentsDir, entry.name, "agent-run.json"));
-  assert(runPaths.length > 0, "At least one issue-agent run artifact must exist.");
-  return readJson(runPaths.sort().at(-1));
+    .map((entry) => path.join(agentsDir, entry.name, fileName))
+    .filter((artifactPath) => existsSync(artifactPath));
+  assert(artifactPaths.length > 0, `At least one ${fileName} agent artifact must exist.`);
+  return readJson(artifactPaths.sort().at(-1));
 }
 
 async function readJson(filePath) {
