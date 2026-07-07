@@ -8,7 +8,7 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `c3de6144f3a9637adb6fbce953a62aae2c455c1d` | Pass |
+| Product branch | `git rev-parse HEAD` | Canonical branch is `main`; latest live SHA should be read from Git before release | Latest GitHub-validated baseline before this note: `fc6b946ea62f937dacc3ded1283455fe004450db` | Pass |
 | Build | `npm run build` | All workspaces build | Passed | Pass |
 | Typecheck | `npm run typecheck` | Strict TypeScript checks pass | Passed | Pass |
 | Tests | `npm test` | Unit/integration tests pass | 374 tests passed, including issue-facing path scan coverage and repair-planner issue-agent routing | Pass |
@@ -31,15 +31,15 @@ This is an engineering validation matrix for the production-like Visual Hive ins
 | Product audit | `npm audit --workspaces` | No known vulnerabilities, or documented risk | `found 0 vulnerabilities` | Pass |
 | Product path leak scan | `npm run demo:path-scan`; covered by `npm run demo:full-run` | No local absolute paths in issue/evidence/agent/MCP-facing artifacts | Passed; scanned 27 issue-facing artifacts and found 0 leaks | Pass |
 | Product workflow audit | `npm run demo:workflows` | Product workflows are PR-safe, summary-capable, baseline-artifact capable, and SHA-pinned | Passed; critical/high 0, `pull_request_target` 0, PR secrets/write permissions 0, unpinned actions 0 | Pass |
-| Product CI | GitHub Actions run `28890849533` | Product CI passes on `main` | Passed for commit `c3de6144` | Pass |
-| Product Proof | GitHub Actions run `28890849418` | Product proof passes on `main` | Passed for commit `c3de6144`, including `github-app:smoke:server` and pinned workflow actions | Pass |
+| Product CI | GitHub Actions run `28893111855` | Product CI passes on `main` | Passed for commit `fc6b946e` | Pass |
+| Product Proof | GitHub Actions run `28893111852` | Product proof passes on `main` | Passed for commit `fc6b946e`, including `github-app:smoke:server` and pinned workflow actions | Pass |
 | Stale branch refs | `rg "codex/control-plane-guided-cockpit|codex/v0.2-core-completion|visual-hive@codex|ref: codex" .` excluding generated/untracked proof output | No stale operational refs | Only historical readiness-doc references remain | Pass |
 
 ## External Demo-Site Repo
 
 | Area | Command / Proof | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `5c6598f984f17c6a3fe4d3ef446a914dfb2b4328` | Pass |
+| Demo-site branch | `git rev-parse HEAD` | Canonical client branch is `main` | `5c6598f4cefa734044f57d2ba15b96bbdace3e9f` | Pass |
 | CLI resolver | `node scripts/visual-hive-cli.mjs --print-resolution` | Selects current built Visual Hive checkout or explicit override | Passed; selected `../vis-hive` as newest checkout | Pass |
 | Build | `npm run build` | Demo app builds | Passed | Pass |
 | Typecheck | `npm run typecheck` | TypeScript checks pass | Passed | Pass |
