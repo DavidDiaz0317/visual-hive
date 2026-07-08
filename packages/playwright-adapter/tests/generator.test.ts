@@ -87,6 +87,8 @@ describe("buildSpecContent", () => {
     expect(content).toContain("runFlowSteps");
     expect(content).toContain("executeFlowStep");
     expect(content).toContain("flowSteps");
+    expect(content).toContain("await locator.waitFor({ state: \"visible\", timeout });");
+    expect(content).toContain("await locator.scrollIntoViewIfNeeded({ timeout });");
     expect(content).toContain("Critical action is clickable.");
     expect(content).toContain("visibleStepValue");
     expect(content).toContain("page.on(\"pageerror\"");

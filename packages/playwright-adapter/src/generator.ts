@@ -232,7 +232,10 @@ async function executeFlowStep(page, target, step, activeMutationOperator = "") 
     return;
   }
   if (step.action === "click") {
-    await page.locator(step.selector).first().click({ timeout });
+    const locator = page.locator(step.selector).first();
+    await locator.waitFor({ state: "visible", timeout });
+    await locator.scrollIntoViewIfNeeded({ timeout });
+    await locator.click({ timeout });
     return;
   }
   if (step.action === "fill") {

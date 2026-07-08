@@ -29,6 +29,7 @@ import {
   runHiveTrustedRepairConsumerSummaryCommand,
   runHiveTrustedRepairWorkflowDryRunCommand
 } from "./hive.js";
+import { runGraphImpactCommand } from "./graph.js";
 import { runImproveCoverageCommand } from "./improve.js";
 import { runIssuesCommand } from "./issues.js";
 import { runLayersCommand } from "./layers.js";
@@ -168,6 +169,16 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
   await runStep(context, "analyze", "Repo Intelligence", async () => {
     await runAnalyzeCommand({ repo: context.rootDir });
     return { artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"] };
+  });
+
+  await runStep(context, "graph-impact", "Visual Graph Impact", async () => {
+    await runGraphImpactCommand({
+      repo: context.rootDir,
+      changedFiles: options.changedFiles,
+      output: ".visual-hive/visual-impact.json",
+      write: true
+    });
+    return { artifacts: [".visual-hive/visual-impact.json"] };
   });
 
   await runStep(context, "plan", "Plan", async () => {
