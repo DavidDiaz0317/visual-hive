@@ -1,6 +1,6 @@
 # Current Product Readiness State
 
-Date: 2026-07-07
+Date: 2026-07-08
 
 This is an engineering readiness note for the production-like Visual Hive installation work. It is not a presentation report.
 
@@ -8,25 +8,26 @@ This is an engineering readiness note for the production-like Visual Hive instal
 
 | Repo | Canonical branch | Current reference | Notes |
 | --- | --- | --- | --- |
-| `DavidDiaz0317/visual-hive` | `main` | Latest GitHub-validated baseline before the current readiness note: `ada93cfe9bdf91c2cc9da7b0e968987d89ab0bc4` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
-| `DavidDiaz0317/visual-hive-demo-site` | `main` | `24f24821964c7e62ac331b9f489f223ea0b45602` | Demo-site is the canonical external client installation. |
+| `DavidDiaz0317/visual-hive` | `main` | `cee1b7e1aa35fd9940dd2fa3a12cac6368940e23` | `main` is the current product branch. The older `codex/control-plane-guided-cockpit` branch is historical only and must not be used by active workflows. Use `git rev-parse HEAD` and the latest GitHub Actions run list as the live source of truth for subsequent commits. |
+| `DavidDiaz0317/visual-hive-demo-site` | `main` | `cdbe7623c997bf6be7690de68f361d3739550974` | Demo-site is the canonical external client installation. |
 
 ## Current Verified State
 
-- Product `CI` passed on `main` run `28905676585` for commit `ada93cfe`.
-- Product `Product Proof` passed on `main` run `28905676573` for commit `ada93cfe`, including the blocked-by-default GitHub App live-smoke proof.
+- Product `CI` passed on `main` run `28908287220` for commit `cee1b7e1`.
+- Product `Product Proof` passed on `main` run `28908287263` for commit `cee1b7e1`, including the blocked-by-default GitHub App live-smoke proof.
 - Product workflow audit reports zero critical/high findings, zero `pull_request_target` workflows, zero PR secrets/write permissions, and zero tag/unpinned external actions.
 - Product `npm audit --workspaces` reports `found 0 vulnerabilities`.
 - Product root `npm run github-app:smoke:mock` passes and writes a sanitized no-network GitHub App workflow-run issue preview.
 - Product root `npm run github-app:smoke:artifacts` passes after demo artifacts exist and builds a GitHub App issue action from the downloaded-artifact directory path with zero external/network calls.
 - Product root `npm run github-app:smoke:server` starts the local GitHub App server, checks `/health`, posts a mock installation event, writes a setup issue preview, and makes zero external/network calls.
 - The GitHub App package now includes a guarded installation-token issue client and `npm run github-app:smoke:live`. It remains blocked unless `VISUAL_HIVE_GITHUB_APP_LIVE=true`, `VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE=true`, and GitHub App id/private-key/installation/webhook-secret env vars are configured. Tests mock the live GitHub API path and prove create/update-by-dedupe behavior without real network calls; the default live smoke writes blocked artifacts with zero external/network calls.
-- Demo-site `Visual Hive Production Smoke` passed on `main` run `28907026084` for commit `24f2482`, including the GitHub App artifact-ingestion smoke after consolidating to the single trusted publisher workflow.
-- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28907156152` for the production-smoke artifacts from commit `24f2482`.
+- Demo-site `Visual Hive Production Smoke` passed on `main` run `28908584336` for commit `cdbe762`, including the GitHub App artifact-ingestion smoke after consolidating to the single trusted publisher workflow.
+- Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28908707994` for the production-smoke artifacts from commit `cdbe762`.
 - Demo-site `Visual Hive Scheduled` passed on `main` workflow-dispatch run `28892559286` for commit `5c6598f`, after all demo-site workflows were SHA-pinned and the scheduled lane was updated to run `npm run vh:full-run` before the deep evidence chain.
 - Demo-site `Visual Hive Trusted Publisher` passed on `main` run `28892981209` for artifacts from the pinned scheduled lane.
 - Demo-site PR workflow now captures the actual pull request diff into `.visual-hive/changed-files.pr.txt`, plans from that file, emits Visual Graph/Impact artifacts, and handles planning-only diffs without running deterministic contracts. Temporary smoke PR #7 passed the `visual-hive` check on run `28864434672` and was closed/deleted after validation.
 - Demo-site local resolver now chooses the newest built sibling checkout when both `../visual-hive` and `../vis-hive` exist, avoiding stale local tooling.
+- Demo-site workflow audit now accepts the single trusted issue publisher as the consolidated handoff/publish path when it consumes sanitized handoff artifacts; it no longer recommends adding a duplicate trusted Hive handoff workflow for this installation.
 - Demo-site issue #6 is open, deduped, marked `visual-hive/resolved-candidate`, and contains no local absolute path leaks.
 - Guarded live issue smoke updated existing demo-site issue #4 (`https://github.com/DavidDiaz0317/visual-hive-demo-site/issues/4`) with `VISUAL_HIVE_LIVE_GITHUB_ISSUE=true`; it reported `realGithubIssuesCreated: 0`, `realGithubIssuesUpdated: 1`, and no local absolute path leaks in the published body.
 - Evidence-facing artifacts now sanitize repo-local screenshot/spec paths to `.visual-hive/...` in Evidence Packets, Visual Graph/Vocab/Impact, Agent Packets, Control Plane snapshots, and Artifact Index previews.
@@ -57,6 +58,6 @@ Live GitHub issue publishing and GitHub App issue writes require explicit truste
 
 ## Current Cleanup Focus
 
-The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, added a guarded GitHub App installation-token issue client with mocked live create/update tests, added a dedicated blocked-by-default GitHub App live-smoke command, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files, added a demo-site GitHub App artifact-ingestion smoke that feeds real `.visual-hive` artifacts into the product GitHub App mock with zero external calls, zero network calls, no checkout, and no repo code execution, proved MCP stdio with a real client, added guarded issue-agent write-preview dry-run proof in both product and demo-site acceptance paths, added reusable agent artifact validation for request/output/run bundles and no-write safety counters, added the `repair_planner_agent` profile for deterministic visual/selector/screenshot failure planning, and added a local deterministic issue-agent runner so product demos can exercise structured no-write agent output without Codex, Hive, LLM, provider, network, or GitHub writes.
+The latest hardening pass fixed local resolver selection for the external demo-site, hardened structured evidence path sanitization, refreshed issue-facing path evidence, exposed GitHub App live-readiness health data without leaking secrets, added a guarded GitHub App installation-token issue client with mocked live create/update tests, added a dedicated blocked-by-default GitHub App live-smoke command, fixed the demo-site scheduled workflow so clean CI generates Visual Graph, Visual Impact, issue queue, issue-publish dry-run, Agent Packet, Artifact Index, and MCP smoke prerequisites before reading MCP resources, made the demo-site PR workflow plan from real PR diffs instead of checked-in fixture files, added a demo-site GitHub App artifact-ingestion smoke that feeds real `.visual-hive` artifacts into the product GitHub App mock with zero external calls, zero network calls, no checkout, and no repo code execution, proved MCP stdio with a real client, added guarded issue-agent write-preview dry-run proof in both product and demo-site acceptance paths, added reusable agent artifact validation for request/output/run bundles and no-write safety counters, added the `repair_planner_agent` profile for deterministic visual/selector/screenshot failure planning, added a local deterministic issue-agent runner so product demos can exercise structured no-write agent output without Codex, Hive, LLM, provider, network, or GitHub writes, accepted the consolidated trusted publisher workflow model in workflow audit logic, and improved the external production-smoke harness so any failed step records a bounded output excerpt in `.visual-hive/production-smoke-summary.json`.
 
 Generated `.visual-hive` artifacts remain ignored working outputs. A local Codex CLI no-write issue-agent proof is currently blocked in this Windows environment because `codex --help` / guarded discovery fails with `Access is denied` / `spawn EPERM`; Visual Hive now records that as a blocked no-write agent artifact with zero source mutations, branches, PRs, issues, external calls, network calls, Hive API calls, LLM calls, or paid provider calls. The deterministic local issue-agent path remains the passing no-write proof.
