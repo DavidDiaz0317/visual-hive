@@ -459,11 +459,14 @@ function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {
 
 function reportRecommendations(workflows: WorkflowAuditEntry[], findings: WorkflowFinding[]): string[] {
   const recommendations = new Set<string>();
+  const hasTrustedHandoffPath = workflows.some(
+    (workflow) => workflow.kind === "trusted_handoff" || (workflow.kind === "trusted_issue" && workflow.readsHiveHandoffArtifacts)
+  );
   recommendations.add("Keep deterministic PR workflows read-only and secret-free.");
   recommendations.add("Use workflow_run for trusted issue creation from sanitized artifacts.");
   if (!workflows.some((workflow) => workflow.kind === "pull_request")) recommendations.add("Add a Visual Hive pull_request workflow.");
   if (!workflows.some((workflow) => workflow.kind === "trusted_issue")) recommendations.add("Add a trusted failure issue workflow when issue creation is needed.");
-  if (!workflows.some((workflow) => workflow.kind === "trusted_handoff")) recommendations.add("Add a trusted Hive handoff workflow when agent handoff is needed.");
+  if (!hasTrustedHandoffPath) recommendations.add("Add a trusted Hive handoff workflow when agent handoff is needed.");
   if (findings.some((finding) => finding.severity === "critical")) recommendations.add("Fix critical workflow safety findings before enabling required checks.");
   if (findings.some((finding) => finding.kind === "missing_live_issue_publish_guard")) {
     recommendations.add("Require VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true or an explicit workflow_dispatch input before trusted workflows publish live issues.");

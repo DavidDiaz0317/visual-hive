@@ -3171,6 +3171,60 @@ jobs:
     expect(audit.findings).toHaveLength(0);
   });
 
+  it("does not require a separate Hive handoff workflow when a trusted issue workflow consumes handoff artifacts", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: ".github/workflows/visual-hive-trusted-publisher.yml",
+        content: `name: Visual Hive Trusted Publisher
+on:
+  workflow_run:
+    workflows: ["Visual Hive PR", "Visual Hive Scheduled"]
+    types: [completed]
+permissions:
+  actions: read
+  contents: read
+  issues: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: vars.VISUAL_HIVE_AUTO_PUBLISH_ISSUES == 'true'
+    steps:
+      - uses: actions/download-artifact@1234567890abcdef1234567890abcdef12345678
+        with:
+          name: visual-hive
+          path: visual-hive-artifacts
+      - uses: actions/github-script@abcdef1234567890abcdef1234567890abcdef12
+        with:
+          script: |
+            const fs = require("fs");
+            function walkArtifacts(dir) {
+              return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walkArtifacts(entry.name) : [entry.name]);
+            }
+            function redactSecretValues(value) {
+              return String(value)
+                .replace(/client_secret=.*/gi, "client_secret=[REDACTED]")
+                .replace(/authorization:.*/gi, "authorization: [REDACTED]")
+                .replace(/set-cookie:.*/gi, "set-cookie: [REDACTED]")
+                .replace(/Bearer .*/gi, "Bearer [REDACTED]");
+            }
+            const files = walkArtifacts("visual-hive-artifacts");
+            const issues = files.find((file) => file.endsWith("issues.json"));
+            const queue = files.find((file) => file.endsWith("issue-queue.json"));
+            const handoff = files.find((file) => file.endsWith("handoff.json"));
+            const validation = files.find((file) => file.endsWith("hive-handoff-validation.json"));
+            const body = redactSecretValues(JSON.stringify({ issues, queue, handoff, validation }));
+            await github.rest.issues.create({ body: "<!-- visual-hive-dedupe -->" + body });
+`
+      }
+    ]);
+
+    expect(audit.summary.trustedIssueWorkflows).toBe(1);
+    expect(audit.summary.trustedHandoffWorkflows).toBe(0);
+    expect(audit.workflows[0]?.readsHiveHandoffArtifacts).toBe(true);
+    expect(audit.recommendations).not.toContain("Add a trusted Hive handoff workflow when agent handoff is needed.");
+    expect(audit.findings).toHaveLength(0);
+  });
+
   it("ships built-in GitHub workflow templates that audit as safe lanes", () => {
     const audit = auditWorkflows(
       sampleConfig(),
