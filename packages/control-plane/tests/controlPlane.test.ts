@@ -3768,7 +3768,7 @@ describe("control plane", () => {
       referenceKind: "selector_to_component",
       nextResolutionStrategy: "runtime_dom_observation"
     });
-    expect(snapshot.visualGraph?.safeActions.map((action) => action.command)).toEqual(expect.arrayContaining(["visual-hive graph search login", "visual-hive graph impact --changed-files changed-files.txt", "visual-hive agent issue-runner --issue-index 0 --no-write"]));
+    expect(snapshot.visualGraph?.safeActions.map((action) => action.command)).toEqual(expect.arrayContaining(["visual-hive graph search login", "visual-hive graph impact --changed-files changed-files.txt", "visual-hive agent issue-runner --issue-index 0"]));
     expect(snapshot.issuePublishPlan).toMatchObject({ schemaVersion: "visual-hive.issue-publish-plan.v1", status: "ready" });
     expect(snapshot.issuePublishDryRun).toMatchObject({ schemaVersion: "visual-hive.issue-publish-dry-run.v1", wouldCreateIssues: 1 });
     expect(snapshot.issuePublishResult).toMatchObject({ schemaVersion: "visual-hive.issue-publish-result.v1", status: "dry_run_written", realGithubIssuesCreated: 0 });

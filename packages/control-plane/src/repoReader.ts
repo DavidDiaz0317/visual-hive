@@ -538,7 +538,7 @@ function buildVisualGraphSummary(input: {
       {
         label: "Run no-write issue agent",
         commandId: "agent-issue-run",
-        command: "visual-hive agent issue-runner --issue-index 0 --no-write",
+        command: "visual-hive agent issue-runner --issue-index 0",
         writes: true,
         description: "Create a bounded agent request/output artifact; default policy does not repair code."
       }
