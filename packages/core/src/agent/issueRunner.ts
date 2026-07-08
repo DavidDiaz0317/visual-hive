@@ -187,6 +187,7 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
     timeoutMs: options.codexDiscoveryTimeoutMs ?? DEFAULT_BUDGETS.codexDiscoveryTimeoutMs,
     runner: options.codexDiscoveryRunner
   });
+  const agentRecommendations = dedupe([...recommendations, ...codexDiscoveryRecommendations(codexCli)]);
   const configuredAgentCommand = options.agentCommand ?? options.codexCommand ?? "codex";
   const codexBlockedReason = codexDiscoveryShouldBlock(codexCli, options.executeAgent, configuredAgentCommand)
     ? codexDiscoveryBlockedReason(codexCli)
@@ -240,7 +241,7 @@ export async function buildAgentIssueRun(options: BuildAgentIssueRunOptions): Pr
       paidProviderCallsMade: 0
     },
     artifactPaths,
-    recommendations,
+    recommendations: agentRecommendations,
     blockedReasons: effectiveBlockedReasons
   }) as AgentIssueRun;
   const requestMarkdown = renderAgentRequest(issue, run, rootDir);
@@ -260,6 +261,22 @@ function codexDiscoveryBlockedReason(codexCli: AgentIssueRun["codexCli"]): strin
   if (codexCli.discoveryStatus === "timeout") return `Codex CLI discovery timed out for ${codexCli.command}.${details}`;
   if (codexCli.discoveryStatus === "unavailable") return `Codex CLI is unavailable for issue-agent execution: ${codexCli.command}.${details}`;
   return `Codex CLI discovery failed for issue-agent execution: ${codexCli.command}.${details}`;
+}
+
+function codexDiscoveryRecommendations(codexCli: AgentIssueRun["codexCli"]): string[] {
+  if (codexCli.discoveryStatus === "available") return [];
+  const recommendations = [
+    "If a live Codex issue-agent run is required, first make `codex --help` succeed in this shell or pass `--codex-command <path-to-codex>` to a runnable CLI.",
+    "For no-network proof, rerun with a repo-local deterministic agent, for example `--execute-agent --agent-command node --agent-arg scripts/local-issue-agent.mjs` or the target repo's equivalent local issue-agent script."
+  ];
+  const error = codexCli.errorExcerpt ?? "";
+  if (/eperm|access is denied|windowsapps/i.test(error)) {
+    recommendations.push("On Windows, `spawn EPERM` or `Access is denied` usually means the discovered WindowsApps shim cannot be executed from this shell; expose a normal Codex CLI executable on PATH or pass it with `--codex-command`.");
+  }
+  if (codexCli.discoveryStatus === "timeout") {
+    recommendations.push("Increase `--codex-discovery-timeout-ms` only after confirming the Codex CLI is not waiting for interactive input.");
+  }
+  return recommendations;
 }
 
 async function discoverCodexCli(options: {

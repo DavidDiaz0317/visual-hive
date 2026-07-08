@@ -9785,6 +9785,10 @@ viewports:
     expect(run.run.agentExecution.status).toBe("blocked");
     expect(run.run.agentExecution.errorExcerpt).toContain("spawn EPERM");
     expect(run.run.blockedReasons.join(" ")).toContain("Codex CLI discovery failed");
+    expect(run.run.recommendations.join(" ")).toContain("--codex-command");
+    expect(run.run.recommendations.join(" ")).toContain("repo-local deterministic agent");
+    expect(run.run.recommendations.join(" ")).toContain("WindowsApps");
+    expect(run.outputMarkdown).toContain("--codex-command");
     expect(run.run.safety.externalCallsMade).toBe(0);
     expect(run.run.safety.networkCallsMade).toBe(0);
     expect(run.run.safety.llmCallsMade).toBe(0);
