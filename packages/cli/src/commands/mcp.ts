@@ -158,6 +158,30 @@ const MCP_STATIC_READ_ONLY_TOOLS: McpToolDefinition[] = [
     title: "Get Handoff Context",
     description: "Return compact handoff and Hive export context without creating issues, Beads, branches, or PRs.",
     mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_hive_export",
+    title: "Get Hive Export",
+    description: "Return compact Hive export context for agents without importing beads or calling Hive APIs.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_list_hive_beads",
+    title: "List Hive Beads",
+    description: "List Hive bead projections generated from Visual Hive issue candidates without creating beads in Hive.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_hive_bead_context",
+    title: "Get Hive Bead Context",
+    description: "Return one Hive bead projection with linked Visual Hive issue, evidence, graph, and validation context.",
+    mode: "read_only"
+  },
+  {
+    name: "visual_hive_get_hive_agent_work_order",
+    title: "Get Hive Agent Work Order",
+    description: "Return one Hive-compatible agent work order without executing an agent or writing source files.",
+    mode: "read_only"
   }
 ];
 
@@ -415,6 +439,14 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return JSON.stringify(await getAgentPrompt(loaded.rootDir), null, 2);
     case "visual_hive_get_handoff_context":
       return JSON.stringify(await getHandoffContext(loaded.rootDir), null, 2);
+    case "visual_hive_get_hive_export":
+      return JSON.stringify(await getHiveExportContext(loaded.rootDir), null, 2);
+    case "visual_hive_list_hive_beads":
+      return JSON.stringify(await listHiveBeads(loaded.rootDir), null, 2);
+    case "visual_hive_get_hive_bead_context":
+      return JSON.stringify(await getHiveBeadContext(loaded.rootDir), null, 2);
+    case "visual_hive_get_hive_agent_work_order":
+      return JSON.stringify(await getHiveAgentWorkOrder(loaded.rootDir), null, 2);
     default:
       return `Tool ${sanitizeText(toolName)} is not registered as a default read-only Visual Hive MCP tool.`;
   }
@@ -802,6 +834,135 @@ async function getHandoffContext(rootDir: string): Promise<Record<string, unknow
       createsHiveBeads: false,
       createsBranches: false,
       createsPullRequests: false,
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    }
+  });
+}
+
+async function getHiveExportContext(rootDir: string): Promise<Record<string, unknown>> {
+  const hiveExport = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-export.json"));
+  if (!hiveExport) {
+    return missingJson(".visual-hive/hive/hive-export.json", "Run visual-hive hive export --config visual-hive.config.yaml first.");
+  }
+  return sanitizeObject({
+    schemaVersion: hiveExport.schemaVersion,
+    project: hiveExport.project,
+    repository: hiveExport.repository,
+    createdAt: hiveExport.createdAt,
+    acmm: hiveExport.acmm,
+    summary: hiveExport.summary,
+    verdictSummary: hiveExport.verdictSummary,
+    issueCandidates: Array.isArray(hiveExport.issueCandidates) ? hiveExport.issueCandidates.length : 0,
+    beadProjections: Array.isArray(hiveExport.beads) ? hiveExport.beads.length : 0,
+    evidenceRefs: hiveExport.evidenceRefs,
+    safety: {
+      readOnly: true,
+      externalCallsMade: hiveExport.externalCallsMade ?? 0,
+      networkCallsMade: hiveExport.networkCallsMade ?? 0,
+      createsBeads: false,
+      createsIssues: false
+    }
+  });
+}
+
+async function listHiveBeads(rootDir: string): Promise<Record<string, unknown>> {
+  const hiveBeads =
+    (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-beads.json"))) ??
+    (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "beads.json")));
+  if (!hiveBeads) {
+    return missingJson(".visual-hive/hive/hive-beads.json", "Run visual-hive hive beads --config visual-hive.config.yaml first.");
+  }
+  const beads = hiveBeadsList(hiveBeads);
+  return sanitizeObject({
+    schemaVersion: hiveBeads.schemaVersion,
+    project: hiveBeads.project,
+    summary: hiveBeads.summary,
+    beads: beads.map((bead) => ({
+      id: readString(bead, "id"),
+      title: readString(bead, "title"),
+      type: readString(bead, "type"),
+      status: readString(bead, "status"),
+      priority: readString(bead, "priority"),
+      actor: readString(bead, "actor"),
+      externalRef: readString(bead, "external_ref"),
+      validationCommand: readNestedString(bead, ["metadata", "visual_hive_validation_command"])
+    })),
+    safety: {
+      readOnly: true,
+      externalCallsMade: 0,
+      networkCallsMade: 0,
+      createsBeads: false
+    }
+  });
+}
+
+async function getHiveBeadContext(rootDir: string): Promise<Record<string, unknown>> {
+  const hiveBeads =
+    (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-beads.json"))) ??
+    (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "beads.json")));
+  const workOrders = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-agent-work-orders.json"));
+  if (!hiveBeads) {
+    return missingJson(".visual-hive/hive/hive-beads.json", "Run visual-hive hive beads --config visual-hive.config.yaml first.");
+  }
+  const beads = hiveBeadsList(hiveBeads);
+  const selected = beads[0];
+  if (!selected) {
+    return sanitizeObject({
+      status: "missing",
+      message: "No Hive bead projections are available.",
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    });
+  }
+  const selectedRef = readString(selected, "external_ref");
+  const workOrder = Array.isArray(workOrders?.workOrders)
+    ? workOrders.workOrders.filter(isRecord).find((order) => readString(order, "externalRef") === selectedRef || readString(order, "dedupeFingerprint") === selectedRef)
+    : undefined;
+  return sanitizeObject({
+    bead: selected,
+    workOrder: workOrder ?? null,
+    recommendedReadPath: [
+      "visual_hive_get_hive_export",
+      "visual_hive_list_hive_beads",
+      "visual_hive_get_hive_agent_work_order",
+      "visual_hive_get_issue_context",
+      "visual_hive_query_visual_graph",
+      "visual_hive_read_evidence_packet",
+      "visual_hive_get_validation_command"
+    ],
+    safety: {
+      readOnly: true,
+      createsBeads: false,
+      createsIssues: false,
+      executesAgents: false,
+      externalCallsMade: 0,
+      networkCallsMade: 0
+    }
+  });
+}
+
+function hiveBeadsList(hiveBeads: Record<string, unknown>): Record<string, unknown>[] {
+  if (Array.isArray(hiveBeads)) return hiveBeads.filter(isRecord);
+  return Array.isArray(hiveBeads.beads) ? hiveBeads.beads.filter(isRecord) : [];
+}
+
+async function getHiveAgentWorkOrder(rootDir: string): Promise<Record<string, unknown>> {
+  const workOrders = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "hive", "hive-agent-work-orders.json"));
+  if (!workOrders) {
+    return missingJson(".visual-hive/hive/hive-agent-work-orders.json", "Run visual-hive hive validate-export --config visual-hive.config.yaml first.");
+  }
+  const orders = Array.isArray(workOrders.workOrders) ? workOrders.workOrders.filter(isRecord) : [];
+  return sanitizeObject({
+    schemaVersion: workOrders.schemaVersion,
+    project: workOrders.project,
+    selectedWorkOrder: orders[0] ?? null,
+    count: orders.length,
+    policy: workOrders.policy,
+    safety: {
+      readOnly: true,
+      executesAgent: false,
+      writesSource: false,
       externalCallsMade: 0,
       networkCallsMade: 0
     }

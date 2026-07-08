@@ -38,12 +38,12 @@ Run `npm run demo:path-scan` before trusted publishing to verify issue-facing ar
 
 Issue-facing artifacts must not contain:
 
-- `C:\Users`
-- `C:/Users`
-- `OneDrive`
-- `/Users/`
-- `/home/`
-- drive-letter paths such as `D:\`
+- Windows user-home paths
+- Windows slash-style user-home paths
+- cloud-sync local root names
+- macOS user-home paths
+- Linux user-home paths
+- Windows drive-letter paths
 - token, password, cookie, bearer, authorization, or client secret values
 
 The first-party scanner writes `.visual-hive/path-leak-scan.json` and fails when issue-facing artifacts expose local absolute paths.

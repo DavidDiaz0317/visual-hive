@@ -1,63 +1,41 @@
-# Production Demo-Site Installation
+# Production Demo-Site Installation Pattern
 
-`DavidDiaz0317/visual-hive-demo-site` is the canonical external client installation for Visual Hive.
+The canonical external repo is `DavidDiaz0317/visual-hive-demo-site`.
 
-## Continuous Lanes
+## Local Pattern
 
-### PR Lane
+1. Build Visual Hive from a sibling checkout or set `VISUAL_HIVE_CLI`.
+2. Run the demo-site resolver scripts rather than hardcoding `../vis-hive`.
+3. Generate deterministic evidence.
+4. Generate Hive export, beads, validation, setup pack, and integration smoke artifacts.
+5. Run path leak scans before any trusted publish/import step.
 
-Workflow: `.github/workflows/visual-hive-pr.yml`
-
-- Trigger: `pull_request`
-- Permissions: `contents: read`
-- Secrets: none
-- Issue creation: disabled
-- Provider upload: disabled
-- Runs Visual Hive from `DavidDiaz0317/visual-hive@main`
-- Produces deterministic report, triage, evidence, issue candidates, handoff packet, MCP manifest, and artifact index.
-
-### Scheduled / Deep Lane
-
-Workflow: `.github/workflows/visual-hive-scheduled.yml`
-
-- Trigger: schedule and manual dispatch
-- Runs deeper mutation, coverage, provider dry-run, handoff validation, MCP smoke, and agent issue context.
-- Issue publishing is dry-run by default.
-
-### Trusted Publisher
-
-Workflow: `.github/workflows/visual-hive-trusted-publisher.yml`
-
-- Trigger: `workflow_run`
-- Permissions: `actions: read`, `contents: read`, `issues: write`
-- Does not checkout or execute PR code.
-- Downloads uploaded Visual Hive artifacts.
-- Scans issue-facing artifacts for local path leaks.
-- Live publish is disabled unless `VISUAL_HIVE_AUTO_PUBLISH_ISSUES=true` is set as a repository variable.
-- Publishes at most one scoped issue candidate by default.
-
-### Production Smoke
-
-Workflow: `.github/workflows/visual-hive-production-smoke.yml`
-
-Manual workflow that runs the same production-style sequence locally available as:
+## Expected Commands
 
 ```bash
-npm run vh:production-smoke
-```
-
-## Required Local Commands
-
-```bash
-npm ci
-npm run build
-npm run typecheck
 npm run vh:full-run
+npm run vh:hive-export
+npm run vh:hive-validate
+npm run vh:hive-beads
+npm run vh:hive-setup-pack
+npm run vh:hive-integration-smoke
 npm run vh:mcp:smoke
-npm run vh:path-scan
-npm run vh:production-smoke
 ```
 
-## Safety Defaults
+## Workflow Pattern
 
-Local/default demo-site runs make zero real GitHub issues, zero Hive API calls, zero LLM calls, zero provider uploads, zero source mutations, and zero repair branches or PRs.
+- PR workflow: read-only, no secrets, no live issue creation, no Hive/provider calls.
+- Scheduled workflow: deeper checks and dry-run import/publish by default.
+- Trusted publisher/importer: consumes sanitized artifacts, does not checkout PR code, live mode only behind an explicit guard.
+
+## Adapting Another Repo
+
+1. Add stable route/page selectors.
+2. Add `visual-hive.config.yaml`.
+3. Add localPreview and hosted/canary targets as appropriate.
+4. Run `visual-hive doctor`, `plan`, and `run`.
+5. Seed baselines only from trusted context.
+6. Add mutation operators and coverage rules.
+7. Generate `visual-hive hive setup-pack`.
+8. Review and apply workflows.
+9. Keep live publishing/importing trusted and guarded.

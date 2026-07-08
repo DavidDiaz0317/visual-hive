@@ -438,7 +438,7 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
   ),
   resource(
     "hive-beads",
-    "visual-hive://hive/beads",
+    "visual-hive://hive-beads",
     "hive-beads",
     "Hive Beads",
     "Focused Hive-native bead work items derived from deterministic Visual Hive evidence.",
@@ -448,8 +448,56 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
       "visual_hive_read_hive_beads",
       "Read Hive Beads",
       "Return the existing no-network Hive bead work items if they have been generated.",
-      "visual-hive hive export --dry-run",
+      "visual-hive hive beads",
       ["Read Hive bead evidence only. Do not create Beads or call Hive from the default MCP surface."]
+    )
+  ),
+  resource(
+    "hive-import-manifest",
+    "visual-hive://hive-import-manifest",
+    "hive-import-manifest",
+    "Hive Import Manifest",
+    "No-network import manifest proving Visual Hive artifacts are sanitized, deduped, and ready for Hive to consume.",
+    ".visual-hive/hive/hive-import-manifest.json",
+    "application/json",
+    readTool(
+      "visual_hive_validate_hive_export",
+      "Validate Hive Export",
+      "Read the existing Hive import validation manifest without importing, creating issues, or calling Hive.",
+      "visual-hive hive validate-export",
+      ["Read validation evidence only. Do not import into Hive or mutate Beads from the default MCP surface."]
+    )
+  ),
+  resource(
+    "hive-agent-work-orders",
+    "visual-hive://hive-agent-work-orders",
+    "hive-agent-work-orders",
+    "Hive Agent Work Orders",
+    "Hive-compatible no-write work orders with issue/bead context, ACMM actions, forbidden actions, and Visual Hive validation commands.",
+    ".visual-hive/hive/hive-agent-work-orders.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_hive_agent_work_orders",
+      "Read Hive Agent Work Orders",
+      "Read Hive-compatible agent work orders without executing repair or creating branches.",
+      "visual-hive hive validate-export",
+      ["Read work-order evidence only. Do not execute agents, create branches, or repair code from the default MCP surface."]
+    )
+  ),
+  resource(
+    "hive-setup-pack",
+    "visual-hive://hive-setup-pack",
+    "hive-setup-pack",
+    "Hive Visual QA Setup Pack",
+    "No-network setup pack for Hive to enable Visual QA with safe PR, scheduled, and trusted importer workflows.",
+    ".visual-hive/hive/hive-setup-pack.json",
+    "application/json",
+    readTool(
+      "visual_hive_get_hive_setup_pack",
+      "Read Hive Setup Pack",
+      "Read the Visual QA setup pack for Hive without writing repository files or workflows.",
+      "visual-hive hive setup-pack",
+      ["Read setup-pack evidence only. Do not install workflows or create setup PRs from the default MCP surface."]
     )
   ),
   resource(

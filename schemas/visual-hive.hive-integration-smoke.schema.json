@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-integration-smoke.schema.json",
+  "title": "Visual Hive Hive Integration Smoke",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "commands",
+    "artifacts",
+    "summary",
+    "safety"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-integration-smoke.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "status": { "enum": ["passed", "failed"] },
+    "externalCallsMade": { "const": 0 },
+    "commands": { "type": "array", "items": { "type": "string" } },
+    "artifacts": { "type": "object", "additionalProperties": { "type": "string" } },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beads", "knowledgeFacts", "graphNodes", "graphEdges", "agentWorkOrders", "failedChecks"],
+      "properties": {
+        "beads": { "type": "integer", "minimum": 0 },
+        "knowledgeFacts": { "type": "integer", "minimum": 0 },
+        "graphNodes": { "type": "integer", "minimum": 0 },
+        "graphEdges": { "type": "integer", "minimum": 0 },
+        "agentWorkOrders": { "type": "integer", "minimum": 0 },
+        "failedChecks": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "safety": { "$ref": "#/$defs/safety" }
+  },
+  "$defs": {
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pathSanitizationStatus",
+        "absolutePathLeaks",
+        "secretLeaks",
+        "externalCallsMade",
+        "networkCallsMade",
+        "visualHiveCreatesBeads",
+        "visualHiveCreatesIssues",
+        "visualHiveRepairsCode"
+      ],
+      "properties": {
+        "pathSanitizationStatus": { "enum": ["passed", "failed"] },
+        "absolutePathLeaks": { "type": "integer", "minimum": 0 },
+        "secretLeaks": { "type": "integer", "minimum": 0 },
+        "externalCallsMade": { "const": 0 },
+        "networkCallsMade": { "const": 0 },
+        "visualHiveCreatesBeads": { "const": false },
+        "visualHiveCreatesIssues": { "const": false },
+        "visualHiveRepairsCode": { "const": false }
+      }
+    }
+  }
+}

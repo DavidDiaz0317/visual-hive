@@ -5127,7 +5127,7 @@ describe("artifact index", () => {
     expect(hiveBeads?.schemaPath).toBe("schemas/visual-hive.hive-beads.schema.json");
     expect(hiveBeads).toMatchObject({
       evidenceResourceId: "hive-beads",
-      evidenceResourceUri: "visual-hive://hive/beads",
+      evidenceResourceUri: "visual-hive://hive-beads",
       evidenceResourceTitle: "Hive Beads",
       evidenceReadToolName: "visual_hive_read_hive_beads"
     });

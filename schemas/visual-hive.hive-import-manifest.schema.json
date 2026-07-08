@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-import-manifest.schema.json",
+  "title": "Visual Hive Hive Import Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "status",
+    "externalCallsMade",
+    "sourceArtifacts",
+    "importer",
+    "summary",
+    "safety",
+    "checks",
+    "beads"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-import-manifest.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "status": { "enum": ["ready", "blocked"] },
+    "externalCallsMade": { "const": 0 },
+    "sourceArtifacts": { "$ref": "#/$defs/sourceArtifacts" },
+    "importer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "recommendedPackage", "beadStoreHint", "dashboardHint"],
+      "properties": {
+        "target": { "const": "kubestellar/hive" },
+        "recommendedPackage": { "type": "string" },
+        "beadStoreHint": { "type": "string" },
+        "dashboardHint": { "type": "string" }
+      }
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "safety": { "$ref": "#/$defs/safety" },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "beads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "external_ref", "status", "type", "actor"],
+        "properties": {
+          "id": { "type": "string" },
+          "external_ref": { "type": "string" },
+          "status": { "type": "string" },
+          "type": { "type": "string" },
+          "actor": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hiveExport",
+        "hiveBeads",
+        "knowledgeGraph",
+        "knowledgeFacts",
+        "wikiIndex",
+        "issueContext",
+        "agentWorkOrders",
+        "agentPolicy"
+      ],
+      "properties": {
+        "hiveExport": { "type": "string" },
+        "hiveBeads": { "type": "string" },
+        "knowledgeGraph": { "type": "string" },
+        "knowledgeFacts": { "type": "string" },
+        "wikiIndex": { "type": "string" },
+        "issueContext": { "type": "string" },
+        "agentWorkOrders": { "type": "string" },
+        "agentPolicy": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beads", "knowledgeFacts", "graphNodes", "graphEdges", "agentWorkOrders", "blockedReasons"],
+      "properties": {
+        "beads": { "type": "integer", "minimum": 0 },
+        "knowledgeFacts": { "type": "integer", "minimum": 0 },
+        "graphNodes": { "type": "integer", "minimum": 0 },
+        "graphEdges": { "type": "integer", "minimum": 0 },
+        "agentWorkOrders": { "type": "integer", "minimum": 0 },
+        "blockedReasons": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pathSanitizationStatus",
+        "absolutePathLeaks",
+        "secretLeaks",
+        "externalCallsMade",
+        "networkCallsMade",
+        "visualHiveCreatesBeads",
+        "visualHiveCreatesIssues",
+        "visualHiveRepairsCode"
+      ],
+      "properties": {
+        "pathSanitizationStatus": { "enum": ["passed", "failed"] },
+        "absolutePathLeaks": { "type": "integer", "minimum": 0 },
+        "secretLeaks": { "type": "integer", "minimum": 0 },
+        "externalCallsMade": { "const": 0 },
+        "networkCallsMade": { "const": 0 },
+        "visualHiveCreatesBeads": { "const": false },
+        "visualHiveCreatesIssues": { "const": false },
+        "visualHiveRepairsCode": { "const": false }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "message"],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "enum": ["passed", "failed"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

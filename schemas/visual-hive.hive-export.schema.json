@@ -365,7 +365,7 @@
         "evidenceResourceUri": {
           "enum": [
             "visual-hive://hive-export",
-            "visual-hive://hive/beads",
+            "visual-hive://hive-beads",
             "visual-hive://hive/knowledge-facts",
             "visual-hive://hive/knowledge-graph",
             "visual-hive://hive/wiki-index",

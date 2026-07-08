@@ -56,17 +56,25 @@ import {
 } from "./commands/issues.js";
 import {
   formatHiveExport,
+  formatHiveBeads,
   formatHiveGuardedRepairPreview,
+  formatHiveIntegrationSmoke,
   formatHiveModeComparison,
   formatHiveRepairRequestEnvelope,
+  formatHiveSetupPack,
   formatHiveTrustedRepairConsumerSummary,
   formatHiveTrustedRepairWorkflowDryRun,
+  formatHiveValidateExport,
+  runHiveBeadsCommand,
   runHiveCompareModesCommand,
   runHiveExportCommand,
   runHiveGuardedRepairPreviewCommand,
+  runHiveIntegrationSmokeCommand,
   runHiveRepairRequestEnvelopeCommand,
+  runHiveSetupPackCommand,
   runHiveTrustedRepairConsumerSummaryCommand,
-  runHiveTrustedRepairWorkflowDryRunCommand
+  runHiveTrustedRepairWorkflowDryRunCommand,
+  runHiveValidateExportCommand
 } from "./commands/hive.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
@@ -762,6 +770,104 @@ hiveCommand
       });
       console.log(formatHiveExport(result, options.format));
       if (result.bundle.status === "blocked") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("beads")
+  .description("Write Hive-compatible bead projection artifacts from Visual Hive evidence")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--output-dir <path>", "Hive export artifact directory", ".visual-hive/hive")
+  .option("--mode <mode>", "Hive mode to use when refreshing export before bead projection", "measured")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveBeadsCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        outputDir: options.outputDir,
+        mode: options.mode,
+        format: options.format
+      });
+      console.log(formatHiveBeads(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("validate-export")
+  .description("Validate Hive export artifacts, path sanitization, dedupe keys, and import readiness")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
+  .option("--output-dir <path>", "Hive export artifact directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveValidateExportCommand({
+        config: options.config,
+        hiveExport: options.hiveExport,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveValidateExport(result, options.format));
+      if (result.validation.status === "failed") {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("setup-pack")
+  .description("Write a no-network one-setup pack for Hive to enable Visual QA safely")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
+  .option("--output-dir <path>", "Hive setup pack artifact directory", ".visual-hive/hive")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveSetupPackCommand({
+        config: options.config,
+        hiveExport: options.hiveExport,
+        outputDir: options.outputDir,
+        format: options.format
+      });
+      console.log(formatHiveSetupPack(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
+  .command("integration-smoke")
+  .description("Run a no-network Hive integration smoke: export, beads, validate, and setup pack")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--evidence <path>", "evidence packet path", ".visual-hive/evidence-packet.json")
+  .option("--handoff <path>", "handoff packet path", ".visual-hive/handoff.json")
+  .option("--output-dir <path>", "Hive export artifact directory", ".visual-hive/hive")
+  .option("--mode <mode>", "Hive mode to use for smoke export", "measured")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveIntegrationSmokeCommand({
+        config: options.config,
+        evidence: options.evidence,
+        handoff: options.handoff,
+        outputDir: options.outputDir,
+        mode: options.mode,
+        format: options.format
+      });
+      console.log(formatHiveIntegrationSmoke(result, options.format));
+      if (result.smoke.status === "failed") {
         process.exitCode = 1;
       }
     } catch (error) {

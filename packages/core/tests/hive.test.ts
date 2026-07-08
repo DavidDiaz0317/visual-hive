@@ -166,7 +166,7 @@ describe("Hive native export", () => {
         artifactKey: "beads",
         artifactPath: ".visual-hive/hive/beads.json",
         evidenceResourceId: "hive-beads",
-        evidenceResourceUri: "visual-hive://hive/beads",
+        evidenceResourceUri: "visual-hive://hive-beads",
         evidenceReadToolName: "visual_hive_read_hive_beads"
       }),
       expect.objectContaining({

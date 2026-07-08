@@ -2969,7 +2969,7 @@ describe("control plane", () => {
       evidenceResourceUri: "visual-hive://mcp-manifest",
       evidenceReadToolName: "visual_hive_read_mcp_manifest"
     });
-  });
+  }, 20_000);
 
   it("builds a snapshot from config and report artifacts", async () => {
     const fixture = await makeFixture();

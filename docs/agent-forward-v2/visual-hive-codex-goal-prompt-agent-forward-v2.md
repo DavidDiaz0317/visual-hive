@@ -327,7 +327,7 @@ visual-hive://test-creation-plan
 visual-hive://latest-handoff
 visual-hive://handoff-validation
 visual-hive://hive-export
-visual-hive://hive/beads
+visual-hive://hive-beads
 visual-hive://hive/knowledge-facts
 visual-hive://hive/knowledge-graph
 visual-hive://hive/repair-work-orders

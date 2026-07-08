@@ -94,7 +94,12 @@ const ROLE_TOOL_PRIORITY: Record<ToolRole, string[]> = {
     "visual_hive_read_pr_comment",
     "visual_hive_get_validation_command",
     "visual_hive_generate_handoff_dry_run",
-    "visual_hive_validate_handoff"
+    "visual_hive_validate_handoff",
+    "visual_hive_read_hive_export",
+    "visual_hive_read_hive_beads",
+    "visual_hive_validate_hive_export",
+    "visual_hive_read_hive_agent_work_orders",
+    "visual_hive_get_hive_setup_pack"
   ],
   provider_specialist: [
     "visual_hive_read_provider_decisions",
@@ -383,6 +388,9 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("handoff-validation", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"]),
     evidenceCli("hive-export", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-beads", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-import-manifest", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-agent-work-orders", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("hive-setup-pack", ["setup_agent", "handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-knowledge-facts", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-knowledge-graph", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
     evidenceCli("hive-wiki-index", ["handoff_agent", "review_agent"], ["local", "schedule", "manual", "trusted"], { writes: [] }),

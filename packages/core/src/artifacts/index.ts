@@ -325,6 +325,15 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("/hive/mode-comparison.json")) labels.add("hive-mode-comparison");
   if (normalized.endsWith("/hive/mode-comparison.md")) labels.add("hive-mode-comparison");
   if (normalized.includes("/hive/") && normalized.endsWith("/beads.json")) labels.add("hive-beads");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-beads.json")) labels.add("hive-beads");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-beads.md")) labels.add("hive-beads");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-import-manifest.json")) labels.add("hive-import-manifest");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-validation-summary.json")) labels.add("hive-validation");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-agent-work-orders.json")) labels.add("hive-agent-work-orders");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-setup-pack.json")) labels.add("hive-setup-pack");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-setup-pack.md")) labels.add("hive-setup-pack");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-integration-smoke.json")) labels.add("hive-integration-smoke");
+  if (normalized.includes("/hive/") && normalized.endsWith("/hive-integration-smoke.md")) labels.add("hive-integration-smoke");
   if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-facts.json")) labels.add("hive-knowledge");
   if (normalized.includes("/hive/") && normalized.endsWith("/knowledge-graph.json")) labels.add("hive-graph");
   if (normalized.includes("/hive/") && normalized.endsWith("/wiki-index.json")) labels.add("hive-wiki-index");
@@ -402,6 +411,12 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "hive-handoff-validation.json": "visual-hive.handoff-validation.schema.json",
     "hive-export.json": "visual-hive.hive-export.schema.json",
     "beads.json": "visual-hive.hive-beads.schema.json",
+    "hive-beads.json": "visual-hive.hive-beads.schema.json",
+    "hive-import-manifest.json": "visual-hive.hive-import-manifest.schema.json",
+    "hive-validation-summary.json": "visual-hive.hive-validation-summary.schema.json",
+    "hive-agent-work-orders.json": "visual-hive.hive-agent-work-orders.schema.json",
+    "hive-setup-pack.json": "visual-hive.hive-setup-pack.schema.json",
+    "hive-integration-smoke.json": "visual-hive.hive-integration-smoke.schema.json",
     "knowledge-facts.json": "visual-hive.hive-knowledge-facts.schema.json",
     "knowledge-graph.json": "visual-hive.hive-knowledge-graph.schema.json",
     "wiki-index.json": "visual-hive.hive-wiki-index.schema.json",

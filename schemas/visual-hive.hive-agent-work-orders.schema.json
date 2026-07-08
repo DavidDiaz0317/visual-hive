@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-agent-work-orders.schema.json",
+  "title": "Visual Hive Hive Agent Work Orders",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "externalCallsMade",
+    "acmmLevel",
+    "sourceArtifacts",
+    "policy",
+    "workOrders"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-agent-work-orders.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "externalCallsMade": { "const": 0 },
+    "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "sourceArtifacts": { "type": "object" },
+    "policy": {
+      "type": "object",
+      "required": ["verdictAuthority", "agentsDecidePassFail", "visualHiveRepairsCode", "requiresVisualHiveValidation"],
+      "properties": {
+        "verdictAuthority": { "const": "visual_hive" },
+        "agentsDecidePassFail": { "const": false },
+        "visualHiveRepairsCode": { "const": false },
+        "requiresVisualHiveValidation": { "const": true }
+      }
+    },
+    "workOrders": { "type": "array", "items": { "type": "object" } }
+  }
+}

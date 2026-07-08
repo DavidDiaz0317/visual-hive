@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-setup-pack.schema.json",
+  "title": "Visual Hive Hive Setup Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "externalCallsMade",
+    "acmmLevel",
+    "sourceArtifacts",
+    "oneSetupFlow",
+    "proposedFiles",
+    "permissions",
+    "validationCommands",
+    "baselineSetupSteps",
+    "selectorGuidance",
+    "labels",
+    "agentProfiles",
+    "safetyGuardrails"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.hive-setup-pack.v1" },
+    "generatedAt": { "type": "string" },
+    "project": { "type": "string" },
+    "externalCallsMade": { "const": 0 },
+    "acmmLevel": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hiveExport"],
+      "properties": {
+        "hiveExport": { "type": "string" },
+        "hiveImportManifest": { "type": "string" }
+      }
+    },
+    "oneSetupFlow": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "proposedFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "purpose", "trusted"],
+        "properties": {
+          "path": { "type": "string" },
+          "purpose": { "type": "string" },
+          "trusted": { "type": "boolean" }
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflow", "permissions", "notes"],
+        "properties": {
+          "workflow": { "type": "string" },
+          "permissions": { "type": "object", "additionalProperties": { "type": "string" } },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "validationCommands": { "type": "array", "items": { "type": "string" } },
+    "baselineSetupSteps": { "type": "array", "items": { "type": "string" } },
+    "selectorGuidance": { "type": "array", "items": { "type": "string" } },
+    "labels": { "type": "array", "items": { "type": "string" } },
+    "agentProfiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profile", "role", "allowedActions", "forbiddenActions"],
+        "properties": {
+          "profile": { "type": "string" },
+          "role": { "type": "string" },
+          "allowedActions": { "type": "array", "items": { "type": "string" } },
+          "forbiddenActions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "safetyGuardrails": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+  }
+}

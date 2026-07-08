@@ -62,17 +62,25 @@ import {
 } from "../src/commands/issues.js";
 import {
   formatHiveExport,
+  formatHiveBeads,
   formatHiveGuardedRepairPreview,
+  formatHiveIntegrationSmoke,
   formatHiveModeComparison,
   formatHiveRepairRequestEnvelope,
+  formatHiveSetupPack,
   formatHiveTrustedRepairConsumerSummary,
   formatHiveTrustedRepairWorkflowDryRun,
+  formatHiveValidateExport,
+  runHiveBeadsCommand,
   runHiveCompareModesCommand,
   runHiveExportCommand,
   runHiveGuardedRepairPreviewCommand,
+  runHiveIntegrationSmokeCommand,
   runHiveRepairRequestEnvelopeCommand,
+  runHiveSetupPackCommand,
   runHiveTrustedRepairConsumerSummaryCommand,
-  runHiveTrustedRepairWorkflowDryRunCommand
+  runHiveTrustedRepairWorkflowDryRunCommand,
+  runHiveValidateExportCommand
 } from "../src/commands/hive.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
@@ -471,6 +479,10 @@ mutation:
       "demo:handoff",
       "demo:handoff-validate",
       "demo:hive-export",
+      "demo:hive-beads",
+      "demo:hive-validate",
+      "demo:hive-setup-pack",
+      "demo:hive-integration-smoke",
       "demo:hive-guarded-preview",
       "demo:hive-repair-envelope",
       "demo:hive-repair-consumer",
@@ -561,6 +573,10 @@ mutation:
     expect(packageJson.scripts["demo:handoff-validate"]).toContain("handoff-validate --config");
     expect(packageJson.scripts["demo:hive-export"]).toContain("hive export --config");
     expect(packageJson.scripts["demo:hive-export"]).toContain("--dry-run");
+    expect(packageJson.scripts["demo:hive-beads"]).toContain("hive beads --config");
+    expect(packageJson.scripts["demo:hive-validate"]).toContain("hive validate-export --config");
+    expect(packageJson.scripts["demo:hive-setup-pack"]).toContain("hive setup-pack --config");
+    expect(packageJson.scripts["demo:hive-integration-smoke"]).toContain("hive integration-smoke --config");
     expect(packageJson.scripts["demo:hive-guarded-preview"]).toContain("hive guarded-repair-preview --config");
     expect(packageJson.scripts["demo:hive-repair-envelope"]).toContain("hive repair-request-envelope --config");
     expect(packageJson.scripts["demo:hive-repair-consumer"]).toContain("hive trusted-repair-consumer-summary --config");
@@ -575,6 +591,16 @@ mutation:
     expect(demoCiOutput.indexOf("demo:handoff-validate")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
     expect(demoAllOutput.indexOf("demo:hive-export")).toBeLessThan(demoAllOutput.indexOf("demo:test-creation"));
     expect(demoCiOutput.indexOf("demo:hive-export")).toBeLessThan(demoCiOutput.indexOf("demo:test-creation"));
+    expect(demoAllOutput.indexOf("demo:hive-export")).toBeLessThan(demoAllOutput.indexOf("demo:hive-beads"));
+    expect(demoCiOutput.indexOf("demo:hive-export")).toBeLessThan(demoCiOutput.indexOf("demo:hive-beads"));
+    expect(demoAllOutput.indexOf("demo:hive-beads")).toBeLessThan(demoAllOutput.indexOf("demo:hive-validate"));
+    expect(demoCiOutput.indexOf("demo:hive-beads")).toBeLessThan(demoCiOutput.indexOf("demo:hive-validate"));
+    expect(demoAllOutput.indexOf("demo:hive-validate")).toBeLessThan(demoAllOutput.indexOf("demo:hive-setup-pack"));
+    expect(demoCiOutput.indexOf("demo:hive-validate")).toBeLessThan(demoCiOutput.indexOf("demo:hive-setup-pack"));
+    expect(demoAllOutput.indexOf("demo:hive-setup-pack")).toBeLessThan(demoAllOutput.indexOf("demo:hive-integration-smoke"));
+    expect(demoCiOutput.indexOf("demo:hive-setup-pack")).toBeLessThan(demoCiOutput.indexOf("demo:hive-integration-smoke"));
+    expect(demoAllOutput.indexOf("demo:hive-integration-smoke")).toBeLessThan(demoAllOutput.indexOf("demo:hive-guarded-preview"));
+    expect(demoCiOutput.indexOf("demo:hive-integration-smoke")).toBeLessThan(demoCiOutput.indexOf("demo:hive-guarded-preview"));
     expect(demoAllOutput.indexOf("demo:hive-export")).toBeLessThan(demoAllOutput.indexOf("demo:hive-guarded-preview"));
     expect(demoCiOutput.indexOf("demo:hive-export")).toBeLessThan(demoCiOutput.indexOf("demo:hive-guarded-preview"));
     expect(demoAllOutput.indexOf("demo:hive-guarded-preview")).toBeLessThan(demoAllOutput.indexOf("demo:hive-modes"));
@@ -2095,6 +2121,14 @@ integrations:
     const summary = formatHiveExport(result);
     const hiveExport = await readJson<typeof result.bundle>(path.join(tempRoot, ".visual-hive", "hive", "hive-export.json"));
     const issueContext = await readFile(path.join(tempRoot, ".visual-hive", "hive", "issue-context.md"), "utf8");
+    const beadsResult = await runHiveBeadsCommand({ cwd: tempRoot });
+    const beadsSummary = formatHiveBeads(beadsResult);
+    const validateResult = await runHiveValidateExportCommand({ cwd: tempRoot });
+    const validateSummary = formatHiveValidateExport(validateResult);
+    const setupPackResult = await runHiveSetupPackCommand({ cwd: tempRoot });
+    const setupPackSummary = formatHiveSetupPack(setupPackResult);
+    const smokeResult = await runHiveIntegrationSmokeCommand({ cwd: tempRoot });
+    const smokeSummary = formatHiveIntegrationSmoke(smokeResult);
     const previewResult = await runHiveGuardedRepairPreviewCommand({ cwd: tempRoot });
     const previewSummary = formatHiveGuardedRepairPreview(previewResult);
     const preview = await readJson<typeof previewResult.preview>(path.join(tempRoot, ".visual-hive", "hive", "guarded-repair-preview.json"));
@@ -2116,6 +2150,23 @@ integrations:
     expect(summary).toContain("Hive Native Export: cli-hive-export");
     expect(hiveExport.schemaVersion).toBe("visual-hive.hive-export.v1");
     expect(issueContext).toContain("Hive Agent Work Order");
+    expect(beadsResult.paths.beads).toBe(".visual-hive/hive/hive-beads.json");
+    expect(beadsSummary).toContain("Hive Beads Projection");
+    expect(validateResult.validation.schemaVersion).toBe("visual-hive.hive-validation-summary.v1");
+    expect(validateResult.validation.status).toBe("passed");
+    expect(validateResult.manifest.schemaVersion).toBe("visual-hive.hive-import-manifest.v1");
+    expect(validateResult.manifest.safety.externalCallsMade).toBe(0);
+    expect(validateResult.manifest.safety.visualHiveCreatesIssues).toBe(false);
+    expect(validateResult.manifest.safety.visualHiveRepairsCode).toBe(false);
+    expect(validateSummary).toContain("Hive Export Validation: cli-hive-export");
+    expect(setupPackResult.setupPack.schemaVersion).toBe("visual-hive.hive-setup-pack.v1");
+    expect(setupPackResult.setupPack.validationCommands).toContain("visual-hive hive validate-export");
+    expect(setupPackResult.setupPack.permissions.find((item) => item.workflow === "pull_request")?.permissions).toEqual({ contents: "read" });
+    expect(setupPackSummary).toContain("Hive Visual QA Setup Pack: cli-hive-export");
+    expect(smokeResult.smoke.schemaVersion).toBe("visual-hive.hive-integration-smoke.v1");
+    expect(smokeResult.smoke.status).toBe("passed");
+    expect(smokeResult.smoke.externalCallsMade).toBe(0);
+    expect(smokeSummary).toContain("Hive Integration Smoke: cli-hive-export");
     expect(preview.schemaVersion).toBe("visual-hive.hive-guarded-repair-preview.v1");
     expect(preview.externalCallsMade).toBe(0);
     expect(preview.status).toBe("ready");
@@ -2156,7 +2207,24 @@ integrations:
     expect(JSON.stringify(envelope)).not.toContain("session-secret");
     expect(JSON.stringify(consumer)).not.toContain("session-secret");
     expect(JSON.stringify(workflowDryRun)).not.toContain("session-secret");
+    expect(JSON.stringify(validateResult)).not.toContain("C:/Users");
+    expect(JSON.stringify(setupPackResult)).not.toContain("C:/Users");
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "beads.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-beads.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-beads.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-import-manifest.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-validation-summary.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-agent-work-orders.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-setup-pack.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-setup-pack.md"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-integration-smoke.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-integration-smoke.md"))).resolves.toBeUndefined();
+    await expectMatchesSchema("visual-hive.hive-beads.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-beads.json")));
+    await expectMatchesSchema("visual-hive.hive-import-manifest.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-import-manifest.json")));
+    await expectMatchesSchema("visual-hive.hive-validation-summary.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-validation-summary.json")));
+    await expectMatchesSchema("visual-hive.hive-agent-work-orders.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-agent-work-orders.json")));
+    await expectMatchesSchema("visual-hive.hive-setup-pack.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-setup-pack.json")));
+    await expectMatchesSchema("visual-hive.hive-integration-smoke.schema.json", await readJson(path.join(tempRoot, ".visual-hive", "hive", "hive-integration-smoke.json")));
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "knowledge-graph.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "repair-work-orders.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "hive-agent-policy.json"))).resolves.toBeUndefined();
@@ -2164,7 +2232,7 @@ integrations:
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "repair-request-envelope.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "trusted-repair-consumer-summary.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive", "trusted-repair-workflow-dry-run.md"))).resolves.toBeUndefined();
-  });
+  }, 15_000);
 
   it("writes a no-network Hive mode comparison with separate mode previews", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-hive-modes-"));
@@ -2893,6 +2961,26 @@ contracts:
         depends_on: []
       }
     ]);
+    await writeJson(path.join(tempRoot, ".visual-hive", "hive", "hive-agent-work-orders.json"), {
+      schemaVersion: "visual-hive.hive-agent-work-orders.v1",
+      project: "cli-mcp",
+      workOrders: [
+        {
+          id: "vh-work-order-1",
+          title: "Repair dashboard",
+          externalRef: "visual-hive://latest-evidence",
+          dedupeFingerprint: "visual-hive://latest-evidence",
+          agentProfile: "hive_quality_agent",
+          allowedActions: ["inspect_artifacts"],
+          forbiddenActions: ["decide_verdict", "approve_baseline"],
+          validationCommand: "visual-hive pipeline --mode pr --ci"
+        }
+      ],
+      policy: {
+        visualHiveVerdictAuthority: true,
+        noWriteDefault: true
+      }
+    });
     await writeJson(path.join(tempRoot, ".visual-hive", "hive", "knowledge-facts.json"), [
       {
         id: "vh-fact-1",
@@ -3238,7 +3326,7 @@ contracts:
     const hiveTrustedRepairConsumerSummaryResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-trusted-repair-consumer-summary");
     const hiveTrustedRepairWorkflowDryRunResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-trusted-repair-workflow-dry-run");
     const hiveModeComparisonResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-mode-comparison");
-    const hiveBeadsResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/beads");
+    const hiveBeadsResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive-beads");
     const hiveKnowledgeFactsResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/knowledge-facts");
     const hiveKnowledgeGraphResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/knowledge-graph");
     const hiveRepairWorkOrdersResource = manifest.resources.find((resource) => resource.uri === "visual-hive://hive/repair-work-orders");
@@ -3296,6 +3384,10 @@ contracts:
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_pipeline_status");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_schema_catalog");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_validate_handoff");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_get_hive_export");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_list_hive_beads");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_get_hive_bead_context");
+    expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_get_hive_agent_work_order");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_export");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_beads");
     expect(manifest.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_knowledge_facts");
@@ -3393,6 +3485,10 @@ contracts:
     const repairPrompt = await callReadOnlyTool(loaded, "visual_hive_generate_repair_prompt");
     const handoff = await callReadOnlyTool(loaded, "visual_hive_generate_handoff_dry_run");
     const handoffValidation = await callReadOnlyTool(loaded, "visual_hive_validate_handoff");
+    const hiveExportAlias = await callReadOnlyTool(loaded, "visual_hive_get_hive_export");
+    const hiveBeadsAlias = await callReadOnlyTool(loaded, "visual_hive_list_hive_beads");
+    const hiveBeadContext = await callReadOnlyTool(loaded, "visual_hive_get_hive_bead_context");
+    const hiveAgentWorkOrder = await callReadOnlyTool(loaded, "visual_hive_get_hive_agent_work_order");
     const hiveExport = await callReadOnlyTool(loaded, "visual_hive_read_hive_export");
     const hiveBeads = await callReadOnlyTool(loaded, "visual_hive_read_hive_beads");
     const hiveKnowledgeFacts = await callReadOnlyTool(loaded, "visual_hive_read_hive_knowledge_facts");
@@ -3426,6 +3522,14 @@ contracts:
     expect(repairPrompt).not.toContain("secret-value");
     expect(handoff).toContain("visual-hive.handoff.v1");
     expect(handoffValidation).toContain("visual-hive.handoff-validation.v1");
+    expect(hiveExportAlias).toContain("\"createsBeads\": false");
+    expect(hiveExportAlias).toContain("\"createsIssues\": false");
+    expect(hiveBeadsAlias).toContain("vh-bead-1");
+    expect(hiveBeadsAlias).toContain("\"createsBeads\": false");
+    expect(hiveBeadContext).toContain("vh-bead-1");
+    expect(hiveBeadContext).toContain("visual_hive_get_hive_agent_work_order");
+    expect(hiveAgentWorkOrder).toContain("hive-agent-work-orders");
+    expect(hiveAgentWorkOrder).toContain("\"executesAgent\": false");
     expect(hiveExport).toContain("visual-hive.hive-export.v1");
     expect(hiveBeads).toContain("vh-bead-1");
     expect(hiveBeads).not.toContain("secret-value");
@@ -3488,9 +3592,7 @@ contracts:
     expect(schemaResourceReadToolNames).toEqual(catalogReadToolNames);
     expect(schemaToolNames).toEqual(expect.arrayContaining(catalogReadToolNames));
 
-    const catalogBackedSchemaTools = schemaToolNames.filter(
-      (name) => name.startsWith("visual_hive_read_") || name === "visual_hive_generate_handoff_dry_run" || name === "visual_hive_validate_handoff" || name === "visual_hive_generate_repair_prompt"
-    );
+    const catalogBackedSchemaTools = schemaToolNames.filter((name) => catalogReadToolNames.includes(name));
     expect(catalogBackedSchemaTools.sort()).toEqual(catalogReadToolNames.sort());
   });
 
@@ -3590,7 +3692,10 @@ contracts:
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://latest-verdict");
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://readiness-gate");
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://context-ledger");
-      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive/beads");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive-beads");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive-import-manifest");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive-agent-work-orders");
+      expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive-setup-pack");
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive/knowledge-facts");
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive/knowledge-graph");
       expect(resources.resources.map((resource) => resource.uri)).toContain("visual-hive://hive/repair-work-orders");
@@ -3605,6 +3710,9 @@ contracts:
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_verdict");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_readiness_gate");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_beads");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_validate_hive_export");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_agent_work_orders");
+      expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_get_hive_setup_pack");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_knowledge_facts");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_knowledge_graph");
       expect(tools.tools.map((tool) => tool.name)).toContain("visual_hive_read_hive_repair_work_orders");
