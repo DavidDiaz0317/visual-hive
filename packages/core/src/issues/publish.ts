@@ -411,7 +411,10 @@ function decision(
   reason: string,
   existingIssue?: VisualHivePublishedIssueRef
 ): VisualHiveIssuePublishDecision {
-  const labels = issue.status === "resolved_candidate" ? dedupe([...issue.labels, "visual-hive/resolved-candidate"]) : issue.labels;
+  const labels =
+    issue.status === "resolved_candidate"
+      ? dedupe([...issue.labels.filter((label) => label !== "visual-hive/still-active"), "visual-hive/resolved-candidate"])
+      : dedupe([...issue.labels.filter((label) => label !== "visual-hive/resolved-candidate"), "visual-hive/still-active", "visual-hive/ready-for-hive"]);
   const body = issue.status === "resolved_candidate" ? resolvedCandidateBody(issue.body) : issue.body;
   return sanitizeValue({
     dedupeFingerprint: issue.dedupeFingerprint,

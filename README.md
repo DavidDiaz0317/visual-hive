@@ -8,6 +8,7 @@ It is a deterministic-first visual QA control plane for web projects. Playwright
 
 - [Quickstart](#quickstart)
 - [Issue-centric architecture](docs/issue-centric-architecture.md)
+- [Operational loop](docs/operational-loop.md)
 - [Issue-agent architecture](docs/issue-centric-agent-architecture.md)
 - [MCP / agent interface](docs/mcp.md)
 - [GitHub App model](docs/github-app.md)
@@ -137,6 +138,18 @@ npm run vh:agent:issue
 ```
 
 Those commands prove Visual Hive from a consumer repo rather than from this product checkout. This repository documents and builds the product; the external repo owns its own `vh:*` scripts.
+
+## Operational Loop
+
+For a real repository, the production loop is:
+
+```bash
+visual-hive loop run --mode full --bootstrap-baselines --ci
+visual-hive loop derive-issues
+visual-hive loop lifecycle
+```
+
+This scans the repo, plans checks, runs deterministic visual contracts, runs mutation adequacy, writes evidence/verdict/Hive artifacts, derives real issue candidates, and records lifecycle state. Seeded defects are separate smoke tests, not the default live loop. See [docs/operational-loop.md](docs/operational-loop.md).
 
 ## Production Direction
 

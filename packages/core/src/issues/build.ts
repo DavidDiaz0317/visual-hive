@@ -17,10 +17,13 @@ const DEFAULT_GUARDRAILS = [
   "Rerun the listed Visual Hive validation command before marking the issue resolved."
 ];
 
-const DEFAULT_LABELS = ["visual-hive", "hive/quality"];
+const DEFAULT_LABELS = ["visual-hive", "hive/quality", "visual-hive/live", "visual-hive/ready-for-hive"];
 const ISSUE_QUEUE_LABELS = [
   "visual-hive",
   "visual-hive/ready",
+  "visual-hive/live",
+  "visual-hive/still-active",
+  "visual-hive/ready-for-hive",
   "visual-hive/blocked",
   "visual-hive/resolved-candidate",
   "visual-hive/agent-setup",
@@ -90,9 +93,10 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     ...issuesFromHandoff(handoff, sourceArtifacts)
   ];
 
+  const previousByFingerprint = new Map((previousIssues?.issues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
   const keyed = new Map<string, VisualHiveIssueCandidate>();
   for (const issue of current) {
-    const candidate = normalizeIssue(issue, rootDir, {
+    const candidate = normalizeIssue(issue, rootDir, project, {
       evidencePacket: exists(sourceArtifacts.evidencePacket, evidencePacket),
       repoMap: exists(sourceArtifacts.repoMap, repoMap),
       visualGraph: exists(sourceArtifacts.visualGraph, visualGraph),
@@ -103,6 +107,12 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       knowledgeGraph: exists(sourceArtifacts.knowledgeGraph, knowledgeGraph),
       agentPacket: exists(sourceArtifacts.agentPacket, agentPacket)
     });
+    const previous = previousByFingerprint.get(candidate.dedupeFingerprint);
+    if (previous && previous.status !== "resolved_candidate" && previous.status !== "suppressed") {
+      candidate.status = "update_candidate";
+      candidate.labels = dedupe([...candidate.labels, "visual-hive/still-active"]);
+      candidate.body = renderIssueBody(candidate, undefined, rootDir);
+    }
     keyed.set(candidate.dedupeFingerprint, candidate);
   }
 
@@ -485,7 +495,7 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
     issueKind: input.issueKind,
     severity: input.severity,
     status: "open_candidate",
-    dedupeFingerprint: fingerprint(input.issueKind, input.title, input.affected),
+    dedupeFingerprint: legacyFingerprint(input.issueKind, input.title, input.affected),
     title: input.title,
     labels,
     body: "",
@@ -500,9 +510,11 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
   return partial;
 }
 
-function normalizeIssue(issue: VisualHiveIssueCandidate, rootDir: string, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
+function normalizeIssue(issue: VisualHiveIssueCandidate, rootDir: string, project: string, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
+  const surface = issue.affected[0]?.contractId ?? issue.affected[0]?.route ?? issue.affected[0]?.component ?? issue.issueKind;
   const normalized = {
     ...issue,
+    dedupeFingerprint: fingerprint(project, issue.issueKind, surface, issue.title, issue.affected),
     linkedEvidencePacket: links.evidencePacket ? sanitizeArtifactPathForIssue(rootDir, links.evidencePacket) : undefined,
     linkedRepoMap: links.repoMap ? sanitizeArtifactPathForIssue(rootDir, links.repoMap) : undefined,
     linkedVisualGraph: links.visualGraph ? sanitizeArtifactPathForIssue(rootDir, links.visualGraph) : undefined,
@@ -584,7 +596,7 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string, 
     "",
     "## Agent Direction",
     "",
-    "Hive and agents should use this issue as the queue item. Visual Hive remains the deterministic validation layer and should be rerun after any proposed fix."
+    "Visual Hive validates; Hive repairs. Hive and agents should use this issue as the queue item, then rerun the listed Visual Hive validation command after any proposed fix."
   ].filter((line): line is string => line !== undefined);
   const body = lines.join("\n");
   return rootDir ? sanitizeArtifactPathsForMarkdown(rootDir, body) : sanitizeText(body);
@@ -764,9 +776,20 @@ function agentLabels(agent: VisualHiveIssueCandidate["owningAgentHint"]): string
   return map[agent];
 }
 
-function fingerprint(kind: string, title: string, affected: VisualHiveIssueCandidate["affected"]): string {
+function fingerprint(project: string, kind: string, surface: string | undefined, title: string, affected: VisualHiveIssueCandidate["affected"]): string {
+  const repo = safeFingerprintSegment(project);
+  const surfaceSegment = safeFingerprintSegment(surface ?? "surface");
+  const base = JSON.stringify({ repo, kind, surface: surfaceSegment, title: title.toLowerCase(), affected });
+  return `visual-hive:${repo}:${kind}:${surfaceSegment}:${crypto.createHash("sha256").update(base).digest("hex").slice(0, 16)}`;
+}
+
+function legacyFingerprint(kind: string, title: string, affected: VisualHiveIssueCandidate["affected"]): string {
   const base = JSON.stringify({ kind, title: title.toLowerCase(), affected });
   return `visual-hive:${kind}:${crypto.createHash("sha256").update(base).digest("hex").slice(0, 16)}`;
+}
+
+function safeFingerprintSegment(value: string): string {
+  return sanitizeText(value).toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
 }
 
 function compareIssues(left: VisualHiveIssueCandidate, right: VisualHiveIssueCandidate): number {

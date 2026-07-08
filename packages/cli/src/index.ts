@@ -5,6 +5,15 @@ import { runDoctor, formatDiagnostics } from "./commands/doctor.js";
 import { runInit } from "./commands/init.js";
 import { formatPlanSummary, runPlanCommand } from "./commands/plan.js";
 import { formatPipelineSummary, runPipelineCommand } from "./commands/pipeline.js";
+import {
+  formatLoopDeriveIssuesResult,
+  formatLoopLifecycleResult,
+  formatLoopRunResult,
+  runLoopDeriveIssuesCommand,
+  runLoopInitCommand,
+  runLoopLifecycleCommand,
+  runLoopRunCommand
+} from "./commands/loop.js";
 import { formatPlansSummary, runPlansCommand } from "./commands/plans.js";
 import { runDeterministicCommand } from "./commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "./commands/mutate.js";
@@ -772,6 +781,86 @@ hiveCommand
       if (result.bundle.status === "blocked") {
         process.exitCode = 1;
       }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const loop = program.command("loop").description("Run the real Visual Hive operational loop and Hive issue handoff artifacts");
+
+loop
+  .command("run")
+  .description("Scan, plan, execute deterministic checks, mutation adequacy, evidence, verdict, Hive export, and real issue candidates")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--mode <mode>", "loop mode: pr, schedule, manual, canary, mutation, or full", "full")
+  .option("--changed-files <path>", "newline-delimited changed files")
+  .option("--base <ref>", "git base ref for diff")
+  .option("--ci", "run deterministic verification with CI baseline enforcement")
+  .option("--bootstrap-baselines", "seed missing baselines before strict CI")
+  .option("--skip-install", "skip target install commands")
+  .option("--skip-build", "skip target build commands")
+  .option("--include-seeded-smoke", "write an explicit seeded-smoke request marker; default live loop excludes synthetic seeded findings")
+  .option("--fail-on-verdict", "exit nonzero when the deterministic/mutation/readiness verdict fails")
+  .option("--github-step-summary", "append markdown report to GITHUB_STEP_SUMMARY when present")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLoopRunCommand({
+        config: options.config,
+        mode: options.mode,
+        changedFiles: options.changedFiles,
+        base: options.base,
+        ci: options.ci,
+        bootstrapBaselines: options.bootstrapBaselines,
+        skipInstall: options.skipInstall,
+        skipBuild: options.skipBuild,
+        includeSeededSmoke: options.includeSeededSmoke,
+        githubStepSummary: options.githubStepSummary
+      });
+      console.log(formatLoopRunResult(result, options.format));
+      process.exitCode = options.failOnVerdict ? result.exitCode : 0;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+loop
+  .command("derive-issues")
+  .description("Derive real issue candidates from current Visual Hive artifacts")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLoopDeriveIssuesCommand({ config: options.config, write: true, format: options.format });
+      console.log(formatLoopDeriveIssuesResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+loop
+  .command("lifecycle")
+  .description("Write issue lifecycle policy evidence from current issue candidates")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runLoopLifecycleCommand({ config: options.config, format: options.format });
+      console.log(formatLoopLifecycleResult(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+loop
+  .command("init")
+  .description("Generate a GitHub/Hive operational loop scaffold for another repository")
+  .option("--profile <profile>", "loop profile", "github-hive")
+  .option("--force", "overwrite existing files")
+  .action(async (options) => {
+    try {
+      const written = await runLoopInitCommand({ profile: options.profile, force: options.force });
+      console.log(`Created:\n${written.map((file) => `- ${file}`).join("\n")}`);
     } catch (error) {
       fail(error);
     }
