@@ -1128,6 +1128,7 @@ function configInput(input: {
       maxDiffPixelRatio: 0.01,
       updateSnapshots: false,
       failOnMissingBaselineInCI: true,
+      baselinePlatform: "shared",
       snapshotDir: ".visual-hive/snapshots",
       artifactDir: ".visual-hive/artifacts"
     },

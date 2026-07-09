@@ -74,7 +74,7 @@ const contracts = ${JSON.stringify(input.contracts, null, 2)};
 const targets = ${JSON.stringify(input.targets, null, 2)};
 const viewports = ${JSON.stringify(input.viewports, null, 2)};
 const visual = ${JSON.stringify(input.visual, null, 2)};
-const snapshotDir = path.resolve(rootDir, visual.snapshotDir ?? ".visual-hive/snapshots");
+const snapshotDir = path.resolve(rootDir, visual.snapshotDir ?? ".visual-hive/snapshots", ...(visual.baselinePlatform === "platform" ? [process.platform] : []));
 const artifactDir = path.resolve(rootDir, visual.artifactDir ?? ".visual-hive/artifacts");
 const visualHiveCi = process.env.VISUAL_HIVE_CI;
 const ciMode = visualHiveCi === "true" ? true : visualHiveCi === "false" ? false : process.env.CI === "true";

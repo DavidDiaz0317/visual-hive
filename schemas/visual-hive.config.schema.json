@@ -108,6 +108,10 @@
           "type": "boolean",
           "default": true
         },
+        "baselinePlatform": {
+          "enum": ["shared", "platform"],
+          "default": "shared"
+        },
         "snapshotDir": {
           "$ref": "#/$defs/repoRelativePath",
           "default": ".visual-hive/snapshots"
