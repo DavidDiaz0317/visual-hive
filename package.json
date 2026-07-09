@@ -86,6 +86,7 @@
     "demo:hive-validate": "node packages/cli/dist/index.js hive validate-export --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:hive-setup-pack": "node packages/cli/dist/index.js hive setup-pack --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:hive-integration-smoke": "node packages/cli/dist/index.js hive integration-smoke --config examples/demo-react-app/visual-hive.config.yaml",
+    "demo:hive-bundle": "node packages/cli/dist/index.js hive bundle --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:hive-guarded-preview": "node packages/cli/dist/index.js hive guarded-repair-preview --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:hive-repair-envelope": "node packages/cli/dist/index.js hive repair-request-envelope --config examples/demo-react-app/visual-hive.config.yaml",
     "demo:hive-repair-consumer": "node packages/cli/dist/index.js hive trusted-repair-consumer-summary --config examples/demo-react-app/visual-hive.config.yaml",

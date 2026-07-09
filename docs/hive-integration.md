@@ -36,6 +36,7 @@ Hive-facing outputs:
 - `.visual-hive/hive/hive-validation-summary.json`
 - `.visual-hive/hive/hive-setup-pack.json`
 - `.visual-hive/hive/hive-setup-pack.md`
+- `.visual-hive/bundles/<bundle-id>/manifest.json` plus immutable copied files
 
 Legacy compatibility outputs such as `.visual-hive/hive/beads.json` remain available for existing Visual Hive consumers.
 
@@ -47,9 +48,12 @@ visual-hive hive beads --config visual-hive.config.yaml
 visual-hive hive validate-export --config visual-hive.config.yaml
 visual-hive hive setup-pack --config visual-hive.config.yaml
 visual-hive hive integration-smoke --config visual-hive.config.yaml
+visual-hive hive bundle --config visual-hive.config.yaml
 ```
 
 `integration-smoke` runs export, bead projection, validation, and setup-pack generation locally with `externalCallsMade: 0`.
+
+`hive bundle` is the trust boundary. It refuses blocked validation, copies every import artifact into a temporary directory, records per-file and aggregate SHA-256 digests, then atomically renames the completed bundle. Trusted GitHub workflows pass `--trusted-source`; local proofs omit it and Hive must explicitly opt into `--allow-local`.
 
 ## ACMM Compatibility
 
@@ -94,7 +98,7 @@ Execution/write tools remain disabled in the default MCP surface.
 5. Setup PR adds Visual Hive config and workflows.
 6. PR workflow runs Visual Hive read-only checks.
 7. Scheduled workflow runs deeper mutation/canary checks.
-8. Trusted workflow imports sanitized Visual Hive artifacts into Hive.
+8. Trusted workflow finalizes a digested bundle and imports it with `hive visual import apply --bundle <manifest> --beads-dir <dir>`.
 9. Hive dashboard shows Visual QA beads/findings.
 10. Hive agents act under ACMM.
 11. Visual Hive reruns validation before resolution.

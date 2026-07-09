@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.bundle.schema.json",
+  "title": "Visual Hive Atomic Import Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "files", "overallDigest", "provenance", "safety"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.bundle.v1" },
+    "bundleId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "gitCommit"],
+      "properties": {
+        "name": { "const": "visual-hive" },
+        "version": { "type": "string", "minLength": 1 },
+        "gitCommit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "ref", "commitSha", "event", "conclusion", "trusted"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "repositoryId": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "commitSha": { "type": "string", "minLength": 1 },
+        "event": { "type": "string", "minLength": 1 },
+        "workflowName": { "type": "string", "minLength": 1 },
+        "workflowRunId": { "type": "string", "minLength": 1 },
+        "workflowRunAttempt": { "type": "string", "minLength": 1 },
+        "conclusion": { "type": "string", "minLength": 1 },
+        "trusted": { "type": "boolean" }
+      }
+    },
+    "project": { "type": "string", "minLength": 1 },
+    "mode": { "type": "string", "minLength": 1 },
+    "verdict": { "type": "string", "minLength": 1 },
+    "acmmRequest": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "externalCallsMade": { "type": "integer", "minimum": 0 },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sourcePath", "sha256", "size", "mediaType"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^files/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+          "sourcePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size": { "type": "integer", "minimum": 0 },
+          "mediaType": { "enum": ["application/json", "text/markdown", "text/plain", "application/octet-stream"] },
+          "schemaVersion": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "overallDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subjectDigest", "attestationRequired"],
+      "properties": {
+        "kind": { "enum": ["github-actions", "local"] },
+        "subjectDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "attestationRequired": { "type": "boolean" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atomicWrite", "pathsAreRelative", "digestsRequired", "producerCountersAreAdvisory"],
+      "properties": {
+        "atomicWrite": { "const": true },
+        "pathsAreRelative": { "const": true },
+        "digestsRequired": { "const": true },
+        "producerCountersAreAdvisory": { "const": true }
+      }
+    }
+  }
+}

@@ -5352,6 +5352,24 @@ describe("artifact index", () => {
     expect(artifactIndex.warnings.join(" ")).toContain("maxArtifacts=3");
   });
 
+  it("indexes bundle manifests without treating copied payloads as current evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-bundle-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "hive"), { recursive: true });
+    await mkdir(path.join(hiveRoot, "bundles", "proof-1", "files", ".visual-hive", "hive"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "hive", "hive-agent-policy.json"), '{"schemaVersion":"visual-hive.hive-agent-policy.v1"}', "utf8");
+    await writeFile(path.join(hiveRoot, "bundles", "proof-1", "manifest.json"), '{"schemaVersion":"visual-hive.bundle.v1"}', "utf8");
+    await writeFile(path.join(hiveRoot, "bundles", "proof-1", "files", ".visual-hive", "hive", "hive-agent-policy.json"), '{"copied":true}', "utf8");
+
+    const artifactIndex = await indexArtifacts({ repoRoot: tempRoot });
+    const paths = artifactIndex.artifacts.map((artifact) => artifact.path);
+
+    expect(paths).toContain(".visual-hive/hive/hive-agent-policy.json");
+    expect(paths).toContain(".visual-hive/bundles/proof-1/manifest.json");
+    expect(paths).not.toContain(".visual-hive/bundles/proof-1/files/.visual-hive/hive/hive-agent-policy.json");
+  });
+
   it("sanitizes absolute local paths in artifact previews", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-sanitize-"));
     tempDirs.push(tempRoot);

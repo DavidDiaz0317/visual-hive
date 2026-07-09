@@ -138,6 +138,7 @@
         "kind": {
           "enum": [
             "first_party_cli",
+            "local_cli",
             "first_party_mcp",
             "local_mcp",
             "github_mcp",

@@ -85,6 +85,7 @@ import {
   runHiveTrustedRepairWorkflowDryRunCommand,
   runHiveValidateExportCommand
 } from "./commands/hive.js";
+import { formatHiveBundle, runHiveBundleCommand } from "./commands/hiveBundle.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
 import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./commands/agentWritePreview.js";
@@ -755,6 +756,34 @@ program
   });
 
 const hiveCommand = program.command("hive").description("Export Hive-native beads, knowledge, graph, and guarded repair artifacts");
+
+hiveCommand
+  .command("bundle")
+  .description("Finalize validated Hive artifacts as an atomic, digested, provenance-bearing import bundle")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
+  .option("--import-manifest <path>", "Hive import manifest path", ".visual-hive/hive/hive-import-manifest.json")
+  .option("--validation-summary <path>", "Hive validation summary path", ".visual-hive/hive/hive-validation-summary.json")
+  .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
+  .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--expires-in-hours <number>", "bundle validity window", parseIntegerOption, 168)
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveBundleCommand({
+        config: options.config,
+        hiveExport: options.hiveExport,
+        importManifest: options.importManifest,
+        validationSummary: options.validationSummary,
+        outputDir: options.outputDir,
+        trustedSource: options.trustedSource,
+        expiresInHours: options.expiresInHours
+      });
+      console.log(formatHiveBundle(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
 
 hiveCommand
   .command("export")

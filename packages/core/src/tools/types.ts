@@ -2,7 +2,7 @@ export type ToolRole = "setup_agent" | "repair_agent" | "test_creator" | "review
 
 export type ToolAccess = "read_only" | "local_execution" | "trusted_write" | "external_upload";
 
-export type ToolKind = "first_party_cli" | "first_party_mcp" | "local_mcp" | "github_mcp" | "provider_mcp" | "external_provider";
+export type ToolKind = "first_party_cli" | "local_cli" | "first_party_mcp" | "local_mcp" | "github_mcp" | "provider_mcp" | "external_provider";
 
 export type ToolCostClass = "local" | "external_api" | "paid_provider";
 
