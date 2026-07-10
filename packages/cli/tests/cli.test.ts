@@ -184,6 +184,8 @@ async function removeTempDir(dir: string): Promise<void> {
 
 describe("CLI commands", () => {
   it("lets Hive bind bundle authority explicitly instead of inheriting repository config", async () => {
+    const previousEventName = process.env.GITHUB_EVENT_NAME;
+    process.env.GITHUB_EVENT_NAME = "workflow_dispatch";
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-bundle-authority-"));
     tempDirs.push(tempRoot);
     await writeFile(
@@ -218,9 +220,17 @@ contracts:
     await writeJson(path.join(hiveDir, "hive-setup-pack.json"), { schemaVersion: "test" });
     await writeFile(path.join(hiveDir, "hive-setup-pack.md"), "# Setup pack\n", "utf8");
 
-    const result = await runHiveBundleCommand({ cwd: tempRoot, acmmRequest: 4, trustedSource: true });
+    try {
+      const result = await runHiveBundleCommand({ cwd: tempRoot, acmmRequest: 4, trustedSource: true });
 
-    expect(result.manifest.acmmRequest).toBe(4);
+      expect(result.manifest.acmmRequest).toBe(4);
+    } finally {
+      if (previousEventName === undefined) {
+        delete process.env.GITHUB_EVENT_NAME;
+      } else {
+        process.env.GITHUB_EVENT_NAME = previousEventName;
+      }
+    }
   });
 
   it("validates plan modes clearly", () => {
