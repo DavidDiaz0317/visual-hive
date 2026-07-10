@@ -82,6 +82,7 @@ import {
   runHiveTrustedRepairWorkflowDryRunCommand,
   runHiveValidateExportCommand
 } from "../src/commands/hive.js";
+import { runHiveBundleCommand } from "../src/commands/hiveBundle.js";
 import { formatTestCreationPlan, runTestCreationPlanCommand } from "../src/commands/testCreationPlan.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "../src/commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "../src/commands/agentIssueRunner.js";
@@ -182,6 +183,46 @@ async function removeTempDir(dir: string): Promise<void> {
 }
 
 describe("CLI commands", () => {
+  it("lets Hive bind bundle authority explicitly instead of inheriting repository config", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-bundle-authority-"));
+    tempDirs.push(tempRoot);
+    await writeFile(
+      path.join(tempRoot, "visual-hive.config.yaml"),
+      `project:
+  name: explicit-bundle-authority
+targets:
+  local:
+    kind: url
+    url: "http://127.0.0.1:4173"
+contracts:
+  - id: shell
+    description: Shell renders
+    target: local
+    runOn:
+      pullRequest: true
+`,
+      "utf8"
+    );
+    const hiveDir = path.join(tempRoot, ".visual-hive", "hive");
+    await mkdir(hiveDir, { recursive: true });
+    await writeJson(path.join(hiveDir, "hive-export.json"), {
+      project: "explicit-bundle-authority",
+      mode: "measured",
+      status: "ready",
+      acmmLevel: 5,
+      externalCallsMade: 0
+    });
+    await writeJson(path.join(hiveDir, "hive-import-manifest.json"), { status: "ready", sourceArtifacts: {} });
+    await writeJson(path.join(hiveDir, "hive-validation-summary.json"), { status: "passed" });
+    await writeJson(path.join(tempRoot, ".visual-hive", "issues.json"), { issues: [] });
+    await writeJson(path.join(hiveDir, "hive-setup-pack.json"), { schemaVersion: "test" });
+    await writeFile(path.join(hiveDir, "hive-setup-pack.md"), "# Setup pack\n", "utf8");
+
+    const result = await runHiveBundleCommand({ cwd: tempRoot, acmmRequest: 4, trustedSource: true });
+
+    expect(result.manifest.acmmRequest).toBe(4);
+  });
+
   it("validates plan modes clearly", () => {
     expect(parsePlanMode("canary")).toBe("canary");
     expect(parsePlanMode("mutation")).toBe("mutation");

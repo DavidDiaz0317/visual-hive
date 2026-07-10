@@ -767,6 +767,7 @@ hiveCommand
   .option("--issues <path>", "Visual Hive lifecycle observation source", ".visual-hive/issues.json")
   .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
   .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--acmm-request <level>", "requested Hive ACMM authority for this evidence bundle", parseIntegerOption)
   .option("--scan-scope <scope>", "full, partial, changed-files, or targeted", "partial")
   .option("--authoritative-for-resolution", "allow absent observations to resolve findings; requires a full scan")
   .option("--evaluated-contract <id>", "contract evaluated by this run (repeatable)", collectRepeatable, [])
@@ -785,6 +786,7 @@ hiveCommand
         issues: options.issues,
         outputDir: options.outputDir,
         trustedSource: options.trustedSource,
+        acmmRequest: options.acmmRequest,
         scanScope: options.scanScope,
         authoritativeForResolution: options.authoritativeForResolution,
         evaluatedContracts: options.evaluatedContract,

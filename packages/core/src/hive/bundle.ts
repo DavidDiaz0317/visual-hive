@@ -171,19 +171,30 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
         bundleId
       ].join("\0"))
     };
-    const overallDigest = digestBundleContent(files, scan, observations, source, replayProtection.key);
+    const acmmRequest = sanitizeACMMRequest(options.acmmRequest);
+    const metadata = {
+      project: options.project,
+      mode: options.mode,
+      verdict: options.verdict,
+      acmmRequest,
+      externalCallsMade: options.externalCallsMade ?? 0,
+      producerName: "visual-hive" as const,
+      producerVersion: options.producerVersion,
+      producerGitCommit: options.producerGitCommit
+    };
+    const overallDigest = digestBundleContent(files, scan, observations, source, replayProtection.key, metadata);
     const manifest: VisualHiveBundleManifest = {
       schemaVersion: "visual-hive.bundle.v2",
       bundleId,
       generatedAt,
       expiresAt,
-      producer: { name: "visual-hive", version: options.producerVersion, gitCommit: options.producerGitCommit },
+      producer: { name: metadata.producerName, version: metadata.producerVersion, gitCommit: metadata.producerGitCommit },
       source,
       project: options.project,
       mode: options.mode,
       verdict: options.verdict,
-      acmmRequest: options.acmmRequest,
-      externalCallsMade: options.externalCallsMade ?? 0,
+      acmmRequest: metadata.acmmRequest,
+      externalCallsMade: metadata.externalCallsMade,
       scan,
       observations,
       files,
@@ -223,8 +234,29 @@ export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest)
     manifest.scan,
     manifest.observations,
     manifest.source,
-    manifest.replayProtection.key
+    manifest.replayProtection.key,
+    {
+      project: manifest.project,
+      mode: manifest.mode,
+      verdict: manifest.verdict,
+      acmmRequest: manifest.acmmRequest,
+      externalCallsMade: manifest.externalCallsMade,
+      producerName: manifest.producer.name,
+      producerVersion: manifest.producer.version,
+      producerGitCommit: manifest.producer.gitCommit
+    }
   );
+}
+
+interface BundleDigestMetadata {
+  project: string;
+  mode: string;
+  verdict: string;
+  acmmRequest: number;
+  externalCallsMade: number;
+  producerName: string;
+  producerVersion: string;
+  producerGitCommit: string;
 }
 
 function resolveInsideRoot(rootDir: string, candidate: string): string {
@@ -259,7 +291,8 @@ function digestBundleContent(
   scan: VisualHiveBundleScan,
   observations: VisualHiveBundleObservation[],
   source: VisualHiveBundleSource,
-  replayKey: string
+  replayKey: string,
+  metadata: BundleDigestMetadata
 ): string {
   const fileLines = files.map((file) => `file\0${file.path}\0${file.sha256}\0${file.size}`).sort();
   const observationLines = observations.map((observation) => [
@@ -299,7 +332,25 @@ function digestBundleContent(
     source.workflowArtifactId ?? "",
     source.conclusion
   ].join("\0");
-  return sha256([...fileLines, ...observationLines, scanLine, sourceLine, `replay\0${replayKey}`].join("\n"));
+  const metadataLine = [
+    "metadata",
+    metadata.project,
+    metadata.mode,
+    metadata.verdict,
+    String(metadata.acmmRequest),
+    String(metadata.externalCallsMade),
+    metadata.producerName,
+    metadata.producerVersion,
+    metadata.producerGitCommit
+  ].join("\0");
+  return sha256([...fileLines, ...observationLines, scanLine, sourceLine, metadataLine, `replay\0${replayKey}`].join("\n"));
+}
+
+function sanitizeACMMRequest(value: number): number {
+  if (!Number.isInteger(value) || value < 1 || value > 6) {
+    throw new Error(`Visual Hive bundle ACMM request must be an integer from 1 through 6; received ${String(value)}.`);
+  }
+  return value;
 }
 
 function mediaTypeFor(filePath: string): VisualHiveBundleFile["mediaType"] {

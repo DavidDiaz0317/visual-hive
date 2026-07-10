@@ -112,6 +112,46 @@ describe("Visual Hive atomic bundle", () => {
     result.manifest.observations[0]!.state = "absent";
     expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(false);
   });
+
+  it("binds requested authority and verdict metadata into the aggregate digest", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const result = await writeVisualHiveBundle({
+      rootDir,
+      bundleId: "authority-proof",
+      project: "demo",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 4,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    });
+
+    result.manifest.acmmRequest = 6;
+    expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(false);
+    result.manifest.acmmRequest = 4;
+    result.manifest.verdict = "passed";
+    expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(false);
+  });
+
+  it("rejects invalid requested authority before publishing a bundle", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await expect(writeVisualHiveBundle({
+      rootDir,
+      bundleId: "invalid-authority",
+      project: "demo",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 7,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    })).rejects.toThrow("integer from 1 through 6");
+  });
 });
 
 async function makeRoot(): Promise<string> {

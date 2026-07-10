@@ -24,6 +24,7 @@ export interface HiveBundleCommandOptions {
   issues?: string;
   outputDir?: string;
   trustedSource?: boolean;
+  acmmRequest?: number;
   expiresInHours?: number;
   scanScope?: VisualHiveBundleScanScope;
   authoritativeForResolution?: boolean;
@@ -63,7 +64,7 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     project: hiveExport.project,
     mode: hiveExport.mode,
     verdict: hiveExport.status,
-    acmmRequest: hiveExport.acmmLevel,
+    acmmRequest: options.acmmRequest ?? hiveExport.acmmLevel,
     artifacts,
     source,
     scan: {
