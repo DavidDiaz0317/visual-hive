@@ -764,8 +764,15 @@ hiveCommand
   .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
   .option("--import-manifest <path>", "Hive import manifest path", ".visual-hive/hive/hive-import-manifest.json")
   .option("--validation-summary <path>", "Hive validation summary path", ".visual-hive/hive/hive-validation-summary.json")
+  .option("--issues <path>", "Visual Hive lifecycle observation source", ".visual-hive/issues.json")
   .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
   .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--scan-scope <scope>", "full, partial, changed-files, or targeted", "partial")
+  .option("--authoritative-for-resolution", "allow absent observations to resolve findings; requires a full scan")
+  .option("--evaluated-contract <id>", "contract evaluated by this run (repeatable)", collectRepeatable, [])
+  .option("--evaluated-file <path>", "file evaluated by this run (repeatable)", collectRepeatable, [])
+  .option("--test-plan-version <version>", "test plan schema/version", "visual-hive.test-plan.v1")
+  .option("--tool-registry-version <version>", "tool registry schema/version", "visual-hive.tool-registry.v1")
   .option("--expires-in-hours <number>", "bundle validity window", parseIntegerOption, 168)
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
@@ -775,8 +782,15 @@ hiveCommand
         hiveExport: options.hiveExport,
         importManifest: options.importManifest,
         validationSummary: options.validationSummary,
+        issues: options.issues,
         outputDir: options.outputDir,
         trustedSource: options.trustedSource,
+        scanScope: options.scanScope,
+        authoritativeForResolution: options.authoritativeForResolution,
+        evaluatedContracts: options.evaluatedContract,
+        evaluatedFiles: options.evaluatedFile,
+        testPlanVersion: options.testPlanVersion,
+        toolRegistryVersion: options.toolRegistryVersion,
         expiresInHours: options.expiresInHours
       });
       console.log(formatHiveBundle(result, options.format));

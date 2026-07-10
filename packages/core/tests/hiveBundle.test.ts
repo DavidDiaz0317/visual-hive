@@ -27,6 +27,15 @@ describe("Visual Hive atomic bundle", () => {
       acmmRequest: 3,
       artifacts: [".visual-hive/hive/beads.json"],
       source: source(),
+      scan: {
+        scope: "full",
+        authoritativeForResolution: true,
+        evaluatedContracts: ["app-shell"],
+        evaluatedFiles: ["src/App.tsx"],
+        testPlanVersion: "plan-1",
+        toolRegistryVersion: "tools-1"
+      },
+      issues: [issue("open_candidate")],
       producerVersion: "0.2.0",
       producerGitCommit: "abc123",
       now: new Date("2026-07-09T12:00:00.000Z")
@@ -39,6 +48,8 @@ describe("Visual Hive atomic bundle", () => {
       schemaVersion: "visual-hive.hive-beads.v1"
     });
     expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);
+    expect(result.manifest.observations).toHaveLength(1);
+    expect(result.manifest.observations[0]).toMatchObject({ state: "present", fingerprint: "visual-hive:test:app-shell" });
     expect(JSON.parse(await readFile(path.join(rootDir, result.manifestPath), "utf8"))).toEqual(result.manifest);
     const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.bundle.schema.json"), "utf8"));
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
@@ -60,6 +71,46 @@ describe("Visual Hive atomic bundle", () => {
       producerGitCommit: "abc123"
     })).rejects.toThrow("unsafe");
     await expect(readFile(path.join(rootDir, ".visual-hive/bundles/unsafe/manifest.json"))).rejects.toThrow();
+  });
+
+  it("rejects absent lifecycle observations from a non-authoritative scan", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await expect(writeVisualHiveBundle({
+      rootDir,
+      bundleId: "unsafe-resolution",
+      project: "demo",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      scan: { scope: "changed-files", authoritativeForResolution: false },
+      issues: [issue("resolved_candidate")],
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    })).rejects.toThrow("authoritative");
+  });
+
+  it("detects lifecycle metadata tampering", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const result = await writeVisualHiveBundle({
+      rootDir,
+      bundleId: "tamper-proof",
+      project: "demo",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      scan: { scope: "partial" },
+      issues: [issue("open_candidate")],
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    });
+    result.manifest.observations[0]!.state = "absent";
+    expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(false);
   });
 });
 
@@ -83,5 +134,22 @@ function source() {
     event: "workflow_dispatch",
     conclusion: "success",
     trusted: true
+  };
+}
+
+function issue(status: "open_candidate" | "resolved_candidate") {
+  return {
+    issueKind: "visual_regression" as const,
+    severity: "high" as const,
+    status,
+    dedupeFingerprint: "visual-hive:test:app-shell",
+    title: "App shell regression",
+    labels: ["visual-hive"],
+    body: "Evidence-backed regression",
+    owningAgentHint: "hive/quality" as const,
+    sourceArtifacts: [".visual-hive/report.json"],
+    affected: [{ contractId: "app-shell" }],
+    validationCommand: "npm run vh:run:ci",
+    guardrails: ["Do not update baselines automatically"]
   };
 }

@@ -6,7 +6,9 @@ import {
   readJson,
   writeVisualHiveBundle,
   type HiveExportBundle,
+  type VisualHiveBundleScanScope,
   type VisualHiveBundleSource,
+  type VisualHiveIssuesReport,
   type WriteVisualHiveBundleResult
 } from "@visual-hive/core";
 import type { HiveImportManifest, HiveValidationSummary } from "./hive.js";
@@ -19,9 +21,16 @@ export interface HiveBundleCommandOptions {
   hiveExport?: string;
   importManifest?: string;
   validationSummary?: string;
+  issues?: string;
   outputDir?: string;
   trustedSource?: boolean;
   expiresInHours?: number;
+  scanScope?: VisualHiveBundleScanScope;
+  authoritativeForResolution?: boolean;
+  evaluatedContracts?: string[];
+  evaluatedFiles?: string[];
+  testPlanVersion?: string;
+  toolRegistryVersion?: string;
 }
 
 export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {}): Promise<WriteVisualHiveBundleResult> {
@@ -30,9 +39,11 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
   const hiveExportPath = normalize(options.hiveExport ?? path.join(".visual-hive", "hive", "hive-export.json"));
   const importManifestPath = normalize(options.importManifest ?? path.join(".visual-hive", "hive", "hive-import-manifest.json"));
   const validationSummaryPath = normalize(options.validationSummary ?? path.join(".visual-hive", "hive", "hive-validation-summary.json"));
+  const issuesPath = normalize(options.issues ?? path.join(".visual-hive", "issues.json"));
   const hiveExport = await readJson<HiveExportBundle>(path.resolve(rootDir, hiveExportPath));
   const importManifest = await readJson<HiveImportManifest>(path.resolve(rootDir, importManifestPath));
   const validation = await readJson<HiveValidationSummary>(path.resolve(rootDir, validationSummaryPath));
+  const issues = await readJson<VisualHiveIssuesReport>(path.resolve(rootDir, issuesPath));
   if (importManifest.status !== "ready" || validation.status !== "passed") {
     throw new Error("Refusing to finalize a Visual Hive bundle whose import manifest or validation summary is not ready.");
   }
@@ -42,6 +53,7 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     hiveExportPath,
     importManifestPath,
     validationSummaryPath,
+    issuesPath,
     ...Object.values(importManifest.sourceArtifacts),
     path.join(path.dirname(importManifestPath), "hive-setup-pack.json"),
     path.join(path.dirname(importManifestPath), "hive-setup-pack.md")
@@ -54,8 +66,18 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     acmmRequest: hiveExport.acmmLevel,
     artifacts,
     source,
+    scan: {
+      scope: options.scanScope ?? "partial",
+      authoritativeForResolution: options.authoritativeForResolution ?? false,
+      evaluatedContracts: options.evaluatedContracts ?? [],
+      evaluatedFiles: options.evaluatedFiles ?? [],
+      testPlanVersion: options.testPlanVersion ?? "visual-hive.test-plan.v1",
+      toolRegistryVersion: options.toolRegistryVersion ?? "visual-hive.tool-registry.v1"
+    },
+    issues: issues.issues,
+    issuesArtifact: issuesPath,
     producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? "0.2.0-dev",
-    producerGitCommit: process.env.VISUAL_HIVE_GIT_COMMIT ?? (await git(rootDir, ["rev-parse", "HEAD"])),
+    producerGitCommit: process.env.VISUAL_HIVE_GIT_COMMIT ?? process.env.VISUAL_HIVE_BUILD_SHA ?? "unavailable",
     externalCallsMade: hiveExport.externalCallsMade,
     expiresInHours: options.expiresInHours,
     outputDir: options.outputDir
@@ -91,6 +113,7 @@ async function sourceContext(rootDir: string, trustedSource: boolean): Promise<V
     workflowName: process.env.GITHUB_WORKFLOW,
     workflowRunId: process.env.GITHUB_RUN_ID,
     workflowRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+    workflowArtifactId: process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID,
     conclusion: process.env.VISUAL_HIVE_SOURCE_CONCLUSION ?? (process.env.GITHUB_ACTIONS === "true" ? "success" : "local"),
     trusted: trustedSource
   };

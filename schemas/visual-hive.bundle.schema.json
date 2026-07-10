@@ -4,9 +4,9 @@
   "title": "Visual Hive Atomic Import Bundle",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "files", "overallDigest", "provenance", "safety"],
+  "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "scan", "observations", "files", "overallDigest", "replayProtection", "provenance", "safety"],
   "properties": {
-    "schemaVersion": { "const": "visual-hive.bundle.v1" },
+    "schemaVersion": { "const": "visual-hive.bundle.v2" },
     "bundleId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "generatedAt": { "type": "string", "format": "date-time" },
     "expiresAt": { "type": "string", "format": "date-time" },
@@ -33,6 +33,7 @@
         "workflowName": { "type": "string", "minLength": 1 },
         "workflowRunId": { "type": "string", "minLength": 1 },
         "workflowRunAttempt": { "type": "string", "minLength": 1 },
+        "workflowArtifactId": { "type": "string", "minLength": 1 },
         "conclusion": { "type": "string", "minLength": 1 },
         "trusted": { "type": "boolean" }
       }
@@ -42,6 +43,50 @@
     "verdict": { "type": "string", "minLength": 1 },
     "acmmRequest": { "type": "integer", "minimum": 1, "maximum": 6 },
     "externalCallsMade": { "type": "integer", "minimum": 0 },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "authoritativeForResolution", "evaluatedContracts", "evaluatedFiles", "testPlanVersion", "toolRegistryVersion"],
+      "properties": {
+        "scope": { "enum": ["full", "partial", "changed-files", "targeted"] },
+        "authoritativeForResolution": { "type": "boolean" },
+        "evaluatedContracts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "evaluatedFiles": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "testPlanVersion": { "type": "string", "minLength": 1 },
+        "toolRegistryVersion": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "authoritativeForResolution": { "const": true } }, "required": ["authoritativeForResolution"] },
+          "then": { "properties": { "scope": { "const": "full" } } }
+        }
+      ]
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fingerprint", "repositoryFingerprint", "state", "issueKind", "severity", "owningAgentHint", "title", "body", "labels", "sourceArtifacts", "affectedContracts", "validationCommand", "observedAt", "firstSeenAt", "sourceArtifact"],
+        "properties": {
+          "fingerprint": { "type": "string", "minLength": 1 },
+          "repositoryFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "state": { "enum": ["present", "absent"] },
+          "issueKind": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["low", "medium", "high", "critical"] },
+          "owningAgentHint": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "body": { "type": "string", "minLength": 1, "maxLength": 60000 },
+          "labels": { "type": "array", "uniqueItems": true, "maxItems": 50, "items": { "type": "string", "minLength": 1 } },
+          "sourceArtifacts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" } },
+          "affectedContracts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "validationCommand": { "type": "string", "minLength": 1 },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "firstSeenAt": { "type": "string", "format": "date-time" },
+          "sourceArtifact": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" }
+        }
+      }
+    },
     "files": {
       "type": "array",
       "minItems": 1,
@@ -60,6 +105,15 @@
       }
     },
     "overallDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "replayProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nonce", "key"],
+      "properties": {
+        "nonce": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+        "key": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
     "provenance": {
       "type": "object",
       "additionalProperties": false,
@@ -73,12 +127,14 @@
     "safety": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["atomicWrite", "pathsAreRelative", "digestsRequired", "producerCountersAreAdvisory"],
+      "required": ["atomicWrite", "pathsAreRelative", "digestsRequired", "producerCountersAreAdvisory", "producerTrustClaimIsAdvisory", "absenceRequiresAuthoritativeScan"],
       "properties": {
         "atomicWrite": { "const": true },
         "pathsAreRelative": { "const": true },
         "digestsRequired": { "const": true },
-        "producerCountersAreAdvisory": { "const": true }
+        "producerCountersAreAdvisory": { "const": true },
+        "producerTrustClaimIsAdvisory": { "const": true },
+        "absenceRequiresAuthoritativeScan": { "const": true }
       }
     }
   }
