@@ -129,7 +129,7 @@ import {
 
 const program = new Command();
 
-program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.0");
+program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.1");
 
 program
   .command("init")

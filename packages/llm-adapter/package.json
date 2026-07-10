@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/llm-adapter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Offline triage heuristics and prompt builders for Visual Hive.",
   "type": "module",
   "license": "MIT",

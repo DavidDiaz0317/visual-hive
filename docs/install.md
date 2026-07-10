@@ -24,10 +24,10 @@ The demo flow writes plan, report, mutation, coverage, target audit, contract au
 Production consumers use the attested `visual-hive-<version>.tar.gz` release bundle. The archive contains a bundled CLI, its Playwright JavaScript runtime, Control Plane assets, and a per-file SHA-256 manifest. It does not contain a browser or Node itself; the integrated Hive distribution supplies a pinned Node 22 runtime and installs the Chromium browser during target setup. Verify a downloaded release before extracting it:
 
 ```bash
-gh attestation verify visual-hive-0.2.0.tar.gz --repo DavidDiaz0317/visual-hive
-sha256sum --check visual-hive-0.2.0.tar.gz.sha256
-tar -xzf visual-hive-0.2.0.tar.gz
-node visual-hive-0.2.0/visual-hive.mjs --version
+gh attestation verify visual-hive-0.2.1.tar.gz --repo DavidDiaz0317/visual-hive
+sha256sum --check visual-hive-0.2.1.tar.gz.sha256
+tar -xzf visual-hive-0.2.1.tar.gz
+node visual-hive-0.2.1/visual-hive.mjs --version
 ```
 
 Every release manifest is bound to the exact Visual Hive commit and described by `schemas/visual-hive.release.schema.json`. Hive setup records this immutable identity and rejects mutable refs.

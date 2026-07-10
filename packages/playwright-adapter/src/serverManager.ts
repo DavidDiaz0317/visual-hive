@@ -4,6 +4,8 @@ import { sanitizeText } from "@visual-hive/core";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const LOG_TAIL_LINES = 30;
 const SERVER_FETCH_TIMEOUT_MS = 750;
+const PROCESS_TERMINATION_GRACE_MS = 1_000;
+const PROCESS_FORCE_KILL_TIMEOUT_MS = 3_000;
 
 export interface ManagedServer {
   command: string;
@@ -152,38 +154,84 @@ export async function waitForServerUrl(input: {
 
 export async function stopProcessTree(child: ChildProcess, url?: string): Promise<void> {
   const pid = child.pid;
-  if (!pid) {
-    return;
-  }
-
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
-    if (url) {
-      await killWindowsListenersForUrl(url);
-      if (!(await waitForServerUrlToClose(url))) {
-        await killWindowsListenersForUrl(url, 10_000);
-      }
-      if (!(await waitForServerUrlToClose(url))) {
-        throw new Error(`Target server did not stop cleanly for ${sanitizeText(url)} after terminating the process tree.`);
-      }
-    }
-    return;
-  }
-
   try {
-    process.kill(-pid, "SIGTERM");
-  } catch {
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
+    if (!pid) {
       return;
     }
-  }
-  if (url) {
-    if (!(await waitForServerUrlToClose(url))) {
+
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+      if (url) {
+        await killWindowsListenersForUrl(url);
+        if (!(await waitForServerUrlToClose(url))) {
+          await killWindowsListenersForUrl(url, 10_000);
+        }
+      }
+    } else {
+      await stopUnixProcessGroup(pid);
+    }
+
+    if (url && !(await waitForServerUrlToClose(url))) {
       throw new Error(`Target server did not stop cleanly for ${sanitizeText(url)} after terminating the process tree.`);
     }
+  } finally {
+    releaseChildResources(child);
   }
+}
+
+async function stopUnixProcessGroup(pid: number): Promise<void> {
+  signalUnixProcessTree(pid, "SIGTERM");
+  if (await waitForUnixProcessGroupToExit(pid, PROCESS_TERMINATION_GRACE_MS)) {
+    return;
+  }
+
+  signalUnixProcessTree(pid, "SIGKILL");
+  if (!(await waitForUnixProcessGroupToExit(pid, PROCESS_FORCE_KILL_TIMEOUT_MS))) {
+    throw new Error(`Target process group ${pid} did not exit after forced termination.`);
+  }
+}
+
+function signalUnixProcessTree(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal);
+    return;
+  } catch {
+    // Fall back to the direct child when process groups are unavailable.
+  }
+  try {
+    process.kill(pid, signal);
+  } catch {
+    // The process already exited.
+  }
+}
+
+async function waitForUnixProcessGroupToExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isUnixProcessGroupRunning(pid)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return !isUnixProcessGroupRunning(pid);
+}
+
+function isUnixProcessGroupRunning(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+function releaseChildResources(child: ChildProcess): void {
+  child.stdout?.removeAllListeners("data");
+  child.stderr?.removeAllListeners("data");
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.stdin?.destroy();
+  child.unref();
 }
 
 async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<boolean> {

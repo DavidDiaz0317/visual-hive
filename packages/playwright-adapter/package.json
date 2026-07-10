@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/playwright-adapter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Playwright execution adapter for Visual Hive.",
   "type": "module",
   "license": "MIT",
