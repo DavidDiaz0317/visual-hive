@@ -581,6 +581,63 @@ describe("buildSpecContent", () => {
     expect(report.selectedTargets[0]?.kind).toBe("storybook");
     expect(report.targetLifecycle.some((event) => event.targetId === "componentLibrary" && event.serviceName === "storybook" && event.status === "failed")).toBe(true);
   }, 15_000);
+
+  it("runs shared repository installs before target builds regardless of plan order", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-target-phases-"));
+    tempDirs.push(tempRoot);
+    const config = VisualHiveConfigSchema.parse({
+      project: { name: "target-phases" },
+      targets: {
+        componentLibrary: {
+          kind: "storybook",
+          build: "node -e \"require('fs').accessSync('dependencies.ready')\"",
+          serve: "node -e \"process.exit(1)\"",
+          url: "http://127.0.0.1:9",
+          stories: ["src/**/*.stories.tsx"],
+          components: ["src/**"],
+          prSafe: true
+        },
+        localPreview: {
+          kind: "command",
+          install: "node -e \"require('fs').writeFileSync('dependencies.ready', 'ready')\"",
+          serve: "node -e \"process.exit(1)\"",
+          url: "http://127.0.0.1:10",
+          prSafe: true
+        }
+      },
+      contracts: [
+        { id: "component", description: "Component", target: "componentLibrary", runOn: { pullRequest: true } },
+        { id: "local", description: "Local", target: "localPreview", runOn: { pullRequest: true } }
+      ]
+    });
+    const plan = {
+      schemaVersion: 1 as const,
+      project: "target-phases",
+      mode: "pr" as const,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      changedFiles: [],
+      effectiveChangedFiles: [],
+      ignoredChangedFiles: [],
+      targets: [
+        { id: "componentLibrary", kind: "storybook", url: "http://127.0.0.1:9", prSafe: true, cost: "cheap" as const },
+        { id: "localPreview", kind: "command", url: "http://127.0.0.1:10", prSafe: true, cost: "cheap" as const }
+      ],
+      items: [
+        { contractId: "component", targetId: "componentLibrary", targetUrl: "http://127.0.0.1:9", severity: "medium" as const, cost: "cheap" as const, reasons: ["test"], screenshots: [] },
+        { contractId: "local", targetId: "localPreview", targetUrl: "http://127.0.0.1:10", severity: "medium" as const, cost: "cheap" as const, reasons: ["test"], screenshots: [] }
+      ],
+      excluded: [],
+      mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+      providerPolicy: []
+    };
+
+    const { report } = await runPlaywrightContracts({ config, plan, rootDir: tempRoot });
+
+    const installIndex = report.targetLifecycle.findIndex((event) => event.targetId === "localPreview" && event.phase === "install" && event.status === "passed");
+    const buildIndex = report.targetLifecycle.findIndex((event) => event.targetId === "componentLibrary" && event.phase === "build" && event.status === "passed");
+    expect(installIndex).toBeGreaterThanOrEqual(0);
+    expect(buildIndex).toBeGreaterThan(installIndex);
+  }, 15_000);
 });
 
 function pngBuffer(rgba: [number, number, number, number]): Buffer {

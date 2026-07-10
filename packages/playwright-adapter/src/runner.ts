@@ -44,65 +44,99 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
   await removeGeneratedResults(path.join(options.rootDir, options.config.visual.artifactDir, "results"));
   let playwrightResult: { stdout: string; stderr: string; exitCode: number } | undefined;
   let executionError: unknown;
+  const targetStartupErrors = new Map<string, string>();
 
   try {
     if (options.runTargetCommands ?? true) {
-      for (const targetId of options.plan.targets.map((target) => target.id)) {
+      const targetIds = options.plan.targets.map((target) => target.id);
+      const completedInstalls = new Set<string>();
+      // Repository installs are commonly shared by several targets. Run every
+      // unique install before any target build so plan ordering cannot make a
+      // Storybook or secondary target observe a half-prepared workspace.
+      for (const targetId of targetIds) {
         const target = options.config.targets[targetId];
-        if (target.kind === "command" || target.kind === "storybook") {
-          if (target.install && !options.skipInstall) {
-            await runLifecycleCommand(targetLifecycle, targetId, "install", target.install, options.rootDir);
-          }
-          if (target.build && !options.skipBuild) {
-            await runLifecycleCommand(targetLifecycle, targetId, "build", target.build, options.rootDir);
-          }
-          if (target.kind === "command" || target.serve) {
-            const server = await startLifecycleServer(targetLifecycle, {
-              targetId,
-              serviceName: target.kind === "storybook" ? "storybook" : "serve",
-              command: target.kind === "command" ? target.serve : target.serve!,
-              cwd: options.rootDir,
-              url: target.url
-            });
-            startedServers.push({ targetId, serviceName: target.kind === "storybook" ? "storybook" : "serve", server });
-          }
+        if (
+          (target.kind === "command" || target.kind === "storybook") &&
+          target.install &&
+          !options.skipInstall &&
+          !completedInstalls.has(target.install)
+        ) {
+          await runLifecycleCommand(targetLifecycle, targetId, "install", target.install, options.rootDir);
+          completedInstalls.add(target.install);
         }
-        if (target.kind === "commandGroup" || target.kind === "protected") {
-          for (const setupCommand of target.setup ?? []) {
-            await runLifecycleCommand(targetLifecycle, targetId, "setup", setupCommand, options.rootDir);
+      }
+      for (const targetId of targetIds) {
+        const target = options.config.targets[targetId];
+        try {
+          if (target.kind === "command" || target.kind === "storybook") {
+            if (target.build && !options.skipBuild) {
+              await runLifecycleCommand(targetLifecycle, targetId, "build", target.build, options.rootDir);
+            }
+            if (target.kind === "command" || target.serve) {
+              const server = await startLifecycleServer(targetLifecycle, {
+                targetId,
+                serviceName: target.kind === "storybook" ? "storybook" : "serve",
+                command: target.kind === "command" ? target.serve : target.serve!,
+                cwd: options.rootDir,
+                url: target.url
+              });
+              startedServers.push({ targetId, serviceName: target.kind === "storybook" ? "storybook" : "serve", server });
+            }
           }
-          for (const service of target.services ?? []) {
-            const serviceUrl = service.healthPath ? new URL(service.healthPath, service.url).toString() : service.url;
-            const server = await startLifecycleServer(targetLifecycle, {
-              targetId,
-              serviceName: service.name,
-              command: service.command,
-              cwd: options.rootDir,
-              url: serviceUrl,
-              timeoutMs: service.readinessTimeoutMs
-            });
-            startedServers.push({ targetId, serviceName: service.name, server });
+          if (target.kind === "commandGroup" || target.kind === "protected") {
+            for (const setupCommand of target.setup ?? []) {
+              await runLifecycleCommand(targetLifecycle, targetId, "setup", setupCommand, options.rootDir);
+            }
+            for (const service of target.services ?? []) {
+              const serviceUrl = service.healthPath ? new URL(service.healthPath, service.url).toString() : service.url;
+              const server = await startLifecycleServer(targetLifecycle, {
+                targetId,
+                serviceName: service.name,
+                command: service.command,
+                cwd: options.rootDir,
+                url: serviceUrl,
+                timeoutMs: service.readinessTimeoutMs
+              });
+              startedServers.push({ targetId, serviceName: service.name, server });
+            }
+            for (const teardownCommand of target.teardown ?? []) {
+              teardownCommands.push({ targetId, command: teardownCommand, cwd: options.rootDir });
+            }
           }
-          for (const teardownCommand of target.teardown ?? []) {
-            teardownCommands.push({ targetId, command: teardownCommand, cwd: options.rootDir });
-          }
+        } catch (error) {
+          targetStartupErrors.set(targetId, sanitizeText(error instanceof Error ? error.message : String(error)));
         }
       }
     }
 
-    const specArg = toPlaywrightPath(path.relative(options.rootDir, spec.path));
-    const outputArg = toPlaywrightPath(path.join(".visual-hive", "playwright-results"));
-    playwrightResult = await runPlaywrightCli(
-      ["test", specArg, "--reporter=json", `--output=${outputArg}`],
-      options.rootDir,
-      {
-        VISUAL_HIVE_CI: options.ci ? "true" : "false",
-        VISUAL_HIVE_MUTATION_OPERATOR: options.mutationOperator ?? "",
-        VISUAL_HIVE_MUTATION_OPERATORS: options.mutationOperators?.length ? JSON.stringify(options.mutationOperators) : "",
-        VISUAL_HIVE_MUTATION_MATRIX: options.mutationMatrix ? JSON.stringify(options.mutationMatrix) : ""
-      },
-      true
-    );
+    const runnableItems = options.plan.items.filter((item) => !targetStartupErrors.has(item.targetId));
+    if (runnableItems.length > 0) {
+      if (runnableItems.length !== options.plan.items.length) {
+        await generatePlaywrightSpec({
+          ...options,
+          plan: {
+            ...options.plan,
+            items: runnableItems,
+            targets: options.plan.targets.filter((target) => !targetStartupErrors.has(target.id))
+          }
+        });
+      }
+      const specArg = toPlaywrightPath(path.relative(options.rootDir, spec.path));
+      const outputArg = toPlaywrightPath(path.join(".visual-hive", "playwright-results"));
+      playwrightResult = await runPlaywrightCli(
+        ["test", specArg, "--reporter=json", `--output=${outputArg}`],
+        options.rootDir,
+        {
+          VISUAL_HIVE_CI: options.ci ? "true" : "false",
+          VISUAL_HIVE_MUTATION_OPERATOR: options.mutationOperator ?? "",
+          VISUAL_HIVE_MUTATION_OPERATORS: options.mutationOperators?.length ? JSON.stringify(options.mutationOperators) : "",
+          VISUAL_HIVE_MUTATION_MATRIX: options.mutationMatrix ? JSON.stringify(options.mutationMatrix) : ""
+        },
+        true
+      );
+    } else if (targetStartupErrors.size > 0) {
+      playwrightResult = { stdout: "", stderr: "", exitCode: 1 };
+    }
   } catch (error) {
     executionError = error;
   } finally {
@@ -135,6 +169,7 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
     targetLifecycle,
     generatedSpecPath: spec.path,
     executionError,
+    targetStartupErrors,
     mutationBatch: Boolean(options.mutationOperators?.length)
   });
   return { report, exitCode: report.status === "failed" ? 1 : 0 };
@@ -186,10 +221,15 @@ async function buildReportFromPlaywrightOutput(input: {
   targetLifecycle: TargetLifecycleEvent[];
   generatedSpecPath: string;
   executionError?: unknown;
+  targetStartupErrors: Map<string, string>;
   mutationBatch?: boolean;
 }): Promise<Report> {
   if (!input.mutationBatch && !input.executionError) {
-    await waitForStructuredContractResults(input.rootDir, input.config.visual.artifactDir, input.plan.items.map((item) => item.contractId));
+    await waitForStructuredContractResults(
+      input.rootDir,
+      input.config.visual.artifactDir,
+      input.plan.items.filter((item) => !input.targetStartupErrors.has(item.targetId)).map((item) => item.contractId)
+    );
   }
   const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
   const structuredResultList = await readStructuredContractResults(input.rootDir, input.config.visual.artifactDir);
@@ -219,6 +259,18 @@ async function buildReportFromPlaywrightOutput(input: {
   const results: ContractResult[] = input.mutationBatch && structuredResultList.length
     ? structuredResultList.map((structured) => normalizeStructuredContractResult(structured, artifacts, "visual-hive mutate", "contract-only"))
     : input.plan.items.map((item) => {
+        const targetStartupError = input.targetStartupErrors.get(item.targetId);
+        if (targetStartupError) {
+          return {
+            contractId: item.contractId,
+            targetId: item.targetId,
+            status: "failed" as const,
+            durationMs: input.durationMs,
+            errors: [targetStartupError],
+            artifacts,
+            reproductionCommand: "visual-hive run --ci"
+          };
+        }
         const structured = structuredResults.get(item.contractId);
         if (structured) {
           return normalizeStructuredContractResult(structured, artifacts, "visual-hive run --ci", "include-run-artifacts");
