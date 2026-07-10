@@ -91,6 +91,7 @@ import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./comm
 import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./commands/agentWritePreview.js";
 import { formatAgentValidateResult, runAgentValidateCommand } from "./commands/agentValidate.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
+import { runODiffCompare, runVRTUpload } from "./commands/adapters.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
@@ -1282,6 +1283,57 @@ program
         format: options.format
       });
       console.log(formatToolsRegistry(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const adapters = program.command("adapters").description("Run optional open-source adapters without changing Visual Hive verdict authority");
+const odiff = adapters.command("odiff").description("Use the pinned ODiff adapter as supplemental deterministic evidence");
+
+odiff
+  .command("compare")
+  .requiredOption("--baseline <path>", "baseline image within the repository")
+  .requiredOption("--actual <path>", "actual image within the repository")
+  .requiredOption("--diff <path>", "diff output path within the repository")
+  .option("--threshold <number>", "ODiff color threshold", Number, 0.1)
+  .option("--command <path>", "pinned ODiff executable", "odiff")
+  .option("--format <format>", "json or markdown", "json")
+  .action(async (options) => {
+    try {
+      const result = await runODiffCompare(options);
+      console.log(
+        options.format === "json"
+          ? JSON.stringify(result, null, 2)
+          : `ODiff ${result.match ? "matched" : result.reason}: ${result.diffPercentage ?? 0}% (${result.diffCount ?? 0} pixels)`
+      );
+      if (!result.match) process.exitCode = 1;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const vrt = adapters.command("vrt").description("Upload reviewed screenshots to a trusted self-hosted Visual Regression Tracker");
+
+vrt
+  .command("upload")
+  .requiredOption("--image <path>", "screenshot within the repository")
+  .requiredOption("--name <name>", "VRT test variation name")
+  .requiredOption("--trusted", "confirm trusted non-PR external upload authority")
+  .option("--api-url <url>", "VRT API URL; defaults to VRT_APIURL")
+  .option("--api-key <key>", "VRT API key; prefer VRT_APIKEY")
+  .option("--project <name>", "VRT project; defaults to VRT_PROJECT")
+  .option("--branch <name>", "VRT branch; defaults to VRT_BRANCH")
+  .option("--baseline-branch <name>", "optional VRT baseline branch")
+  .option("--ci-build-id <id>", "optional VRT CI build identifier")
+  .option("--browser <name>", "browser metadata")
+  .option("--os <name>", "operating system metadata")
+  .option("--viewport <value>", "viewport metadata")
+  .option("--diff-tolerance-percent <number>", "VRT comparison tolerance", Number)
+  .option("--output <path>", "sanitized result path", ".visual-hive/adapters/vrt-result.json")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runVRTUpload(options), null, 2));
     } catch (error) {
       fail(error);
     }

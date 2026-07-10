@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.vrt-result.schema.json",
+  "title": "Visual Hive Visual Regression Tracker Supplemental Result",
+  "type": "object",
+  "required": ["schemaVersion", "adapter", "adapterVersion", "sdkContractVersion", "deterministicRole", "buildId", "testRunId", "status", "uploadedArtifacts", "verdictAuthority"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.vrt-result.v1" },
+    "adapter": { "const": "visual-regression-tracker" },
+    "adapterVersion": { "const": "5.1.1" },
+    "sdkContractVersion": { "const": "5.7.1" },
+    "deterministicRole": { "const": "supplemental" },
+    "buildId": { "type": "string", "minLength": 1 },
+    "testRunId": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "diffPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "reviewUrl": { "type": "string", "format": "uri" },
+    "uploadedArtifacts": { "const": 1 },
+    "verdictAuthority": { "const": false }
+  }
+}

@@ -66,3 +66,30 @@ Trusted-only roles may see issue or provider handoff tools, but those tools stil
 The Tool Registry does not execute tools. It is a policy artifact consumed by Agent Packets, the first-party Visual Hive MCP manifest/server, future third-party MCP adapters, the Control Plane, and human reviewers.
 
 Visual Hive remains the verdict authority. Tools may gather evidence, repair code, suggest tests, or prepare handoff artifacts. They must not decide pass/fail, expose secrets, bypass baseline review, or enable paid/external providers by default.
+
+## Optional adapter lifecycle
+
+`odiff_local_compare` and `visual_regression_tracker_review` carry machine-readable `adapterLifecycle` metadata: exact version, license, capabilities, install method, health check, output schema, platforms, maturity, maintenance status, update policy, replacement criteria, and rollback. Both start disabled.
+
+Use ODiff 4.3.8 as supplemental local evidence after the setup agent installs an exact pin and the repository's golden-image parity fixtures pass:
+
+```bash
+visual-hive adapters odiff compare \
+  --baseline visual-hive.baselines/app.png \
+  --actual .visual-hive/artifacts/screenshots/app.png \
+  --diff .visual-hive/artifacts/diffs/app-odiff.png \
+  --command ./node_modules/.bin/odiff
+```
+
+Use the VRT 5.1.1 REST adapter only in a trusted non-PR lane. Supply `VRT_APIURL`, `VRT_APIKEY`, `VRT_PROJECT`, and `VRT_BRANCH`; never put the key in config or command history:
+
+```bash
+visual-hive adapters vrt upload \
+  --image .visual-hive/artifacts/screenshots/app.png \
+  --name app-shell \
+  --trusted
+```
+
+The VRT adapter creates a build, uploads one screenshot under the v5 SDK contract, closes the build, and writes only sanitized supplemental metadata. Its review result cannot turn a failed Visual Hive verdict green or approve a baseline.
+
+For an update, the setup agent must open a dedicated dependency/tooling PR, retain the old pin for rollback, verify license and platform inventory, run health and compatibility tests, run all golden-image fixtures, and validate the JSON output schema. Replace or retire an adapter when any registry replacement criterion is met. Never silently substitute an adapter during a production run.

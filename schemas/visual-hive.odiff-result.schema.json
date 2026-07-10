@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.odiff-result.schema.json",
+  "title": "Visual Hive ODiff Supplemental Result",
+  "type": "object",
+  "required": ["schemaVersion", "adapter", "adapterVersion", "deterministicRole", "match", "reason", "baseline", "actual", "diff"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.odiff-result.v1" },
+    "adapter": { "const": "odiff" },
+    "adapterVersion": { "const": "4.3.8" },
+    "deterministicRole": { "const": "supplemental" },
+    "match": { "type": "boolean" },
+    "reason": { "enum": ["match", "pixel-diff", "layout-diff"] },
+    "diffCount": { "type": "number", "minimum": 0 },
+    "diffPercentage": { "type": "number", "minimum": 0, "maximum": 100 },
+    "baseline": { "type": "string", "minLength": 1 },
+    "actual": { "type": "string", "minLength": 1 },
+    "diff": { "type": "string", "minLength": 1 }
+  }
+}
