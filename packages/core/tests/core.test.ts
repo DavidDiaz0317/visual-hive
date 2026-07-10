@@ -8773,6 +8773,54 @@ describe("issue artifacts", () => {
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
   });
 
+  it("promotes a repository unit-test recommendation into a stable Hive issue", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-test-adequacy-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "test-creation-plan.json"), {
+      schemaVersion: "visual-hive.test-creation-plan.v1",
+      recommendations: [
+        {
+          id: "layer-2-unknown",
+          gapId: "testing-layer:2:unknown",
+          source: "testing_layer",
+          kind: "unit_test",
+          priority: "medium",
+          title: "Add unit test evidence for Unit",
+          rationale: ["No repository unit test runner or test file was detected."],
+          suggestedTests: ["Add focused tests for non-visual behavior."],
+          artifacts: [".visual-hive/repo-map.json"],
+          affected: { route: "/", component: "critical-route-shell" },
+          trustedOnly: false,
+          applyMode: "advisory_no_write"
+        }
+      ]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "test-adequacy-demo" });
+    const issue = result.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap");
+
+    expect(issue).toMatchObject({ severity: "high", owningAgentHint: "visual-hive/test-creator" });
+    expect(issue?.dedupeFingerprint).toContain(":test_adequacy_gap:");
+    expect(issue?.sourceArtifacts).toContain(".visual-hive/test-creation-plan.json");
+    expect(issue?.validationCommand).toContain("node --test");
+    expect(issue?.body).toContain("add focused repository test files only");
+    await expectMatchesSchema("visual-hive.issues.schema.json", result.report);
+  });
+
+  it("normalizes Node built-in test files as covered unit evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-node-test-layer-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, "tests"), { recursive: true });
+    await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ name: "node-test-layer", type: "module" }), "utf8");
+    await writeFile(path.join(rootDir, "tests", "safe-default.test.js"), `import test from "node:test";\nimport assert from "node:assert/strict";\ntest("safe default", () => assert.equal(1, 1));\n`, "utf8");
+    const repo = await writeRepoMap({ repoRoot: rootDir, now: new Date("2026-06-15T00:00:00.000Z") });
+    const evidence = await buildEvidencePacket({ rootDir, project: "node-test-layer", now: new Date("2026-06-15T00:01:00.000Z") });
+
+    expect(repo.report.testTools).toContain("node-test");
+    expect(evidence.testingLayers.find((layer) => layer.id === 2)).toMatchObject({ status: "covered", gaps: [] });
+  });
+
   it("preserves affected contracts on handoff repair issues", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-contracts-"));
     tempDirs.push(rootDir);

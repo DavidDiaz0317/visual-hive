@@ -5,6 +5,7 @@ import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitiz
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
+import type { TestCreationPlan } from "../testCreation/types.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveSetupIssue } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
@@ -59,7 +60,7 @@ export interface WriteIssuesOptions extends BuildIssuesOptions {
 export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ report: VisualHiveIssuesReport; markdown: string; queue: VisualHiveIssueQueue; setupIssue: VisualHiveSetupIssue }> {
   const rootDir = path.resolve(options.rootDir);
   const sourceArtifacts = defaultSourceArtifacts(options.sourcePaths);
-  const [report, mutationReport, triage, coverage, coverageRecommendations, repoMap, visualGraph, visualImpact, workflows, readiness, evidencePacket, handoff, hiveExport, knowledgeGraph, agentPacket, previousIssues, suppressions] =
+  const [report, mutationReport, triage, coverage, coverageRecommendations, repoMap, visualGraph, visualImpact, workflows, readiness, evidencePacket, handoff, hiveExport, knowledgeGraph, agentPacket, testCreationPlan, previousIssues, suppressions] =
     await Promise.all([
       readOptional<Report>(rootDir, sourceArtifacts.report),
       readOptional<MutationReport>(rootDir, sourceArtifacts.mutationReport),
@@ -76,6 +77,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       readOptional<JsonObject>(rootDir, sourceArtifacts.hiveExport),
       readOptional<JsonObject>(rootDir, sourceArtifacts.knowledgeGraph),
       readOptional<JsonObject>(rootDir, sourceArtifacts.agentPacket),
+      readOptional<TestCreationPlan>(rootDir, sourceArtifacts.testCreationPlan),
       readOptional<VisualHiveIssuesReport>(rootDir, ".visual-hive/issues.json"),
       readSuppressions(rootDir, options.suppressionPath ?? ".visual-hive/issue-suppressions.json")
     ]);
@@ -90,7 +92,8 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     ...issuesFromWorkflows(workflows, sourceArtifacts),
     ...issuesFromReadiness(readiness, sourceArtifacts),
     ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts),
-    ...issuesFromHandoff(handoff, sourceArtifacts)
+    ...issuesFromHandoff(handoff, sourceArtifacts),
+    ...issuesFromTestCreation(testCreationPlan, sourceArtifacts)
   ];
 
   const previousByFingerprint = new Map((previousIssues?.issues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
@@ -160,7 +163,8 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       handoff,
       hiveExport,
       knowledgeGraph,
-      agentPacket
+      agentPacket,
+      testCreationPlan
     }),
     summary: summarizeIssues(issues),
     issues
@@ -486,6 +490,31 @@ function issuesFromHandoff(handoff: JsonObject | undefined, sourceArtifacts: Vis
     });
 }
 
+function issuesFromTestCreation(plan: TestCreationPlan | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+  if (!plan) return [];
+  return plan.recommendations
+    .filter((recommendation) => recommendation.source === "testing_layer" && recommendation.kind === "unit_test")
+    .filter((recommendation) => recommendation.priority === "high" || recommendation.priority === "medium")
+    .slice(0, 1)
+    .map((recommendation) =>
+      baseIssue({
+        issueKind: "test_adequacy_gap",
+        severity: "high",
+        title: `[Visual Hive] Add repository test coverage: ${recommendation.title}`,
+        labels: ["missing-coverage", "test-adequacy-gap"],
+        owningAgentHint: "visual-hive/test-creator",
+        sourceArtifacts: [sourceArtifacts.testCreationPlan ?? ".visual-hive/test-creation-plan.json", ...recommendation.artifacts],
+        affected: [{ route: recommendation.affected.route, component: recommendation.affected.component }],
+        validationCommand: "node --test && visual-hive analyze --repo . && visual-hive test-creation-plan && visual-hive issues --write",
+        bodySummary: [
+          ...recommendation.rationale,
+          ...recommendation.suggestedTests,
+          "Repair scope: add focused repository test files only; do not change source, package metadata, workflows, Visual Hive config, or baselines."
+        ].join("\n")
+      })
+    );
+}
+
 function workItemContractId(item: JsonObject): string | undefined {
   const explicit = readString(item, "contractId");
   if (explicit) return explicit;
@@ -551,8 +580,17 @@ function normalizeIssue(issue: VisualHiveIssueCandidate, rootDir: string, projec
     normalized.linkedKnowledgeGraph,
     normalized.linkedAgentPacket
   ]);
-  normalized.body = renderIssueBody(normalized, undefined, rootDir);
+  normalized.body = renderIssueBody(normalized, issueSummary(issue.body), rootDir);
   return sanitizeValue(normalized) as VisualHiveIssueCandidate;
+}
+
+function issueSummary(body: string): string | undefined {
+  const evidenceMarker = "\n## Visual Hive Evidence\n";
+  const evidenceIndex = body.indexOf(evidenceMarker);
+  if (evidenceIndex < 0) return undefined;
+  const headingEnd = body.indexOf("\n", body.indexOf("\n# ") + 1);
+  if (headingEnd < 0 || headingEnd >= evidenceIndex) return undefined;
+  return body.slice(headingEnd, evidenceIndex).trim() || undefined;
 }
 
 function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string, rootDir?: string): string {
@@ -709,6 +747,7 @@ function defaultSourceArtifacts(overrides?: Partial<VisualHiveIssuesReport["sour
     mutationReport: ".visual-hive/mutation-report.json",
     coverage: ".visual-hive/coverage.json",
     coverageRecommendations: ".visual-hive/coverage-recommendations.json",
+    testCreationPlan: ".visual-hive/test-creation-plan.json",
     triage: ".visual-hive/triage.json",
     repoMap: ".visual-hive/repo-map.json",
     workflows: ".visual-hive/workflows.json",

@@ -51,7 +51,7 @@ interface PackageJsonShape {
 const MAX_SOURCE_FILES = 350;
 const MAX_PACKAGE_FILES = 40;
 const MAX_OUTPUT_HINTS = 50;
-const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".html"]);
+const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte", ".html"]);
 const SKIPPED_DIRS = new Set([".git", ".visual-hive", "node_modules", "dist", "build", "coverage", ".next", "out", ".turbo"]);
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
 const ROUTE_HINT_PATTERN = /\b(?:to|href|path)\s*=\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]|(?:route|path)\s*:\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]/g;
@@ -860,6 +860,13 @@ function detectTestTools(deps: string[], scripts: RepoScriptInfo[], sourceFiles:
     if (corpus.includes(tool)) tools.add(tool);
   }
   if (corpus.includes("@playwright/test")) tools.add("playwright");
+  if (
+    corpus.includes("node --test") ||
+    corpus.includes("node:test") ||
+    sourceFiles.some((file) => /(?:^|\/)tests?\/.*\.(?:test|spec)\.(?:[cm]?js|ts)$/i.test(file.replaceAll("\\", "/")))
+  ) {
+    tools.add("node-test");
+  }
   return [...tools].sort();
 }
 
@@ -945,8 +952,8 @@ async function riskSignalsFor(input: {
   if (!input.testTools.includes("playwright")) {
     risks.push(risk("missing_playwright", "warning", "Playwright dependency or script was not detected.", ["dependencies/scripts"], "Install Playwright or rely on Visual Hive workspace tooling during setup."));
   }
-  if (!input.testTools.some((tool) => ["vitest", "jest"].includes(tool))) {
-    risks.push(risk("missing_unit_test_signal", "info", "No Vitest/Jest unit test signal was detected.", ["dependencies/scripts"], "Keep unit tests alongside Visual Hive user-visible contracts."));
+  if (!input.testTools.some((tool) => ["vitest", "jest", "node-test"].includes(tool))) {
+    risks.push(risk("missing_unit_test_signal", "info", "No repository unit test signal was detected.", ["dependencies/scripts/test files"], "Keep unit tests alongside Visual Hive user-visible contracts."));
   }
   if (!input.workflows.length) {
     risks.push(risk("missing_workflows", "warning", "No GitHub Actions workflows were detected.", [".github/workflows"], "Add a read-only Visual Hive pull_request workflow when ready."));
@@ -974,7 +981,7 @@ function coverageGapsFor(input: {
     gaps.push(gap("repo-intelligence-config", 0, "medium", "Visual Hive config is not present yet.", ".visual-hive/recommendations.json"));
   }
   if (!input.workflows.length) gaps.push(gap("workflow-safety", 1, "medium", "No workflow safety lane was detected.", ".visual-hive/workflows.json"));
-  if (!input.testTools.some((tool) => ["vitest", "jest"].includes(tool))) gaps.push(gap("unit-layer", 2, "low", "Unit test layer is not visible from repo scripts/dependencies.", "package.json"));
+  if (!input.testTools.some((tool) => ["vitest", "jest", "node-test"].includes(tool))) gaps.push(gap("unit-layer", 2, "low", "Unit test layer is not visible from repo scripts, dependencies, or test files.", "package.json or tests/"));
   if (!input.testTools.includes("playwright")) gaps.push(gap("e2e-layer", 6, "medium", "Playwright E2E layer is not visible from repo scripts/dependencies.", "visual-hive.config.yaml"));
   if (!input.selectors.length) gaps.push(gap("selector-contracts", 6, "high", "No stable selectors were found for user-visible contracts.", "visual-hive.config.yaml"));
   if (!input.routes.length) gaps.push(gap("route-coverage", 6, "medium", "No route hints were found for route-level visual contracts.", "visual-hive.config.yaml"));

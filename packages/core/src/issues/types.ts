@@ -2,6 +2,7 @@ export type VisualHiveIssueKind =
   | "setup_needed"
   | "map_drift"
   | "missing_visual_coverage"
+  | "test_adequacy_gap"
   | "weak_visual_test"
   | "stale_baseline"
   | "baseline_churn"
@@ -79,6 +80,7 @@ export interface VisualHiveIssuesReport {
     mutationReport?: string;
     coverage?: string;
     coverageRecommendations?: string;
+    testCreationPlan?: string;
     triage?: string;
     repoMap?: string;
     visualGraph?: string;

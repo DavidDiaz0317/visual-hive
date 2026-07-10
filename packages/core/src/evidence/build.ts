@@ -700,6 +700,7 @@ function buildTestingLayers(input: {
   triageReport?: TriageReport;
   repoMap?: RepoMapReport;
 }): EvidencePacketTestingLayer[] {
+  const unitTools = input.repoMap?.testTools.filter((tool) => ["vitest", "jest", "node-test"].includes(tool)) ?? [];
   return [
     layer(
       0,
@@ -709,7 +710,13 @@ function buildTestingLayers(input: {
       input.repoMap ? input.repoMap.coverageGaps.map((gap) => gap.message).slice(0, 5) : input.plan ? ["Run visual-hive analyze for source-level repo intelligence."] : ["No repo-map or plan artifact found."]
     ),
     layer(1, "Static/build/workflow safety", "unknown", [], ["Use readiness/security/workflow artifacts for full coverage."]),
-    layer(2, "Unit", "unknown", [], ["Unit test evidence is not yet normalized into Evidence Packet."]),
+    layer(
+      2,
+      "Unit",
+      unitTools.length ? "covered" : "unknown",
+      unitTools.length ? [".visual-hive/repo-map.json"] : [],
+      unitTools.length ? [] : ["No repository unit test runner or test file was detected."]
+    ),
     layer(3, "Component/accessibility", "unknown", [], ["Accessibility evidence is not yet normalized."]),
     layer(4, "API/contract", "partial", input.report ? [".visual-hive/report.json"] : [], input.report ? [] : ["No deterministic report found."]),
     layer(5, "Component visual", input.report?.summary.screenshotsPassed || input.report?.summary.screenshotsFailed ? "covered" : "partial", [".visual-hive/report.json"], []),

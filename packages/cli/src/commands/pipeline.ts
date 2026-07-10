@@ -373,6 +373,10 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
     const result = await runHandoffValidateCommand({ config: options.config, cwd });
     return { exitCode: result.exitCode, artifacts: [catalogArtifact("handoff-validation")] };
   });
+  await runStep(context, "test-creation-plan", "Test Creation Plan", async () => {
+    await runTestCreationPlanCommand({ config: options.config, cwd });
+    return { artifacts: [catalogArtifact("test-creation-plan"), ".visual-hive/test-creation-plan.md"] };
+  });
   await runStep(context, "issues", "Issue Queue", async () => {
     await runIssuesCommand({ config: options.config, cwd, write: true });
     return {
@@ -383,10 +387,6 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
         ".visual-hive/setup-issue.md"
       ]
     };
-  });
-  await runStep(context, "test-creation-plan", "Test Creation Plan", async () => {
-    await runTestCreationPlanCommand({ config: options.config, cwd });
-    return { artifacts: [catalogArtifact("test-creation-plan"), ".visual-hive/test-creation-plan.md"] };
   });
   await runStep(context, "agent-packet", "Agent Packet", async () => {
     await runAgentPacketCommand({ config: options.config, cwd, profile: "repair_agent" });
