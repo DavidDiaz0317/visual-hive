@@ -8797,11 +8797,15 @@ describe("issue artifacts", () => {
       ]
     });
 
-    const result = await buildIssuesReport({ rootDir, project: "test-adequacy-demo" });
+    const first = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
+    const result = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
     const issue = result.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap");
 
     expect(issue).toMatchObject({ severity: "high", owningAgentHint: "visual-hive/test-creator" });
+    expect(issue?.status).toBe("update_candidate");
+    expect(issue?.dedupeFingerprint).toBe(first.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap")?.dedupeFingerprint);
     expect(issue?.dedupeFingerprint).toContain(":test_adequacy_gap:");
+    expect(issue?.affected).toContainEqual({ contractId: "testing-layer:2" });
     expect(issue?.sourceArtifacts).toContain(".visual-hive/test-creation-plan.json");
     expect(issue?.validationCommand).toContain("node --test");
     expect(issue?.body).toContain("add focused repository test files only");

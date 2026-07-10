@@ -114,7 +114,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     if (previous && previous.status !== "resolved_candidate" && previous.status !== "suppressed") {
       candidate.status = "update_candidate";
       candidate.labels = dedupe([...candidate.labels, "visual-hive/still-active"]);
-      candidate.body = renderIssueBody(candidate, undefined, rootDir);
+      candidate.body = renderIssueBody(candidate, issueSummary(candidate.body), rootDir);
     }
     keyed.set(candidate.dedupeFingerprint, candidate);
   }
@@ -504,7 +504,10 @@ function issuesFromTestCreation(plan: TestCreationPlan | undefined, sourceArtifa
         labels: ["missing-coverage", "test-adequacy-gap"],
         owningAgentHint: "visual-hive/test-creator",
         sourceArtifacts: [sourceArtifacts.testCreationPlan ?? ".visual-hive/test-creation-plan.json", ...recommendation.artifacts],
-        affected: [{ route: recommendation.affected.route, component: recommendation.affected.component }],
+        affected: [
+          { route: recommendation.affected.route, component: recommendation.affected.component },
+          { contractId: `testing-layer:${recommendation.layer?.id ?? 2}` }
+        ],
         validationCommand: "node --test && visual-hive analyze --repo . && visual-hive test-creation-plan && visual-hive issues --write",
         bodySummary: [
           ...recommendation.rationale,
