@@ -835,13 +835,20 @@ function agentLabels(agent: VisualHiveIssueCandidate["owningAgentHint"]): string
 function fingerprint(project: string, kind: string, surface: string | undefined, title: string, affected: VisualHiveIssueCandidate["affected"]): string {
   const repo = safeFingerprintSegment(project);
   const surfaceSegment = safeFingerprintSegment(surface ?? "surface");
-  const base = JSON.stringify({ repo, kind, surface: surfaceSegment, title: title.toLowerCase(), affected });
+  const base = JSON.stringify({ repo, kind, surface: surfaceSegment, title: title.toLowerCase(), affected: fingerprintAffected(affected) });
   return `visual-hive:${repo}:${kind}:${surfaceSegment}:${crypto.createHash("sha256").update(base).digest("hex").slice(0, 16)}`;
 }
 
 function legacyFingerprint(kind: string, title: string, affected: VisualHiveIssueCandidate["affected"]): string {
-  const base = JSON.stringify({ kind, title: title.toLowerCase(), affected });
+  const base = JSON.stringify({ kind, title: title.toLowerCase(), affected: fingerprintAffected(affected) });
   return `visual-hive:${kind}:${crypto.createHash("sha256").update(base).digest("hex").slice(0, 16)}`;
+}
+
+function fingerprintAffected(affected: VisualHiveIssueCandidate["affected"]): VisualHiveIssueCandidate["affected"] {
+  return affected.filter((surface) => {
+    const resolutionScope = surface.contractId?.startsWith("testing-layer:") && Object.entries(surface).every(([key, value]) => key === "contractId" || value === undefined);
+    return !resolutionScope;
+  });
 }
 
 function safeFingerprintSegment(value: string): string {

@@ -8804,7 +8804,7 @@ describe("issue artifacts", () => {
     expect(issue).toMatchObject({ severity: "high", owningAgentHint: "visual-hive/test-creator" });
     expect(issue?.status).toBe("update_candidate");
     expect(issue?.dedupeFingerprint).toBe(first.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap")?.dedupeFingerprint);
-    expect(issue?.dedupeFingerprint).toContain(":test_adequacy_gap:");
+    expect(issue?.dedupeFingerprint).toBe("visual-hive:test-adequacy-demo:test_adequacy_gap:unknown:85ead75abf845bfe");
     expect(issue?.affected).toContainEqual({ contractId: "testing-layer:2" });
     expect(issue?.sourceArtifacts).toContain(".visual-hive/test-creation-plan.json");
     expect(issue?.validationCommand).toContain("node --test");
