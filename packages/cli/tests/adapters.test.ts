@@ -41,6 +41,7 @@ describe("open-source adapter execution", () => {
   });
 
   it("uploads to the VRT 5 API only in an explicitly trusted lane", async () => {
+    delete process.env.GITHUB_EVENT_NAME;
     const root = await tempRoot();
     await writeFile(path.join(root, "actual.png"), "image-bytes");
     const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -105,4 +106,3 @@ async function tempRoot(): Promise<string> {
   roots.push(root);
   return root;
 }
-
