@@ -8773,6 +8773,30 @@ describe("issue artifacts", () => {
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
   });
 
+  it("preserves affected contracts on handoff repair issues", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-contracts-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), {
+      workItems: [
+        {
+          id: "playwright.console_error.deploy-preview-smoke",
+          kind: "repair",
+          priority: "high",
+          title: "Repair deploy-preview-smoke: console_error",
+          summary: "Hosted asset returned 404.",
+          artifacts: [".visual-hive/artifacts/results/deploy-preview-smoke.json"]
+        }
+      ]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "handoff-contracts" });
+    const issue = result.report.issues.find((candidate) => candidate.title.includes("console_error"));
+
+    expect(issue?.affected).toEqual([{ contractId: "deploy-preview-smoke" }]);
+    expect(issue?.body).toContain("contractId=deploy-preview-smoke");
+  });
+
   it("removes local absolute artifact paths from issue and publish markdown", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issues-paths-"));
     tempDirs.push(rootDir);

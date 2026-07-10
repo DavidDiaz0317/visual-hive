@@ -470,19 +470,33 @@ function issuesFromHandoff(handoff: JsonObject | undefined, sourceArtifacts: Vis
   return workItems
     .filter((item) => readString(item, "priority") === "critical" || readString(item, "priority") === "high")
     .slice(0, 10)
-    .map((item) =>
-      baseIssue({
+    .map((item) => {
+      const contractId = workItemContractId(item);
+      return baseIssue({
         issueKind: readString(item, "kind") === "test_creation" ? "missing_visual_coverage" : "external_repo_onboarding",
         severity: severityFromString(readString(item, "priority"), "medium"),
         title: `[Visual Hive] Handoff work item: ${readString(item, "title") ?? readString(item, "id") ?? "agent work"}`,
         labels: ["visual-hive/ready"],
         owningAgentHint: readString(item, "kind") === "test_creation" ? "visual-hive/test-creator" : "hive/quality",
         sourceArtifacts: [sourceArtifacts.handoff ?? ".visual-hive/handoff.json", ...readStringArray(item.artifacts)],
-        affected: [],
+        affected: contractId ? [{ contractId }] : [],
         validationCommand: "visual-hive handoff-validate && visual-hive issues --write",
         bodySummary: readString(item, "summary") ?? JSON.stringify(item).slice(0, 800)
-      })
-    );
+      });
+    });
+}
+
+function workItemContractId(item: JsonObject): string | undefined {
+  const explicit = readString(item, "contractId");
+  if (explicit) return explicit;
+  const id = readString(item, "id");
+  if (!id) return undefined;
+  for (const prefix of ["playwright.contract_result.", "playwright.console_error.", "playwright.page_error.", "screenshot_diff.missing_baseline.", "screenshot_diff.failed."]) {
+    if (id.startsWith(prefix)) {
+      return id.slice(prefix.length) || undefined;
+    }
+  }
+  return undefined;
 }
 
 function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFingerprint" | "body" | "labels" | "guardrails" | "validationCommand"> & {
