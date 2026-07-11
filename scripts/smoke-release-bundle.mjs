@@ -46,6 +46,12 @@ try {
   if (!manifest.files.some((file) => file.path.startsWith("schemas/") && file.path.endsWith(".schema.json"))) {
     throw new Error("release manifest does not contain the Visual Hive schemas");
   }
+  for (const dependency of ["@playwright/test", "pixelmatch", "pngjs"]) {
+    const packagePath = `node_modules/${dependency}/package.json`;
+    if (!manifest.files.some((file) => file.path === packagePath)) {
+      throw new Error(`release manifest does not contain runtime dependency ${dependency}`);
+    }
+  }
   console.log(`Visual Hive release smoke passed (${manifest.files.length} files).`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });

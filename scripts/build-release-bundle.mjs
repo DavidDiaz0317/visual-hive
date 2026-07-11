@@ -28,7 +28,7 @@ await build({
   }
 });
 
-for (const dependency of ["@playwright/test", "playwright", "playwright-core"]) {
+for (const dependency of ["@playwright/test", "playwright", "playwright-core", "pixelmatch", "pngjs"]) {
   const source = path.join(repoRoot, "node_modules", ...dependency.split("/"));
   const destination = path.join(outputDir, "node_modules", ...dependency.split("/"));
   await cp(source, destination, { recursive: true });
