@@ -5485,6 +5485,22 @@ describe("setup recommendations", () => {
     expect(recommendation.warnings).toContain("Starter contract uses body because no known stable app-shell data-testid was detected.");
   });
 
+  it("uses a stable framework mount id when no app-shell test id exists", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-root-id-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      scripts: { preview: "vite preview" },
+      dependencies: { react: "^19.0.0", vite: "^6.0.0" }
+    });
+    await writeFile(path.join(targetRoot, "index.html"), `<main id="root"></main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot });
+
+    expect(recommendation.detectedSelectors).toContainEqual({ selector: "#root", sourceFile: "index.html", occurrences: 1 });
+    expect(recommendation.recommendedContracts[0]?.selectors).toEqual(["#root"]);
+    expect(recommendation.warnings.some((warning) => warning.includes("uses body"))).toBe(false);
+  });
+
   it("detects a React/Vite repo and emits a validated starter config", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-"));
     tempDirs.push(targetRoot);

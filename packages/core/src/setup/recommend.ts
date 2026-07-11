@@ -239,6 +239,7 @@ const MAX_SOURCE_FILES = 250;
 const MAX_RECOMMENDED_STORYBOOK_CONTRACTS = 3;
 const MAX_RECOMMENDED_ROUTE_CONTRACTS = 3;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
+const STABLE_ROOT_ID_PATTERN = /\bid\s*=\s*["'`](root|app|main)["'`]/g;
 const ROUTE_HINT_PATTERN = /\b(?:to|href|path)\s*=\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]|(?:route|path)\s*:\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]/g;
 const STORY_TITLE_PATTERN = /title\s*:\s*["'`]([^"'`]+)["'`]/;
 const STORY_EXPORT_PATTERN = /export\s+(?:const|function)\s+([A-Z_a-z]\w*)/g;
@@ -732,6 +733,9 @@ function preferredSelector(selectors: SetupDetectedSelector[]): string {
   for (const id of preferredIds) {
     const found = selectors.find((selector) => selector.selector === `[data-testid='${id}']`);
     if (found) return found.selector;
+  }
+  for (const selector of ["#root", "#app", "#main"]) {
+    if (selectors.some((candidate) => candidate.selector === selector)) return selector;
   }
   return "body";
 }
@@ -1509,6 +1513,16 @@ async function collectSelectors(repoRoot: string, sourceFiles: string[]): Promis
       const testId = sanitizeText(match[1] ?? "").trim();
       if (!testId) continue;
       const selector = `[data-testid='${testId}']`;
+      const existing = counts.get(selector);
+      if (existing) {
+        existing.occurrences += 1;
+      } else {
+        counts.set(selector, { selector, sourceFile: normalizeSlashes(sourceFile), occurrences: 1 });
+      }
+    }
+    STABLE_ROOT_ID_PATTERN.lastIndex = 0;
+    for (const match of raw.matchAll(STABLE_ROOT_ID_PATTERN)) {
+      const selector = `#${match[1]}`;
       const existing = counts.get(selector);
       if (existing) {
         existing.occurrences += 1;
