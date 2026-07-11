@@ -12,6 +12,7 @@ import {
   type WriteVisualHiveBundleResult
 } from "@visual-hive/core";
 import type { HiveImportManifest, HiveValidationSummary } from "./hive.js";
+import { visualHiveVersion } from "../version.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -77,7 +78,7 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     },
     issues: issues.issues,
     issuesArtifact: issuesPath,
-    producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? "0.2.3-dev",
+    producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? visualHiveVersion,
     producerGitCommit: process.env.VISUAL_HIVE_GIT_COMMIT ?? process.env.VISUAL_HIVE_BUILD_SHA ?? "unavailable",
     externalCallsMade: hiveExport.externalCallsMade,
     expiresInHours: options.expiresInHours,

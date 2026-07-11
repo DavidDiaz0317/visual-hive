@@ -126,10 +126,11 @@ import {
   runConnectionsListCommand,
   runConnectionsRemoveCommand
 } from "./commands/connections.js";
+import { visualHiveVersion } from "./version.js";
 
 const program = new Command();
 
-program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.3");
+program.name("visual-hive").description("Deterministic-first visual QA orchestration").version(visualHiveVersion);
 
 program
   .command("init")

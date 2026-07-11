@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { visualHiveVersion } from "../version.js";
 import {
   VISUAL_HIVE_EVIDENCE_RESOURCES,
   createPlan,
@@ -309,7 +310,7 @@ export function formatMcpManifest(manifest: McpManifest, format: "markdown" | "j
 export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = buildMcpManifest(loaded)): McpServer {
   const server = new McpServer({
     name: "visual-hive",
-    version: "0.2.3"
+    version: visualHiveVersion
   });
 
   for (const resource of manifest.resources) {
