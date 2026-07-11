@@ -733,7 +733,7 @@ function preferredSelector(selectors: SetupDetectedSelector[]): string {
     const found = selectors.find((selector) => selector.selector === `[data-testid='${id}']`);
     if (found) return found.selector;
   }
-  return selectors[0]?.selector ?? "body";
+  return "body";
 }
 
 function buildContracts(
@@ -776,7 +776,7 @@ function buildAppContracts(
     },
     reasons: [
       selector === "body"
-        ? "No data-testid selectors were detected, so the starter contract uses body until project-owned selectors are added."
+        ? "No known stable app-shell data-testid was detected, so the starter contract uses body until a project-owned shell selector is added."
         : `Detected stable project-owned selector ${selector}.`,
       "Desktop and mobile screenshots give the first PR-safe visual regression lane."
     ]
@@ -874,7 +874,7 @@ function buildStorybookContracts(
           ? `Detected Storybook story ${story.title} in ${story.storyFile}; starter screenshots target ${story.route}.`
           : "Storybook was detected, but no story files were found; starter screenshots use the Storybook iframe route and should be refined after adding stories.",
         selector === "body"
-          ? "No data-testid selectors were detected, so the starter Storybook contract uses body until component-owned selectors are added."
+          ? "No known stable component data-testid was detected, so the starter Storybook contract uses body until a component-owned selector is added."
           : `Detected component selector ${selector}.`,
         "Desktop and mobile Storybook screenshots give a PR-safe component visual lane without requiring Chromatic."
       ]
@@ -1460,7 +1460,7 @@ function buildWarnings(inventory: RepoInventory, serve: string | undefined, sele
   const warnings: string[] = [];
   if (!inventory.packageJson) warnings.push("No package.json was found in the repository.");
   if (!serve) warnings.push("No preview/dev/start script was detected for a command target.");
-  if (selector === "body") warnings.push("Starter contract uses body because no data-testid selectors were detected.");
+  if (selector === "body") warnings.push("Starter contract uses body because no known stable app-shell data-testid was detected.");
   if (inventory.playwright.status === "missing") warnings.push("No Playwright setup was detected in the target repo.");
   if (inventory.workflows.some((workflow) => workflow.usesPullRequestTarget)) {
     warnings.push("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");

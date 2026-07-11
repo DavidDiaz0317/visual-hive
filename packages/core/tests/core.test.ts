@@ -5468,6 +5468,23 @@ describe("setup recommendations", () => {
     expect(buildSetupDocsMarkdown(recommendation)).toContain("Selected package path: dashboard");
   });
 
+  it("does not guess that an arbitrary interactive test id is visible at startup", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-hidden-selector-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      scripts: { preview: "vite preview" },
+      dependencies: { vite: "^6.0.0" }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "Drawer.tsx"), `<aside hidden data-testid="session-logs">Logs</aside>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot });
+
+    expect(recommendation.detectedSelectors[0]?.selector).toBe("[data-testid='session-logs']");
+    expect(recommendation.recommendedContracts[0]?.selectors).toEqual(["body"]);
+    expect(recommendation.warnings).toContain("Starter contract uses body because no known stable app-shell data-testid was detected.");
+  });
+
   it("detects a React/Vite repo and emits a validated starter config", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-"));
     tempDirs.push(targetRoot);

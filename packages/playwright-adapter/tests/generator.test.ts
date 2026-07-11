@@ -8,7 +8,7 @@ import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
-import { normalizeStructuredContractResult, resolvePlaywrightCli, runPlaywrightContracts } from "../src/runner.js";
+import { normalizeStructuredContractResult, playwrightNodeModulesPath, resolvePlaywrightCli, runPlaywrightContracts } from "../src/runner.js";
 import { PNG } from "pngjs";
 
 const tempDirs: string[] = [];
@@ -159,7 +159,9 @@ describe("buildSpecContent", () => {
     );
     await writeFile(path.join(packageDir, "cli.js"), "#!/usr/bin/env node\n", "utf8");
 
-    expect(resolvePlaywrightCli(tempRoot)).toBe(path.join(packageDir, "cli.js"));
+    const cli = resolvePlaywrightCli(tempRoot);
+    expect(cli).toBe(path.join(packageDir, "cli.js"));
+    expect(playwrightNodeModulesPath(cli)).toBe(path.join(tempRoot, "node_modules"));
   });
 
   it("serializes resolved deploy preview URLs into generated specs", async () => {

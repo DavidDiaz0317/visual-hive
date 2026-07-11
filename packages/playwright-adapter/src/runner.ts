@@ -182,7 +182,12 @@ function runPlaywrightCli(
   allowFailure = false
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const playwrightCli = resolvePlaywrightCli(cwd);
-  return runProcess(process.execPath, [playwrightCli, ...args], cwd, env, allowFailure);
+  const nodeModules = playwrightNodeModulesPath(playwrightCli);
+  const childEnv = {
+    ...env,
+    NODE_PATH: [nodeModules, env.NODE_PATH].filter(Boolean).join(path.delimiter)
+  };
+  return runProcess(process.execPath, [playwrightCli, ...args], cwd, childEnv, allowFailure);
 }
 
 export function resolvePlaywrightCli(cwd: string): string {
@@ -191,6 +196,15 @@ export function resolvePlaywrightCli(cwd: string): string {
   } catch {
     return require.resolve("@playwright/test/cli");
   }
+}
+
+export function playwrightNodeModulesPath(playwrightCli: string): string {
+  let current = path.dirname(path.resolve(playwrightCli));
+  while (path.dirname(current) !== current) {
+    if (path.basename(current) === "node_modules") return current;
+    current = path.dirname(current);
+  }
+  return path.dirname(path.dirname(path.dirname(path.resolve(playwrightCli))));
 }
 
 async function removeGeneratedResults(resultsDir: string): Promise<void> {
