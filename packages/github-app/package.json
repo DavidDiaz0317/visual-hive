@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/github-app",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "GitHub App local/server MVP helpers for Visual Hive trusted issue-centric repository connections.",
   "type": "module",
   "license": "MIT",

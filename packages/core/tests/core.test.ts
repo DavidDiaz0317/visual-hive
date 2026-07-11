@@ -1785,14 +1785,14 @@ describe("coverage analysis", () => {
         total: 1,
         results: [
           {
-            operator: "hide-critical-button",
+            operator: "api-500",
             status: "survived",
             killed: false,
             contractIds: ["safe-contract"],
             applicable: true,
-            expectedFailureKinds: ["missing_element"],
+            expectedFailureKinds: ["api_contract_regression"],
             durationMs: 25,
-            errors: ["critical button remained uncovered"]
+            errors: ["api failure remained uncovered"]
           }
         ]
       },
@@ -1825,7 +1825,13 @@ describe("coverage analysis", () => {
     expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("add_changed_file_rule");
     expect(report.recommendations.map((recommendation) => recommendation.kind)).toContain("maintain_visual_test");
     expect(report.recommendations.find((recommendation) => recommendation.kind === "map_mutation_operator")?.suggestedConfigYaml).toContain(
-      "hide-critical-button"
+      "api-500"
+    );
+    expect(report.recommendations.find((recommendation) => recommendation.kind === "map_mutation_operator")?.suggestedConfigYaml).toContain(
+      "textMustNotExist"
+    );
+    expect(report.recommendations.find((recommendation) => recommendation.kind === "map_mutation_operator")?.suggestedConfigYaml).toContain(
+      "visual-hive api-500 mutation"
     );
     const maintenanceRecommendation = report.recommendations.find((recommendation) => recommendation.kind === "maintain_visual_test");
     expect(maintenanceRecommendation).toMatchObject({
