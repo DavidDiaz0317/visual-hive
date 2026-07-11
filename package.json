@@ -1,6 +1,6 @@
 {
   "name": "visual-hive",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Deterministic-first visual QA orchestration with Playwright contracts, visual diffs, mutation adequacy, and GitHub-ready reports.",

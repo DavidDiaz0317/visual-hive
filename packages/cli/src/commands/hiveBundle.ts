@@ -77,7 +77,7 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     },
     issues: issues.issues,
     issuesArtifact: issuesPath,
-    producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? "0.2.1-dev",
+    producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? "0.2.2-dev",
     producerGitCommit: process.env.VISUAL_HIVE_GIT_COMMIT ?? process.env.VISUAL_HIVE_BUILD_SHA ?? "unavailable",
     externalCallsMade: hiveExport.externalCallsMade,
     expiresInHours: options.expiresInHours,

@@ -4693,7 +4693,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(
       path.join(hiveRoot, "mcp-manifest.json"),
-      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.1","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
+      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.2","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
       "utf8"
     );
     await writeFile(

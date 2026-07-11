@@ -309,7 +309,7 @@ export function formatMcpManifest(manifest: McpManifest, format: "markdown" | "j
 export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = buildMcpManifest(loaded)): McpServer {
   const server = new McpServer({
     name: "visual-hive",
-    version: "0.2.1"
+    version: "0.2.2"
   });
 
   for (const resource of manifest.resources) {

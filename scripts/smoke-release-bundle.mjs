@@ -16,6 +16,19 @@ try {
   const entrypoint = path.join(outputDir, "visual-hive.mjs");
   await run(process.execPath, [entrypoint, "--version"], repoRoot);
   await run(process.execPath, [entrypoint, "doctor", "--config", path.join(repoRoot, "examples", "demo-react-app", "visual-hive.config.yaml")], repoRoot);
+  await run(
+    process.execPath,
+    [
+      entrypoint,
+      "schemas",
+      "verify",
+      "--schemas-dir",
+      path.join(outputDir, "schemas"),
+      "--output",
+      path.join(tempRoot, "schema-catalog.json")
+    ],
+    tempRoot
+  );
   const manifest = JSON.parse(await readFile(path.join(outputDir, "release-manifest.json"), "utf8"));
   if (manifest.schemaVersion !== "visual-hive.release.v1" || !/^[a-f0-9]{40}$/.test(manifest.gitCommit) || manifest.files.length < 10) {
     throw new Error("release manifest is incomplete or not bound to an immutable commit");
@@ -29,6 +42,9 @@ try {
     if (data.byteLength !== file.size || digest !== file.sha256) {
       throw new Error(`release inventory mismatch: ${file.path}`);
     }
+  }
+  if (!manifest.files.some((file) => file.path.startsWith("schemas/") && file.path.endsWith(".schema.json"))) {
+    throw new Error("release manifest does not contain the Visual Hive schemas");
   }
   console.log(`Visual Hive release smoke passed (${manifest.files.length} files).`);
 } finally {

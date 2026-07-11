@@ -37,6 +37,10 @@ for (const dependency of ["@playwright/test", "playwright", "playwright-core"]) 
 const webSource = path.join(repoRoot, "packages", "control-plane", "dist", "web");
 await cp(webSource, path.join(outputDir, "web"), { recursive: true });
 
+// Schema verification is part of the public CLI contract. Keep the schemas next
+// to the bundled entrypoint so consumers never need a Visual Hive source checkout.
+await cp(path.join(repoRoot, "schemas"), path.join(outputDir, "schemas"), { recursive: true });
+
 await writeFile(
   path.join(outputDir, "visual-hive"),
   "#!/usr/bin/env sh\nset -eu\nexec node \"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)/visual-hive.mjs\" \"$@\"\n",
