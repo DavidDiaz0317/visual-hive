@@ -85,11 +85,13 @@ import {
   runHiveTrustedRepairWorkflowDryRunCommand,
   runHiveValidateExportCommand
 } from "./commands/hive.js";
+import { formatHiveBundle, runHiveBundleCommand } from "./commands/hiveBundle.js";
 import { formatAgentPacketResult, runAgentPacketCommand } from "./commands/agentPacket.js";
 import { formatAgentIssueRunnerResult, runAgentIssueRunnerCommand } from "./commands/agentIssueRunner.js";
 import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./commands/agentWritePreview.js";
 import { formatAgentValidateResult, runAgentValidateCommand } from "./commands/agentValidate.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
+import { runODiffCompare, runVRTUpload } from "./commands/adapters.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
@@ -127,7 +129,7 @@ import {
 
 const program = new Command();
 
-program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.0");
+program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.2");
 
 program
   .command("init")
@@ -757,6 +759,50 @@ program
 const hiveCommand = program.command("hive").description("Export Hive-native beads, knowledge, graph, and guarded repair artifacts");
 
 hiveCommand
+  .command("bundle")
+  .description("Finalize validated Hive artifacts as an atomic, digested, provenance-bearing import bundle")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--hive-export <path>", "Hive export artifact path", ".visual-hive/hive/hive-export.json")
+  .option("--import-manifest <path>", "Hive import manifest path", ".visual-hive/hive/hive-import-manifest.json")
+  .option("--validation-summary <path>", "Hive validation summary path", ".visual-hive/hive/hive-validation-summary.json")
+  .option("--issues <path>", "Visual Hive lifecycle observation source", ".visual-hive/issues.json")
+  .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
+  .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--acmm-request <level>", "requested Hive ACMM authority for this evidence bundle", parseIntegerOption)
+  .option("--scan-scope <scope>", "full, partial, changed-files, or targeted", "partial")
+  .option("--authoritative-for-resolution", "allow absent observations to resolve findings; requires a full scan")
+  .option("--evaluated-contract <id>", "contract evaluated by this run (repeatable)", collectRepeatable, [])
+  .option("--evaluated-file <path>", "file evaluated by this run (repeatable)", collectRepeatable, [])
+  .option("--test-plan-version <version>", "test plan schema/version", "visual-hive.test-plan.v1")
+  .option("--tool-registry-version <version>", "tool registry schema/version", "visual-hive.tool-registry.v1")
+  .option("--expires-in-hours <number>", "bundle validity window", parseIntegerOption, 168)
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runHiveBundleCommand({
+        config: options.config,
+        hiveExport: options.hiveExport,
+        importManifest: options.importManifest,
+        validationSummary: options.validationSummary,
+        issues: options.issues,
+        outputDir: options.outputDir,
+        trustedSource: options.trustedSource,
+        acmmRequest: options.acmmRequest,
+        scanScope: options.scanScope,
+        authoritativeForResolution: options.authoritativeForResolution,
+        evaluatedContracts: options.evaluatedContract,
+        evaluatedFiles: options.evaluatedFile,
+        testPlanVersion: options.testPlanVersion,
+        toolRegistryVersion: options.toolRegistryVersion,
+        expiresInHours: options.expiresInHours
+      });
+      console.log(formatHiveBundle(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+hiveCommand
   .command("export")
   .description("Write a no-network Hive-native export bundle from Visual Hive evidence")
   .option("--config <path>", "config path", "visual-hive.config.yaml")
@@ -1237,6 +1283,57 @@ program
         format: options.format
       });
       console.log(formatToolsRegistry(result, options.format));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const adapters = program.command("adapters").description("Run optional open-source adapters without changing Visual Hive verdict authority");
+const odiff = adapters.command("odiff").description("Use the pinned ODiff adapter as supplemental deterministic evidence");
+
+odiff
+  .command("compare")
+  .requiredOption("--baseline <path>", "baseline image within the repository")
+  .requiredOption("--actual <path>", "actual image within the repository")
+  .requiredOption("--diff <path>", "diff output path within the repository")
+  .option("--threshold <number>", "ODiff color threshold", Number, 0.1)
+  .option("--command <path>", "pinned ODiff executable", "odiff")
+  .option("--format <format>", "json or markdown", "json")
+  .action(async (options) => {
+    try {
+      const result = await runODiffCompare(options);
+      console.log(
+        options.format === "json"
+          ? JSON.stringify(result, null, 2)
+          : `ODiff ${result.match ? "matched" : result.reason}: ${result.diffPercentage ?? 0}% (${result.diffCount ?? 0} pixels)`
+      );
+      if (!result.match) process.exitCode = 1;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const vrt = adapters.command("vrt").description("Upload reviewed screenshots to a trusted self-hosted Visual Regression Tracker");
+
+vrt
+  .command("upload")
+  .requiredOption("--image <path>", "screenshot within the repository")
+  .requiredOption("--name <name>", "VRT test variation name")
+  .requiredOption("--trusted", "confirm trusted non-PR external upload authority")
+  .option("--api-url <url>", "VRT API URL; defaults to VRT_APIURL")
+  .option("--api-key <key>", "VRT API key; prefer VRT_APIKEY")
+  .option("--project <name>", "VRT project; defaults to VRT_PROJECT")
+  .option("--branch <name>", "VRT branch; defaults to VRT_BRANCH")
+  .option("--baseline-branch <name>", "optional VRT baseline branch")
+  .option("--ci-build-id <id>", "optional VRT CI build identifier")
+  .option("--browser <name>", "browser metadata")
+  .option("--os <name>", "operating system metadata")
+  .option("--viewport <value>", "viewport metadata")
+  .option("--diff-tolerance-percent <number>", "VRT comparison tolerance", Number)
+  .option("--output <path>", "sanitized result path", ".visual-hive/adapters/vrt-result.json")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runVRTUpload(options), null, 2));
     } catch (error) {
       fail(error);
     }

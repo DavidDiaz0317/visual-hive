@@ -29,6 +29,7 @@ export * from "./issues/build.js";
 export * from "./issues/publish.js";
 export * from "./hive/types.js";
 export * from "./hive/build.js";
+export * from "./hive/bundle.js";
 export * from "./agent/types.js";
 export * from "./agent/build.js";
 export * from "./agent/issueRunner.js";

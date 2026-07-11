@@ -144,12 +144,14 @@ Those commands prove Visual Hive from a consumer repo rather than from this prod
 For a real repository, the production loop is:
 
 ```bash
-visual-hive loop run --mode full --bootstrap-baselines --ci
+visual-hive loop run --mode full --ci
 visual-hive loop derive-issues
 visual-hive loop lifecycle
 ```
 
 This scans the repo, plans checks, runs deterministic visual contracts, runs mutation adequacy, writes evidence/verdict/Hive artifacts, derives real issue candidates, and records lifecycle state. Seeded defects are separate smoke tests, not the default live loop. See [docs/operational-loop.md](docs/operational-loop.md).
+
+CI never bootstraps expected screenshots. Create missing baselines only in an explicit local review session, commit the approved images in a tracked repository directory, and keep `failOnMissingBaselineInCI: true`.
 
 ## Production Direction
 

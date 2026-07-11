@@ -86,6 +86,7 @@ export async function indexArtifacts(options: IndexArtifactsOptions): Promise<Ar
       artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
     },
     (dirPath) => {
+      if (isBundlePayloadDirectory(hiveRoot, dirPath)) return true;
       if (!isRunHistoryDirectory(hiveRoot, dirPath)) return false;
       skippedHistoryDirectories += 1;
       return true;
@@ -477,4 +478,9 @@ function isRunHistoryDirectory(hiveRoot: string, dirPath: string): boolean {
   const relative = path.relative(hiveRoot, dirPath).replaceAll("\\", "/");
   const parts = relative.split("/").filter(Boolean);
   return parts.length >= 2 && parts[0] === "history";
+}
+
+function isBundlePayloadDirectory(hiveRoot: string, dirPath: string): boolean {
+  const relative = path.relative(hiveRoot, dirPath).replaceAll(path.sep, "/");
+  return /^bundles\/[^/]+\/files$/.test(relative);
 }

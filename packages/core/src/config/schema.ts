@@ -27,6 +27,7 @@ export const VisualConfigSchema = z
     maxDiffPixels: z.number().int().nonnegative().optional(),
     updateSnapshots: z.boolean().default(false),
     failOnMissingBaselineInCI: z.boolean().default(true),
+    baselinePlatform: z.enum(["shared", "platform"]).default("shared"),
     snapshotDir: relativeArtifactPathSchema(".visual-hive/snapshots"),
     artifactDir: relativeArtifactPathSchema(".visual-hive/artifacts")
   })
@@ -34,6 +35,7 @@ export const VisualConfigSchema = z
     maxDiffPixelRatio: 0.01,
     updateSnapshots: false,
     failOnMissingBaselineInCI: true,
+    baselinePlatform: "shared",
     snapshotDir: ".visual-hive/snapshots",
     artifactDir: ".visual-hive/artifacts"
   });

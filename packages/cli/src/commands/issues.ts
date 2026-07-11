@@ -56,6 +56,7 @@ const ISSUE_KINDS = new Set<VisualHiveIssueKind>([
   "setup_needed",
   "map_drift",
   "missing_visual_coverage",
+  "test_adequacy_gap",
   "weak_visual_test",
   "stale_baseline",
   "baseline_churn",

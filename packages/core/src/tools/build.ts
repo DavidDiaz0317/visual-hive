@@ -218,6 +218,16 @@ export function renderToolCards(registry: ToolRegistry): string {
     if (tool.notes.length) {
       lines.push(`Notes: ${tool.notes.join(" ")}`);
     }
+    if (tool.adapterLifecycle) {
+      lines.push(
+        `Adapter lifecycle: version=${tool.adapterLifecycle.version}; license=${tool.adapterLifecycle.license}; maturity=${tool.adapterLifecycle.maturity}; maintenance=${tool.adapterLifecycle.maintenanceStatus}.`,
+        `Install: ${tool.adapterLifecycle.installation.join(" ")}`,
+        `Health: ${tool.adapterLifecycle.healthCheck}`,
+        `Update policy: ${tool.adapterLifecycle.updatePolicy}`,
+        `Replace when: ${tool.adapterLifecycle.replacementCriteria.join("; ")}`,
+        `Rollback: ${tool.adapterLifecycle.rollback}`
+      );
+    }
   }
   return `${sanitizeText(lines.join("\n"))}\n`;
 }
@@ -440,6 +450,76 @@ function allTools(): ToolRegistryEntry[] {
     }),
     cli("visual_hive_run", "Run deterministic checks", "Run Playwright-backed deterministic checks; execution must be explicit.", "local_execution", "local", ["repair_agent"], ["local", "pr_debug", "schedule", "manual"], "visual-hive run", [".visual-hive/report.json"], { trustedOnly: false, writeRestrictions: ["Do not run protected targets from untrusted PRs.", "Do not approve baselines."] }),
     cli("visual_hive_mutate", "Run mutation checks", "Run mutation adequacy checks to verify contracts catch intentional breakage.", "local_execution", "local", ["test_creator", "repair_agent"], ["local", "schedule", "manual"], "visual-hive mutate", [".visual-hive/mutation-report.json"], { trustedOnly: false }),
+    entry({
+      id: "odiff_local_compare",
+      label: "ODiff local image comparison",
+      description: "Optional Apache-2.0 local image-diff engine for a second deterministic comparison implementation.",
+      kind: "local_cli",
+      enabled: false,
+      defaultAccess: "local_execution",
+      costClass: "local",
+      trustedOnly: false,
+      allowedRoles: ["setup_agent", "test_creator", "review_agent"],
+      allowedModes: ["local", "pr_debug", "schedule", "manual"],
+      command: "odiff <baseline.png> <actual.png> <diff.png>",
+      reads: ["visual-hive.baselines", ".visual-hive/artifacts/screenshots"],
+      writes: [".visual-hive/artifacts/diffs"],
+      writeRestrictions: ["Keep pixelmatch as the default verdict engine until parity fixtures pass.", "Never update or approve baselines."],
+      evidenceArtifacts: [".visual-hive/report.json"],
+      notes: ["Enable only after the setup agent verifies an OS/architecture-compatible pinned binary and parity tests.", "Update on a reviewed pinned-version PR; replace only after security, maintenance, and golden-image parity review."],
+      adapterLifecycle: {
+        version: "4.3.8",
+        license: "MIT",
+        capabilities: ["local image comparison", "layout-difference detection", "anti-aliasing handling", "PNG diff output"],
+        installation: ["Install odiff-bin@4.3.8 with an exact lockfile entry or use the v4.3.8 release binary with a verified SHA-256 digest."],
+        healthCheck: "odiff --version (must report 4.3.8), followed by Visual Hive golden-image parity fixtures",
+        outputSchema: "schemas/visual-hive.odiff-result.schema.json",
+        platforms: ["linux-amd64", "linux-arm64", "windows-amd64", "darwin-amd64", "darwin-arm64"],
+        maturity: "candidate",
+        maintenanceStatus: "maintained",
+        lastReviewed: "2026-07-10",
+        source: "https://github.com/dmtrKovalenko/odiff",
+        updatePolicy: "Pin an exact release, verify license and signatures/checksums, then require cross-platform golden-image parity before rollout.",
+        replacementCriteria: ["unpatched high-severity vulnerability", "loss of supported platform", "golden-image parity regression", "unmaintained for two review cycles"],
+        rollback: "Restore the prior exact ODiff pin; pixelmatch remains the always-available verdict engine."
+      }
+    }),
+    entry({
+      id: "visual_regression_tracker_review",
+      label: "Visual Regression Tracker review",
+      description: "Optional self-hosted open-source visual review service for team approval workflows; never the default verdict authority.",
+      kind: "external_provider",
+      enabled: false,
+      defaultAccess: "external_upload",
+      costClass: "external_api",
+      trustedOnly: true,
+      externalNetwork: true,
+      forbiddenInPullRequest: true,
+      requiresHumanApproval: ["external_network_access", "provider_upload_enablement", "baseline_approval"],
+      allowedRoles: ["setup_agent", "review_agent", "provider_specialist"],
+      allowedModes: ["schedule", "manual", "trusted"],
+      reads: [".visual-hive/artifacts/screenshots", ".visual-hive/provider-handoff.json"],
+      writes: [".visual-hive/provider-results.json"],
+      writeRestrictions: ["Self-host or explicitly approve the endpoint.", "Do not let provider approval override the Visual Hive deterministic verdict."],
+      evidenceArtifacts: [".visual-hive/provider-results.json"],
+      notes: ["Adopt through the trusted supplemental adapter with pinned container digests and an export/rollback plan.", "VRT results never override the Visual Hive deterministic verdict."],
+      adapterLifecycle: {
+        version: "5.1.1 (API), 5.1.2 (UI), 5.1.0 (migration); SDK contract 5.7.1",
+        license: "Apache-2.0",
+        capabilities: ["self-hosted visual review", "baseline history", "branch-aware builds", "REST screenshot upload", "ODiff comparison provider"],
+        installation: ["Pin visualregressiontracker/api:5.1.1, ui:5.1.2, migration:5.1.0, and Postgres by image digest in a separately reviewed infrastructure change."],
+        healthCheck: "Verify the pinned VRT endpoint, create a disposable build, upload one fixture, read the result, and close the build.",
+        outputSchema: "schemas/visual-hive.vrt-result.schema.json",
+        platforms: ["self-hosted OCI on linux-amd64", "self-hosted OCI on linux-arm64 when every pinned image publishes that architecture"],
+        maturity: "candidate",
+        maintenanceStatus: "maintained",
+        lastReviewed: "2026-07-10",
+        source: "https://github.com/Visual-Regression-Tracker/Visual-Regression-Tracker",
+        updatePolicy: "Upgrade exact image digests in a dedicated infrastructure PR after API compatibility, export, rollback, and fixture-upload tests pass.",
+        replacementCriteria: ["security response misses policy SLA", "API compatibility breaks without migration", "baseline export or restore fails", "required image architecture disappears"],
+        rollback: "Restore the previous compose/image digests and database backup; Visual Hive local evidence remains portable and authoritative."
+      }
+    }),
     cli("visual_hive_update_baseline", "Update baseline", "Approve or reject screenshot baselines after human review.", "trusted_write", "local", ["review_agent"], ["manual", "trusted"], "visual-hive baselines approve|reject", [".visual-hive/baseline-approvals.json", ".visual-hive/baseline-rejections.json"], {
       trustedOnly: true,
       requiresHumanApproval: ["baseline_approval"],
@@ -652,6 +732,7 @@ function entry(input: Partial<ToolRegistryEntry> & Pick<ToolRegistryEntry, "id" 
   if (input.evidenceResourceTitle) result.evidenceResourceTitle = input.evidenceResourceTitle;
   if (input.evidenceResourceDescription) result.evidenceResourceDescription = input.evidenceResourceDescription;
   if (input.evidenceReadToolName) result.evidenceReadToolName = input.evidenceReadToolName;
+  if (input.adapterLifecycle) result.adapterLifecycle = input.adapterLifecycle;
   return result;
 }
 

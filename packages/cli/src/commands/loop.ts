@@ -243,7 +243,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node scripts/visual-hive-cli.mjs loop run --mode full --bootstrap-baselines --ci
+      - run: node scripts/visual-hive-cli.mjs loop run --mode full --ci
       - run: node scripts/visual-hive-cli.mjs loop derive-issues
       - if: always()
         uses: actions/upload-artifact@v4

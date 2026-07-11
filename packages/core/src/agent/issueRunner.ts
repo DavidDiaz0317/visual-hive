@@ -600,7 +600,7 @@ function profileForIssue(issue: VisualHiveIssueCandidate): AgentIssueRunnerProfi
   if (issue.issueKind === "visual_regression" || issue.issueKind === "selector_contract_failure" || issue.issueKind === "screenshot_diff") {
     return "repair_planner_agent";
   }
-  if (issue.issueKind === "mutation_survivor") return "test_creator_agent";
+  if (issue.issueKind === "mutation_survivor" || issue.issueKind === "test_adequacy_gap") return "test_creator_agent";
   if (issue.issueKind === "map_drift") return "map_agent";
   if (issue.issueKind === "setup_needed" || issue.issueKind === "external_repo_onboarding") return "setup_agent";
   return byOwner[issue.owningAgentHint] ?? "review_agent";

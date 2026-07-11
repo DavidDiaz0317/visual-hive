@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/github-adapter",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "GitHub markdown and sanitization helpers for Visual Hive.",
   "type": "module",
   "license": "MIT",

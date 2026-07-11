@@ -138,6 +138,7 @@
         "kind": {
           "enum": [
             "first_party_cli",
+            "local_cli",
             "first_party_mcp",
             "local_mcp",
             "github_mcp",
@@ -513,7 +514,46 @@
           "items": {
             "type": "string"
           }
+        },
+        "adapterLifecycle": {
+          "$ref": "#/$defs/adapterLifecycle"
         }
+      }
+    },
+    "adapterLifecycle": {
+      "type": "object",
+      "required": [
+        "version",
+        "license",
+        "capabilities",
+        "installation",
+        "healthCheck",
+        "outputSchema",
+        "platforms",
+        "maturity",
+        "maintenanceStatus",
+        "lastReviewed",
+        "source",
+        "updatePolicy",
+        "replacementCriteria",
+        "rollback"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "license": { "type": "string", "minLength": 1 },
+        "capabilities": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "installation": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "healthCheck": { "type": "string", "minLength": 1 },
+        "outputSchema": { "type": "string", "pattern": "^schemas/visual-hive\\..+\\.schema\\.json$" },
+        "platforms": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "maturity": { "enum": ["experimental", "candidate", "stable", "deprecated"] },
+        "maintenanceStatus": { "enum": ["maintained", "watch", "unmaintained"] },
+        "lastReviewed": { "type": "string", "format": "date" },
+        "source": { "type": "string", "format": "uri" },
+        "updatePolicy": { "type": "string", "minLength": 1 },
+        "replacementCriteria": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "rollback": { "type": "string", "minLength": 1 }
       }
     },
     "roleProfile": {

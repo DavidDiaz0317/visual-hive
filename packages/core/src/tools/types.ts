@@ -2,7 +2,7 @@ export type ToolRole = "setup_agent" | "repair_agent" | "test_creator" | "review
 
 export type ToolAccess = "read_only" | "local_execution" | "trusted_write" | "external_upload";
 
-export type ToolKind = "first_party_cli" | "first_party_mcp" | "local_mcp" | "github_mcp" | "provider_mcp" | "external_provider";
+export type ToolKind = "first_party_cli" | "local_cli" | "first_party_mcp" | "local_mcp" | "github_mcp" | "provider_mcp" | "external_provider";
 
 export type ToolCostClass = "local" | "external_api" | "paid_provider";
 
@@ -54,6 +54,24 @@ export interface ToolRegistryEntry {
   evidenceResourceDescription?: string;
   evidenceReadToolName?: string;
   notes: string[];
+  adapterLifecycle?: ToolAdapterLifecycle;
+}
+
+export interface ToolAdapterLifecycle {
+  version: string;
+  license: string;
+  capabilities: string[];
+  installation: string[];
+  healthCheck: string;
+  outputSchema: string;
+  platforms: string[];
+  maturity: "experimental" | "candidate" | "stable" | "deprecated";
+  maintenanceStatus: "maintained" | "watch" | "unmaintained";
+  lastReviewed: string;
+  source: string;
+  updatePolicy: string;
+  replacementCriteria: string[];
+  rollback: string;
 }
 
 export interface ToolRoleProfile {

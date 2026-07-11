@@ -206,6 +206,7 @@ describe("config validation", () => {
       maxDiffPixelRatio: 0.01,
       updateSnapshots: false,
       failOnMissingBaselineInCI: true,
+      baselinePlatform: "shared",
       snapshotDir: ".visual-hive/snapshots",
       artifactDir: ".visual-hive/artifacts"
     });
@@ -4692,7 +4693,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(
       path.join(hiveRoot, "mcp-manifest.json"),
-      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.0","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
+      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.2","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
       "utf8"
     );
     await writeFile(
@@ -5350,6 +5351,24 @@ describe("artifact index", () => {
       evidenceReadToolName: "visual_hive_read_latest_report"
     });
     expect(artifactIndex.warnings.join(" ")).toContain("maxArtifacts=3");
+  });
+
+  it("indexes bundle manifests without treating copied payloads as current evidence", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-bundle-"));
+    tempDirs.push(tempRoot);
+    const hiveRoot = path.join(tempRoot, ".visual-hive");
+    await mkdir(path.join(hiveRoot, "hive"), { recursive: true });
+    await mkdir(path.join(hiveRoot, "bundles", "proof-1", "files", ".visual-hive", "hive"), { recursive: true });
+    await writeFile(path.join(hiveRoot, "hive", "hive-agent-policy.json"), '{"schemaVersion":"visual-hive.hive-agent-policy.v1"}', "utf8");
+    await writeFile(path.join(hiveRoot, "bundles", "proof-1", "manifest.json"), '{"schemaVersion":"visual-hive.bundle.v1"}', "utf8");
+    await writeFile(path.join(hiveRoot, "bundles", "proof-1", "files", ".visual-hive", "hive", "hive-agent-policy.json"), '{"copied":true}', "utf8");
+
+    const artifactIndex = await indexArtifacts({ repoRoot: tempRoot });
+    const paths = artifactIndex.artifacts.map((artifact) => artifact.path);
+
+    expect(paths).toContain(".visual-hive/hive/hive-agent-policy.json");
+    expect(paths).toContain(".visual-hive/bundles/proof-1/manifest.json");
+    expect(paths).not.toContain(".visual-hive/bundles/proof-1/files/.visual-hive/hive/hive-agent-policy.json");
   });
 
   it("sanitizes absolute local paths in artifact previews", async () => {
@@ -8752,6 +8771,82 @@ describe("issue artifacts", () => {
     expect(survivor?.body).toContain("Visual Hive does not repair code");
     expect(result.queue.summary.readyForHive).toBeGreaterThan(0);
     expect(result.setupIssue.body).toContain("[Visual Hive] Setup visual QA");
+  });
+
+  it("promotes a repository unit-test recommendation into a stable Hive issue", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-test-adequacy-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "test-creation-plan.json"), {
+      schemaVersion: "visual-hive.test-creation-plan.v1",
+      recommendations: [
+        {
+          id: "layer-2-unknown",
+          gapId: "testing-layer:2:unknown",
+          source: "testing_layer",
+          kind: "unit_test",
+          priority: "medium",
+          title: "Add unit test evidence for Unit",
+          rationale: ["No repository unit test runner or test file was detected."],
+          suggestedTests: ["Add focused tests for non-visual behavior."],
+          artifacts: [".visual-hive/repo-map.json"],
+          affected: { route: "/", component: "critical-route-shell" },
+          trustedOnly: false,
+          applyMode: "advisory_no_write"
+        }
+      ]
+    });
+
+    const first = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
+    const result = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
+    const issue = result.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap");
+
+    expect(issue).toMatchObject({ severity: "high", owningAgentHint: "visual-hive/test-creator" });
+    expect(issue?.status).toBe("update_candidate");
+    expect(issue?.dedupeFingerprint).toBe(first.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap")?.dedupeFingerprint);
+    expect(issue?.dedupeFingerprint).toBe("visual-hive:test-adequacy-demo:test_adequacy_gap:unknown:85ead75abf845bfe");
+    expect(issue?.affected).toContainEqual({ contractId: "testing-layer:2" });
+    expect(issue?.sourceArtifacts).toContain(".visual-hive/test-creation-plan.json");
+    expect(issue?.validationCommand).toContain("node --test");
+    expect(issue?.body).toContain("add focused repository test files only");
+    await expectMatchesSchema("visual-hive.issues.schema.json", result.report);
+  });
+
+  it("normalizes Node built-in test files as covered unit evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-node-test-layer-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, "tests"), { recursive: true });
+    await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ name: "node-test-layer", type: "module" }), "utf8");
+    await writeFile(path.join(rootDir, "tests", "safe-default.test.js"), `import test from "node:test";\nimport assert from "node:assert/strict";\ntest("safe default", () => assert.equal(1, 1));\n`, "utf8");
+    const repo = await writeRepoMap({ repoRoot: rootDir, now: new Date("2026-06-15T00:00:00.000Z") });
+    const evidence = await buildEvidencePacket({ rootDir, project: "node-test-layer", now: new Date("2026-06-15T00:01:00.000Z") });
+
+    expect(repo.report.testTools).toContain("node-test");
+    expect(evidence.testingLayers.find((layer) => layer.id === 2)).toMatchObject({ status: "covered", gaps: [] });
+  });
+
+  it("preserves affected contracts on handoff repair issues", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-contracts-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), {
+      workItems: [
+        {
+          id: "playwright.console_error.deploy-preview-smoke",
+          kind: "repair",
+          priority: "high",
+          title: "Repair deploy-preview-smoke: console_error",
+          summary: "Hosted asset returned 404.",
+          artifacts: [".visual-hive/artifacts/results/deploy-preview-smoke.json"]
+        }
+      ]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "handoff-contracts" });
+    const issue = result.report.issues.find((candidate) => candidate.title.includes("console_error"));
+
+    expect(issue?.affected).toEqual([{ contractId: "deploy-preview-smoke" }]);
+    expect(issue?.body).toContain("contractId=deploy-preview-smoke");
   });
 
   it("removes local absolute artifact paths from issue and publish markdown", async () => {

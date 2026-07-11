@@ -181,11 +181,12 @@ visual:
   maxDiffPixelRatio: 0.01
   updateSnapshots: false
   failOnMissingBaselineInCI: true
+  baselinePlatform: shared
   snapshotDir: ".visual-hive/snapshots"
   artifactDir: ".visual-hive/artifacts"
 ```
 
-`snapshotDir` and `artifactDir` must be repo-relative paths and cannot contain `..` traversal.
+`snapshotDir` and `artifactDir` must be repo-relative paths and cannot contain `..` traversal. Set `baselinePlatform: platform` when developer and CI rendering platforms differ; Visual Hive then reads/writes `<snapshotDir>/<process.platform>/` (for example `win32` and `linux`) without weakening diff thresholds.
 
 Mutation operators:
 
