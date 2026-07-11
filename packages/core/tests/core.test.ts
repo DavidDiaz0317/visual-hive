@@ -4693,7 +4693,7 @@ describe("artifact index", () => {
     await writeFile(path.join(hiveRoot, "tools", "tool-cards.md"), "Authorization: Bearer tool-secret", "utf8");
     await writeFile(
       path.join(hiveRoot, "mcp-manifest.json"),
-      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.2","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
+      '{"schemaVersion":"visual-hive.mcp.v1","generatedAt":"2026-06-15T00:00:00.000Z","project":"artifact-fixture","server":{"name":"visual-hive","transport":"stdio","version":"0.2.3","defaultAccess":"read_only","externalCallsMade":0},"resources":[],"tools":[],"disabledExecutionTools":["visual_hive_run"],"policy":{"readOnlyByDefault":true,"externalNetworkByDefault":false,"thirdPartyMcpExposed":false,"prWritesAllowed":false,"providerUploadsAllowed":false,"llmVerdictAuthority":false},"notes":["token=abc123"]}',
       "utf8"
     );
     await writeFile(
@@ -5430,6 +5430,44 @@ describe("artifact index", () => {
 });
 
 describe("setup recommendations", () => {
+  it("discovers and configures a nested frontend workspace", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-nested-"));
+    tempDirs.push(targetRoot);
+    const dashboardRoot = path.join(targetRoot, "dashboard");
+    await mkdir(path.join(dashboardRoot, "src"), { recursive: true });
+    await writeJson(path.join(dashboardRoot, "package.json"), {
+      name: "nested-dashboard",
+      scripts: { build: "vite build", preview: "vite preview", "test:e2e": "playwright test" },
+      dependencies: { react: "^19.0.0", vite: "^6.0.0" },
+      devDependencies: { "@playwright/test": "^1.50.0" }
+    });
+    await writeJson(path.join(dashboardRoot, "package-lock.json"), { lockfileVersion: 3 });
+    await writeFile(path.join(dashboardRoot, "playwright.config.ts"), "export default {};", "utf8");
+    await writeFile(path.join(dashboardRoot, "src", "App.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
+
+    expect(recommendation.project).toMatchObject({
+      name: "nested-dashboard",
+      packagePath: "dashboard",
+      packageManager: "npm",
+      type: "react-vite"
+    });
+    expect(recommendation.recommendedTarget).toMatchObject({
+      kind: "command",
+      install: "npm --prefix dashboard ci",
+      build: "npm --prefix dashboard run build",
+      serve: "npm --prefix dashboard run preview -- --port 4173 --strictPort"
+    });
+    expect(recommendation.playwright).toMatchObject({
+      status: "present",
+      configFiles: ["dashboard/playwright.config.ts"]
+    });
+    expect(parsedYaml.selection.changedFiles[0]?.pattern).toBe("dashboard/src/**");
+    expect(buildSetupDocsMarkdown(recommendation)).toContain("Selected package path: dashboard");
+  });
+
   it("detects a React/Vite repo and emits a validated starter config", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-"));
     tempDirs.push(targetRoot);
