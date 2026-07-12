@@ -87,6 +87,9 @@ function buildDedicatedSmokeCandidate(repository: string): VisualHiveIssueCandid
     severity: "low",
     status: "open_candidate",
     dedupeFingerprint: `visual-hive:github-app-live-smoke:${normalizedRepo}`,
+    publicationRole: "canonical",
+    rootCauseKey: `smoke/github-app/${normalizedRepo}`,
+    blockedByRootKeys: [],
     title: "[Visual Hive smoke] GitHub App issue publishing",
     labels: ["visual-hive", "hive/quality", "e2e-smoke"],
     body: [

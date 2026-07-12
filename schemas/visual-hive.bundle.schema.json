@@ -7,6 +7,7 @@
   "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "scan", "observations", "files", "overallDigest", "replayProtection", "provenance", "safety"],
   "properties": {
     "schemaVersion": { "const": "visual-hive.bundle.v2" },
+    "digestAlgorithm": { "enum": ["visual-hive.bundle.publication-digest.v1"] },
     "bundleId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "generatedAt": { "type": "string", "format": "date-time" },
     "expiresAt": { "type": "string", "format": "date-time" },
@@ -71,8 +72,33 @@
         "properties": {
           "fingerprint": { "type": "string", "minLength": 1 },
           "repositoryFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "publicationRole": { "enum": ["canonical", "derivative", "aggregate"] },
+          "rootCauseKey": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" },
+          "blockedByRootKeys": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" }
+          },
           "state": { "enum": ["present", "absent"] },
-          "issueKind": { "type": "string", "minLength": 1 },
+          "issueKind": {
+            "enum": [
+              "setup_needed",
+              "map_drift",
+              "missing_visual_coverage",
+              "test_adequacy_gap",
+              "weak_visual_test",
+              "stale_baseline",
+              "baseline_churn",
+              "visual_regression",
+              "selector_contract_failure",
+              "screenshot_diff",
+              "mutation_survivor",
+              "workflow_safety",
+              "provider_governance",
+              "protected_target_blocked",
+              "external_repo_onboarding"
+            ]
+          },
           "severity": { "enum": ["low", "medium", "high", "critical"] },
           "owningAgentHint": { "type": "string", "minLength": 1 },
           "title": { "type": "string", "minLength": 1, "maxLength": 512 },
@@ -84,7 +110,31 @@
           "observedAt": { "type": "string", "format": "date-time" },
           "firstSeenAt": { "type": "string", "format": "date-time" },
           "sourceArtifact": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" }
-        }
+        },
+        "dependentRequired": {
+          "publicationRole": ["rootCauseKey", "blockedByRootKeys"],
+          "rootCauseKey": ["publicationRole", "blockedByRootKeys"],
+          "blockedByRootKeys": ["publicationRole", "rootCauseKey"]
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "publicationRole": { "const": "aggregate" } }, "required": ["publicationRole"] },
+            "then": {
+              "properties": {
+                "issueKind": { "const": "external_repo_onboarding" },
+                "blockedByRootKeys": { "minItems": 1 }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "publicationRole": { "enum": ["canonical", "derivative"] } }, "required": ["publicationRole"] },
+            "then": { "properties": { "blockedByRootKeys": { "maxItems": 0 } } }
+          },
+          {
+            "if": { "properties": { "publicationRole": { "const": "derivative" } }, "required": ["publicationRole"] },
+            "then": { "properties": { "issueKind": { "enum": ["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"] } } }
+          }
+        ]
       }
     },
     "files": {
@@ -137,5 +187,32 @@
         "absenceRequiresAuthoritativeScan": { "const": true }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["digestAlgorithm"] },
+      "then": {
+        "properties": {
+          "observations": {
+            "items": { "required": ["publicationRole", "rootCauseKey", "blockedByRootKeys"] }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "observations": {
+            "items": {
+              "not": {
+                "anyOf": [
+                  { "required": ["publicationRole"] },
+                  { "required": ["rootCauseKey"] },
+                  { "required": ["blockedByRootKeys"] }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -73,6 +73,13 @@
         "severity": { "enum": ["low", "medium", "high", "critical"] },
         "status": { "enum": ["open_candidate", "update_candidate", "resolved_candidate", "suppressed", "blocked"] },
         "dedupeFingerprint": { "type": "string" },
+        "publicationRole": { "enum": ["canonical", "derivative", "aggregate"] },
+        "rootCauseKey": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" },
+        "blockedByRootKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" }
+        },
         "title": { "type": "string" },
         "labels": { "type": "array", "items": { "type": "string" } },
         "body": { "type": "string" },
@@ -118,7 +125,31 @@
         "guardrails": { "type": "array", "items": { "type": "string" } },
         "suppressedReason": { "type": "string" },
         "suppressionExpiresAt": { "type": "string" }
-      }
+      },
+      "dependentRequired": {
+        "publicationRole": ["rootCauseKey", "blockedByRootKeys"],
+        "rootCauseKey": ["publicationRole", "blockedByRootKeys"],
+        "blockedByRootKeys": ["publicationRole", "rootCauseKey"]
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "publicationRole": { "const": "aggregate" } }, "required": ["publicationRole"] },
+          "then": {
+            "properties": {
+              "issueKind": { "const": "external_repo_onboarding" },
+              "blockedByRootKeys": { "minItems": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "publicationRole": { "enum": ["canonical", "derivative"] } }, "required": ["publicationRole"] },
+          "then": { "properties": { "blockedByRootKeys": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "publicationRole": { "const": "derivative" } }, "required": ["publicationRole"] },
+          "then": { "properties": { "issueKind": { "enum": ["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"] } } }
+        }
+      ]
     }
   }
 }

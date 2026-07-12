@@ -223,6 +223,9 @@
         "screenshotName": {
           "type": "string"
         },
+        "mutationOperator": {
+          "type": "string"
+        },
         "message": {
           "type": "string"
         },

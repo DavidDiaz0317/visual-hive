@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { cp, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { VisualHiveIssueCandidate, VisualHiveIssueSeverity } from "../issues/types.js";
+import type { VisualHiveIssueCandidate, VisualHiveIssueKind, VisualHiveIssueSeverity, VisualHivePublicationRole } from "../issues/types.js";
+
+export const VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM = "visual-hive.bundle.publication-digest.v1" as const;
 
 export interface VisualHiveBundleSource {
   repository: string;
@@ -32,8 +34,11 @@ export interface VisualHiveBundleScan {
 export interface VisualHiveBundleObservation {
   fingerprint: string;
   repositoryFingerprint: string;
+  publicationRole: VisualHivePublicationRole;
+  rootCauseKey: string;
+  blockedByRootKeys: string[];
   state: "present" | "absent";
-  issueKind: string;
+  issueKind: VisualHiveIssueKind;
   severity: VisualHiveIssueSeverity;
   owningAgentHint: string;
   title: string;
@@ -58,6 +63,8 @@ export interface VisualHiveBundleFile {
 
 export interface VisualHiveBundleManifest {
   schemaVersion: "visual-hive.bundle.v2";
+  /** Absent only on legacy v2 manifests whose observations have no publication metadata. */
+  digestAlgorithm?: typeof VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM;
   bundleId: string;
   generatedAt: string;
   expiresAt: string;
@@ -157,7 +164,8 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     const source = sanitizeSource(options.source);
     const scan = sanitizeScan(options.scan);
     const observations = sanitizeObservations(
-      options.observations ?? observationsFromIssues(options.issues ?? [], source.repository, generatedAt, options.issuesArtifact)
+      options.observations ?? observationsFromIssues(options.issues ?? [], source.repository, generatedAt, options.issuesArtifact),
+      source.repository
     );
     if (!scan.authoritativeForResolution && observations.some((observation) => observation.state === "absent")) {
       throw new Error("Absent lifecycle observations require an authoritative Visual Hive scan.");
@@ -182,9 +190,11 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       producerVersion: options.producerVersion,
       producerGitCommit: options.producerGitCommit
     };
-    const overallDigest = digestBundleContent(files, scan, observations, source, replayProtection.key, metadata);
+    const digestAlgorithm = VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM;
+    const overallDigest = digestPublicationBundleContent(files, scan, observations, source, replayProtection.key, metadata);
     const manifest: VisualHiveBundleManifest = {
       schemaVersion: "visual-hive.bundle.v2",
+      digestAlgorithm,
       bundleId,
       generatedAt,
       expiresAt,
@@ -229,7 +239,16 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
 }
 
 export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest): boolean {
-  return manifest.overallDigest === digestBundleContent(
+  const publicationMode = publicationMetadataMode(manifest.observations);
+  if (publicationMode === "invalid") return false;
+  const digestAlgorithm = (manifest as VisualHiveBundleManifest & { digestAlgorithm?: unknown }).digestAlgorithm;
+  if (digestAlgorithm !== undefined && digestAlgorithm !== VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM) return false;
+  if (digestAlgorithm === undefined && publicationMode === "publication") return false;
+  if (digestAlgorithm === VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM && publicationMode === "legacy") return false;
+  const digest = digestAlgorithm === VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM
+    ? digestPublicationBundleContent
+    : digestLegacyBundleContent;
+  return manifest.overallDigest === digest(
     manifest.files,
     manifest.scan,
     manifest.observations,
@@ -246,6 +265,24 @@ export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest)
       producerGitCommit: manifest.producer.gitCommit
     }
   );
+}
+
+function publicationMetadataMode(observations: VisualHiveBundleObservation[]): "empty" | "legacy" | "publication" | "invalid" {
+  let mode: "legacy" | "publication" | undefined;
+  for (const observation of observations) {
+    const compatible = observation as VisualHiveBundleObservation & {
+      publicationRole?: unknown;
+      rootCauseKey?: unknown;
+      blockedByRootKeys?: unknown;
+    };
+    const count = [compatible.publicationRole, compatible.rootCauseKey, compatible.blockedByRootKeys]
+      .filter((value) => value !== undefined).length;
+    if (count !== 0 && count !== 3) return "invalid";
+    const observationMode = count === 0 ? "legacy" : "publication";
+    if (mode && mode !== observationMode) return "invalid";
+    mode = observationMode;
+  }
+  return mode ?? "empty";
 }
 
 interface BundleDigestMetadata {
@@ -279,14 +316,14 @@ function safeBundleId(value: string): string {
 }
 
 function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values.map(normalizeRelativeArtifactPath))].sort((a, b) => a.localeCompare(b));
+  return [...new Set(values.map(normalizeRelativeArtifactPath))].sort(stableCompare);
 }
 
 function sha256(value: Buffer | string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function digestBundleContent(
+function digestLegacyBundleContent(
   files: VisualHiveBundleFile[],
   scan: VisualHiveBundleScan,
   observations: VisualHiveBundleObservation[],
@@ -296,23 +333,23 @@ function digestBundleContent(
 ): string {
   const fileLines = files.map((file) => `file\0${file.path}\0${file.sha256}\0${file.size}`).sort();
   const observationLines = observations.map((observation) => [
-    "observation",
-    observation.repositoryFingerprint,
-    observation.fingerprint,
-    observation.state,
-    observation.issueKind,
-    observation.severity,
-    observation.owningAgentHint,
-    observation.title,
-    observation.body,
-    observation.labels.join(","),
-    observation.sourceArtifacts.join(","),
-    observation.affectedContracts.join(","),
-    observation.validationCommand,
-    observation.observedAt,
-    observation.firstSeenAt,
-    observation.sourceArtifact
-  ].join("\0")).sort();
+      "observation",
+      observation.repositoryFingerprint,
+      observation.fingerprint,
+      observation.state,
+      observation.issueKind,
+      observation.severity,
+      observation.owningAgentHint,
+      observation.title,
+      observation.body,
+      observation.labels.join(","),
+      observation.sourceArtifacts.join(","),
+      observation.affectedContracts.join(","),
+      observation.validationCommand,
+      observation.observedAt,
+      observation.firstSeenAt,
+      observation.sourceArtifact
+    ].join("\0")).sort();
   const scanLine = [
     "scan",
     scan.scope,
@@ -344,6 +381,115 @@ function digestBundleContent(
     metadata.producerGitCommit
   ].join("\0");
   return sha256([...fileLines, ...observationLines, scanLine, sourceLine, metadataLine, `replay\0${replayKey}`].join("\n"));
+}
+
+type PublicationDigestField =
+  | { kind: "scalar"; name: string; value: string }
+  | { kind: "array"; name: string; value: string[] };
+
+function digestPublicationBundleContent(
+  files: VisualHiveBundleFile[],
+  scan: VisualHiveBundleScan,
+  observations: VisualHiveBundleObservation[],
+  source: VisualHiveBundleSource,
+  replayKey: string,
+  metadata: BundleDigestMetadata
+): string {
+  const fileRecords = files.map((file) => encodeDigestRecord("file", [
+    scalar("path", file.path),
+    scalar("sha256", file.sha256),
+    scalar("size", String(file.size))
+  ])).sort(Buffer.compare);
+  const observationRecords = observations.map((observation) => encodeDigestRecord("observation", [
+    scalar("repositoryFingerprint", observation.repositoryFingerprint),
+    scalar("fingerprint", observation.fingerprint),
+    scalar("publicationRole", observation.publicationRole),
+    scalar("rootCauseKey", observation.rootCauseKey),
+    array("blockedByRootKeys", observation.blockedByRootKeys),
+    scalar("state", observation.state),
+    scalar("issueKind", observation.issueKind),
+    scalar("severity", observation.severity),
+    scalar("owningAgentHint", observation.owningAgentHint),
+    scalar("title", observation.title),
+    scalar("body", observation.body),
+    array("labels", observation.labels),
+    array("sourceArtifacts", observation.sourceArtifacts),
+    array("affectedContracts", observation.affectedContracts),
+    scalar("validationCommand", observation.validationCommand),
+    scalar("observedAt", observation.observedAt),
+    scalar("firstSeenAt", observation.firstSeenAt),
+    scalar("sourceArtifact", observation.sourceArtifact)
+  ])).sort(Buffer.compare);
+  const chunks = [
+    Buffer.from(VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM, "utf8"),
+    encodeDigestCollection("files", fileRecords),
+    encodeDigestCollection("observations", observationRecords),
+    encodeDigestRecord("scan", [
+      scalar("scope", scan.scope),
+      scalar("authoritativeForResolution", String(scan.authoritativeForResolution)),
+      array("evaluatedContracts", scan.evaluatedContracts),
+      array("evaluatedFiles", scan.evaluatedFiles),
+      scalar("testPlanVersion", scan.testPlanVersion),
+      scalar("toolRegistryVersion", scan.toolRegistryVersion)
+    ]),
+    encodeDigestRecord("source", [
+      scalar("repository", source.repository),
+      scalar("repositoryId", source.repositoryId ?? ""),
+      scalar("ref", source.ref),
+      scalar("commitSha", source.commitSha),
+      scalar("workflowRunId", source.workflowRunId ?? ""),
+      scalar("workflowArtifactId", source.workflowArtifactId ?? ""),
+      scalar("conclusion", source.conclusion)
+    ]),
+    encodeDigestRecord("metadata", [
+      scalar("project", metadata.project),
+      scalar("mode", metadata.mode),
+      scalar("verdict", metadata.verdict),
+      scalar("acmmRequest", String(metadata.acmmRequest)),
+      scalar("externalCallsMade", String(metadata.externalCallsMade)),
+      scalar("producerName", metadata.producerName),
+      scalar("producerVersion", metadata.producerVersion),
+      scalar("producerGitCommit", metadata.producerGitCommit)
+    ]),
+    encodeDigestRecord("replay", [scalar("key", replayKey)])
+  ];
+  return sha256(Buffer.concat(chunks));
+}
+
+function scalar(name: string, value: string): PublicationDigestField {
+  return { kind: "scalar", name, value };
+}
+
+function array(name: string, value: string[]): PublicationDigestField {
+  return { kind: "array", name, value };
+}
+
+function encodeDigestRecord(domain: string, fields: PublicationDigestField[]): Buffer {
+  const chunks: Buffer[] = [Buffer.from("R"), lengthPrefixed(domain)];
+  for (const field of fields) {
+    if (field.kind === "scalar") {
+      chunks.push(Buffer.from("S"), lengthPrefixed(field.name), lengthPrefixed(field.value));
+      continue;
+    }
+    chunks.push(Buffer.from("A"), lengthPrefixed(field.name), lengthPrefixed(String(field.value.length)));
+    for (const item of field.value) chunks.push(Buffer.from("E"), lengthPrefixed(item));
+  }
+  chunks.push(Buffer.from("Z"));
+  return Buffer.concat(chunks);
+}
+
+function encodeDigestCollection(domain: string, records: Buffer[]): Buffer {
+  const chunks: Buffer[] = [Buffer.from("C"), lengthPrefixed(domain), lengthPrefixed(String(records.length))];
+  for (const record of records) chunks.push(Buffer.from("I"), lengthPrefixed(record));
+  return Buffer.concat(chunks);
+}
+
+function lengthPrefixed(value: string | Buffer): Buffer {
+  const data = typeof value === "string" ? Buffer.from(value, "utf8") : value;
+  if (data.byteLength > 0xffff_ffff) throw new Error("Visual Hive bundle digest field exceeds the uint32 encoding limit.");
+  const length = Buffer.allocUnsafe(4);
+  length.writeUInt32BE(data.byteLength);
+  return Buffer.concat([length, data]);
 }
 
 function sanitizeACMMRequest(value: number): number {
@@ -420,9 +566,11 @@ function observationsFromIssues(
         ? "present"
         : undefined;
     if (!state) return [];
+    const publication = publicationMetadataForIssue(issue);
     return [{
       fingerprint: issue.dedupeFingerprint,
-      repositoryFingerprint: sha256(`${repository.trim().toLowerCase()}\0${issue.dedupeFingerprint}`),
+      repositoryFingerprint: observationRepositoryFingerprint(repository, issue.dedupeFingerprint, publication.publicationRole, publication.rootCauseKey),
+      ...publication,
       state,
       issueKind: issue.issueKind,
       severity: issue.severity,
@@ -440,31 +588,46 @@ function observationsFromIssues(
   });
 }
 
-function sanitizeObservations(observations: VisualHiveBundleObservation[]): VisualHiveBundleObservation[] {
+function sanitizeObservations(observations: VisualHiveBundleObservation[], repository: string): VisualHiveBundleObservation[] {
   const seen = new Set<string>();
-  return observations.map((observation) => {
+  const sanitized = observations.map((observation) => {
+    const publication = publicationMetadataForObservation(observation);
     if (!/^[a-f0-9]{64}$/.test(observation.repositoryFingerprint)) throw new Error(`Invalid repository fingerprint for ${observation.fingerprint}`);
     if (seen.has(observation.repositoryFingerprint)) throw new Error(`Duplicate lifecycle observation: ${observation.fingerprint}`);
     seen.add(observation.repositoryFingerprint);
     if (!observation.fingerprint.trim() || !observation.title.trim() || !observation.body.trim() || !observation.validationCommand.trim()) throw new Error("Lifecycle observations require a fingerprint, title, body, and validation command.");
     const digestFields = [
       observation.fingerprint,
+      publication.publicationRole,
+      publication.rootCauseKey,
       observation.issueKind,
       observation.owningAgentHint,
       observation.title,
       observation.body,
       observation.validationCommand,
       observation.sourceArtifact,
+      ...publication.blockedByRootKeys,
       ...observation.labels,
       ...observation.sourceArtifacts,
       ...observation.affectedContracts
     ];
     if (digestFields.some((value) => value.includes("\0"))) throw new Error("Lifecycle observations cannot contain NUL delimiters.");
     if (observation.state !== "present" && observation.state !== "absent") throw new Error(`Invalid lifecycle observation state: ${observation.state}`);
+    validatePublicationRoleForIssueKind(observation.issueKind, publication.publicationRole);
+    const expectedRepositoryFingerprint = observationRepositoryFingerprint(
+      repository,
+      observation.fingerprint.trim(),
+      publication.publicationRole,
+      publication.rootCauseKey
+    );
+    if (observation.repositoryFingerprint !== expectedRepositoryFingerprint) {
+      throw new Error(`Repository fingerprint does not match publication identity for ${observation.fingerprint}.`);
+    }
     return {
       ...observation,
+      ...publication,
       fingerprint: observation.fingerprint.trim().slice(0, 512),
-      issueKind: observation.issueKind.trim().slice(0, 128),
+      issueKind: observation.issueKind,
       owningAgentHint: observation.owningAgentHint.trim().slice(0, 128),
       title: observation.title.trim().slice(0, 512),
       body: observation.body.trim().slice(0, 60_000),
@@ -474,12 +637,104 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[]): Visu
       validationCommand: observation.validationCommand.trim().slice(0, 2048),
       sourceArtifact: normalizeRelativeArtifactPath(observation.sourceArtifact)
     };
-  }).sort((a, b) => a.repositoryFingerprint.localeCompare(b.repositoryFingerprint));
+  }).sort((a, b) => stableCompare(a.repositoryFingerprint, b.repositoryFingerprint));
+  return sanitized;
+}
+
+type PublicationMetadata = Pick<VisualHiveBundleObservation, "publicationRole" | "rootCauseKey" | "blockedByRootKeys">;
+
+function publicationMetadataForIssue(issue: VisualHiveIssueCandidate): PublicationMetadata {
+  return normalizePublicationMetadata(issue.publicationRole, issue.rootCauseKey, issue.blockedByRootKeys, issue.dedupeFingerprint);
+}
+
+function publicationMetadataForObservation(observation: VisualHiveBundleObservation): PublicationMetadata {
+  return normalizePublicationMetadata(
+    observation.publicationRole,
+    observation.rootCauseKey,
+    observation.blockedByRootKeys,
+    observation.fingerprint
+  );
+}
+
+function normalizePublicationMetadata(
+  publicationRole: VisualHivePublicationRole,
+  rootCauseKey: string,
+  blockedByRootKeys: string[],
+  fingerprint: string
+): PublicationMetadata {
+  if (!(["canonical", "derivative", "aggregate"] as const).includes(publicationRole)) {
+    throw new Error(`Lifecycle observation ${fingerprint} has an invalid publication role.`);
+  }
+  const cleanRoot = cleanRootCauseKey(rootCauseKey, fingerprint);
+  if (!Array.isArray(blockedByRootKeys)) throw new Error(`Lifecycle observation ${fingerprint} blockedByRootKeys must be an array.`);
+  const cleanBlockedRoots = stableUniqueText(blockedByRootKeys.map((value) => cleanRootCauseKey(value, fingerprint)));
+  if (publicationRole === "aggregate" && cleanBlockedRoots.length === 0) {
+    throw new Error(`Aggregate lifecycle observation ${fingerprint} requires blocked root keys.`);
+  }
+  if (publicationRole !== "aggregate" && cleanBlockedRoots.length > 0) {
+    throw new Error(`Only aggregate lifecycle observations may declare blocked root keys: ${fingerprint}`);
+  }
+  if (cleanBlockedRoots.includes(cleanRoot)) throw new Error(`Lifecycle observation ${fingerprint} cannot block on its own root cause key.`);
+  return { publicationRole, rootCauseKey: cleanRoot, blockedByRootKeys: cleanBlockedRoots };
+}
+
+function cleanRootCauseKey(value: string, fingerprint: string): string {
+  if (typeof value !== "string") throw new Error(`Lifecycle observation ${fingerprint} rootCauseKey must be a string.`);
+  const clean = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._~:/,%+-]{0,511}$/u.test(clean) || /%(?![0-9A-Fa-f]{2})/u.test(clean)) {
+    throw new Error(`Lifecycle observation ${fingerprint} rootCauseKey must be a 1-512 character URI-safe publication key.`);
+  }
+  return clean;
+}
+
+function validatePublicationRoleForIssueKind(issueKind: VisualHiveIssueKind, publicationRole: VisualHivePublicationRole): void {
+  const knownIssueKinds: VisualHiveIssueKind[] = [
+    "setup_needed",
+    "map_drift",
+    "missing_visual_coverage",
+    "test_adequacy_gap",
+    "weak_visual_test",
+    "stale_baseline",
+    "baseline_churn",
+    "visual_regression",
+    "selector_contract_failure",
+    "screenshot_diff",
+    "mutation_survivor",
+    "workflow_safety",
+    "provider_governance",
+    "protected_target_blocked",
+    "external_repo_onboarding"
+  ];
+  if (!knownIssueKinds.includes(issueKind)) throw new Error(`Unknown lifecycle observation issue kind: ${String(issueKind)}`);
+  if (publicationRole === "derivative" && !["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"].includes(issueKind)) {
+    throw new Error(`Issue kind ${issueKind} cannot be a derivative lifecycle observation.`);
+  }
+  if (publicationRole === "aggregate" && issueKind !== "external_repo_onboarding") {
+    throw new Error(`Issue kind ${issueKind} cannot be an aggregate lifecycle observation.`);
+  }
+}
+
+function observationRepositoryFingerprint(
+  repository: string,
+  fingerprint: string,
+  publicationRole: VisualHivePublicationRole,
+  rootCauseKey: string
+): string {
+  const identity = publicationRole === "canonical" ? rootCauseKey : fingerprint;
+  return sha256(`${repository.trim().toLowerCase()}\0${identity}`);
+}
+
+function stableUniqueText(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort(stableCompare);
 }
 
 function uniqueText(values: string[]): string[] {
   if (values.some((value) => value.includes("\0"))) throw new Error("Visual Hive bundle metadata cannot contain NUL delimiters.");
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  return stableUniqueText(values);
+}
+
+function stableCompare(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function cleanVersion(value: string | undefined, fallback: string): string {

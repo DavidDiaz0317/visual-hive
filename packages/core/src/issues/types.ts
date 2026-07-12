@@ -17,6 +17,7 @@ export type VisualHiveIssueKind =
 
 export type VisualHiveIssueSeverity = "low" | "medium" | "high" | "critical";
 export type VisualHiveIssueStatus = "open_candidate" | "update_candidate" | "resolved_candidate" | "suppressed" | "blocked";
+export type VisualHivePublicationRole = "canonical" | "derivative" | "aggregate";
 export type VisualHiveOwningAgentHint =
   | "visual-hive/setup"
   | "visual-hive/map"
@@ -41,6 +42,9 @@ export interface VisualHiveIssueCandidate {
   severity: VisualHiveIssueSeverity;
   status: VisualHiveIssueStatus;
   dedupeFingerprint: string;
+  publicationRole: VisualHivePublicationRole;
+  rootCauseKey: string;
+  blockedByRootKeys: string[];
   title: string;
   labels: string[];
   body: string;

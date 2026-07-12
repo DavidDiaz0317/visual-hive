@@ -71,6 +71,7 @@ export interface VisualTestMaintenanceFinding {
   route?: string;
   viewport?: string;
   screenshotName?: string;
+  mutationOperator?: string;
   message: string;
   evidence: string[];
   recommendedAction: VisualTestMaintenanceAction;
@@ -660,7 +661,7 @@ function buildVisualTestMaintenanceFindings(
           viewport: "mobile",
           screenshotName: contract.screenshots[0]?.name,
           message: `Contract "${contract.id}" has screenshot coverage but no mobile viewport screenshot.`,
-          evidence: [`viewports=${Array.from(screenshotViewports).sort().join(",") || "none"}`, "configuredViewport=mobile"],
+          evidence: [`viewports=${Array.from(screenshotViewports).sort(utf8Compare).join(",") || "none"}`, "configuredViewport=mobile"],
           recommendedAction: "expand",
           hiveOwner: "quality",
           trustedOnly
@@ -725,6 +726,7 @@ function buildVisualTestMaintenanceFindings(
         kind: "mutation_survivor",
         severity: "high",
         contract,
+        mutationOperator: result.operator,
         message: `Mutation "${result.operator}" survived, indicating the related visual test is underpowered.`,
         evidence: [`operator=${result.operator}`, `status=${result.status}`, ...(result.errors ?? []).slice(0, 2).map(sanitizeText)],
         recommendedAction: "fix",
@@ -885,6 +887,7 @@ function recommendationsForMaintenanceFindings(
       route: finding.route,
       viewport: finding.viewport,
       maintenanceFindingId: finding.id,
+      mutationOperator: finding.mutationOperator,
       lane: contract ? recommendationLane(contract, config.targets[contract.target], contract.runOn.pullRequest) : "manual",
       trustedOnly: config.targets[finding.targetId]?.kind === "protected" || !config.targets[finding.targetId]?.prSafe,
       suggestedTests: suggestedTestsForMaintenanceFinding(finding),
@@ -900,6 +903,7 @@ function maintenanceFinding(options: {
   route?: string;
   viewport?: string;
   screenshotName?: string;
+  mutationOperator?: string;
   message: string;
   evidence: string[];
   recommendedAction: VisualTestMaintenanceAction;
@@ -919,6 +923,7 @@ function maintenanceFinding(options: {
     route: options.route,
     viewport: options.viewport,
     screenshotName: options.screenshotName,
+    mutationOperator: options.mutationOperator,
     message: options.message,
     evidence: options.evidence,
     recommendedAction: options.recommendedAction,
@@ -1030,7 +1035,7 @@ function summarize(recommendations: CoverageImprovementRecommendation[]): Covera
 function dedupeRecommendations(recommendations: CoverageImprovementRecommendation[]): CoverageImprovementRecommendation[] {
   const seen = new Set<string>();
   return recommendations
-    .sort((a, b) => `${severityRank(b.severity)}:${a.kind}:${a.id}`.localeCompare(`${severityRank(a.severity)}:${b.kind}:${b.id}`))
+    .sort((a, b) => utf8Compare(`${severityRank(b.severity)}:${a.kind}:${a.id}`, `${severityRank(a.severity)}:${b.kind}:${b.id}`))
     .filter((recommendation) => {
       if (seen.has(recommendation.id)) return false;
       seen.add(recommendation.id);
@@ -1074,11 +1079,15 @@ function createUnifiedDiff(current: string, proposed: string, fromLabel: string,
 
 function firstViewport(config: VisualHiveConfig, preferred: string): string {
   if (config.viewports[preferred]) return preferred;
-  return Object.keys(config.viewports).sort()[0] ?? "desktop";
+  return Object.keys(config.viewports).sort(utf8Compare)[0] ?? "desktop";
 }
 
 function firstPrSafeTarget(config: VisualHiveConfig): string {
-  return Object.entries(config.targets).find(([, target]) => target.prSafe)?.[0] ?? Object.keys(config.targets).sort()[0] ?? "localPreview";
+  return Object.entries(config.targets).find(([, target]) => target.prSafe)?.[0] ?? Object.keys(config.targets).sort(utf8Compare)[0] ?? "localPreview";
+}
+
+function utf8Compare(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function firstContractWithScreenshots(config: VisualHiveConfig) {
