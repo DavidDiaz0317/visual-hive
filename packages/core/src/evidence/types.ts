@@ -33,6 +33,13 @@ export interface EvidenceContribution {
   artifacts: string[];
 }
 
+export function evidenceContributionKey(
+  contribution: Pick<EvidenceContribution, "source" | "kind" | "contractId" | "operator" | "providerId">
+): string {
+  const id = contribution.operator ?? contribution.contractId ?? contribution.providerId;
+  return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
+}
+
 export interface VerdictSummary {
   visualHiveVerdict: VisualHiveVerdict;
   failedBecause: string[];

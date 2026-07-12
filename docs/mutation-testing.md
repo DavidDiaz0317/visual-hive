@@ -7,7 +7,7 @@ Built-in v0.2 operators:
 - `hide-critical-button`: hides `[data-testid='critical-action-button']`.
 - `force-login-on-demo`: injects a login page surface into the public demo route.
 - `remove-demo-badge`: hides `[data-testid='demo-badge']`.
-- `api-500`: returns HTTP 500 for `**/api/**`.
+- `api-500`: returns HTTP 500 for `**/api/**` with the exact first-party marker `visual-hive api-500 mutation`.
 - `empty-data`: returns empty JSON data for `**/api/**`.
 - `mobile-overflow`: injects mobile horizontal overflow.
 - `route-guard-bypass`: injects protected-route UI into the current page.
@@ -35,6 +35,8 @@ killed / total
 ```
 
 Default mutation runs are non-invasive. Visual Hive uses Playwright-side DOM/CSS injection, route interception, local storage/auth state, and fixture/env-driven defect states. Normal demo and PR mutation runs do not patch real source files. Generated report rows include `mutationMode: runtime` and `sourceMutation: false` for this default path.
+
+For `api-500`, the generated runner adds a hidden, screenshot-neutral sentinel containing that exact marker only after an API request is actually intercepted. A coverage recommendation may therefore add the marker to the affected contract's `selectors.textMustNotExist`. The runner waits for the intercepted request before evaluating that assertion; a contract that never exercises an API request receives no sentinel and cannot claim a false mutation kill.
 
 Generated `.visual-hive/mutation-report.json` files include an `outputResource` row for the catalog-backed read-only resource `visual-hive://mutation-report` / `visual_hive_read_mutation_report`. Agents, MCP clients, Hive exports, and the Control Plane may read this adequacy evidence, but reading it does not authorize editing tests, changing mutation thresholds, running targets, executing repair, or overriding the Visual Hive verdict.
 

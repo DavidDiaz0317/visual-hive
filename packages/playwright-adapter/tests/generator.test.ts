@@ -1,9 +1,10 @@
 import { constants } from "node:fs";
 import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { VisualHiveConfigSchema } from "@visual-hive/core";
+import { API_500_MUTATION_MARKER, VisualHiveConfigSchema } from "@visual-hive/core";
 import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
@@ -100,7 +101,138 @@ describe("buildSpecContent", () => {
     expect(content).toContain("actualDiffPixelRatio");
     expect(content).toContain("pixelmatch");
     expect(content).toContain("message.includes(pattern)");
+    expect(content).toContain(`const api500MutationMarker = ${JSON.stringify(API_500_MUTATION_MARKER)}`);
+    expect(content.match(new RegExp(API_500_MUTATION_MARKER, "g"))).toHaveLength(1);
+    expect(content).toContain("data-visual-hive-api-500-mutation");
+    expect(content).toContain("const routeMutationTracker = await applyRouteMutation(page, activeMutationOperator, contract.timeoutMs)");
+    expect(content).toContain("await finalizeApi500MutationObservation(page, contract, activeMutationOperator, routeMutationTracker, selectorAssertions)");
+    expect(content).toContain('sentinel.style.setProperty("display", "none", "important")');
   });
+
+  it("kills api-500 only after a real interception and keeps the hidden sentinel out of screenshots", async () => {
+    const runFixture = async (options: {
+      requestApi: boolean;
+      flowRequest?: boolean;
+      markerAssertion: boolean;
+      screenshotCount?: number;
+      mutation?: boolean;
+      rootDir?: string;
+      useDefaultTimeout?: boolean;
+    }) => {
+      const screenshotCount = options.screenshotCount ?? 0;
+      const server = createServer((request, response) => {
+        if (request.url === "/api/data") {
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        response.writeHead(200, { "content-type": "text/html" });
+        response.end(`<!doctype html><html><body><main id="root">stable dashboard</main>${options.flowRequest ? '<button id="load-api">Load API</button><script>document.querySelector("#load-api").addEventListener("click", () => { void fetch("/api/data"); });</script>' : ""}${
+          options.requestApi ? '<script>setTimeout(() => { void fetch("/api/data"); }, 150);</script>' : ""
+        }</body></html>`);
+      });
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+      });
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("fixture server did not bind a TCP port");
+      const rootDir = options.rootDir ?? await mkdtemp(path.join(os.tmpdir(), "visual-hive-api-500-runtime-"));
+      if (!options.rootDir) tempDirs.push(rootDir);
+      try {
+        const config = VisualHiveConfigSchema.parse({
+          project: { name: "api-500-runtime" },
+          targets: { local: { kind: "url", url: `http://127.0.0.1:${address.port}`, prSafe: true } },
+          contracts: [{
+            id: "api-contract",
+            description: "API-backed stable dashboard",
+            target: "local",
+            ...(options.useDefaultTimeout ? {} : { timeoutMs: 3000 }),
+            selectors: {
+              mustExist: ["#root"],
+              textMustNotExist: options.markerAssertion ? [API_500_MUTATION_MARKER] : []
+            },
+            steps: options.flowRequest ? [{ action: "click", selector: "#load-api", description: "Trigger the API request." }] : [],
+            screenshots: Array.from({ length: screenshotCount }, (_, index) => ({ name: `dashboard-${index + 1}`, route: "/", viewport: "desktop", fullPage: false }))
+          }],
+          viewports: { desktop: { width: 320, height: 200 } }
+        });
+        const plan = {
+          schemaVersion: 1 as const,
+          project: "api-500-runtime",
+          mode: "mutation" as const,
+          generatedAt: "2026-07-12T00:00:00.000Z",
+          changedFiles: [],
+          effectiveChangedFiles: [],
+          ignoredChangedFiles: [],
+          targets: [{ id: "local", kind: "url", url: `http://127.0.0.1:${address.port}`, prSafe: true, cost: "medium" as const }],
+          items: [{
+            contractId: "api-contract",
+            targetId: "local",
+            targetUrl: `http://127.0.0.1:${address.port}`,
+            severity: "medium" as const,
+            cost: "medium" as const,
+            reasons: ["test"],
+            screenshots: Array.from({ length: screenshotCount }, (_, index) => `dashboard-${index + 1}:/:desktop`)
+          }],
+          excluded: [],
+          mutation: { enabled: true, operators: ["api-500" as const], minScore: 0.8, reasons: ["test"] },
+          providerPolicy: []
+        };
+        return await runPlaywrightContracts({
+          config,
+          plan,
+          rootDir,
+          ci: false,
+          mutationOperators: options.mutation ? ["api-500"] : undefined,
+          mutationMatrix: options.mutation ? { "api-500": ["api-contract"] } : undefined,
+          runTargetCommands: false,
+          skipInstall: true,
+          skipBuild: true
+        });
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    };
+
+    const intercepted = await runFixture({ requestApi: true, markerAssertion: true, mutation: true });
+    expect(intercepted.exitCode).toBe(1);
+    expect(intercepted.report.results[0]?.status).toBe("failed");
+    const interceptedAssertions = intercepted.report.results[0]?.selectorAssertions;
+    if (!interceptedAssertions) throw new Error(`missing structured api-500 assertions: ${JSON.stringify(intercepted.report, null, 2)}`);
+    expect(interceptedAssertions).toContainEqual(
+      expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
+    );
+
+    const noRequest = await runFixture({ requestApi: false, markerAssertion: true, mutation: true });
+    expect(noRequest.exitCode).toBe(0);
+    expect(noRequest.report.results[0]?.status).toBe("passed");
+
+    const noRequestManyScreenshots = await runFixture({
+      requestApi: false,
+      markerAssertion: true,
+      screenshotCount: 6,
+      mutation: true,
+      useDefaultTimeout: true
+    });
+    expect(noRequestManyScreenshots.exitCode).toBe(0);
+    expect(noRequestManyScreenshots.report.results[0]?.status).not.toBe("failed");
+
+    const flowTriggered = await runFixture({ requestApi: false, flowRequest: true, markerAssertion: true, mutation: true });
+    expect(flowTriggered.exitCode).toBe(1);
+    expect(flowTriggered.report.results[0]?.selectorAssertions).toContainEqual(
+      expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
+    );
+
+    const screenshotRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-api-500-screenshot-"));
+    tempDirs.push(screenshotRoot);
+    const baseline = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: false, rootDir: screenshotRoot });
+    expect(baseline.exitCode).toBe(0);
+    expect(baseline.report.results[0]?.screenshotAssertions?.[0]?.status).toBe("created");
+    const mutated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: true, rootDir: screenshotRoot });
+    expect(mutated.exitCode).toBe(0);
+    expect(mutated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
+  }, 60_000);
 
   it("includes generated spec path in collected artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-"));

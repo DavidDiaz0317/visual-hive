@@ -3,6 +3,7 @@ import type { MutationOperator, VisualHiveConfig } from "../config/schema.js";
 import { VisualHiveConfigSchema } from "../config/schema.js";
 import { validateReferences } from "../config/load.js";
 import type { MutationReport } from "../reports/types.js";
+import { API_500_MUTATION_MARKER } from "../mutations/operators.js";
 import { getEvidenceResourceById } from "../tools/evidenceResources.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { CoverageGap, CoverageReport } from "./analyze.js";
@@ -999,7 +1000,7 @@ function selectorsForOperator(operator: string): Record<string, string[]> {
   if (operator === "force-login-on-demo") return { mustNotExist: ["[data-testid='login-page']", "[data-testid='github-login-button']"] };
   if (operator === "hide-critical-button") return { mustExist: ["[data-testid='critical-action-button']"] };
   if (operator === "remove-demo-badge") return { mustExist: ["[data-testid='demo-badge']"] };
-  if (operator === "api-500") return { textMustNotExist: ["visual-hive api-500 mutation"] };
+  if (operator === "api-500") return { textMustNotExist: [API_500_MUTATION_MARKER] };
   if (operator === "empty-data") return { mustExist: ["[data-testid='api-data-area']"] };
   if (operator === "mobile-overflow") return { mustExist: ["body"] };
   return { mustExist: ["[data-testid='replace-with-user-visible-contract']"] };
@@ -1010,7 +1011,7 @@ function testsForMutationOperator(operator: string, contractId?: string): string
   if (operator === "force-login-on-demo") return [`Assert login controls must not exist${target}.`, "Keep this mutation mapped to the hosted/demo no-login contract."];
   if (operator === "hide-critical-button") return [`Assert the critical action button exists${target}.`, "Add a flow step that clicks the critical action when feasible."];
   if (operator === "remove-demo-badge") return [`Assert demo badges exist on demo cards${target}.`];
-  if (operator === "api-500") return [`Assert the first-party mutation marker "visual-hive api-500 mutation" must not be visible${target}.`];
+  if (operator === "api-500") return [`Assert the first-party mutation marker "${API_500_MUTATION_MARKER}" must not be visible${target}.`];
   if (operator === "empty-data") return [`Assert API-backed data is not empty${target}.`];
   if (operator === "mobile-overflow") return [`Add a mobile screenshot or overflow assertion${target}.`];
   return [`Add a selector or flow assertion that detects ${operator}${target}.`];

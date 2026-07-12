@@ -1,5 +1,5 @@
 import path from "node:path";
-import { writeText, type Plan, type VisualHiveConfig } from "@visual-hive/core";
+import { API_500_MUTATION_MARKER, writeText, type Plan, type VisualHiveConfig } from "@visual-hive/core";
 
 export interface GenerateSpecOptions {
   config: VisualHiveConfig;
@@ -81,6 +81,7 @@ const ciMode = visualHiveCi === "true" ? true : visualHiveCi === "false" ? false
 const mutationOperator = process.env.VISUAL_HIVE_MUTATION_OPERATOR || "";
 const mutationOperators = parseMutationOperators();
 const mutationContractMatrix = parseMutationContractMatrix();
+const api500MutationMarker = ${JSON.stringify(API_500_MUTATION_MARKER)};
 
 // ---- Contract execution ----
 test.describe("visual-hive generated deterministic contracts", () => {
@@ -121,7 +122,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
       });
 
       try {
-        await applyRouteMutation(page, activeMutationOperator);
+        const routeMutationTracker = await applyRouteMutation(page, activeMutationOperator, contract.timeoutMs);
         await page.addInitScript((operator) => {
           window.localStorage.setItem("visual-hive-mutation", operator);
         }, activeMutationOperator);
@@ -155,6 +156,8 @@ test.describe("visual-hive generated deterministic contracts", () => {
             throw new Error(assertion.message ?? \`Screenshot assertion failed for \${contract.id}/\${shot.name}: diffRatio=\${assertion.actualDiffPixelRatio}\`);
           }
         }
+
+        await finalizeApi500MutationObservation(page, contract, activeMutationOperator, routeMutationTracker, selectorAssertions);
 
         if (contract.failOnConsoleError && (consoleErrors.length > 0 || pageErrors.length > 0)) {
           throw new Error(\`Unexpected console/page errors in \${contract.id}\`);
@@ -445,10 +448,31 @@ async function disableAnimations(page) {
 }
 
 // ---- Mutation hooks ----
-async function applyRouteMutation(page, activeMutationOperator = mutationOperator) {
+async function applyRouteMutation(page, activeMutationOperator = mutationOperator, contractTimeoutMs) {
+  let signalApi500Interception;
+  const api500Interception = new Promise((resolve) => {
+    signalApi500Interception = resolve;
+  });
+  const effectiveContractTimeoutMs = contractTimeoutMs ?? 30000;
+  const tracker = {
+    api500Intercepted: false,
+    api500Interception,
+    signalApi500Interception,
+    contractDeadline: Date.now() + effectiveContractTimeoutMs,
+    observationBudgetMs: Math.min(Math.max(Math.floor(effectiveContractTimeoutMs / 3), 100), 5000)
+  };
   if (activeMutationOperator === "api-500") {
     await page.route("**/api/**", async (route) => {
-      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "visual-hive api-500 mutation" }) });
+      tracker.api500Intercepted = true;
+      tracker.signalApi500Interception();
+      try {
+        await appendApi500MutationSentinel(page);
+      } catch {
+        // If the page context is replaced while the request is intercepted, the
+        // API mutation still runs and remains a survivor until real evidence can
+        // observe the sentinel. Never turn runner infrastructure into a kill.
+      }
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: api500MutationMarker }) });
     });
   }
   if (activeMutationOperator === "empty-data") {
@@ -461,6 +485,45 @@ async function applyRouteMutation(page, activeMutationOperator = mutationOperato
       await route.fulfill({ status: 404, contentType: "text/plain", body: "visual-hive broken-image mutation" });
     });
   }
+  return tracker;
+}
+
+async function appendApi500MutationSentinel(page) {
+  await page.evaluate((marker) => {
+    const attribute = "data-visual-hive-api-500-mutation";
+    if (document.querySelector(\`[\${attribute}="true"]\`)) return;
+    const sentinel = document.createElement("span");
+    sentinel.setAttribute(attribute, "true");
+    sentinel.setAttribute("aria-hidden", "true");
+    sentinel.hidden = true;
+    sentinel.style.setProperty("display", "none", "important");
+    sentinel.textContent = marker;
+    (document.body ?? document.documentElement).appendChild(sentinel);
+  }, api500MutationMarker);
+}
+
+async function finalizeApi500MutationObservation(page, contract, activeMutationOperator, tracker, assertions) {
+  if (activeMutationOperator !== "api-500" || !(contract.selectors?.textMustNotExist ?? []).includes(api500MutationMarker)) return;
+  if (!tracker.api500Intercepted) {
+    const remainingContractTime = Math.max(0, tracker.contractDeadline - Date.now() - 1000);
+    const remaining = Math.min(tracker.observationBudgetMs, remainingContractTime);
+    if (remaining > 0) {
+      await Promise.race([
+        tracker.api500Interception,
+        new Promise((resolve) => setTimeout(resolve, remaining))
+      ]);
+    }
+  }
+  if (!tracker.api500Intercepted) return;
+  try {
+    await appendApi500MutationSentinel(page);
+  } catch {
+    // The normal assertion below fails closed only when the exact sentinel can
+    // be observed in the current page context.
+  }
+  await recordAssertion(assertions, "textMustNotExist", api500MutationMarker, async () => {
+    await expect(page.getByText(api500MutationMarker, { exact: false }), \`Expected text to be absent: \${api500MutationMarker}\`).toHaveCount(0);
+  });
 }
 
 function isExpectedConsoleError(contract, message) {
