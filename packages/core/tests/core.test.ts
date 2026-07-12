@@ -8007,6 +8007,7 @@ describe("tool registry", () => {
     const hiveExportTool = registry.tools.find((tool) => tool.id === "visual_hive_read_hive_export");
     const githubIssue = registry.tools.find((tool) => tool.id === "visual_hive_handoff_github_issue");
     const handoffValidation = registry.tools.find((tool) => tool.id === "visual_hive_validate_handoff");
+    const adapterManager = registry.tools.find((tool) => tool.id === "visual_hive_manage_adapters");
     const setupProfile = registry.roleProfiles.find((profile) => profile.role === "setup_agent");
     const repairProfile = registry.roleProfiles.find((profile) => profile.role === "repair_agent");
     const testCreatorProfile = registry.roleProfiles.find((profile) => profile.role === "test_creator");
@@ -8104,6 +8105,13 @@ describe("tool registry", () => {
       externalNetwork: false,
       costClass: "local"
     });
+    expect(adapterManager).toMatchObject({
+      defaultAccess: "local_execution",
+      externalNetwork: false,
+      forbiddenInPullRequest: true,
+      writes: [".visual-hive/adapters/lifecycle-plan.json"]
+    });
+    expect(adapterManager?.writeRestrictions).toContain("Do not pass --apply without reviewed dependency-write authority.");
     for (const resource of VISUAL_HIVE_EVIDENCE_RESOURCES.filter((item) => item.readTool)) {
       const tool = registry.tools.find((entry) => entry.id === resource.readTool?.name);
       expect(tool, `${resource.id} should have a Tool Registry read card`).toBeDefined();
@@ -8128,9 +8136,9 @@ describe("tool registry", () => {
       "visual_hive_recommend_setup",
       "visual_hive_read_setup_recommendations",
       "visual_hive_read_setup_pr_plan",
+      "visual_hive_manage_adapters",
       "visual_hive_plan",
-      "visual_hive_read_control_plane_snapshot",
-      "visual_hive_agent_packet"
+      "visual_hive_read_control_plane_snapshot"
     ]);
     expect(repairProfile?.allowedToolIds).toEqual([
       "visual_hive_get_issue_context",
@@ -8978,7 +8986,6 @@ describe("issue artifacts", () => {
         }
       ]
     });
-
     const first = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
     const result = await writeIssuesArtifacts({ rootDir, project: "test-adequacy-demo" });
     const issue = result.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap");

@@ -22,6 +22,7 @@
 - Pre-publish GitHub Action wrapper for target repositories.
 - External consumer smoke fixture proving setup, bootstrap, strict pass, and deliberate visual regression failure.
 - Setup/readiness hardening for incomplete contracts, workflow distribution gaps, and artifact evidence.
+- Repository-specific open-source adapter lifecycle planning with exact ODiff install/update, integrity, health, and golden-parity enforcement.
 - Broader hosted-provider polish beyond the current Argos upload adapter.
 - Rich Playwright trace extraction and route/contract discovery helpers.
 - Evidence packet schema and trusted Hive/GitHub issue handoff design from `docs/research/visual-hive-vision-and-rationale.md`.

@@ -92,6 +92,7 @@ import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./co
 import { formatAgentValidateResult, runAgentValidateCommand } from "./commands/agentValidate.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { runODiffCompare, runVRTUpload } from "./commands/adapters.js";
+import { formatAdapterManagerResult, runAdapterManager } from "./commands/adapterManager.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
@@ -1290,6 +1291,28 @@ program
   });
 
 const adapters = program.command("adapters").description("Run optional open-source adapters without changing Visual Hive verdict authority");
+
+adapters
+  .command("manage")
+  .description("Plan or apply repository-specific open-source adapter lifecycle decisions")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--apply", "apply exact local dependency changes and run health/parity verification")
+  .option("--output <path>", "lifecycle plan output path", ".visual-hive/adapters/lifecycle-plan.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runAdapterManager({
+        config: options.config,
+        apply: options.apply,
+        output: options.output
+      });
+      console.log(formatAdapterManagerResult(result, options.format));
+      if (result.plan.status === "blocked") process.exitCode = 1;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 const odiff = adapters.command("odiff").description("Use the pinned ODiff adapter as supplemental deterministic evidence");
 
 odiff

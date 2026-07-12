@@ -305,6 +305,9 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("/agents/agent-run.json") || normalized.endsWith("/agent-run.json")) labels.add("agent-issue-run");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
+  if (normalized.endsWith("/adapters/lifecycle-plan.json")) labels.add("adapter-lifecycle-plan");
+  if (normalized.endsWith("/adapters/odiff-result.json")) labels.add("adapter-odiff-result");
+  if (normalized.endsWith("/adapters/vrt-result.json")) labels.add("adapter-vrt-result");
   if (normalized.endsWith("mcp-manifest.json")) labels.add("mcp-manifest");
   if (normalized.endsWith("context-ledger.json")) labels.add("context-ledger");
   if (normalized.endsWith("pipeline.json")) labels.add("pipeline-status");
@@ -402,6 +405,9 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "provider-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "agent-run.json": "visual-hive.agent-issue-run.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
+    "lifecycle-plan.json": "visual-hive.adapter-lifecycle-plan.schema.json",
+    "odiff-result.json": "visual-hive.odiff-result.schema.json",
+    "vrt-result.json": "visual-hive.vrt-result.schema.json",
     "mcp-manifest.json": "visual-hive.mcp.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",
     "pipeline.json": "visual-hive.pipeline.schema.json",

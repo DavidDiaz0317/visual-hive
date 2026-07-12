@@ -49,7 +49,8 @@ export async function runODiffCompare(options: ODiffCompareOptions): Promise<ODi
     "--threshold",
     String(threshold)
   ];
-  const execution = await runProcess(options.command ?? process.env.VISUAL_HIVE_ODIFF_COMMAND ?? "odiff", args, cwd, options.timeoutMs ?? 30_000);
+  const command = options.command ?? process.env.VISUAL_HIVE_ODIFF_COMMAND ?? await findManagedODiffCommand(cwd) ?? "odiff";
+  const execution = await runProcess(command, args, cwd, options.timeoutMs ?? 30_000);
   const parsed = parseODiffOutput(execution.exitCode, execution.stdout);
   return {
     schemaVersion: "visual-hive.odiff-result.v1",
@@ -235,6 +236,28 @@ function resolveWithin(root: string, value: string): string {
 
 function relative(root: string, target: string): string {
   return path.relative(root, target).replaceAll(path.sep, "/");
+}
+
+async function findManagedODiffCommand(start: string): Promise<string | undefined> {
+  let current = start;
+  while (true) {
+    const candidate = path.join(current, "node_modules", "odiff-bin", "bin", "odiff.exe");
+    try {
+      const info = await lstat(candidate);
+      if (info.isFile() && !info.isSymbolicLink()) return candidate;
+    } catch {
+      // Continue toward the repository root.
+    }
+    try {
+      await lstat(path.join(current, ".git"));
+      return undefined;
+    } catch {
+      // Keep walking.
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
 }
 
 async function requestJson(fetchFn: typeof fetch, url: string, init: RequestInit): Promise<Record<string, unknown>> {
