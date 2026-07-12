@@ -8884,7 +8884,8 @@ describe("issue artifacts", () => {
     expect(issue?.dedupeFingerprint).toBe("visual-hive:test-adequacy-demo:test_adequacy_gap:unknown:85ead75abf845bfe");
     expect(issue?.affected).toContainEqual({ contractId: "testing-layer:2" });
     expect(issue?.sourceArtifacts).toContain(".visual-hive/test-creation-plan.json");
-    expect(issue?.validationCommand).toContain("node --test");
+    expect(issue?.validationCommand).not.toContain("node --test");
+    expect(issue?.validationCommand).toContain("visual-hive analyze --repo .");
     expect(issue?.body).toContain("add focused repository test files only");
     await expectMatchesSchema("visual-hive.issues.schema.json", result.report);
   });

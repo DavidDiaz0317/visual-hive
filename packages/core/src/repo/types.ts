@@ -8,6 +8,7 @@ export interface RepoScriptInfo {
 
 export interface RepoPackageInfo {
   path: string;
+  packageManager: RepoPackageManager;
   name?: string;
   private?: boolean;
   workspaces: string[];
@@ -35,6 +36,40 @@ export interface RepoWorkflowHint {
   usesSecrets: boolean;
   uploadsArtifacts: boolean;
   visualHiveRelated: boolean;
+}
+
+export type RepoTestFileKind = "unit" | "component" | "integration" | "e2e";
+export type RepoTestRuntime = "javascript" | "python" | "go" | "jvm" | "rust" | "ruby" | "php";
+
+export interface RepoTestFileInfo {
+  path: string;
+  kind: RepoTestFileKind;
+  runtime: RepoTestRuntime;
+  scope: string;
+  tools: string[];
+  runnerEligible: boolean;
+  eligibilityEvidence: string[];
+}
+
+export interface RepoTestRunnerInfo {
+  tool: string;
+  runtime: RepoTestRuntime;
+  kind: RepoTestFileKind;
+  scope: string;
+  command: {
+    cwd: string;
+    executable: string;
+    args: string[];
+  };
+  commandProvider: "npm" | "pnpm" | "yarn" | "node" | "python" | "go" | "cargo" | "maven" | "gradle" | "ruby" | "php";
+  discoveryConstraints: string[];
+  evidence: string[];
+}
+
+export interface RepoRuntimeScopeInfo {
+  runtime: RepoTestRuntime;
+  scope: string;
+  sourceFiles: string[];
 }
 
 export interface RepoTargetHint {
@@ -194,6 +229,9 @@ export interface RepoMapReport {
   routes: RepoRouteHint[];
   workflows: RepoWorkflowHint[];
   testTools: string[];
+  testFiles: RepoTestFileInfo[];
+  testRunners: RepoTestRunnerInfo[];
+  runtimeScopes: RepoRuntimeScopeInfo[];
   targetHints: RepoTargetHint[];
   riskSignals: RepoRiskSignal[];
   coverageGaps: RepoCoverageGap[];

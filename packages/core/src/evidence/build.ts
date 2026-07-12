@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import type { MutationReport, ProviderResult, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
 import type { RepoMapReport } from "../repo/types.js";
+import { incompleteUnitTestScopeMessages, isUnitLayerTestFile, unitTestScopes } from "../repo/testEvidence.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { normalizeHiveExportConfig } from "../hive/build.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
@@ -125,6 +126,9 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
           project: repoMap.project,
           sourceSummary: repoMap.sourceSummary,
           testTools: repoMap.testTools,
+          testFiles: repoMap.testFiles ?? [],
+          testRunners: repoMap.testRunners ?? [],
+          runtimeScopes: repoMap.runtimeScopes ?? [],
           targetHints: repoMap.targetHints,
           riskSignals: repoMap.riskSignals,
           coverageGaps: repoMap.coverageGaps,
@@ -700,7 +704,25 @@ function buildTestingLayers(input: {
   triageReport?: TriageReport;
   repoMap?: RepoMapReport;
 }): EvidencePacketTestingLayer[] {
-  const unitTools = input.repoMap?.testTools.filter((tool) => ["vitest", "jest", "node-test"].includes(tool)) ?? [];
+  const unitFiles = (input.repoMap?.testFiles ?? []).filter((file) => isUnitLayerTestFile(file) && file.runnerEligible);
+  const unitScopes = unitTestScopes(input.repoMap?.testRunners ?? [], input.repoMap?.testFiles ?? [], input.repoMap?.runtimeScopes ?? []);
+  const incompleteScopes = incompleteUnitTestScopeMessages(unitScopes);
+  const actionableUnitGap = input.repoMap?.coverageGaps.find((gap) => gap.id === "unit-layer" && !gap.suggestedArtifact.startsWith("advisory-only:"));
+  const classifiedIncompleteScopes = incompleteScopes.map((message) => actionableUnitGap?.message.includes(message) ? message : `Advisory-only: ${message}`);
+  const unitStatus: EvidencePacketTestingLayer["status"] = !input.repoMap
+    ? "unknown"
+    : unitScopes.length > 0 && incompleteScopes.length === 0
+      ? "covered"
+      : unitScopes.length > 0
+        ? "partial"
+        : "missing";
+  const unitGap = unitStatus === "covered"
+    ? []
+    : unitStatus === "unknown"
+      ? ["Run visual-hive analyze to discover repository unit-test evidence."]
+      : classifiedIncompleteScopes.length > 0
+        ? classifiedIncompleteScopes
+        : ["No deterministic repository unit-test runner or executable unit test file was detected."];
   return [
     layer(
       0,
@@ -713,9 +735,9 @@ function buildTestingLayers(input: {
     layer(
       2,
       "Unit",
-      unitTools.length ? "covered" : "unknown",
-      unitTools.length ? [".visual-hive/repo-map.json"] : [],
-      unitTools.length ? [] : ["No repository unit test runner or test file was detected."]
+      unitStatus,
+      input.repoMap ? [".visual-hive/repo-map.json", ...unitFiles.map((file) => file.path).slice(0, 20)] : [],
+      unitGap
     ),
     layer(3, "Component/accessibility", "unknown", [], ["Accessibility evidence is not yet normalized."]),
     layer(4, "API/contract", "partial", input.report ? [".visual-hive/report.json"] : [], input.report ? [] : ["No deterministic report found."]),

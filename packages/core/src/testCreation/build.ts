@@ -117,12 +117,21 @@ function recommendationsFromTestingLayers(layers: EvidencePacketTestingLayer[]):
   return layers
     .filter((layer) => layer.status === "missing" || layer.status === "unknown" || layer.status === "partial")
     .filter((layer) => [2, 3, 4, 5, 6, 9].includes(layer.id))
+    .map((layer) => layer.id === 2 ? {
+      ...layer,
+      gaps: layer.gaps.filter((gap) => !/^Advisory-only:/iu.test(gap) && / unit runner .+ has no matching executable unit test file\.$/u.test(gap))
+    } : layer)
+    .filter((layer) => layer.id !== 2 || (layer.gaps.length > 0 && layer.gaps.every((gap) => / unit runner .+ has no matching executable unit test file\.$/u.test(gap))))
     .map((layer) => recommendationForLayer(layer));
 }
 
 function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreationRecommendationDraft {
   const kind = kindForLayer(layer.id);
-  const priority = layer.status === "missing" ? "high" : layer.status === "unknown" ? "medium" : "low";
+  const priority = layer.status === "missing"
+    ? "high"
+    : layer.status === "unknown" || (layer.id === 2 && layer.status === "partial")
+      ? "medium"
+      : "low";
   return {
     id: safeId(`layer-${layer.id}-${layer.status}`),
     source: "testing_layer",

@@ -112,7 +112,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     ...issuesFromReadiness(readiness, sourceArtifacts),
     ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts),
     ...issuesFromHandoff(handoff, sourceArtifacts, publication),
-    ...issuesFromTestCreation(testCreationPlan, sourceArtifacts, publication)
+    ...issuesFromTestCreation(testCreationPlan, repoMap, sourceArtifacts, publication)
   ];
 
   const previousByFingerprint = new Map((previousIssues?.issues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
@@ -508,7 +508,9 @@ function issuesFromRepoMap(
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
-  const gaps = arrayOfObjects(repoMap?.coverageGaps).concat(arrayOfObjects(repoMap?.mapFindings));
+  const gaps = arrayOfObjects(repoMap?.coverageGaps)
+    .filter((gap) => !readString(gap, "suggestedArtifact")?.startsWith("advisory-only:"))
+    .concat(arrayOfObjects(repoMap?.mapFindings));
   return gaps.slice(0, 10).map((gap) => {
     const layerId = readNumber(gap, "layer");
     const testRoot = readString(gap, "id") === "unit-layer" && layerId !== undefined
@@ -617,6 +619,7 @@ function issuesFromHandoff(
 
 function issuesFromTestCreation(
   plan: TestCreationPlan | undefined,
+  repoMap: JsonObject | undefined,
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
@@ -631,6 +634,7 @@ function issuesFromTestCreation(
       const root = structuredLayerId === layerId
         ? publication.testAdequacyRoots.find((candidate) => candidate.layerId === layerId)
         : undefined;
+      const unitTestCommands = repositoryUnitTestCommands(repoMap);
       return baseIssue({
         issueKind: "test_adequacy_gap",
         severity: "high",
@@ -642,7 +646,13 @@ function issuesFromTestCreation(
           { route: recommendation.affected.route, component: recommendation.affected.component },
           { contractId: `testing-layer:${layerId}` }
         ],
-        validationCommand: "node --test && visual-hive analyze --repo . && visual-hive test-creation-plan && visual-hive issues --write",
+        validationCommand: [
+          ...unitTestCommands,
+          "visual-hive analyze --repo .",
+          "visual-hive evidence",
+          "visual-hive test-creation-plan",
+          "visual-hive issues --write"
+        ].filter(Boolean).join(" && "),
         bodySummary: [
           ...recommendation.rationale,
           ...recommendation.suggestedTests,
@@ -651,6 +661,60 @@ function issuesFromTestCreation(
         ...(root ? canonicalPublication(root.rootCauseKey) : {})
       });
     });
+}
+
+function repositoryUnitTestCommands(repoMap: JsonObject | undefined): string[] {
+  const eligibleFileScopes = new Set(arrayOfObjects(repoMap?.testFiles)
+    .filter((file) => {
+      const kind = readString(file, "kind");
+      const runtime = readString(file, "runtime");
+      return file.runnerEligible === true && (kind === "unit" || (kind === "component" && runtime === "javascript"));
+    })
+    .map((file) => `${readString(file, "runtime") ?? ""}\0${readString(file, "scope") ?? ""}`));
+  const candidates = arrayOfObjects(repoMap?.testRunners)
+    .filter((runner) => readString(runner, "kind") === "unit")
+    .filter((runner) => !eligibleFileScopes.has(`${readString(runner, "runtime") ?? ""}\0${readString(runner, "scope") ?? ""}`))
+    .sort((left, right) =>
+      stableCompare(readString(left, "runtime") ?? "", readString(right, "runtime") ?? "")
+      || stableCompare(readString(left, "scope") ?? "", readString(right, "scope") ?? "")
+      || runnerEvidenceRank(right) - runnerEvidenceRank(left)
+      || stableCompare(readString(left, "tool") ?? "", readString(right, "tool") ?? "")
+    );
+  const commands: string[] = [];
+  const handledScopes = new Set<string>();
+  for (const runner of candidates) {
+    const scopeIdentity = `${readString(runner, "runtime") ?? ""}\0${readString(runner, "scope") ?? ""}`;
+    if (handledScopes.has(scopeIdentity)) continue;
+    const rendered = renderSafeRunnerCommand(objectValue(runner, "command"));
+    if (!rendered) continue;
+    handledScopes.add(scopeIdentity);
+    if (!commands.includes(rendered)) commands.push(rendered);
+  }
+  return commands;
+}
+
+function runnerEvidenceRank(runner: JsonObject): number {
+  const evidence = readStringArray(runner.evidence);
+  if (evidence.some((item) => item.startsWith("script:"))) return 3;
+  if (evidence.some((item) => item.startsWith("manifest:") || item.startsWith("test-file:"))) return 2;
+  if (evidence.some((item) => item.startsWith("dependency:"))) return 1;
+  return 0;
+}
+
+function renderSafeRunnerCommand(command: JsonObject | undefined): string | undefined {
+  if (!command) return undefined;
+  const cwd = readString(command, "cwd");
+  const executable = readString(command, "executable");
+  const args = readStringArray(command.args);
+  if (!cwd || !executable || !["npm", "pnpm", "yarn", "node", "python", "go", "cargo", "mvn", "gradle", "ruby", "php"].includes(executable)) return undefined;
+  const safeToken = (value: string) => /^[A-Za-z0-9@%_+=:,./-]+$/u.test(value) && !value.split("/").includes("..");
+  if (cwd !== ".") {
+    if (cwd.startsWith("-") || cwd.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(cwd)) return undefined;
+    if (!safeToken(cwd) || cwd.split("/").some((segment) => segment.startsWith("-"))) return undefined;
+  }
+  if (!args.every(safeToken)) return undefined;
+  const invocation = [executable, ...args].join(" ");
+  return cwd === "." ? invocation : `cd ${cwd} && ${invocation}`;
 }
 
 function workItemContractId(item: JsonObject): string | undefined {

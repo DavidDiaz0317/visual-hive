@@ -34,6 +34,22 @@
     "outputResource": {
       "$ref": "#/$defs/outputResource"
     },
+    "visualGraphOutputResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph",
+        "summary",
+        "vocabulary",
+        "unresolved"
+      ],
+      "properties": {
+        "graph": { "$ref": "#/$defs/visualGraphOutputResource" },
+        "summary": { "$ref": "#/$defs/visualGraphOutputResource" },
+        "vocabulary": { "$ref": "#/$defs/visualGraphOutputResource" },
+        "unresolved": { "$ref": "#/$defs/visualGraphOutputResource" }
+      }
+    },
     "project": {
       "type": "object",
       "additionalProperties": false,
@@ -130,6 +146,20 @@
         "type": "string"
       }
     },
+    "testFiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/testFileInfo"
+      }
+    },
+    "testRunners": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/testRunnerInfo" }
+    },
+    "runtimeScopes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/runtimeScopeInfo" }
+    },
     "targetHints": {
       "type": "array",
       "items": {
@@ -203,6 +233,9 @@
         "path": {
           "type": "string"
         },
+        "packageManager": {
+          "enum": ["npm", "pnpm", "yarn", "unknown"]
+        },
         "name": {
           "type": "string"
         },
@@ -226,6 +259,38 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "visualGraphOutputResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactPath",
+        "evidenceResourceId",
+        "evidenceResourceUri",
+        "evidenceResourceTitle",
+        "evidenceResourceDescription"
+      ],
+      "properties": {
+        "artifactPath": {
+          "enum": [
+            ".visual-hive/visual-graph.json",
+            ".visual-hive/visual-graph-summary.md",
+            ".visual-hive/visual-graph-vocab.json",
+            ".visual-hive/visual-graph-unresolved.json"
+          ]
+        },
+        "evidenceResourceId": {
+          "enum": ["visual-graph", "visual-graph-summary", "visual-graph-vocab", "visual-graph-unresolved"]
+        },
+        "evidenceResourceUri": {
+          "enum": ["visual-hive://visual-graph", "visual-hive://visual-graph-summary", "visual-hive://visual-graph-vocab", "visual-hive://visual-graph-unresolved"]
+        },
+        "evidenceResourceTitle": { "type": "string", "minLength": 1 },
+        "evidenceResourceDescription": { "type": "string", "minLength": 1 },
+        "evidenceReadToolName": {
+          "enum": ["visual_hive_read_visual_graph", "visual_hive_read_visual_graph_summary", "visual_hive_read_visual_graph_vocab", "visual_hive_read_visual_graph_unresolved"]
         }
       }
     },
@@ -331,6 +396,89 @@
         "visualHiveRelated": {
           "type": "boolean"
         }
+      }
+    },
+    "testFileInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "runtime",
+        "scope",
+        "tools",
+        "runnerEligible",
+        "eligibilityEvidence"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+        },
+        "kind": {
+          "enum": [
+            "unit",
+            "component",
+            "integration",
+            "e2e"
+          ]
+        },
+        "runtime": {
+          "enum": ["javascript", "python", "go", "jvm", "rust", "ruby", "php"]
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "runnerEligible": { "type": "boolean" },
+        "eligibilityEvidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "testRunnerInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "runtime", "kind", "scope", "command", "commandProvider", "discoveryConstraints", "evidence"],
+      "properties": {
+        "tool": { "type": "string", "minLength": 1 },
+        "runtime": { "enum": ["javascript", "python", "go", "jvm", "rust", "ruby", "php"] },
+        "kind": { "enum": ["unit", "component", "integration", "e2e"] },
+        "scope": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cwd", "executable", "args"],
+          "properties": {
+            "cwd": { "type": "string", "minLength": 1, "pattern": "^(?:\\.|(?!/)(?![A-Za-z]:)(?!-)(?!.*\\/-)[A-Za-z0-9._/-]+)$" },
+            "executable": { "type": "string", "minLength": 1 },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "commandProvider": { "enum": ["npm", "pnpm", "yarn", "node", "python", "go", "cargo", "maven", "gradle", "ruby", "php"] },
+        "discoveryConstraints": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "evidence": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "runtimeScopeInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "scope", "sourceFiles"],
+      "properties": {
+        "runtime": { "enum": ["javascript", "python", "go", "jvm", "rust", "ruby", "php"] },
+        "scope": { "type": "string", "minLength": 1 },
+        "sourceFiles": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
       }
     },
     "targetHint": {

@@ -123,7 +123,7 @@ export interface EvidencePacket {
     commitSha?: string;
     runContext?: string;
   };
-  repoIntelligence?: Pick<RepoMapReport, "project" | "sourceSummary" | "testTools" | "targetHints" | "riskSignals" | "coverageGaps"> & {
+  repoIntelligence?: Pick<RepoMapReport, "project" | "sourceSummary" | "testTools" | "testFiles" | "testRunners" | "runtimeScopes" | "targetHints" | "riskSignals" | "coverageGaps"> & {
     selectorCount: number;
     routeCount: number;
     workflowCount: number;
