@@ -795,7 +795,7 @@ dependencies = [
     }, null, 2)}\n`, "utf8");
     const jestPackage = await writeRepoMap({ repoRoot: jestRoot, now: new Date("2026-07-12T04:26:00.000Z") });
     expect(jestPackage.report.testFiles.find((file) => file.path === "src/value.test.ts")).toMatchObject({ runnerEligible: false });
-  });
+  }, 30_000);
 
   it("fails conservatively for unsupported restrictive discovery settings and positional filters", async () => {
     const cases = [

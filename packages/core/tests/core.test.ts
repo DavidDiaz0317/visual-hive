@@ -2889,6 +2889,110 @@ jobs:
     expect(trusted?.readsIssueArtifact).toBe(false);
   });
 
+  it("allows only the structurally isolated Hive uninstall publication lane", () => {
+    const workflow = `name: Hive-managed Visual Hive PR
+on:
+  pull_request:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions: {}
+jobs:
+  setup-authorization:
+    if: \${{ github.event_name == 'pull_request' || (github.event_name == 'pull_request_target' && github.event.pull_request.head.ref == 'hive/uninstall-123' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: read
+    outputs:
+      operation: \${{ steps.authorize.outputs.operation }}
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111
+        with:
+          ref: \${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@2222222222222222222222222222222222222222
+      - id: authorize
+        shell: bash
+        env:
+          HIVE_STATUS_TOKEN: \${{ github.token }}
+          HIVE_HEAD_REF: \${{ github.event.pull_request.head.ref }}
+          HIVE_HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+          HIVE_BASE_SHA: \${{ github.event.pull_request.base.sha }}
+          HIVE_EXPECTED_UNINSTALL_REF: hive/uninstall-123
+        run: |
+          set -euo pipefail
+          case "$HIVE_HEAD_REF" in
+            "$HIVE_EXPECTED_HEAD_REF"|"$HIVE_EXPECTED_UPGRADE_REF"|"$HIVE_EXPECTED_ROLLBACK_REF"|"$HIVE_EXPECTED_AUTHORIZER_TRANSFER_REF"|"$HIVE_EXPECTED_UNINSTALL_REF")
+              authorization_header="$(printf 'x-access-token:%s' "$HIVE_STATUS_TOKEN" | base64 | tr -d '\\r\\n')"
+              git -c protocol.file.allow=never -c "http.extraheader=AUTHORIZATION: basic $authorization_header" fetch --force --no-tags --no-recurse-submodules origin "refs/heads/$HIVE_HEAD_REF:refs/remotes/origin/hive-authorization-head"
+              unset authorization_header
+              ;;
+          esac
+          node <<'NODE'
+          const child = require("child_process");
+          const crypto = require("crypto");
+          const fs = require("fs");
+          function git(args) { return child.spawnSync("git", args, { encoding: null }); }
+          git(["diff-tree", "--no-renames"]);
+          git(["cat-file", "blob"]);
+          crypto.createHash("sha256");
+          if (!process.env.HIVE_EXPECTED_UNINSTALL_REF || !process.env.HIVE_STATUS_TOKEN) throw new Error("missing verifier input");
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, "operation=uninstall\\n");
+          NODE
+  uninstall-required-check:
+    needs: setup-authorization
+    if: \${{ always() && github.event_name == 'pull_request_target' && needs.setup-authorization.outputs.operation == 'uninstall' }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - env:
+          HIVE_CHECK_TOKEN: \${{ github.token }}
+          HIVE_API_URL: \${{ github.api_url }}
+          HIVE_REPOSITORY: \${{ github.repository }}
+          HIVE_HEAD_SHA: \${{ github.event.pull_request.head.sha }}
+          HIVE_PULL_REQUEST_URL: \${{ github.event.pull_request.html_url }}
+          HIVE_SETUP_AUTHORIZED: \${{ needs.setup-authorization.outputs.authorized }}
+          HIVE_SETUP_BINDING_DIGEST: \${{ needs.setup-authorization.outputs.binding_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          if (process.env.HIVE_SETUP_AUTHORIZED !== "true" || !process.env.HIVE_SETUP_BINDING_DIGEST) throw new Error("authorization absent");
+          fetch("https://api.example.invalid/check-runs", { method: "POST", body: JSON.stringify({ name: "visual-hive", conclusion: "success" }) });
+          NODE
+  target-test:
+    if: \${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+      - run: npm test
+  visual-hive:
+    if: \${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx visual-hive report --github-step-summary
+`;
+    const audit = auditWorkflows(sampleConfig(), [{ path: ".github/workflows/visual-hive-pr.yml", content: workflow }]);
+    expect(audit.summary.workflowsUsingPullRequestTarget).toBe(1);
+    expect(audit.findings.map((finding) => finding.kind)).not.toContain("pull_request_target_execution");
+
+    const unsafeVariants = [
+      workflow.replace("github.event.pull_request.base.sha", "github.event.pull_request.head.sha"),
+      workflow.replace("github.event.pull_request.head.repo.full_name == github.repository && ", ""),
+      workflow.replace("if: ${{ github.event_name == 'pull_request' }}", "if: ${{ github.event_name == 'pull_request_target' }}"),
+      workflow.replace('child.spawnSync("git", args', 'child.spawnSync("npm", args')
+    ];
+    for (const content of unsafeVariants) {
+      const unsafe = auditWorkflows(sampleConfig(), [{ path: ".github/workflows/visual-hive-pr.yml", content }]);
+      expect(unsafe.findings.map((finding) => finding.kind)).toContain("pull_request_target_execution");
+    }
+  });
+
   it("recognizes a safe Visual Hive PR workflow", () => {
     const audit = auditWorkflows(sampleConfig(), [
       {

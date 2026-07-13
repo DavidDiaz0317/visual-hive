@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Core config, planning, report, and mutation utilities for Visual Hive.",
   "type": "module",
   "license": "MIT",
