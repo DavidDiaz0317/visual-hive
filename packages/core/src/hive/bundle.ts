@@ -569,7 +569,7 @@ function observationsFromIssues(
     const publication = publicationMetadataForIssue(issue);
     return [{
       fingerprint: issue.dedupeFingerprint,
-      repositoryFingerprint: observationRepositoryFingerprint(repository, issue.dedupeFingerprint, publication.publicationRole, publication.rootCauseKey),
+      repositoryFingerprint: visualHiveObservationRepositoryFingerprint(repository, issue.dedupeFingerprint, publication.publicationRole, publication.rootCauseKey),
       ...publication,
       state,
       issueKind: issue.issueKind,
@@ -614,7 +614,7 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
     if (digestFields.some((value) => value.includes("\0"))) throw new Error("Lifecycle observations cannot contain NUL delimiters.");
     if (observation.state !== "present" && observation.state !== "absent") throw new Error(`Invalid lifecycle observation state: ${observation.state}`);
     validatePublicationRoleForIssueKind(observation.issueKind, publication.publicationRole);
-    const expectedRepositoryFingerprint = observationRepositoryFingerprint(
+    const expectedRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(
       repository,
       observation.fingerprint.trim(),
       publication.publicationRole,
@@ -714,7 +714,7 @@ function validatePublicationRoleForIssueKind(issueKind: VisualHiveIssueKind, pub
   }
 }
 
-function observationRepositoryFingerprint(
+export function visualHiveObservationRepositoryFingerprint(
   repository: string,
   fingerprint: string,
   publicationRole: VisualHivePublicationRole,
