@@ -90,6 +90,7 @@ export * from "./repair/authoritativeValidation.js";
 export * from "./repair/swebench.js";
 export * from "./repair/store.js";
 export * from "./repair/toolProtocol.js";
+export * from "./repair/hiveContracts.js";
 export * from "./schemas/catalog.js";
 export * from "./utils/files.js";
 export * from "./utils/sanitize.js";

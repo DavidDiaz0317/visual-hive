@@ -37,7 +37,7 @@ export function buildVisualHiveTaskContext(input: VisualHiveTaskContextInput): V
   uniqueBy(parsed.assets, (asset) => asset.assetId);
   uniqueBy(parsed.assets, (asset) => asset.path);
   uniqueBy(parsed.assets, (asset) => asset.sha256);
-  for (const asset of parsed.assets) assertPermittedTaskPath(asset.path);
+  for (const asset of parsed.assets) assertPermittedVisualTaskPath(asset.path);
   const referencePositions = new Set<number>();
   for (const reference of parsed.imageReferences) {
     if (!assetIds.has(reference.assetId)) throw new Error(`Visual Hive task image reference names an unknown asset: ${reference.assetId}.`);
@@ -73,7 +73,7 @@ export function buildVisualHiveTaskContext(input: VisualHiveTaskContextInput): V
     if (profile.profileDigest !== profileDigest) throw new Error(`Visual Hive validation profile digest mismatch for ${profile.profileId}: expected ${profileDigest}, got ${profile.profileDigest}.`);
   }
   const normalizedSourceFiles = uniqueBy(parsed.sourceContext.files, (item) => item.path).sort((left, right) => stableTextCompare(left.path, right.path));
-  for (const file of normalizedSourceFiles) assertPermittedTaskPath(file.path);
+  for (const file of normalizedSourceFiles) assertPermittedVisualTaskPath(file.path);
   const sourceContextDigest = canonicalSha256({ files: normalizedSourceFiles, omittedPaths: parsed.sourceContext.omittedPaths, truncated: parsed.sourceContext.truncated });
   if (parsed.sourceContext.digest !== sourceContextDigest) throw new Error(`Visual Hive source context digest mismatch: expected ${sourceContextDigest}, got ${parsed.sourceContext.digest}.`);
   const normalized = {
@@ -106,6 +106,7 @@ export function parseVisualHiveTaskContext(value: unknown): VisualHiveTaskContex
   const expected = canonicalSha256(content);
   if (contextDigest !== expected) throw new Error(`Visual Hive task context digest mismatch: expected ${expected}, got ${contextDigest}.`);
   const { safety: _safety, ...input } = content;
+  void _safety;
   const rebuilt = buildVisualHiveTaskContext(input);
   if (canonicalJson(rebuilt) !== canonicalJson(parsed)) throw new Error("Visual Hive task context is not in canonical normalized form.");
   return parsed;
@@ -135,6 +136,10 @@ export function parseVisualRepairValidation(value: unknown): VisualRepairValidat
 
 function stripDerivedValidationFields(validation: VisualRepairValidation): VisualRepairValidationInput {
   const { comparability: _comparability, verdict: _verdict, closureRecommendation: _closureRecommendation, receiptDigest: _receiptDigest, ...input } = validation;
+  void _comparability;
+  void _verdict;
+  void _closureRecommendation;
+  void _receiptDigest;
   return input;
 }
 
@@ -227,6 +232,7 @@ export function computeVisualRepositoryFingerprint(repository: string, repositor
 
 export function computeVisualValidationProfileDigest(profile: Omit<VisualHiveTaskContext["profiles"][number], "profileDigest"> | VisualHiveTaskContext["profiles"][number]): string {
   const { profileDigest: _profileDigest, ...content } = profile as VisualHiveTaskContext["profiles"][number];
+  void _profileDigest;
   return canonicalSha256({
     ...content,
     requestKinds: [...new Set(content.requestKinds)].sort(stableTextCompare),
@@ -237,7 +243,7 @@ export function computeVisualValidationProfileDigest(profile: Omit<VisualHiveTas
   });
 }
 
-function assertPermittedTaskPath(value: string): void {
+export function assertPermittedVisualTaskPath(value: string): void {
   const segments = value.toLowerCase().split("/");
   if (segments.some((segment) => segment === ".git" || segment === ".swebench" || segment === "grader") || segments.some((segment) => /^(?:gold|test)[_-]?patch(?:\.|$)/u.test(segment))) {
     throw new Error(`Visual Hive task context contains a prohibited evaluator or answer path: ${value}.`);

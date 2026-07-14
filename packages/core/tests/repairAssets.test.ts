@@ -271,6 +271,7 @@ function runContext(task: VisualHiveTaskContext, asset: VisualTaskAsset): Visual
       repositoryFingerprint: task.repository.repositoryFingerprint,
       commitSha: task.repository.baseSha
     },
+    brokerRequest: { requestId: digest("7"), requestDigest: digest("8") },
     execution: {
       commitSha: task.repository.baseSha,
       profileId: "profile.repair",

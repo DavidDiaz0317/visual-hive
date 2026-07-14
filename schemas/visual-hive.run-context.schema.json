@@ -25,6 +25,15 @@
         "commitSha": { "$ref": "#/$defs/gitCommit" }
       }
     },
+    "brokerRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "requestDigest"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/boundedId" },
+        "requestDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "execution": { "$ref": "#/$defs/executionContext" },
     "producer": {
       "type": "object",

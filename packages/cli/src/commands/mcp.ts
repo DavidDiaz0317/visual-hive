@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -641,73 +641,6 @@ async function listIssues(rootDir: string): Promise<Record<string, unknown>> {
   });
 }
 
-async function getIssueContext(rootDir: string): Promise<Record<string, unknown>> {
-  const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
-  const issueQueue = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issue-queue.json"));
-  if (!issues) {
-    return missingJson(".visual-hive/issues.json", "Run visual-hive issues --write first.");
-  }
-  const candidates = Array.isArray(issues.issues) ? issues.issues.filter(isRecord) : [];
-  const selected = candidates.find((issue) => {
-    const status = readString(issue, "status");
-    return status !== "suppressed" && status !== "resolved_candidate";
-  }) ?? candidates[0];
-  if (!selected) {
-    return sanitizeObject({
-      status: "missing",
-      message: "No issue candidates are available.",
-      issuesSummary: issues.summary,
-      issueQueueSummary: issueQueue?.summary
-    });
-  }
-  const evidenceArtifacts = [
-    readString(selected, "linkedEvidencePacket") ?? ".visual-hive/evidence-packet.json",
-    readString(selected, "linkedRepoMap") ?? ".visual-hive/repo-map.json",
-    readString(selected, "linkedVisualGraph") ?? ".visual-hive/visual-graph.json",
-    readString(selected, "linkedVisualImpact") ?? ".visual-hive/visual-impact.json",
-    readString(selected, "linkedMutationReport"),
-    readString(selected, "linkedHandoff"),
-    readString(selected, "linkedHiveExport"),
-    readString(selected, "linkedKnowledgeGraph"),
-    readString(selected, "linkedAgentPacket")
-  ].filter((item): item is string => Boolean(item));
-  return sanitizeObject({
-    issue: {
-      dedupeFingerprint: readString(selected, "dedupeFingerprint"),
-      title: readString(selected, "title"),
-      issueKind: readString(selected, "issueKind"),
-      severity: readString(selected, "severity"),
-      status: readString(selected, "status"),
-      labels: Array.isArray(selected.labels) ? selected.labels.filter((item): item is string => typeof item === "string") : [],
-      owningAgentHint: readString(selected, "owningAgentHint"),
-      affected: selected.affected,
-      sourceArtifacts: selected.sourceArtifacts,
-      evidenceArtifacts,
-      reproductionCommand: readString(selected, "reproductionCommand"),
-      validationCommand: readString(selected, "validationCommand"),
-      guardrails: selected.guardrails
-    },
-    issueQueueSummary: issueQueue?.summary,
-    mcpResourcePath: [
-      "visual_hive_get_issue_context",
-      "visual_hive_read_issue_queue",
-      "visual_hive_query_visual_graph",
-      "visual_hive_get_visual_impact",
-      "visual_hive_read_evidence_packet",
-      "visual_hive_read_mutation_report",
-      "visual_hive_get_validation_command",
-      "visual_hive_get_agent_prompt",
-      "visual_hive_get_handoff_context"
-    ],
-    safety: {
-      readOnly: true,
-      externalCallsMade: 0,
-      networkCallsMade: 0,
-      writesMade: 0
-    }
-  });
-}
-
 async function queryVisualGraph(rootDir: string): Promise<Record<string, unknown>> {
   const graph = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-graph.json"));
   const vocab = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "visual-graph-vocab.json"));
@@ -1000,26 +933,6 @@ async function getHiveAgentWorkOrder(rootDir: string): Promise<Record<string, un
 
 async function readNamedJson(rootDir: string, relativePath: string, generateHint: string): Promise<Record<string, unknown>> {
   return (await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, relativePath))) ?? missingJson(relativePath, generateHint);
-}
-
-async function findExistingAgentRequest(rootDir: string, preferredPath?: string): Promise<string | undefined> {
-  if (preferredPath) {
-    const text = await readJsonlessArtifact(path.join(rootDir, preferredPath));
-    if (text !== undefined) return preferredPath;
-  }
-  try {
-    const agentsDir = path.join(rootDir, ".visual-hive", "agents");
-    const entries = await readdir(agentsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const candidate = path.join(".visual-hive", "agents", entry.name, "agent-request.md").replaceAll(path.sep, "/");
-      const text = await readJsonlessArtifact(path.join(rootDir, candidate));
-      if (text !== undefined) return candidate;
-    }
-  } catch {
-    // No issue-agent prompt has been generated yet.
-  }
-  return undefined;
 }
 
 async function readJsonlessArtifact(filePath: string): Promise<string | undefined> {

@@ -28,6 +28,14 @@ describe("visual-hive.run-context.v1", () => {
     expect(parseVisualRunContext(first)).toEqual(first);
   });
 
+  it("keeps previously valid v1 contexts without broker metadata readable", () => {
+    const legacy = runInput();
+    delete legacy.brokerRequest;
+    const built = buildVisualRunContext(legacy);
+    expect(built.brokerRequest).toBeUndefined();
+    expect(parseVisualRunContext(built)).toEqual(built);
+  });
+
   it("rejects repository, commit, contract, threshold, and duplicate evidence drift", () => {
     const fingerprint = runInput();
     fingerprint.repository.repositoryFingerprint = sha("f");
@@ -86,6 +94,7 @@ describe("visual-hive.run-context.v1", () => {
     expect(() => parseVisualRunContext({ ...built, runContextDigest: sha("f") })).toThrow("digest mismatch");
 
     const { runContextDigest: _digest, ...content } = structuredClone(built);
+    void _digest;
     content.execution.cases[0]!.contractIds.reverse();
     expect(() => parseVisualRunContext({ ...content, runContextDigest: canonicalSha256(content) })).toThrow("canonical normalized form");
   });
@@ -131,6 +140,7 @@ function runInput(): VisualRunContextInput {
       repositoryFingerprint: computeVisualRepositoryFingerprint(repository, repositoryId),
       commitSha
     },
+    brokerRequest: { requestId: sha("8"), requestDigest: sha("9") },
     execution: {
       commitSha,
       profileId: "profile.repair",

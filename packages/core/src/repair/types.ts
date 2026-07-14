@@ -5,7 +5,11 @@ export const GitCommitSchema = z.string().regex(/^[a-f0-9]{40}$/u);
 export const BoundedIdSchema = z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$/u);
 export const RepositorySchema = z.string().min(3).max(512).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u).refine((value) => value.split("/").every((segment) => segment !== "." && segment !== ".."), "Repository owner and name cannot be dot segments.");
 export const RelativeArtifactPathSchema = z.string().min(1).max(1024).refine((value) => {
-  if (value.includes("\\") || value.includes(":") || /[\u0000-\u001f\u007f]/u.test(value) || value.startsWith("/") || /^[A-Za-z]:/u.test(value)) return false;
+  const hasControlCharacter = [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+  if (value.includes("\\") || value.includes(":") || hasControlCharacter || value.startsWith("/") || /^[A-Za-z]:/u.test(value)) return false;
   const segments = value.split("/");
   return segments.every((segment) => segment !== "" && segment !== "." && segment !== ".." && segment === segment.trimEnd() && !segment.endsWith(".") && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(segment));
 }, "Artifact path must be a canonical repository-relative path without traversal.");
@@ -426,6 +430,10 @@ const VisualRunContextObjectSchema = z.object({
     repositoryFingerprint: Sha256Schema,
     commitSha: GitCommitSchema
   }).strict(),
+  brokerRequest: z.object({
+    requestId: BoundedIdSchema,
+    requestDigest: Sha256Schema
+  }).strict().optional(),
   execution: VisualExecutionContextSchema,
   producer: z.object({
     visualHiveVersion: z.string().trim().min(1).max(128),

@@ -315,6 +315,7 @@ function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, 
     taskContextDigest: task.contextDigest,
     findingFingerprint: "finding.card",
     repository: { name: task.repository.name, repositoryId: task.repository.repositoryId, repositoryFingerprint: task.repository.repositoryFingerprint, commitSha: task.repository.baseSha },
+    brokerRequest: { requestId: digest("7"), requestDigest: digest("8") },
     execution: {
       commitSha: task.repository.baseSha,
       profileId: task.profiles[0]!.profileId,

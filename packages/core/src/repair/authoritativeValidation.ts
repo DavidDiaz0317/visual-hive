@@ -3,8 +3,9 @@ import { z } from "zod";
 import { verifyVisualHiveBundleDigest, visualHiveObservationRepositoryFingerprint, type VisualHiveBundleManifest } from "../hive/bundle.js";
 import { inspectVisualImageBytes } from "./assets.js";
 import { buildVisualRepairValidation, parseVisualHiveTaskContext } from "./build.js";
-import { canonicalSha256, sha256Bytes, stableTextCompare } from "./canonical.js";
+import { canonicalJson, canonicalSha256, sha256Bytes, stableTextCompare } from "./canonical.js";
 import { compareVisualPngBytes } from "./imageCompare.js";
+import { parseHiveRepairSession, verifyHiveRepairResultAgainstSession, type HiveRepairResult, type HiveRepairSession } from "./hiveContracts.js";
 import { parseVisualRunContext } from "./runContext.js";
 import {
   BoundedIdSchema,
@@ -40,6 +41,7 @@ export interface BuildVisualRepairValidationArtifacts {
   validationId: string;
   generatedAt: string;
   taskContext: RawRepairArtifact;
+  hiveRepairSession: RawRepairArtifact;
   hiveRepairResult: RawRepairArtifact;
   before: RepairRunArtifacts;
   after: RepairRunArtifacts;
@@ -228,35 +230,9 @@ const MutationReportSchema = z.object({
   }).strict()).max(4096)
 }).strict();
 
-const HiveRepairResultSchema = z.object({
-  schemaVersion: z.literal("hive.repair-result.v1"),
-  digestAlgorithm: z.literal("hive.canonical-json.sha256.v1"),
-  generatedAt: TimestampSchema,
-  taskId: BoundedIdSchema,
-  taskContextDigest: Sha256Schema,
-  repository: z.object({ name: RepositorySchema, repositoryId: z.string().trim().min(1).max(128).optional(), repositoryFingerprint: Sha256Schema }).strict(),
-  finding: z.object({
-    fingerprint: z.string().trim().min(1).max(2048),
-    repositoryFingerprint: Sha256Schema,
-    publicationRole: z.enum(["canonical", "derivative", "aggregate"]),
-    rootCauseKey: z.string().trim().min(1).max(2048)
-  }).strict(),
-  baseSha: GitCommitSchema,
-  headSha: GitCommitSchema,
-  diffSha256: Sha256Schema,
-  changedFiles: z.array(z.object({ path: RelativeArtifactPathSchema, status: z.enum(["added", "modified", "deleted", "renamed"]), sha256: Sha256Schema.optional() }).strict()).min(1).max(4096),
-  attempts: z.array(z.object({ attemptId: BoundedIdSchema, model: z.string().trim().min(1).max(512), promptDigest: Sha256Schema, startedAt: TimestampSchema, completedAt: TimestampSchema, status: z.enum(["completed", "failed", "blocked"]) }).strict()).min(1).max(256),
-  toolTranscript: z.array(z.object({ sequence: z.number().int().nonnegative(), toolName: BoundedIdSchema, requestDigest: Sha256Schema, resultDigest: Sha256Schema, status: z.enum(["passed", "failed", "blocked"]) }).strict()).max(4096),
-  validationRequests: z.array(z.object({ requestId: BoundedIdSchema, kind: z.enum(["reproduction", "capture", "patch_validation"]), profileId: BoundedIdSchema, commitSha: GitCommitSchema, requestDigest: Sha256Schema }).strict()).min(1).max(256),
-  claimedOutcome: z.string().trim().min(1).max(4096).optional(),
-  status: z.enum(["candidate", "failed", "blocked"]),
-  lifecycle: z.object({ branch: z.string().trim().min(1).max(1024).optional(), pullRequestNumber: z.number().int().positive().optional(), mergeSha: GitCommitSchema.optional(), validatedTargetSha: GitCommitSchema.optional() }).strict().optional(),
-  resultDigest: Sha256Schema
-}).strict();
-
 type ParsedReport = z.infer<typeof ReportSchema>;
 type ParsedMutationReport = z.infer<typeof MutationReportSchema>;
-type ParsedHiveRepairResult = z.infer<typeof HiveRepairResultSchema>;
+type ParsedHiveRepairResult = HiveRepairResult;
 type ParsedBundleObservation = z.infer<typeof BundleObservationSchema>;
 
 interface VerifiedRunArtifacts {
@@ -269,10 +245,11 @@ interface VerifiedRunArtifacts {
 
 export function buildVisualRepairValidationFromArtifacts(input: BuildVisualRepairValidationArtifacts): VisualRepairValidation {
   const taskContext = parseVisualHiveTaskContext(parseJsonArtifact(input.taskContext));
-  const hiveResult = parseHiveRepairResult(input.hiveRepairResult);
-  verifyHiveResultBinding(taskContext, hiveResult);
-  const before = verifyRunArtifacts(input.before, "before", taskContext, hiveResult, input.generatedAt);
-  const after = verifyRunArtifacts(input.after, "after", taskContext, hiveResult, input.generatedAt);
+  const hiveSession = parseHiveRepairSession(parseJsonArtifact(input.hiveRepairSession));
+  const hiveResult = verifyHiveRepairResultAgainstSession(parseJsonArtifact(input.hiveRepairResult), hiveSession);
+  verifyHiveResultBinding(taskContext, hiveSession, hiveResult);
+  const before = verifyRunArtifacts(input.before, "before", taskContext, hiveSession, hiveResult, input.generatedAt);
+  const after = verifyRunArtifacts(input.after, "after", taskContext, hiveSession, hiveResult, input.generatedAt);
   verifyRunPair(before, after, taskContext, hiveResult);
 
   const beforeFinding = exactFinding(before.bundle, hiveResult.finding);
@@ -315,32 +292,47 @@ export function buildVisualRepairValidationFromArtifacts(input: BuildVisualRepai
     findingStatus,
     authoritativeForResolution,
     policyChanges,
-    claimedOutcome: hiveResult.claimedOutcome,
+    claimedOutcome: hiveResult.claimedOutcome?.summary,
     digestAlgorithm: "visual-hive.canonical-json.sha256.v1"
   };
   return buildVisualRepairValidation(receiptInput);
 }
 
-function parseHiveRepairResult(artifact: RawRepairArtifact): ParsedHiveRepairResult {
-  const parsed = HiveRepairResultSchema.parse(parseJsonArtifact(artifact));
-  const { resultDigest, ...content } = parsed;
-  const expected = canonicalSha256(content);
-  if (resultDigest !== expected) throw new Error(`Hive repair result digest mismatch: expected ${expected}, got ${resultDigest}.`);
-  return parsed;
-}
-
-function verifyHiveResultBinding(task: VisualHiveTaskContext, result: ParsedHiveRepairResult): void {
-  if (result.status !== "candidate") throw new Error(`Hive repair result is not a candidate: ${result.status}.`);
+function verifyHiveResultBinding(task: VisualHiveTaskContext, session: HiveRepairSession, result: ParsedHiveRepairResult): void {
+  if (session.effectiveMode !== "visual_hive" || result.effectiveMode !== "visual_hive" || !session.authorization || !result.authorizationDigest) throw new Error("Visual Hive repair validation requires an authorized Visual Hive Hive session.");
   if (result.taskId !== task.taskId || result.taskContextDigest !== task.contextDigest) throw new Error("Hive repair result does not bind the verified Visual Hive task context.");
   if (result.repository.name !== task.repository.name || result.repository.repositoryId !== task.repository.repositoryId || result.repository.repositoryFingerprint !== task.repository.repositoryFingerprint) throw new Error("Hive repair result repository identity does not match the task context.");
   const findingRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(task.repository.name, result.finding.fingerprint, result.finding.publicationRole, result.finding.rootCauseKey);
   if (result.finding.repositoryFingerprint !== findingRepositoryFingerprint) throw new Error("Hive repair result finding repository fingerprint does not match its publication identity.");
   if (result.baseSha !== task.repository.baseSha) throw new Error("Hive repair result base SHA does not match the task context.");
   if (result.baseSha === result.headSha) throw new Error("Hive repair result head SHA must differ from its base SHA.");
-  if (!result.validationRequests.some((request) => request.kind === "patch_validation" && request.commitSha === result.headSha)) throw new Error("Hive repair result has no head-bound patch validation request.");
+  if (session.task.issueSource !== task.issue.source || session.task.issueExternalId !== task.issue.externalId || session.task.problemStatementDigest !== task.issue.problemStatementSha256) throw new Error("Hive repair session issue projection does not match the verified Visual Hive task context.");
+  const expectedImageAttachments = task.imageReferences.map((reference) => {
+    const asset = task.assets.find((candidate) => candidate.assetId === reference.assetId);
+    if (!asset || !["problem", "expected", "current", "reference"].includes(reference.role)) throw new Error(`Visual Hive task image reference ${reference.assetId} cannot be projected into the Hive repair session.`);
+    return { position: reference.position, assetId: asset.assetId, role: reference.role, sha256: asset.sha256, mediaType: asset.mediaType, size: asset.size };
+  }).sort((left, right) => left.position - right.position);
+  if (canonicalJson(session.task.imageAttachments) !== canonicalJson(expectedImageAttachments)) throw new Error("Hive repair session image projection does not match the verified Visual Hive task context.");
+  const expectedSourceContext = {
+    digest: task.sourceContext.digest,
+    files: task.sourceContext.files,
+    omittedPaths: task.sourceContext.omittedPaths,
+    truncated: task.sourceContext.truncated
+  };
+  const actualSourceContext = {
+    digest: session.sourceContext.digest,
+    files: session.sourceContext.files,
+    omittedPaths: session.sourceContext.omittedPaths,
+    truncated: session.sourceContext.truncated
+  };
+  if (canonicalJson(actualSourceContext) !== canonicalJson(expectedSourceContext)) throw new Error("Hive repair session source-context projection does not match the verified Visual Hive task context.");
+  const request = result.validationRequests.find((candidate) => candidate.kind === "patch_validation" && candidate.commitSha === result.headSha);
+  if (!request || request.authorizationDigest !== session.authorization.authorizationDigest || request.profileId !== session.authorization.profile.profileId || request.profileDigest !== session.authorization.profile.profileDigest) throw new Error("Hive repair result has no authorized head-bound patch validation request.");
+  const taskProfile = task.profiles.find((candidate) => candidate.profileId === request.profileId);
+  if (!taskProfile || taskProfile.profileDigest !== request.profileDigest) throw new Error("Hive repair result validation profile does not match the verified Visual Hive task context.");
 }
 
-function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after", task: VisualHiveTaskContext, result: ParsedHiveRepairResult, validationAt: string): VerifiedRunArtifacts {
+function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after", task: VisualHiveTaskContext, session: HiveRepairSession, result: ParsedHiveRepairResult, validationAt: string): VerifiedRunArtifacts {
   const manifest = BundleManifestSchema.parse(parseJsonArtifact(input.manifest)) as VisualHiveBundleManifest;
   if (!verifyVisualHiveBundleDigest(manifest)) throw new Error(`Visual Hive ${phase} bundle publication digest is invalid.`);
   if (manifest.provenance.subjectDigest !== manifest.overallDigest) throw new Error(`Visual Hive ${phase} bundle provenance subject does not match its digest.`);
@@ -356,8 +348,21 @@ function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after"
   const runContext = parseVisualRunContext(parseJsonBytes(runContextBytes, runContextPath));
   if (runContext.phase !== phase) throw new Error(`Visual Hive run context phase mismatch: expected ${phase}.`);
   if (runContext.repository.commitSha !== expectedCommit || runContext.repository.name !== task.repository.name || runContext.repository.repositoryId !== task.repository.repositoryId || runContext.repository.repositoryFingerprint !== task.repository.repositoryFingerprint) throw new Error(`Visual Hive ${phase} run context repository or commit identity mismatch.`);
+  const brokerIdentity = runContext.brokerRequest;
+  const brokerRequest = brokerIdentity ? result.validationRequests.find((request) => request.requestId === brokerIdentity.requestId && request.requestDigest === brokerIdentity.requestDigest) : undefined;
+  const validRequestKind = phase === "before"
+    ? brokerRequest?.commitRole === "base" && (brokerRequest.kind === "reproduction" || brokerRequest.kind === "capture")
+    : brokerRequest?.commitRole === "candidate" && brokerRequest.kind === "patch_validation";
+  if (!brokerRequest || !validRequestKind || brokerRequest.commitSha !== expectedCommit || brokerRequest.profileId !== runContext.execution.profileId || brokerRequest.profileDigest !== runContext.execution.profileDigest) throw new Error(`Visual Hive ${phase} run does not bind the exact Hive-brokered validation request.`);
+  const journalRequest = session.validationRequests.find((request) => request.requestId === brokerRequest.requestId && request.requestDigest === brokerRequest.requestDigest);
+  if (!journalRequest || Date.parse(runContext.command.startedAt) < Date.parse(journalRequest.requestedAt)) throw new Error(`Visual Hive ${phase} run predates its durable Hive broker-request journal entry.`);
+  if (phase === "after" && Date.parse(runContext.command.startedAt) < Date.parse(result.generatedAt)) throw new Error("Visual Hive after run predates the immutable Hive repair result it validates.");
   if (runContext.taskId !== task.taskId || runContext.taskContextDigest !== task.contextDigest || runContext.findingFingerprint !== result.finding.fingerprint) throw new Error(`Visual Hive ${phase} run context task or finding identity mismatch.`);
   if (runContext.producer.visualHiveVersion !== manifest.producer.version || runContext.producer.visualHiveCommit !== manifest.producer.gitCommit || runContext.producer.playwrightVersion !== runContext.execution.environment.playwrightVersion) throw new Error(`Visual Hive ${phase} producer identity mismatch.`);
+  if (runContext.producer.visualHiveVersion !== session.capability.visualHiveVersion || runContext.producer.visualHiveCommit !== session.capability.visualHiveCommit || runContext.execution.toolRegistryDigest !== session.capability.validationToolRegistryDigest) throw new Error(`Visual Hive ${phase} run does not match the authorized Visual Hive producer and validation tool registry.`);
+  const authorization = session.authorization;
+  if (!authorization || runContext.execution.profileId !== authorization.profile.profileId || runContext.execution.profileDigest !== authorization.profile.profileDigest || runContext.command.validationCommandId !== authorization.profile.validationCommandId) throw new Error(`Visual Hive ${phase} run does not use the authorized validation profile.`);
+  if (Date.parse(runContext.command.startedAt) < Date.parse(authorization.issuedAt) || Date.parse(runContext.command.completedAt) > Date.parse(authorization.expiresAt)) throw new Error(`Visual Hive ${phase} run falls outside its execution authorization window.`);
   if (runContext.execution.testPlanDigest !== canonicalSha256(manifest.scan.testPlanVersion) || runContext.execution.toolRegistryDigest !== canonicalSha256(manifest.scan.toolRegistryVersion)) throw new Error(`Visual Hive ${phase} plan or tool registry identity mismatch.`);
 
   const reportBytes = requireBundlePayload(manifest, payloads, runContext.report.path);

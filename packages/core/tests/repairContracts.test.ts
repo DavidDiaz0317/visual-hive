@@ -133,6 +133,7 @@ describe("visual-hive.task-context.v1", () => {
   it("rejects a self-digested but noncanonical representation", () => {
     const built = buildVisualHiveTaskContext(taskInput());
     const { contextDigest: _digest, ...content } = structuredClone(built);
+    void _digest;
     content.sourceContext.files.reverse();
     expect(() => parseVisualHiveTaskContext({ ...content, contextDigest: canonicalSha256(content) })).toThrow("canonical normalized form");
   });
@@ -272,6 +273,7 @@ describe("visual-hive.repair-validation.v1", () => {
 
     const forged = { ...receipt, verdict: "fail" as const, closureRecommendation: "keep_open" as const };
     const { receiptDigest: _receiptDigest, ...forgedContent } = forged;
+    void _receiptDigest;
     expect(() => parseVisualRepairValidation({ ...forgedContent, receiptDigest: canonicalSha256(forgedContent) })).toThrow("derived verdict");
   });
 });

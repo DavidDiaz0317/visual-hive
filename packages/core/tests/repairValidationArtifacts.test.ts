@@ -1,18 +1,30 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildHiveExecutionAuthorization,
+  buildHiveRepairResult,
+  buildHiveRepairSession,
+  buildHiveRepairValidationRequestSpec,
   buildVisualHiveTaskContext,
   buildVisualRepairValidationFromArtifacts,
   buildVisualRunContext,
   canonicalSha256,
+  computeHiveRepairAttemptId,
+  computeHiveRepairProviderIdentityDigest,
+  computeHiveRepairSessionId,
+  computeHiveRepairToolCallId,
+  computeHiveRepairToolOutcomeDigest,
+  computeHiveRepairTurnInputDigest,
+  computeHiveRepairTurnId,
   computeVisualRepositoryFingerprint,
   computeVisualValidationPolicyDigest,
   computeVisualValidationProfileDigest,
   sha256Bytes,
   sha256Utf8,
+  VISUAL_REPAIR_TOOL_NAMES,
   visualHiveObservationRepositoryFingerprint,
   writeVisualHiveBundle,
   type BuildVisualRepairValidationArtifacts,
@@ -58,6 +70,10 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
     hive.input.hiveRepairResult = tamperJson(hive.input.hiveRepairResult, (value) => { value.resultDigest = sha("f"); });
     expect(() => buildVisualRepairValidationFromArtifacts(hive.input)).toThrow("digest mismatch");
 
+    const session = await repairFixture();
+    session.input.hiveRepairSession = tamperJson(session.input.hiveRepairSession, (value) => { value.sessionDigest = sha("f"); });
+    expect(() => buildVisualRepairValidationFromArtifacts(session.input)).toThrow("digest mismatch");
+
     const manifest = await repairFixture();
     manifest.input.after.manifest = tamperJson(manifest.input.after.manifest, (value) => { value.overallDigest = sha("f"); });
     expect(() => buildVisualRepairValidationFromArtifacts(manifest.input)).toThrow("publication digest");
@@ -76,6 +92,36 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
     const imagePayload = image.input.after.payloads.find((item) => item.sourcePath === ".visual-hive/results/card-actual.png")!;
     imagePayload.bytes = Buffer.from(imagePayload.bytes).fill(0, 0, 1);
     expect(() => buildVisualRepairValidationFromArtifacts(image.input)).toThrow("file record");
+  });
+
+  it("binds the task projection and actual browser runs to Hive authorization", async () => {
+    const issue = await repairFixture({ sessionIssueExternalId: "fixture-other" });
+    expect(() => buildVisualRepairValidationFromArtifacts(issue.input)).toThrow("issue projection");
+
+    const image = await repairFixture({ sessionImageSha: sha("f") });
+    expect(() => buildVisualRepairValidationFromArtifacts(image.input)).toThrow("image projection");
+
+    const profile = await repairFixture({ runProfileId: "profile.alternate" });
+    expect(() => buildVisualRepairValidationFromArtifacts(profile.input)).toThrow("Hive-brokered validation request");
+
+    const producer = await repairFixture({ sessionVisualHiveVersion: "0.3.3" });
+    expect(() => buildVisualRepairValidationFromArtifacts(producer.input)).toThrow("authorized Visual Hive producer");
+
+    const expired = await repairFixture({ authorizationExpiresAt: "2026-07-14T12:01:30.000Z" });
+    expect(() => buildVisualRepairValidationFromArtifacts(expired.input)).toThrow("authorization window");
+
+    const substitutedRun = await repairFixture({ beforeUsesPatchRequest: true });
+    expect(() => buildVisualRepairValidationFromArtifacts(substitutedRun.input)).toThrow("Hive-brokered validation request");
+
+    const prematureBrokerRun = await repairFixture({
+      requestRequestedAt: "2026-07-14T12:00:30.000Z",
+      sessionUpdatedAt: "2026-07-14T12:00:30.000Z",
+      resultGeneratedAt: "2026-07-14T12:00:31.000Z"
+    });
+    expect(() => buildVisualRepairValidationFromArtifacts(prematureBrokerRun.input)).toThrow("broker-request journal entry");
+
+    const prematureAfterRun = await repairFixture({ resultGeneratedAt: "2026-07-14T12:02:30.000Z" });
+    expect(() => buildVisualRepairValidationFromArtifacts(prematureAfterRun.input)).toThrow("predates the immutable Hive repair result");
   });
 
   it("blocks missing evidence and fails a still-present finding without trusting model claims", async () => {
@@ -140,13 +186,9 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
   it("rejects cross-repository, stale-commit, report-summary, and screenshot-arithmetic drift", async () => {
     const repository = await repairFixture();
     repository.input.hiveRepairResult = tamperAndRedigestHive(repository.input.hiveRepairResult, (value) => { value.repository.name = "owner/other"; });
-    expect(() => buildVisualRepairValidationFromArtifacts(repository.input)).toThrow("repository identity");
+    expect(() => buildVisualRepairValidationFromArtifacts(repository.input)).toThrow(/repository.*identity/u);
 
-    const stale = await repairFixture();
-    stale.input.hiveRepairResult = tamperAndRedigestHive(stale.input.hiveRepairResult, (value) => {
-      value.headSha = commit("c");
-      value.validationRequests[0].commitSha = commit("c");
-    });
+    const stale = await repairFixture({ afterCommitSha: commit("c") });
     expect(() => buildVisualRepairValidationFromArtifacts(stale.input)).toThrow("commit mismatch");
 
     const summary = await repairFixture();
@@ -171,6 +213,16 @@ interface FixtureOptions {
   afterConfigDigest?: string;
   afterBaselineDigest?: string;
   afterMaxDiffPixelRatio?: number;
+  afterCommitSha?: string;
+  runProfileId?: string;
+  sessionIssueExternalId?: string;
+  sessionVisualHiveVersion?: string;
+  sessionImageSha?: string;
+  authorizationExpiresAt?: string;
+  beforeUsesPatchRequest?: boolean;
+  requestRequestedAt?: string;
+  sessionUpdatedAt?: string;
+  resultGeneratedAt?: string;
 }
 
 interface FixtureResult {
@@ -199,6 +251,7 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     viewports: [{ viewportId: "desktop", width: 2, height: 2, deviceScaleFactor: 1 }],
     validationCommandId: "command.playwright"
   };
+  const alternateProfileBody = { ...profileBody, profileId: "profile.alternate", validationCommandId: "command.playwright.alternate" };
   const sourceFiles = [{ path: "src/App.tsx", sha256: sha("8"), size: 200, classification: "source" as const }];
   const task = buildVisualHiveTaskContext({
     schemaVersion: "visual-hive.task-context.v1",
@@ -216,44 +269,181 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     }],
     imageReferences: [{ position: 0, assetId: "asset.reference", role: "reference" }],
     graphCandidates: [{ nodeId: "component.card", kind: "component", label: "Card", score: 1, reasons: ["Screenshot obligation"], sourceSpans: [{ path: "src/App.tsx", startLine: 1, endLine: 20 }] }],
-    profiles: [{ ...profileBody, profileDigest: computeVisualValidationProfileDigest(profileBody) }],
+    profiles: [
+      { ...profileBody, profileDigest: computeVisualValidationProfileDigest(profileBody) },
+      { ...alternateProfileBody, profileDigest: computeVisualValidationProfileDigest(alternateProfileBody) }
+    ],
     obligations: [{
       obligationId: "obligation.card", description: "Card rendering matches the reference.", sourceAssetIds: ["asset.reference"], mappedContractIds: ["contract.card"],
       route: "/", state: "default", viewportId: "desktop", assertionKind: "pixel_region", authority: "deterministic", confidence: 1, status: "mapped"
     }],
     sourceContext: { digest: canonicalSha256({ files: sourceFiles, omittedPaths: 0, truncated: false }), files: sourceFiles, omittedPaths: 0, truncated: false }
   });
-  const hiveResultContent = {
+  const repairProfile = task.profiles.find((profile) => profile.profileId === "profile.repair")!;
+  const findingIdentity = {
+    fingerprint: findingFingerprint,
+    repositoryFingerprint: findingRepositoryFingerprint,
+    publicationRole: "canonical" as const,
+    rootCauseKey: findingRootCauseKey,
+    recurrenceKey: "recurrence/visual_regression/card"
+  };
+  const limits = {
+    maxTurns: 8, maxToolCalls: 8, maxInputBytes: 1_000_000, maxImageBytes: 1_000_000,
+    maxModelInputTokens: 20_000, maxModelOutputTokens: 10_000, maxProviderCostUsdMicros: 5_000_000,
+    maxWallSeconds: 1800, maxRepairAttempts: 2
+  };
+  const provider = { providerId: "provider.fixture", providerKind: "fixture", model: "fixture-model", executableIdentityDigest: sha("6"), capabilityDigest: sha("7"), modelConfigurationDigest: sha("5") };
+  const providerIdentityDigest = computeHiveRepairProviderIdentityDigest(provider);
+  const sessionIdentity = {
+    repository: { name: repository, repositoryId, repositoryFingerprint, baseSha, baseTreeSha: commit("d") },
+    finding: findingIdentity,
+    task: {
+      taskId: task.taskId,
+      taskContextDigest: task.contextDigest,
+      issueSource: "fixture" as const,
+      issueExternalId: options.sessionIssueExternalId ?? "fixture-1",
+      problemStatementDigest: task.issue.problemStatementSha256,
+      imageAttachments: task.imageReferences.map((reference) => {
+        const asset = task.assets.find((candidate) => candidate.assetId === reference.assetId)!;
+        return {
+          position: reference.position,
+          assetId: asset.assetId,
+          role: reference.role as "reference",
+          sha256: options.sessionImageSha ?? asset.sha256,
+          mediaType: asset.mediaType,
+          size: asset.size
+        };
+      })
+    }
+  };
+  const sessionId = computeHiveRepairSessionId(sessionIdentity as any);
+  const promptDigest = sha("5");
+  const attemptId = computeHiveRepairAttemptId(sessionId, 0, promptDigest);
+  const authorization = buildHiveExecutionAuthorization({
+    authorizationId: "authorization.fixture",
+    issuedAt: "2026-07-14T11:00:00.000Z",
+    expiresAt: options.authorizationExpiresAt ?? "2026-07-14T13:00:00.000Z",
+    repositoryFingerprint,
+    taskContextDigest: task.contextDigest,
+    baseSha,
+    profile: repairProfile,
+    toolNames: [...VISUAL_REPAIR_TOOL_NAMES],
+    assetIds: task.assets.map((asset) => asset.assetId),
+    budgetDigest: canonicalSha256(limits),
+    configDigest: sha("a"),
+    toolRegistryDigest: sha("b"),
+    promptSchemaDigest: sha("c")
+  });
+  const toolTurnInput = { attemptId, ordinal: 0, providerInputDigest: sha("4"), consumedToolOutcomeDigests: [] as string[] };
+  const toolTurnDraft = { ...toolTurnInput, inputDigest: computeHiveRepairTurnInputDigest(sessionId, toolTurnInput) };
+  const toolTurnId = computeHiveRepairTurnId(sessionId, toolTurnDraft);
+  const toolReceiptDraft = { turnId: toolTurnId, sequence: 0, toolName: "visual_hive_get_task_context" as const, argumentsDigest: sha("3") };
+  const toolCallId = computeHiveRepairToolCallId(sessionId, toolReceiptDraft);
+  const toolReceiptContent = { ...toolReceiptDraft, callId: toolCallId, resultDigest: task.contextDigest, status: "passed" as const, startedAt: "2026-07-14T11:12:00.000Z", completedAt: "2026-07-14T11:13:00.000Z", textBytes: 256, imageBytes: 128 };
+  const toolReceipt = { ...toolReceiptContent, outcomeDigest: computeHiveRepairToolOutcomeDigest(toolReceiptContent) };
+  const finalTurnInput = { attemptId, ordinal: 1, providerInputDigest: sha("2"), previousTurnOutputDigest: sha("8"), consumedToolOutcomeDigests: [toolReceipt.outcomeDigest] };
+  const finalTurnDraft = { ...finalTurnInput, inputDigest: computeHiveRepairTurnInputDigest(sessionId, finalTurnInput) };
+  const finalTurnId = computeHiveRepairTurnId(sessionId, finalTurnDraft);
+  const reproductionRequest = buildHiveRepairValidationRequestSpec({
+    sessionId,
+    attemptId,
+    kind: "reproduction",
+    commitRole: "base",
+    profileId: repairProfile.profileId,
+    profileDigest: repairProfile.profileDigest,
+    commitSha: baseSha,
+    authorizationDigest: authorization.authorizationDigest
+  });
+  const patchValidationRequest = buildHiveRepairValidationRequestSpec({
+    sessionId,
+    attemptId,
+    kind: "patch_validation",
+    commitRole: "candidate",
+    profileId: repairProfile.profileId,
+    profileDigest: repairProfile.profileDigest,
+    commitSha: headSha,
+    authorizationDigest: authorization.authorizationDigest
+  });
+  const { authorizationDigest: _authorizationDigest, ...authorizationInput } = authorization;
+  void _authorizationDigest;
+  const hiveSession = buildHiveRepairSession({
+    schemaVersion: "hive.repair-session.v1",
+    digestAlgorithm: "hive.canonical-json.sha256.v1",
+    createdAt: "2026-07-14T11:00:00.000Z",
+    updatedAt: options.sessionUpdatedAt ?? "2026-07-14T11:50:00.000Z",
+    deadlineAt: "2026-07-14T12:30:00.000Z",
+    requestedMode: "on",
+    effectiveMode: "visual_hive",
+    state: "awaiting_validation",
+    ...sessionIdentity,
+    capability: { selectionReasons: ["Fixture has a visual task asset."], visualHiveVersion: options.sessionVisualHiveVersion ?? "0.3.2", visualHiveCommit: commit("c"), toolProtocolDigest: sha("b"), validationToolRegistryDigest: canonicalSha256("tools-v1") },
+    sourceContext: {
+      digest: task.sourceContext.digest,
+      maxBytes: 4096,
+      totalBytes: task.sourceContext.files.reduce((total, file) => total + file.size, 0),
+      files: task.sourceContext.files,
+      omittedPaths: task.sourceContext.omittedPaths,
+      truncated: task.sourceContext.truncated
+    },
+    validationProfiles: task.profiles,
+    promptIdentities: { systemPromptDigest: sha("1"), repairPromptDigest: sha("2"), toolSchemaDigest: sha("3"), taskSchemaDigest: sha("4"), modelConfigurationDigest: sha("5") },
+    executionIdentities: { configDigest: sha("a"), toolRegistryDigest: sha("b"), promptSchemaDigest: sha("c") },
+    provider,
+    budgets: {
+      limits,
+      usage: { turnsConsumed: 2, toolCallsConsumed: 1, inputBytesConsumed: 1024, imageBytesConsumed: 128, modelInputTokensConsumed: 1000, modelOutputTokensConsumed: 500, providerCostUsdMicrosConsumed: 100_000, wallMillisecondsConsumed: 720_000 }
+    },
+    attempts: [{ attemptId, ordinal: 0, state: "candidate", startedAt: "2026-07-14T11:05:00.000Z", completedAt: "2026-07-14T11:45:00.000Z", promptDigest, turnIds: [toolTurnId, finalTurnId], candidatePatchDigest: sha("7"), candidateHeadSha: headSha, candidateHeadTreeSha: commit("e"), validationRequestIds: [reproductionRequest.requestId, patchValidationRequest.requestId] }],
+    turns: [
+      { ...toolTurnDraft, turnId: toolTurnId, state: "completed", startedAt: "2026-07-14T11:10:00.000Z", completedAt: "2026-07-14T11:11:00.000Z", providerIdentityDigest, usage: { inputBytes: 500, imageBytes: 0, modelInputTokens: 500, modelOutputTokens: 100, providerCostUsdMicros: 50_000, wallMilliseconds: 60_000 }, providerReceiptDigest: sha("a"), outputKind: "tool_request", outputDigest: sha("8"), toolCallId },
+      { ...finalTurnDraft, turnId: finalTurnId, state: "completed", startedAt: "2026-07-14T11:30:00.000Z", completedAt: "2026-07-14T11:40:00.000Z", providerIdentityDigest, usage: { inputBytes: 524, imageBytes: 128, modelInputTokens: 500, modelOutputTokens: 400, providerCostUsdMicros: 50_000, wallMilliseconds: 600_000 }, providerReceiptDigest: sha("b"), outputKind: "final_result", outputDigest: sha("9") }
+    ],
+    toolReceipts: [toolReceipt],
+    validationRequests: [
+      { ...reproductionRequest, state: "requested", requestedAt: options.requestRequestedAt ?? "2026-07-14T11:46:00.000Z" },
+      { ...patchValidationRequest, state: "requested", requestedAt: options.requestRequestedAt ?? "2026-07-14T11:46:00.000Z" }
+    ],
+    authorization: authorizationInput
+  });
+  const hiveResult = buildHiveRepairResult({
     schemaVersion: "hive.repair-result.v1",
     digestAlgorithm: "hive.canonical-json.sha256.v1",
-    generatedAt: "2026-07-14T11:50:00.000Z",
+    generatedAt: options.resultGeneratedAt ?? "2026-07-14T11:51:00.000Z",
+    sessionId: hiveSession.sessionId,
+    sessionDigest: hiveSession.sessionDigest,
+    transcriptDigest: hiveSession.transcriptDigest,
+    effectiveMode: "visual_hive",
     taskId: task.taskId,
     taskContextDigest: task.contextDigest,
     repository: { name: repository, repositoryId, repositoryFingerprint },
-    finding: { fingerprint: findingFingerprint, repositoryFingerprint: findingRepositoryFingerprint, publicationRole: "canonical", rootCauseKey: findingRootCauseKey },
+    finding: findingIdentity,
     baseSha,
+    baseTreeSha: commit("d"),
     headSha,
-    diffSha256: sha("7"),
-    changedFiles: [{ path: "src/App.tsx", status: "modified", sha256: sha("6") }],
-    attempts: [{ attemptId: "attempt.1", model: "fixture-model", promptDigest: sha("5"), startedAt: "2026-07-14T11:30:00.000Z", completedAt: "2026-07-14T11:45:00.000Z", status: "completed" }],
-    toolTranscript: [{ sequence: 0, toolName: "visual_hive_get_task_context", requestDigest: sha("4"), resultDigest: task.contextDigest, status: "passed" }],
-    validationRequests: [{ requestId: "validation.1", kind: "patch_validation", profileId: "profile.repair", commitSha: headSha, requestDigest: sha("3") }],
-    claimedOutcome: "Updated the card layout and preserved regression coverage.",
+    headTreeSha: commit("e"),
+    diff: { algorithm: "git.diff.binary.sha256.v1", sha256: sha("7"), changedFiles: [{ path: "src/App.tsx", status: "modified", beforeSha256: sha("5"), afterSha256: sha("6"), beforeMode: "100644", afterMode: "100644" }] },
+    provider: hiveSession.provider,
+    attempts: [{ attemptId, ordinal: 0, state: "candidate", promptDigest, startedAt: "2026-07-14T11:05:00.000Z", completedAt: "2026-07-14T11:45:00.000Z", turnCount: 2, toolCallCount: 1 }],
+    toolReceipts: hiveSession.toolReceipts,
+    authorizationDigest: authorization.authorizationDigest,
+    validationRequests: [reproductionRequest, patchValidationRequest],
+    claimedOutcome: { summary: "Updated the card layout and preserved regression coverage.", advisory: true },
     status: "candidate"
-  };
-  const hiveResult = { ...hiveResultContent, resultDigest: canonicalSha256(hiveResultContent) };
+  });
 
   const beforeRoot = await makeRoot("before");
   const afterRoot = await makeRoot("after");
   const before = await makeRun({
     root: beforeRoot, phase: "before", commitSha: baseSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
     image: beforePng, imageId: "asset.before.actual", report: report("before", repository, baseSha, "failed", "failed", false, false),
-    finding: options.beforeFinding === "missing" ? undefined : "present", findingRepositoryFingerprint, configDigest: sha("1"), baselineDigest: sha("9"), maxDiffPixelRatio: 0.01
+    finding: options.beforeFinding === "missing" ? undefined : "present", findingRepositoryFingerprint, configDigest: sha("1"), baselineDigest: sha("9"), maxDiffPixelRatio: 0.01, profileId: options.runProfileId,
+    brokerRequest: options.beforeUsesPatchRequest ? patchValidationRequest : reproductionRequest
   });
+  const afterCommitSha = options.afterCommitSha ?? headSha;
   const afterReport = report(
     "after",
     repository,
-    headSha,
+    afterCommitSha,
     options.afterCardStatus === "missing_baseline" ? "failed" : "passed",
     options.afterCardStatus === "missing_baseline" ? "failed" : "passed",
     Boolean(options.omitAfterSecondaryResult),
@@ -261,12 +451,13 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     options.afterCardStatus
   );
   const after = await makeRun({
-    root: afterRoot, phase: "after", commitSha: headSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
+    root: afterRoot, phase: "after", commitSha: afterCommitSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
     image: afterPng, imageId: "asset.after.actual", report: afterReport,
     finding: options.afterFinding === "missing" ? undefined : (options.afterFinding ?? "absent"),
     findingRepositoryFingerprint,
     configDigest: options.afterConfigDigest ?? sha("1"),
-    baselineDigest: options.afterBaselineDigest ?? sha("9"), maxDiffPixelRatio: options.afterMaxDiffPixelRatio ?? 0.01
+    baselineDigest: options.afterBaselineDigest ?? sha("9"), maxDiffPixelRatio: options.afterMaxDiffPixelRatio ?? 0.01, profileId: options.runProfileId,
+    brokerRequest: patchValidationRequest
   });
 
   return {
@@ -274,6 +465,7 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
       validationId: "validation.card",
       generatedAt: "2026-07-14T12:10:00.000Z",
       taskContext: jsonArtifact(".visual-hive/repair/task-context.json", task),
+      hiveRepairSession: jsonArtifact(".hive/repair-session.json", hiveSession),
       hiveRepairResult: jsonArtifact(".hive/repair-result.json", hiveResult),
       before,
       after
@@ -371,6 +563,8 @@ interface MakeRunInput {
   configDigest: string;
   baselineDigest: string;
   maxDiffPixelRatio: number;
+  profileId?: string;
+  brokerRequest: { requestId: string; requestDigest: string };
 }
 
 async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidationArtifacts["before"]> {
@@ -392,6 +586,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
     { contractId: "contract.card", maxDiffPixelRatio: input.maxDiffPixelRatio, missingBaseline: "fail" as const },
     { contractId: "contract.secondary", maxDiffPixelRatio: 0, missingBaseline: "fail" as const }
   ];
+  const runProfile = input.task.profiles.find((profile) => profile.profileId === (input.profileId ?? "profile.repair"))!;
   const runContext = buildVisualRunContext({
     schemaVersion: "visual-hive.run-context.v1",
     digestAlgorithm: "visual-hive.canonical-json.sha256.v1",
@@ -402,12 +597,13 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
     taskContextDigest: input.task.contextDigest,
     findingFingerprint: input.findingFingerprint,
     repository: { name: input.repository, repositoryId: input.repositoryId, repositoryFingerprint: input.repositoryFingerprint, commitSha: input.commitSha },
+    brokerRequest: { requestId: input.brokerRequest.requestId, requestDigest: input.brokerRequest.requestDigest },
     execution: {
       commitSha: input.commitSha,
-      profileId: "profile.repair",
-      profileDigest: input.task.profiles[0]!.profileDigest,
+      profileId: runProfile.profileId,
+      profileDigest: runProfile.profileDigest,
       configDigest: input.configDigest,
-      validationPolicyDigest: computeVisualValidationPolicyDigest("command.playwright", thresholds),
+      validationPolicyDigest: computeVisualValidationPolicyDigest(runProfile.validationCommandId, thresholds),
       contractInventoryDigest: canonicalSha256(["contract.card", "contract.secondary"]),
       planDigest: sha("a"),
       testPlanDigest: canonicalSha256("plan-v1"),
@@ -423,7 +619,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
     },
     producer: { visualHiveVersion: "0.3.2", visualHiveCommit: commit("c"), playwrightVersion: "1.54.1" },
     command: {
-      validationCommandId: "command.playwright",
+      validationCommandId: runProfile.validationCommandId,
       startedAt: input.phase === "before" ? "2026-07-14T12:00:00.000Z" : "2026-07-14T12:02:00.000Z",
       completedAt: input.phase === "before" ? "2026-07-14T12:01:00.000Z" : "2026-07-14T12:03:00.000Z",
       exitCode: 0
@@ -505,6 +701,7 @@ async function replaceBundledReport(fixture: FixtureResult, mutate: (value: any)
   const context = JSON.parse(Buffer.from(contextPayload.bytes).toString("utf8"));
   context.report.sha256 = sha256Bytes(reportBytes);
   const { runContextDigest: _digest, ...contextContent } = context;
+  void _digest;
   context.runContextDigest = canonicalSha256(contextContent);
   const contextBytes = jsonBytes(context);
   const root = fixture.roots.after;
@@ -531,6 +728,7 @@ function tamperAndRedigestHive(artifact: RawRepairArtifact, mutate: (value: any)
   const value = JSON.parse(Buffer.from(artifact.bytes).toString("utf8"));
   mutate(value);
   const { resultDigest: _digest, ...content } = value;
+  void _digest;
   value.resultDigest = canonicalSha256(content);
   return jsonArtifact(artifact.sourcePath, value);
 }

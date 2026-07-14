@@ -1,0 +1,904 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-repair-result.schema.json",
+  "title": "Hive Repair Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "digestAlgorithm",
+    "generatedAt",
+    "sessionId",
+    "sessionDigest",
+    "transcriptDigest",
+    "effectiveMode",
+    "taskId",
+    "taskContextDigest",
+    "repository",
+    "finding",
+    "baseSha",
+    "baseTreeSha",
+    "headSha",
+    "headTreeSha",
+    "diff",
+    "provider",
+    "attempts",
+    "toolReceipts",
+    "validationRequests",
+    "status",
+    "resultDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "hive.repair-result.v1"
+    },
+    "digestAlgorithm": {
+      "const": "hive.canonical-json.sha256.v1"
+    },
+    "generatedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "sessionId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sessionDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "transcriptDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "effectiveMode": {
+      "enum": [
+        "standard",
+        "visual_hive"
+      ]
+    },
+    "taskId": {
+      "$ref": "#/$defs/boundedId"
+    },
+    "taskContextDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "repository": {
+      "$ref": "#/$defs/resultRepository"
+    },
+    "finding": {
+      "$ref": "#/$defs/finding"
+    },
+    "baseSha": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "baseTreeSha": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "headSha": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "headTreeSha": {
+      "$ref": "#/$defs/gitCommit"
+    },
+    "diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "sha256",
+        "changedFiles"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "git.diff.binary.sha256.v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "changedFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/changedFile"
+          },
+          "minItems": 1,
+          "maxItems": 4096
+        }
+      }
+    },
+    "provider": {
+      "$ref": "#/$defs/provider"
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resultAttempt"
+      },
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "toolReceipts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolReceipt"
+      },
+      "maxItems": 4096
+    },
+    "authorizationDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "validationRequests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validationRequestSpec"
+      },
+      "minItems": 1,
+      "maxItems": 256
+    },
+    "claimedOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "advisory"
+      ],
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/shortText"
+        },
+        "advisory": {
+          "const": true
+        }
+      }
+    },
+    "status": {
+      "const": "candidate"
+    },
+    "resultDigest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "effectiveMode": {
+            "const": "standard"
+          }
+        },
+        "required": [
+          "effectiveMode"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "authorizationDigest"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effectiveMode": {
+            "const": "visual_hive"
+          }
+        },
+        "required": [
+          "effectiveMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "authorizationDigest"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$"
+    },
+    "repositoryName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "pattern": "^(?!\\.\\.?/)(?![^/]+/\\.\\.?$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*[:\\\\\\u0000-\\u001f\\u007f])(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*[. ](?:/|$))(?!(?:.*/)?(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM][1-9]|[lL][pP][tT][1-9])(?:\\.|/|$)).+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "\\S"
+    },
+    "providerText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "\\S"
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "viewportId",
+        "width",
+        "height",
+        "deviceScaleFactor"
+      ],
+      "properties": {
+        "viewportId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "deviceScaleFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 8
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileId",
+        "profileDigest",
+        "targetId",
+        "requestKinds",
+        "contractIds",
+        "routes",
+        "scenarioIds",
+        "viewports",
+        "validationCommandId"
+      ],
+      "properties": {
+        "profileId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "profileDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "targetId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "requestKinds": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "reproduction",
+              "capture",
+              "patch_validation"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "contractIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "scenarioIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/viewport"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "validationCommandId": {
+          "$ref": "#/$defs/boundedId"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fingerprint",
+        "repositoryFingerprint",
+        "publicationRole",
+        "rootCauseKey",
+        "recurrenceKey"
+      ],
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        },
+        "repositoryFingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicationRole": {
+          "enum": [
+            "canonical",
+            "derivative",
+            "aggregate"
+          ]
+        },
+        "rootCauseKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        },
+        "recurrenceKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "providerKind",
+        "model",
+        "executableIdentityDigest",
+        "capabilityDigest",
+        "modelConfigurationDigest"
+      ],
+      "properties": {
+        "providerId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "providerKind": {
+          "$ref": "#/$defs/providerText"
+        },
+        "model": {
+          "$ref": "#/$defs/providerText"
+        },
+        "executableIdentityDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "capabilityDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "modelConfigurationDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "providerUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputBytes",
+        "imageBytes",
+        "modelInputTokens",
+        "modelOutputTokens",
+        "providerCostUsdMicros",
+        "wallMilliseconds"
+      ],
+      "properties": {
+        "inputBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imageBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "providerCostUsdMicros": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "wallMilliseconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "toolReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callId",
+        "turnId",
+        "sequence",
+        "toolName",
+        "argumentsDigest",
+        "status",
+        "startedAt",
+        "textBytes",
+        "imageBytes"
+      ],
+      "properties": {
+        "callId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "turnId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolName": {
+          "enum": [
+            "visual_hive_get_task_context",
+            "visual_hive_get_issue_context",
+            "visual_hive_search_surface",
+            "visual_hive_get_visual_asset",
+            "visual_hive_get_screenshot_set",
+            "visual_hive_get_browser_evidence",
+            "visual_hive_compare_assets",
+            "visual_hive_get_repair_validation"
+          ]
+        },
+        "argumentsDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resultDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "enum": [
+            "started",
+            "passed",
+            "failed",
+            "blocked",
+            "lost"
+          ]
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "textBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777216
+        },
+        "imageBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "errorCode": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "outcomeDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "started"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "errorCode"
+                  ]
+                },
+                {
+                  "required": [
+                    "outcomeDigest"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "completedAt",
+              "outcomeDigest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "resultDigest"
+            ],
+            "not": {
+              "required": [
+                "errorCode"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "failed",
+                  "blocked",
+                  "lost"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "errorCode"
+            ]
+          }
+        }
+      ]
+    },
+    "validationRequestSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "idempotencyKey",
+        "sessionId",
+        "attemptId",
+        "kind",
+        "commitRole",
+        "profileId",
+        "profileDigest",
+        "commitSha",
+        "requestDigest"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "kind": {
+          "enum": [
+            "reproduction",
+            "capture",
+            "patch_validation"
+          ]
+        },
+        "commitRole": {
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "profileId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "profileDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "commitSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "authorizationDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "resultRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "repositoryFingerprint"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/repositoryName"
+        },
+        "repositoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "repositoryFingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "changedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "status": {
+          "enum": [
+            "added",
+            "modified",
+            "deleted",
+            "renamed"
+          ]
+        },
+        "previousPath": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "beforeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "afterSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "beforeMode": {
+          "type": "string",
+          "pattern": "^[0-7]{6}$"
+        },
+        "afterMode": {
+          "type": "string",
+          "pattern": "^[0-7]{6}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "added"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "afterSha256",
+              "afterMode"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "beforeSha256"
+                  ]
+                },
+                {
+                  "required": [
+                    "beforeMode"
+                  ]
+                },
+                {
+                  "required": [
+                    "previousPath"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "deleted"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "beforeSha256",
+              "beforeMode"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "afterSha256"
+                  ]
+                },
+                {
+                  "required": [
+                    "afterMode"
+                  ]
+                },
+                {
+                  "required": [
+                    "previousPath"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "modified"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "beforeSha256",
+              "afterSha256",
+              "beforeMode",
+              "afterMode"
+            ],
+            "not": {
+              "required": [
+                "previousPath"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "renamed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "previousPath",
+              "beforeSha256",
+              "afterSha256",
+              "beforeMode",
+              "afterMode"
+            ]
+          }
+        }
+      ]
+    },
+    "resultAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptId",
+        "ordinal",
+        "state",
+        "promptDigest",
+        "startedAt",
+        "completedAt",
+        "turnCount",
+        "toolCallCount"
+      ],
+      "properties": {
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "candidate",
+            "failed",
+            "blocked",
+            "exhausted"
+          ]
+        },
+        "promptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "turnCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCallCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

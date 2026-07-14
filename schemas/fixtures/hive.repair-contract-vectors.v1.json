@@ -1,0 +1,279 @@
+{
+  "schemaVersion": "hive.repair-contract-vectors.v1",
+  "digestAlgorithm": "hive.canonical-json.sha256.v1",
+  "vectors": [
+    {
+      "name": "validation-profile",
+      "projection": {
+        "profileId": "profile.repair",
+        "targetId": "target.app",
+        "requestKinds": [
+          "capture",
+          "patch_validation",
+          "reproduction"
+        ],
+        "contractIds": [
+          "contract.card",
+          "contract.secondary"
+        ],
+        "routes": [
+          "/",
+          "/settings"
+        ],
+        "scenarioIds": [
+          "default"
+        ],
+        "viewports": [
+          {
+            "viewportId": "desktop",
+            "width": 1280,
+            "height": 720,
+            "deviceScaleFactor": 1
+          }
+        ],
+        "validationCommandId": "command.playwright"
+      },
+      "canonical": "{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]}",
+      "sha256": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+    },
+    {
+      "name": "provider-identity",
+      "projection": {
+        "providerId": "provider.fixture",
+        "providerKind": "fixture",
+        "model": "fixture-model",
+        "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "canonical": "{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"}",
+      "sha256": "4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800"
+    },
+    {
+      "name": "source-context",
+      "projection": {
+        "files": [
+          {
+            "path": "src/App.tsx",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "size": 200,
+            "classification": "source"
+          }
+        ],
+        "omittedPaths": 0,
+        "truncated": false
+      },
+      "canonical": "{\"files\":[{\"classification\":\"source\",\"path\":\"src/App.tsx\",\"sha256\":\"8888888888888888888888888888888888888888888888888888888888888888\",\"size\":200}],\"omittedPaths\":0,\"truncated\":false}",
+      "sha256": "fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e"
+    },
+    {
+      "name": "repository-fingerprint",
+      "projection": {
+        "repository": "owner/repo",
+        "repositoryId": "42"
+      },
+      "canonical": "{\"repository\":\"owner/repo\",\"repositoryId\":\"42\"}",
+      "sha256": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+    },
+    {
+      "name": "repair-session-id",
+      "projection": {
+        "schemaVersion": "hive.repair-session-id.v1",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+        },
+        "finding": {
+          "repositoryFingerprint": "9999999999999999999999999999999999999999999999999999999999999999",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "task": {
+          "taskId": "task.card-layout",
+          "issueSource": "fixture",
+          "issueExternalId": "fixture-1",
+          "problemStatementDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical": "{\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"finding\":{\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"9999999999999999999999999999999999999999999999999999999999999999\"},\"repository\":{\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"schemaVersion\":\"hive.repair-session-id.v1\",\"task\":{\"issueExternalId\":\"fixture-1\",\"issueSource\":\"fixture\",\"problemStatementDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"taskId\":\"task.card-layout\"}}",
+      "sha256": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650"
+    },
+    {
+      "name": "repair-attempt-id",
+      "projection": {
+        "schemaVersion": "hive.repair-attempt-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "ordinal": 0,
+        "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "canonical": "{\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"schemaVersion\":\"hive.repair-attempt-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7"
+    },
+    {
+      "name": "repair-turn-input",
+      "projection": {
+        "schemaVersion": "hive.repair-turn-input.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "ordinal": 0,
+        "providerInputDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "previousTurnOutputDigest": null,
+        "consumedToolOutcomeDigests": []
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"consumedToolOutcomeDigests\":[],\"ordinal\":0,\"previousTurnOutputDigest\":null,\"providerInputDigest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"schemaVersion\":\"hive.repair-turn-input.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92"
+    },
+    {
+      "name": "repair-turn-id",
+      "projection": {
+        "schemaVersion": "hive.repair-turn-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "ordinal": 0,
+        "inputDigest": "97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"inputDigest\":\"97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92\",\"ordinal\":0,\"schemaVersion\":\"hive.repair-turn-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d"
+    },
+    {
+      "name": "repair-tool-call-id",
+      "projection": {
+        "schemaVersion": "hive.repair-tool-call-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "turnId": "a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d",
+        "sequence": 0,
+        "toolName": "visual_hive_get_task_context",
+        "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "canonical": "{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"schemaVersion\":\"hive.repair-tool-call-id.v1\",\"sequence\":0,\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\",\"toolName\":\"visual_hive_get_task_context\",\"turnId\":\"a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d\"}",
+      "sha256": "c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9"
+    },
+    {
+      "name": "repair-tool-outcome",
+      "projection": {
+        "schemaVersion": "hive.repair-tool-outcome.v1",
+        "callId": "c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9",
+        "toolName": "visual_hive_get_task_context",
+        "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "resultDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "status": "passed",
+        "textBytes": 256,
+        "imageBytes": 128,
+        "errorCode": null
+      },
+      "canonical": "{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"callId\":\"c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9\",\"errorCode\":null,\"imageBytes\":128,\"resultDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"schemaVersion\":\"hive.repair-tool-outcome.v1\",\"status\":\"passed\",\"textBytes\":256,\"toolName\":\"visual_hive_get_task_context\"}",
+      "sha256": "50140c92bdfe2d8034cf50a0bb9918e3759143a4df00708c878b3d23359e5ba5"
+    },
+    {
+      "name": "execution-authorization",
+      "projection": {
+        "authorizationId": "authorization.fixture",
+        "issuedAt": "2026-07-14T10:55:00.000Z",
+        "expiresAt": "2026-07-14T13:00:00.000Z",
+        "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2",
+        "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "profile": {
+          "profileId": "profile.repair",
+          "targetId": "target.app",
+          "requestKinds": [
+            "capture",
+            "patch_validation",
+            "reproduction"
+          ],
+          "contractIds": [
+            "contract.card",
+            "contract.secondary"
+          ],
+          "routes": [
+            "/",
+            "/settings"
+          ],
+          "scenarioIds": [
+            "default"
+          ],
+          "viewports": [
+            {
+              "viewportId": "desktop",
+              "width": 1280,
+              "height": 720,
+              "deviceScaleFactor": 1
+            }
+          ],
+          "validationCommandId": "command.playwright",
+          "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+        },
+        "toolNames": [
+          "visual_hive_compare_assets",
+          "visual_hive_get_browser_evidence",
+          "visual_hive_get_issue_context",
+          "visual_hive_get_repair_validation",
+          "visual_hive_get_screenshot_set",
+          "visual_hive_get_task_context",
+          "visual_hive_get_visual_asset",
+          "visual_hive_search_surface"
+        ],
+        "assetIds": [
+          "asset.reference"
+        ],
+        "budgetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "configDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "toolRegistryDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "promptSchemaDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "canonical": "{\"assetIds\":[\"asset.reference\"],\"authorizationId\":\"authorization.fixture\",\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"budgetDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"configDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"expiresAt\":\"2026-07-14T13:00:00.000Z\",\"issuedAt\":\"2026-07-14T10:55:00.000Z\",\"profile\":{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]},\"promptSchemaDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"toolNames\":[\"visual_hive_compare_assets\",\"visual_hive_get_browser_evidence\",\"visual_hive_get_issue_context\",\"visual_hive_get_repair_validation\",\"visual_hive_get_screenshot_set\",\"visual_hive_get_task_context\",\"visual_hive_get_visual_asset\",\"visual_hive_search_surface\"],\"toolRegistryDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}",
+      "sha256": "29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5"
+    },
+    {
+      "name": "validation-request-id",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"schemaVersion\":\"hive.repair-validation-request-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "9a739ebec112743eed1c438c33a9cd8fb40c20e4fda785c4d6719f4464a14225"
+    },
+    {
+      "name": "validation-request-idempotency",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request-identity.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"schemaVersion\":\"hive.repair-validation-request-identity.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "b4fd842e5d9dfab699e631e7bb835a36d7c7106f9bc4d3670f90d318988e3535"
+    },
+    {
+      "name": "validation-request-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request.v1",
+        "requestId": "9a739ebec112743eed1c438c33a9cd8fb40c20e4fda785c4d6719f4464a14225",
+        "idempotencyKey": "b4fd842e5d9dfab699e631e7bb835a36d7c7106f9bc4d3670f90d318988e3535",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"29e28570d9740fcf7b8db347ebdccdeaeb4d59d357dbb1a939ac0fb73390cdb5\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"b4fd842e5d9dfab699e631e7bb835a36d7c7106f9bc4d3670f90d318988e3535\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestId\":\"9a739ebec112743eed1c438c33a9cd8fb40c20e4fda785c4d6719f4464a14225\",\"schemaVersion\":\"hive.repair-validation-request.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "5f11e010c2808ba390cb67e1a767496004d89f90c22e652b8a370bf9bcfaffe3"
+    }
+  ]
+}

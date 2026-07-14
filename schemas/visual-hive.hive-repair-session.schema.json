@@ -1,0 +1,1801 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.hive-repair-session.schema.json",
+  "title": "Hive Repair Session v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "digestAlgorithm",
+    "createdAt",
+    "updatedAt",
+    "deadlineAt",
+    "requestedMode",
+    "effectiveMode",
+    "state",
+    "repository",
+    "finding",
+    "task",
+    "capability",
+    "sourceContext",
+    "validationProfiles",
+    "promptIdentities",
+    "executionIdentities",
+    "provider",
+    "budgets",
+    "attempts",
+    "turns",
+    "toolReceipts",
+    "validationRequests",
+    "sessionId",
+    "transcriptDigest",
+    "sessionDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "hive.repair-session.v1"
+    },
+    "digestAlgorithm": {
+      "const": "hive.canonical-json.sha256.v1"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "updatedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "deadlineAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "requestedMode": {
+      "enum": [
+        "off",
+        "auto",
+        "on",
+        "required"
+      ]
+    },
+    "effectiveMode": {
+      "enum": [
+        "standard",
+        "visual_hive"
+      ]
+    },
+    "state": {
+      "enum": [
+        "planned",
+        "active",
+        "awaiting_validation",
+        "candidate",
+        "completed",
+        "failed",
+        "blocked",
+        "exhausted"
+      ]
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "completed",
+            "provider_failed",
+            "provider_identity_mismatch",
+            "tool_failed",
+            "validation_failed",
+            "authorization_expired",
+            "budget_exhausted",
+            "blocked",
+            "internal_error"
+          ]
+        },
+        "message": {
+          "$ref": "#/$defs/shortText"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "exhaustedLimit": {
+          "enum": [
+            "turns",
+            "tool_calls",
+            "input_bytes",
+            "image_bytes",
+            "model_input_tokens",
+            "model_output_tokens",
+            "provider_cost",
+            "wall_time",
+            "repair_attempts"
+          ]
+        }
+      }
+    },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
+    "finding": {
+      "$ref": "#/$defs/finding"
+    },
+    "task": {
+      "$ref": "#/$defs/task"
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectionReasons"
+      ],
+      "properties": {
+        "selectionReasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/shortText"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "visualHiveVersion": {
+          "$ref": "#/$defs/providerText"
+        },
+        "visualHiveCommit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "toolProtocolDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "validationToolRegistryDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sourceContext": {
+      "$ref": "#/$defs/sourceContext"
+    },
+    "validationProfiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/profile"
+      },
+      "maxItems": 64
+    },
+    "promptIdentities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "systemPromptDigest",
+        "repairPromptDigest",
+        "toolSchemaDigest",
+        "taskSchemaDigest",
+        "modelConfigurationDigest"
+      ],
+      "properties": {
+        "systemPromptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "repairPromptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "toolSchemaDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "taskSchemaDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "modelConfigurationDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "executionIdentities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configDigest",
+        "toolRegistryDigest",
+        "promptSchemaDigest"
+      ],
+      "properties": {
+        "configDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "toolRegistryDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "promptSchemaDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "provider": {
+      "$ref": "#/$defs/provider"
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limits",
+        "usage"
+      ],
+      "properties": {
+        "limits": {
+          "$ref": "#/$defs/budgetLimits"
+        },
+        "usage": {
+          "$ref": "#/$defs/budgetUsage"
+        }
+      }
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attempt"
+      },
+      "maxItems": 32
+    },
+    "turns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/turn"
+      },
+      "maxItems": 4096
+    },
+    "toolReceipts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolReceipt"
+      },
+      "maxItems": 4096
+    },
+    "validationRequests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validationRequest"
+      },
+      "maxItems": 4096
+    },
+    "sessionId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authorization": {
+      "$ref": "#/$defs/authorization"
+    },
+    "transcriptDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sessionDigest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "effectiveMode": {
+            "const": "standard"
+          }
+        },
+        "required": [
+          "effectiveMode"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "authorization"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effectiveMode": {
+            "const": "visual_hive"
+          }
+        },
+        "required": [
+          "effectiveMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "authorization"
+        ],
+        "properties": {
+          "capability": {
+            "required": [
+              "selectionReasons",
+              "visualHiveVersion",
+              "visualHiveCommit",
+              "toolProtocolDigest",
+              "validationToolRegistryDigest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "completed",
+              "failed",
+              "blocked",
+              "exhausted"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "terminal"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "terminal"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$"
+    },
+    "repositoryName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "pattern": "^(?!\\.\\.?/)(?![^/]+/\\.\\.?$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*[:\\\\\\u0000-\\u001f\\u007f])(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*[. ](?:/|$))(?!(?:.*/)?(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM][1-9]|[lL][pP][tT][1-9])(?:\\.|/|$)).+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "\\S"
+    },
+    "providerText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "\\S"
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "viewportId",
+        "width",
+        "height",
+        "deviceScaleFactor"
+      ],
+      "properties": {
+        "viewportId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "deviceScaleFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 8
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileId",
+        "profileDigest",
+        "targetId",
+        "requestKinds",
+        "contractIds",
+        "routes",
+        "scenarioIds",
+        "viewports",
+        "validationCommandId"
+      ],
+      "properties": {
+        "profileId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "profileDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "targetId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "requestKinds": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "reproduction",
+              "capture",
+              "patch_validation"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "contractIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "scenarioIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/viewport"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "validationCommandId": {
+          "$ref": "#/$defs/boundedId"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fingerprint",
+        "repositoryFingerprint",
+        "publicationRole",
+        "rootCauseKey",
+        "recurrenceKey"
+      ],
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        },
+        "repositoryFingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicationRole": {
+          "enum": [
+            "canonical",
+            "derivative",
+            "aggregate"
+          ]
+        },
+        "rootCauseKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        },
+        "recurrenceKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "providerKind",
+        "model",
+        "executableIdentityDigest",
+        "capabilityDigest",
+        "modelConfigurationDigest"
+      ],
+      "properties": {
+        "providerId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "providerKind": {
+          "$ref": "#/$defs/providerText"
+        },
+        "model": {
+          "$ref": "#/$defs/providerText"
+        },
+        "executableIdentityDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "capabilityDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "modelConfigurationDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "providerUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputBytes",
+        "imageBytes",
+        "modelInputTokens",
+        "modelOutputTokens",
+        "providerCostUsdMicros",
+        "wallMilliseconds"
+      ],
+      "properties": {
+        "inputBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imageBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "providerCostUsdMicros": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "wallMilliseconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "toolReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callId",
+        "turnId",
+        "sequence",
+        "toolName",
+        "argumentsDigest",
+        "status",
+        "startedAt",
+        "textBytes",
+        "imageBytes"
+      ],
+      "properties": {
+        "callId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "turnId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolName": {
+          "enum": [
+            "visual_hive_get_task_context",
+            "visual_hive_get_issue_context",
+            "visual_hive_search_surface",
+            "visual_hive_get_visual_asset",
+            "visual_hive_get_screenshot_set",
+            "visual_hive_get_browser_evidence",
+            "visual_hive_compare_assets",
+            "visual_hive_get_repair_validation"
+          ]
+        },
+        "argumentsDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resultDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "enum": [
+            "started",
+            "passed",
+            "failed",
+            "blocked",
+            "lost"
+          ]
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "textBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777216
+        },
+        "imageBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "errorCode": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "outcomeDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "started"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "errorCode"
+                  ]
+                },
+                {
+                  "required": [
+                    "outcomeDigest"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "completedAt",
+              "outcomeDigest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "resultDigest"
+            ],
+            "not": {
+              "required": [
+                "errorCode"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "failed",
+                  "blocked",
+                  "lost"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "errorCode"
+            ]
+          }
+        }
+      ]
+    },
+    "validationRequestSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "idempotencyKey",
+        "sessionId",
+        "attemptId",
+        "kind",
+        "commitRole",
+        "profileId",
+        "profileDigest",
+        "commitSha",
+        "requestDigest"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "kind": {
+          "enum": [
+            "reproduction",
+            "capture",
+            "patch_validation"
+          ]
+        },
+        "commitRole": {
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "profileId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "profileDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "commitSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "authorizationDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "repositoryFingerprint",
+        "baseSha",
+        "baseTreeSha"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/repositoryName"
+        },
+        "repositoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "repositoryFingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "baseSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "baseTreeSha": {
+          "$ref": "#/$defs/gitCommit"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskId",
+        "taskContextDigest",
+        "issueSource",
+        "issueExternalId",
+        "problemStatementDigest",
+        "imageAttachments"
+      ],
+      "properties": {
+        "taskId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "taskContextDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "issueSource": {
+          "enum": [
+            "swebench_multimodal",
+            "github",
+            "fixture",
+            "other"
+          ]
+        },
+        "issueExternalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "\\S"
+        },
+        "problemStatementDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "imageAttachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "position",
+              "assetId",
+              "role",
+              "sha256",
+              "mediaType",
+              "size"
+            ],
+            "properties": {
+              "position": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63
+              },
+              "assetId": {
+                "$ref": "#/$defs/boundedId"
+              },
+              "role": {
+                "enum": [
+                  "problem",
+                  "expected",
+                  "current",
+                  "reference"
+                ]
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "mediaType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/webp",
+                  "image/gif"
+                ]
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 33554432
+              }
+            }
+          },
+          "maxItems": 64
+        }
+      }
+    },
+    "sourceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest",
+        "maxBytes",
+        "totalBytes",
+        "files",
+        "omittedPaths",
+        "truncated"
+      ],
+      "properties": {
+        "digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256",
+              "size",
+              "classification"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8388608
+              },
+              "classification": {
+                "enum": [
+                  "source",
+                  "test",
+                  "config",
+                  "documentation"
+                ]
+              }
+            }
+          },
+          "maxItems": 512
+        },
+        "omittedPaths": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "budgetLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxTurns",
+        "maxToolCalls",
+        "maxInputBytes",
+        "maxImageBytes",
+        "maxModelInputTokens",
+        "maxModelOutputTokens",
+        "maxProviderCostUsdMicros",
+        "maxWallSeconds",
+        "maxRepairAttempts"
+      ],
+      "properties": {
+        "maxTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "maxInputBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "maxImageBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456
+        },
+        "maxModelInputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "maxModelOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "maxProviderCostUsdMicros": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "maxWallSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "maxRepairAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      }
+    },
+    "budgetUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turnsConsumed",
+        "toolCallsConsumed",
+        "inputBytesConsumed",
+        "imageBytesConsumed",
+        "modelInputTokensConsumed",
+        "modelOutputTokensConsumed",
+        "providerCostUsdMicrosConsumed",
+        "wallMillisecondsConsumed"
+      ],
+      "properties": {
+        "turnsConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCallsConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputBytesConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "imageBytesConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelInputTokensConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelOutputTokensConsumed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "providerCostUsdMicrosConsumed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "wallMillisecondsConsumed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorizationId",
+        "issuedAt",
+        "expiresAt",
+        "repositoryFingerprint",
+        "taskContextDigest",
+        "baseSha",
+        "profile",
+        "toolNames",
+        "assetIds",
+        "budgetDigest",
+        "configDigest",
+        "toolRegistryDigest",
+        "promptSchemaDigest",
+        "authorizationDigest"
+      ],
+      "properties": {
+        "authorizationId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "issuedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "repositoryFingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "taskContextDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "baseSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "toolNames": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "visual_hive_get_task_context",
+              "visual_hive_get_issue_context",
+              "visual_hive_search_surface",
+              "visual_hive_get_visual_asset",
+              "visual_hive_get_screenshot_set",
+              "visual_hive_get_browser_evidence",
+              "visual_hive_compare_assets",
+              "visual_hive_get_repair_validation"
+            ]
+          },
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "assetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "budgetDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "configDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "toolRegistryDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "promptSchemaDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authorizationDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptId",
+        "ordinal",
+        "state",
+        "startedAt",
+        "promptDigest",
+        "turnIds",
+        "validationRequestIds"
+      ],
+      "properties": {
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "started",
+            "candidate",
+            "failed",
+            "blocked",
+            "exhausted"
+          ]
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "promptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "turnIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "candidatePatchDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidateHeadSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "candidateHeadTreeSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "validationRequestIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "started"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "completedAt"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "candidate"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt",
+              "candidatePatchDigest",
+              "candidateHeadSha",
+              "candidateHeadTreeSha"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "failed",
+                  "blocked",
+                  "exhausted"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "candidatePatchDigest"
+                ]
+              },
+              {
+                "required": [
+                  "candidateHeadSha"
+                ]
+              },
+              {
+                "required": [
+                  "candidateHeadTreeSha"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "candidatePatchDigest",
+              "candidateHeadSha",
+              "candidateHeadTreeSha"
+            ]
+          }
+        }
+      ]
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turnId",
+        "attemptId",
+        "ordinal",
+        "state",
+        "startedAt",
+        "inputDigest",
+        "providerInputDigest",
+        "consumedToolOutcomeDigests",
+        "providerIdentityDigest"
+      ],
+      "properties": {
+        "turnId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "started",
+            "completed",
+            "failed",
+            "blocked",
+            "lost"
+          ]
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "inputDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "providerInputDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "previousTurnOutputDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "consumedToolOutcomeDigests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "providerIdentityDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "usage": {
+          "$ref": "#/$defs/providerUsage"
+        },
+        "providerReceiptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "outputKind": {
+          "enum": [
+            "tool_request",
+            "final_result",
+            "error"
+          ]
+        },
+        "outputDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "toolCallId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "errorCode": {
+          "$ref": "#/$defs/boundedId"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "started"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "outputKind"
+                  ]
+                },
+                {
+                  "required": [
+                    "outputDigest"
+                  ]
+                },
+                {
+                  "required": [
+                    "toolCallId"
+                  ]
+                },
+                {
+                  "required": [
+                    "errorCode"
+                  ]
+                },
+                {
+                  "required": [
+                    "usage"
+                  ]
+                },
+                {
+                  "required": [
+                    "providerReceiptDigest"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt",
+              "outputKind",
+              "outputDigest",
+              "usage",
+              "providerReceiptDigest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "failed",
+                  "blocked"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt",
+              "errorCode",
+              "usage",
+              "providerReceiptDigest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "lost"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt",
+              "errorCode",
+              "usage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outputKind": {
+                "const": "tool_request"
+              }
+            },
+            "required": [
+              "outputKind"
+            ]
+          },
+          "then": {
+            "required": [
+              "toolCallId"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "toolCallId"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "validationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "idempotencyKey",
+        "sessionId",
+        "attemptId",
+        "kind",
+        "commitRole",
+        "profileId",
+        "profileDigest",
+        "commitSha",
+        "requestDigest",
+        "state",
+        "requestedAt"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "idempotencyKey": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "kind": {
+          "enum": [
+            "reproduction",
+            "capture",
+            "patch_validation"
+          ]
+        },
+        "commitRole": {
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "profileId": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "profileDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "commitSha": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "authorizationDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "state": {
+          "enum": [
+            "requested",
+            "started",
+            "completed",
+            "failed",
+            "blocked",
+            "lost"
+          ]
+        },
+        "requestedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "startedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "receiptDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "errorCode": {
+          "$ref": "#/$defs/boundedId"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "requested"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "startedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "receiptDigest"
+                  ]
+                },
+                {
+                  "required": [
+                    "errorCode"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "started"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "startedAt"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "receiptDigest"
+                  ]
+                },
+                {
+                  "required": [
+                    "errorCode"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "startedAt",
+              "completedAt",
+              "receiptDigest"
+            ],
+            "not": {
+              "required": [
+                "errorCode"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "failed",
+                  "blocked",
+                  "lost"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "completedAt",
+              "errorCode"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
