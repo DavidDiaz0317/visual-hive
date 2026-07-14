@@ -788,8 +788,23 @@ function buildAppContracts(
   const routeContracts = uniqueRoutes(inventory.routes)
     .filter((route) => route.route !== "/" && route.route !== "#/")
     .slice(0, MAX_RECOMMENDED_ROUTE_CONTRACTS)
-    .map((route) => buildRouteContract(selector, targetId, route));
+    .map((route) => buildRouteContract(preferredRouteSelector(route, inventory.selectors), targetId, route));
   return [primaryContract, ...routeContracts];
+}
+
+function preferredRouteSelector(route: SetupDetectedRoute, selectors: SetupDetectedSelector[]): string {
+  const slug = routeContractSlug(route.route);
+  const candidates = [
+    `[data-testid='${slug}-page']`,
+    `[data-testid='${slug}-view']`,
+    `[data-testid='${slug}-screen']`,
+    `[data-testid='${slug}-root']`,
+    `[data-testid='${slug}']`
+  ];
+  for (const candidate of candidates) {
+    if (selectors.some((selector) => selector.selector === candidate)) return candidate;
+  }
+  return "body";
 }
 
 function buildRouteContract(
@@ -818,6 +833,9 @@ function buildRouteContract(
     },
     reasons: [
       `Detected route hint ${route.route} in ${route.sourceFile}.`,
+      assertionSelector === "body"
+        ? "No route-specific stable data-testid was detected, so the starter route contract uses body instead of inventing or reusing a page-specific selector."
+        : `Detected route-specific project-owned selector ${assertionSelector}.`,
       "Route-specific screenshots make initial coverage broader than a single home page without requiring protected targets."
     ]
   };

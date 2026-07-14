@@ -1,11 +1,12 @@
 import { constants } from "node:fs";
 import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { API_500_MUTATION_MARKER, VisualHiveConfigSchema } from "@visual-hive/core";
-import { buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
+import { buildPlaywrightConfigContent, buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
@@ -21,6 +22,32 @@ afterEach(async () => {
 });
 
 describe("buildSpecContent", () => {
+  it("gives hidden generated specs an explicit Playwright discovery root", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-hidden-spec-"));
+    tempDirs.push(tempRoot);
+    const generatedDir = path.join(tempRoot, ".visual-hive", "generated");
+    await mkdir(generatedDir, { recursive: true });
+    const specPath = path.join(generatedDir, "visual-hive.generated.spec.ts");
+    const configPath = path.join(generatedDir, "visual-hive.generated.config.cjs");
+    await writeFile(specPath, 'import { test } from "@playwright/test"; test("hidden generated spec", async () => {});\n', "utf8");
+    await writeFile(configPath, buildPlaywrightConfigContent(), "utf8");
+
+    const playwrightCli = resolvePlaywrightCli(tempRoot);
+    const nodeModules = playwrightNodeModulesPath(playwrightCli);
+    const result = spawnSync(
+      process.execPath,
+      [playwrightCli, "test", ".visual-hive/generated/visual-hive.generated.spec.ts", "--config=.visual-hive/generated/visual-hive.generated.config.cjs", "--list"],
+      {
+        cwd: tempRoot,
+        encoding: "utf8",
+        env: { ...process.env, NODE_PATH: [nodeModules, process.env.NODE_PATH].filter(Boolean).join(path.delimiter) }
+      }
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("hidden generated spec");
+  });
+
   it("includes expected selectors, routes, viewport usage, and mutation hook", () => {
     const config = VisualHiveConfigSchema.parse({
       project: { name: "sample", type: "react-vite", defaultBranch: "main" },

@@ -5634,7 +5634,7 @@ describe("setup recommendations", () => {
     await mkdir(path.join(targetRoot, ".github", "workflows"), { recursive: true });
     await writeFile(
       path.join(targetRoot, "src", "App.tsx"),
-      `<main data-testid="dashboard-page"><a href="/clusters">Clusters</a><a href="/settings">Settings</a><Route path="/workloads" /></main>`,
+      `<main data-testid="dashboard-page"><a href="/clusters">Clusters</a><a href="/settings">Settings</a><Route path="/workloads" /><section data-testid="clusters-page" /><section data-testid="settings-page" /><section data-testid="workloads-page" /></main>`,
       "utf8"
     );
     await writeFile(path.join(targetRoot, "playwright.config.ts"), `export default {};`, "utf8");
@@ -5697,7 +5697,7 @@ jobs:
       screenshots: [{ name: "clusters-desktop", route: "/clusters", viewport: "desktop" }],
       steps: [
         { action: "goto", route: "/clusters" },
-        { action: "assertVisible", selector: "[data-testid='dashboard-page']" }
+        { action: "assertVisible", selector: "[data-testid='clusters-page']" }
       ]
     });
     expect(recommendation.costEstimate).toMatchObject({
@@ -5835,7 +5835,7 @@ jobs:
     expect(parsedYaml.contracts.find((contract) => contract.id === "route-settings-visual-stability")).toMatchObject({
       target: "localPreview",
       severity: "medium",
-      selectors: { mustExist: ["[data-testid='dashboard-page']"] }
+      selectors: { mustExist: ["[data-testid='settings-page']"] }
     });
     expect(parsedYaml.selection.changedFiles).toEqual([
       {

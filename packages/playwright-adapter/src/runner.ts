@@ -122,9 +122,10 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
         });
       }
       const specArg = toPlaywrightPath(path.relative(options.rootDir, spec.path));
+      const configArg = toPlaywrightPath(path.relative(options.rootDir, spec.configPath));
       const outputArg = toPlaywrightPath(path.join(".visual-hive", "playwright-results"));
       playwrightResult = await runPlaywrightCli(
-        ["test", specArg, "--reporter=json", `--output=${outputArg}`],
+        ["test", specArg, `--config=${configArg}`, "--reporter=json", `--output=${outputArg}`],
         options.rootDir,
         {
           VISUAL_HIVE_CI: options.ci ? "true" : "false",
