@@ -87,7 +87,7 @@
             "required": ["contractId", "screenshotName", "route", "state", "viewportId"],
             "properties": {
               "contractId": { "$ref": "#/$defs/boundedId" },
-              "screenshotName": { "$ref": "#/$defs/boundedId" },
+              "screenshotName": { "type": "string", "minLength": 1, "maxLength": 512 },
               "route": { "type": "string", "minLength": 1, "maxLength": 2048 },
               "state": { "type": "string", "minLength": 1, "maxLength": 1024 },
               "viewportId": { "$ref": "#/$defs/boundedId" }

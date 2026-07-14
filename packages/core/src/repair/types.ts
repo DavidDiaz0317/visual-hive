@@ -396,7 +396,7 @@ export const VisualRunEvidenceAssetSchema = z.object({
   height: z.number().int().positive().max(32_768),
   assertion: z.object({
     contractId: BoundedIdSchema,
-    screenshotName: BoundedIdSchema,
+    screenshotName: z.string().trim().min(1).max(512),
     route: z.string().min(1).max(2048),
     state: z.string().min(1).max(1024),
     viewportId: BoundedIdSchema

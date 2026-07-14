@@ -24,7 +24,6 @@ export function buildVisualRunContext(input: VisualRunContextInput): VisualRunCo
     obligationIds: sortedUnique(asset.obligationIds)
   })).sort((left, right) => stableTextCompare(left.assetId, right.assetId));
   uniqueBy(evidenceAssets, (asset) => asset.path);
-  uniqueBy(evidenceAssets, (asset) => asset.sha256);
   for (const asset of evidenceAssets) {
     if (!declaredContracts.has(asset.assertion.contractId)) throw new Error(`Visual Hive run asset ${asset.assetId} names an undeclared contract: ${asset.assertion.contractId}.`);
   }

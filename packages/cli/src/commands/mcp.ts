@@ -4,6 +4,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { visualHiveVersion } from "../version.js";
 import {
+  VISUAL_REPAIR_MCP_TOOL_DEFINITIONS,
+  VISUAL_REPAIR_MCP_TOOL_NAMES,
+  callVisualRepairMcpTool
+} from "./repairMcpTools.js";
+import {
   VISUAL_HIVE_EVIDENCE_RESOURCES,
   createPlan,
   getEvidenceResourceByReadToolName,
@@ -119,12 +124,6 @@ const MCP_STATIC_READ_ONLY_TOOLS: McpToolDefinition[] = [
     mode: "read_only"
   },
   {
-    name: "visual_hive_get_issue_context",
-    title: "Get Issue Context",
-    description: "Return the first active issue candidate with linked evidence, graph, impact, artifacts, and validation command context.",
-    mode: "read_only"
-  },
-  {
     name: "visual_hive_query_visual_graph",
     title: "Query Visual Graph",
     description: "Return compact Visual Graph, vocabulary, unresolved-reference, and impact summaries without rescanning or running targets.",
@@ -145,13 +144,13 @@ const MCP_STATIC_READ_ONLY_TOOLS: McpToolDefinition[] = [
   {
     name: "visual_hive_get_validation_command",
     title: "Get Validation Command",
-    description: "Return the validation command for the first active issue candidate or the latest report reproduction commands.",
+    description: "List validation commands keyed by exact issue fingerprint, or report-level reproduction commands when no issues exist.",
     mode: "read_only"
   },
   {
     name: "visual_hive_get_agent_prompt",
     title: "Get Agent Prompt",
-    description: "Return the latest issue-agent request path and bounded prompt guidance without executing an agent.",
+    description: "List issue-agent request paths keyed by exact issue fingerprint without executing an agent.",
     mode: "read_only"
   },
   {
@@ -199,7 +198,16 @@ const MCP_RESOURCE_READ_TOOLS: McpToolDefinition[] = VISUAL_HIVE_EVIDENCE_RESOUR
     : []
 );
 
-export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [...MCP_STATIC_READ_ONLY_TOOLS, ...MCP_RESOURCE_READ_TOOLS];
+export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
+  ...MCP_STATIC_READ_ONLY_TOOLS,
+  ...MCP_RESOURCE_READ_TOOLS,
+  ...VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.map((tool) => ({
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    mode: "read_only" as const
+  }))
+];
 
 const SETUP_ONLY_RESOURCE_IDS = new Set([
   "setup-recommendations",
@@ -335,6 +343,25 @@ export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = build
   }
 
   for (const tool of manifest.tools) {
+    const parameterized = VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.find((definition) => definition.name === tool.name);
+    if (parameterized) {
+      server.registerTool(
+        tool.name,
+        {
+          title: tool.title,
+          description: tool.description,
+          inputSchema: parameterized.inputSchema,
+          annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+          }
+        },
+        async (args) => callVisualRepairMcpTool(loaded.rootDir, tool.name, args)
+      );
+      continue;
+    }
     server.registerTool(
       tool.name,
       {
@@ -393,6 +420,9 @@ export function buildSetupOnlyMcpManifest(project: string): McpManifest {
 }
 
 export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): Promise<string> {
+  if (VISUAL_REPAIR_MCP_TOOL_NAMES.has(toolName)) {
+    return `Tool ${sanitizeText(toolName)} requires explicit task and artifact identities and must be called through MCP with its declared arguments.`;
+  }
   const resourceTool = getEvidenceResourceByReadToolName(toolName);
   if (resourceTool) {
     const filePath = resourceTool.uri === "visual-hive://config" ? loaded.configPath : path.join(loaded.rootDir, resourceTool.relativePath);
@@ -426,8 +456,6 @@ export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): 
       return listReproductionCommands(loaded.rootDir);
     case "visual_hive_list_issues":
       return JSON.stringify(await listIssues(loaded.rootDir), null, 2);
-    case "visual_hive_get_issue_context":
-      return JSON.stringify(await getIssueContext(loaded.rootDir), null, 2);
     case "visual_hive_query_visual_graph":
       return JSON.stringify(await queryVisualGraph(loaded.rootDir), null, 2);
     case "visual_hive_get_visual_impact":
@@ -700,14 +728,14 @@ async function queryVisualGraph(rootDir: string): Promise<Record<string, unknown
           schemaVersion: vocab.schemaVersion,
           project: vocab.project,
           summary: vocab.summary,
-          termCount: Array.isArray(vocab.terms) ? vocab.terms.length : undefined
+          termCount: Array.isArray(vocab.entries) ? vocab.entries.length : undefined
         }
       : missingJson(".visual-hive/visual-graph-vocab.json", "Run visual-hive analyze or visual-hive graph search first."),
     unresolved: unresolved
       ? {
           schemaVersion: unresolved.schemaVersion,
           summary: unresolved.summary,
-          unresolvedCount: Array.isArray(unresolved.unresolved) ? unresolved.unresolved.length : undefined
+          unresolvedCount: Array.isArray(unresolved.unresolvedReferences) ? unresolved.unresolvedReferences.length : undefined
         }
       : missingJson(".visual-hive/visual-graph-unresolved.json", "Run visual-hive graph impact first."),
     latestImpact: impact
@@ -754,17 +782,17 @@ async function listArtifacts(rootDir: string): Promise<Record<string, unknown>> 
 async function getValidationCommand(rootDir: string): Promise<Record<string, unknown>> {
   const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
   const candidates = Array.isArray(issues?.issues) ? issues.issues.filter(isRecord) : [];
-  const selected = candidates.find((issue) => {
-    const status = readString(issue, "status");
-    return status !== "suppressed" && status !== "resolved_candidate";
-  }) ?? candidates[0];
-  if (selected) {
+  if (candidates.length > 0) {
     return sanitizeObject({
       source: ".visual-hive/issues.json",
-      dedupeFingerprint: readString(selected, "dedupeFingerprint"),
-      title: readString(selected, "title"),
-      validationCommand: readString(selected, "validationCommand") ?? "not recorded",
-      reproductionCommand: readString(selected, "reproductionCommand")
+      selection: "explicit_identity_required",
+      issues: candidates.map((candidate) => ({
+        dedupeFingerprint: readString(candidate, "dedupeFingerprint"),
+        title: readString(candidate, "title"),
+        status: readString(candidate, "status"),
+        validationCommand: readString(candidate, "validationCommand") ?? "not recorded",
+        reproductionCommand: readString(candidate, "reproductionCommand")
+      }))
     });
   }
   const commands = await listReproductionCommands(rootDir);
@@ -778,16 +806,18 @@ async function getValidationCommand(rootDir: string): Promise<Record<string, unk
 async function getAgentPrompt(rootDir: string): Promise<Record<string, unknown>> {
   const issues = await readJsonArtifact<Record<string, unknown>>(path.join(rootDir, ".visual-hive", "issues.json"));
   const candidates = Array.isArray(issues?.issues) ? issues.issues.filter(isRecord) : [];
-  const selected = candidates.find((issue) => {
-    const status = readString(issue, "status");
-    return status !== "suppressed" && status !== "resolved_candidate";
-  }) ?? candidates[0];
-  const agentRequestPath = selected ? path.join(".visual-hive", "agents", safeSegment(readString(selected, "dedupeFingerprint") ?? "issue"), "agent-request.md").replaceAll(path.sep, "/") : undefined;
-  const latestRequest = await findExistingAgentRequest(rootDir, agentRequestPath);
+  const requests = (await Promise.all(candidates.map(async (candidate) => {
+    const dedupeFingerprint = readString(candidate, "dedupeFingerprint");
+    if (!dedupeFingerprint) return undefined;
+    const requestPath = path.join(".visual-hive", "agents", safeSegment(dedupeFingerprint), "agent-request.md").replaceAll(path.sep, "/");
+    const exists = await readJsonlessArtifact(path.join(rootDir, requestPath));
+    return { dedupeFingerprint, requestPath: exists === undefined ? null : requestPath };
+  }))).filter((item): item is { dedupeFingerprint: string; requestPath: string | null } => item !== undefined);
   return sanitizeObject({
-    status: latestRequest ? "available" : "not_generated",
-    requestPath: latestRequest,
-    generateCommand: "visual-hive agent issue-runner --config visual-hive.config.yaml --issue-index 0",
+    status: requests.some((request) => request.requestPath) ? "available" : "not_generated",
+    selection: "explicit_identity_required",
+    requests,
+    generateNote: "Prompt generation remains outside the read-only repair MCP session. Select an exact issue identity through Hive policy.",
     recommendedMcpPath: [
       "visual_hive_get_issue_context",
       "visual_hive_read_issue_queue",
@@ -907,8 +937,7 @@ async function getHiveBeadContext(rootDir: string): Promise<Record<string, unkno
     return missingJson(".visual-hive/hive/hive-beads.json", "Run visual-hive hive beads --config visual-hive.config.yaml first.");
   }
   const beads = hiveBeadsList(hiveBeads);
-  const selected = beads[0];
-  if (!selected) {
+  if (beads.length === 0) {
     return sanitizeObject({
       status: "missing",
       message: "No Hive bead projections are available.",
@@ -916,13 +945,11 @@ async function getHiveBeadContext(rootDir: string): Promise<Record<string, unkno
       networkCallsMade: 0
     });
   }
-  const selectedRef = readString(selected, "external_ref");
-  const workOrder = Array.isArray(workOrders?.workOrders)
-    ? workOrders.workOrders.filter(isRecord).find((order) => readString(order, "externalRef") === selectedRef || readString(order, "dedupeFingerprint") === selectedRef)
-    : undefined;
+  const orders = Array.isArray(workOrders?.workOrders) ? workOrders.workOrders.filter(isRecord) : [];
   return sanitizeObject({
-    bead: selected,
-    workOrder: workOrder ?? null,
+    status: "identity_required",
+    beads: beads.map((bead) => ({ id: readString(bead, "id"), externalRef: readString(bead, "external_ref"), title: readString(bead, "title") })),
+    workOrders: orders.map((order) => ({ id: readString(order, "id"), externalRef: readString(order, "externalRef"), dedupeFingerprint: readString(order, "dedupeFingerprint") })),
     recommendedReadPath: [
       "visual_hive_get_hive_export",
       "visual_hive_list_hive_beads",
@@ -957,7 +984,8 @@ async function getHiveAgentWorkOrder(rootDir: string): Promise<Record<string, un
   return sanitizeObject({
     schemaVersion: workOrders.schemaVersion,
     project: workOrders.project,
-    selectedWorkOrder: orders[0] ?? null,
+    selection: "explicit_identity_required",
+    workOrders: orders,
     count: orders.length,
     policy: workOrders.policy,
     safety: {

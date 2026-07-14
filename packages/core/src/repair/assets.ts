@@ -3,10 +3,13 @@ import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { sha256Bytes } from "./canonical.js";
 import { parseVisualHiveTaskContext } from "./build.js";
+import { parseVisualRunContext } from "./runContext.js";
 import {
   RelativeArtifactPathSchema,
   VisualTaskAssetSchema,
   type VisualHiveTaskContext,
+  type VisualRunContext,
+  type VisualRunEvidenceAsset,
   type VisualTaskAsset
 } from "./types.js";
 
@@ -28,6 +31,29 @@ export interface LoadedVisualTaskAsset {
   commitSha: string;
   contextDigest: string;
   asset: VisualTaskAsset;
+  data: Buffer;
+}
+
+export interface LoadVisualRunEvidenceAssetOptions {
+  evidenceRoot: string;
+  runContext: VisualRunContext;
+  taskId: string;
+  taskContextDigest: string;
+  repository: string;
+  commitSha: string;
+  runId: string;
+  assetId: string;
+  maxBytes?: number;
+}
+
+export interface LoadedVisualRunEvidenceAsset {
+  taskId: string;
+  taskContextDigest: string;
+  repository: string;
+  commitSha: string;
+  runId: string;
+  runContextDigest: string;
+  asset: VisualRunEvidenceAsset;
   data: Buffer;
 }
 
@@ -57,6 +83,35 @@ export async function loadVisualTaskAsset(options: LoadVisualTaskAssetOptions): 
     repository: context.repository.name,
     commitSha: context.repository.baseSha,
     contextDigest: context.contextDigest,
+    asset,
+    data: inspected.data
+  };
+}
+
+export async function loadVisualRunEvidenceAsset(options: LoadVisualRunEvidenceAssetOptions): Promise<LoadedVisualRunEvidenceAsset> {
+  const context = parseVisualRunContext(options.runContext);
+  if (context.taskId !== options.taskId) throw new Error(`Visual Hive task identity mismatch: expected ${context.taskId}.`);
+  if (context.taskContextDigest !== options.taskContextDigest) throw new Error(`Visual Hive task context digest mismatch: expected ${context.taskContextDigest}.`);
+  if (context.repository.name !== options.repository) throw new Error(`Visual Hive repository identity mismatch: expected ${context.repository.name}.`);
+  if (context.repository.commitSha !== options.commitSha) throw new Error(`Visual Hive commit identity mismatch: expected ${context.repository.commitSha}.`);
+  if (context.runId !== options.runId) throw new Error(`Visual Hive run identity mismatch: expected ${context.runId}.`);
+  const asset = context.evidenceAssets.find((candidate) => candidate.assetId === options.assetId);
+  if (!asset) throw new Error(`Visual Hive run ${context.runId} has no asset ${options.assetId}.`);
+
+  const inspected = await readAndInspectAsset(options.evidenceRoot, asset.path, options.maxBytes ?? MAX_ASSET_BYTES);
+  if (inspected.data.byteLength !== asset.size) throw new Error(`Visual Hive asset ${asset.assetId} size mismatch: expected ${asset.size}, got ${inspected.data.byteLength}.`);
+  if (inspected.sha256 !== asset.sha256) throw new Error(`Visual Hive asset ${asset.assetId} digest mismatch: expected ${asset.sha256}, got ${inspected.sha256}.`);
+  if (inspected.mediaType !== asset.mediaType) throw new Error(`Visual Hive asset ${asset.assetId} media type mismatch: expected ${asset.mediaType}, got ${inspected.mediaType}.`);
+  if (inspected.width !== asset.width) throw new Error(`Visual Hive asset ${asset.assetId} width mismatch: expected ${asset.width}, got ${inspected.width}.`);
+  if (inspected.height !== asset.height) throw new Error(`Visual Hive asset ${asset.assetId} height mismatch: expected ${asset.height}, got ${inspected.height}.`);
+
+  return {
+    taskId: context.taskId,
+    taskContextDigest: context.taskContextDigest,
+    repository: context.repository.name,
+    commitSha: context.repository.commitSha,
+    runId: context.runId,
+    runContextDigest: context.runContextDigest,
     asset,
     data: inspected.data
   };

@@ -4,14 +4,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildVisualHiveTaskContext,
+  buildVisualRunContext,
   canonicalSha256,
   computeVisualRepositoryFingerprint,
   computeVisualValidationProfileDigest,
+  computeVisualValidationPolicyDigest,
   inspectDeclaredVisualTaskAsset,
+  loadVisualRunEvidenceAsset,
   loadVisualTaskAsset,
   sha256Bytes,
   sha256Utf8,
   type VisualHiveTaskContext,
+  type VisualRunContext,
   type VisualTaskAsset
 } from "../src/index.js";
 
@@ -56,6 +60,33 @@ describe("verified Visual Hive task assets", () => {
     await expect(loadVisualTaskAsset({ ...common, repository: "owner/other" })).rejects.toThrow("repository identity mismatch");
     await expect(loadVisualTaskAsset({ ...common, commitSha: commit("b") })).rejects.toThrow("commit identity mismatch");
     await expect(loadVisualTaskAsset({ ...common, assetId: "asset.unknown" })).rejects.toThrow("has no asset");
+  });
+
+  it("loads run evidence only through exact run, task, repository, commit, and digest identity", async () => {
+    const root = await makeRoot();
+    await writeAsset(root, "images/actual.png", png);
+    const asset = await inspect(root, "images/actual.png", "image/png", "asset.reference");
+    const task = taskContext(asset);
+    const run = runContext(task, asset);
+    const common = {
+      evidenceRoot: root,
+      runContext: run,
+      taskId: task.taskId,
+      taskContextDigest: task.contextDigest,
+      repository: task.repository.name,
+      commitSha: run.repository.commitSha,
+      runId: run.runId,
+      assetId: "asset.actual"
+    };
+
+    const loaded = await loadVisualRunEvidenceAsset(common);
+    expect(loaded.data.equals(png)).toBe(true);
+    expect(loaded.runContextDigest).toBe(run.runContextDigest);
+    await expect(loadVisualRunEvidenceAsset({ ...common, runId: "run.other" })).rejects.toThrow("run identity mismatch");
+    await expect(loadVisualRunEvidenceAsset({ ...common, taskContextDigest: digest("f") })).rejects.toThrow("task context digest mismatch");
+    await expect(loadVisualRunEvidenceAsset({ ...common, repository: "owner/other" })).rejects.toThrow("repository identity mismatch");
+    await expect(loadVisualRunEvidenceAsset({ ...common, commitSha: commit("f") })).rejects.toThrow("commit identity mismatch");
+    await expect(loadVisualRunEvidenceAsset({ ...common, assetId: "asset.unknown" })).rejects.toThrow("has no asset");
   });
 
   it("recomputes size, digest, MIME, and dimensions from bytes", async () => {
@@ -212,5 +243,74 @@ function taskContext(asset: VisualTaskAsset): VisualHiveTaskContext {
       status: "mapped"
     }],
     sourceContext: { digest: canonicalSha256({ files, omittedPaths: 0, truncated: false }), files, omittedPaths: 0, truncated: false }
+  });
+}
+
+function runContext(task: VisualHiveTaskContext, asset: VisualTaskAsset): VisualRunContext {
+  const cases = [{
+    caseId: "case.default",
+    targetId: "target.app",
+    route: "/",
+    state: "default",
+    viewport: { viewportId: "viewport.desktop", width: 1280, height: 720, deviceScaleFactor: 1 },
+    contractIds: ["contract.visual"]
+  }];
+  const thresholds = [{ contractId: "contract.visual", maxDiffPixelRatio: 0, missingBaseline: "fail" as const }];
+  return buildVisualRunContext({
+    schemaVersion: "visual-hive.run-context.v1",
+    digestAlgorithm: "visual-hive.canonical-json.sha256.v1",
+    generatedAt: "2026-07-14T12:30:00.000Z",
+    runId: "run.before",
+    phase: "before",
+    taskId: task.taskId,
+    taskContextDigest: task.contextDigest,
+    findingFingerprint: "finding.visual",
+    repository: {
+      name: task.repository.name,
+      ...(task.repository.repositoryId ? { repositoryId: task.repository.repositoryId } : {}),
+      repositoryFingerprint: task.repository.repositoryFingerprint,
+      commitSha: task.repository.baseSha
+    },
+    execution: {
+      commitSha: task.repository.baseSha,
+      profileId: "profile.repair",
+      profileDigest: task.profiles[0]!.profileDigest,
+      configDigest: digest("1"),
+      validationPolicyDigest: computeVisualValidationPolicyDigest("command.playwright", thresholds),
+      contractInventoryDigest: canonicalSha256(["contract.visual"]),
+      planDigest: digest("2"),
+      testPlanDigest: digest("3"),
+      toolRegistryDigest: digest("4"),
+      baselineIdentityDigest: digest("5"),
+      executionMatrixDigest: canonicalSha256(cases),
+      browser: { name: "chromium", version: "130" },
+      environment: {
+        os: "windows",
+        architecture: "x64",
+        nodeVersion: "22.13.1",
+        playwrightVersion: "1.54.1",
+        fontManifestDigest: digest("6"),
+        locale: "en-US",
+        timezone: "UTC"
+      },
+      cases
+    },
+    producer: { visualHiveVersion: "0.3.2", visualHiveCommit: commit("c"), playwrightVersion: "1.54.1" },
+    command: { validationCommandId: "command.playwright", startedAt: "2026-07-14T12:29:00.000Z", completedAt: "2026-07-14T12:30:00.000Z", exitCode: 0 },
+    report: { path: "report.json", sha256: digest("7") },
+    evidenceAssets: [{
+      assetId: "asset.actual",
+      role: "actual",
+      path: asset.path,
+      mediaType: asset.mediaType,
+      sha256: asset.sha256,
+      size: asset.size,
+      width: asset.width!,
+      height: asset.height!,
+      assertion: { contractId: "contract.visual", screenshotName: "Visual card", route: "/", state: "default", viewportId: "viewport.desktop" },
+      obligationIds: ["obligation.visual"]
+    }],
+    thresholds,
+    capture: { status: "passed", failures: [] }
   });
 }

@@ -80,6 +80,27 @@ The intended flow is:
 4. Use `visual_hive_get_validation_command` before proposing any write-preview change.
 5. Use `visual_hive_get_handoff_context` only when the issue routes to trusted GitHub or Hive handoff.
 
+`visual_hive_get_issue_context` now requires the exact task identity, task-context digest, repository, and issue fingerprint. It never selects the first active issue. Legacy zero-argument callers receive an identity-required response.
+
+## Multimodal Repair Tools
+
+Hive treatment sessions receive exactly these read-only Visual Hive tools:
+
+- `visual_hive_get_task_context`
+- `visual_hive_get_issue_context`
+- `visual_hive_search_surface`
+- `visual_hive_get_visual_asset`
+- `visual_hive_get_screenshot_set`
+- `visual_hive_get_browser_evidence`
+- `visual_hive_compare_assets`
+- `visual_hive_get_repair_validation`
+
+Every call requires a repository, task ID, and canonical task-context digest. Run-backed calls additionally require the exact run-context digest and commit. Receipt retrieval requires the finding, repair head, and receipt digest. Callers provide identities only; filesystem paths are never accepted.
+
+Artifacts are stored below a content-addressed repair-session directory. Reads reject traversal, symlinks, oversized content, digest drift, repository drift, stale commits, ambiguous issue identities, and ambiguous screenshot roles. Image tools return raw MCP image blocks plus a compact JSON text fallback. Comparison uses Visual Hive's fixed Pixelmatch algorithm in memory and cannot accept a caller-supplied threshold.
+
+These tools never execute Playwright, modify baselines, write source, call GitHub, or decide lifecycle state. Hive brokers declared reproduction and validation profiles; Visual Hive's deterministic receipt remains the visual oracle.
+
 ## Disabled Execution
 
 These execution or write-capable tools are described in the manifest as disabled by default:

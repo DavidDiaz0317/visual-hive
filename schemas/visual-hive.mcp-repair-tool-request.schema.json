@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.mcp-repair-tool-request.schema.json",
+  "title": "Visual Hive repair MCP tool request",
+  "description": "Identity-only request envelope for the eight read-only Visual Hive treatment tools.",
+  "oneOf": [
+    { "$ref": "#/$defs/getTaskContext" },
+    { "$ref": "#/$defs/getIssueContext" },
+    { "$ref": "#/$defs/searchSurface" },
+    { "$ref": "#/$defs/getVisualAsset" },
+    { "$ref": "#/$defs/getScreenshotSet" },
+    { "$ref": "#/$defs/getBrowserEvidence" },
+    { "$ref": "#/$defs/compareAssets" },
+    { "$ref": "#/$defs/getRepairValidation" }
+  ],
+  "$defs": {
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "taskIdentity": {
+      "type": "object",
+      "required": ["taskId", "repository", "taskContextDigest"],
+      "properties": {
+        "taskId": { "$ref": "#/$defs/boundedId" },
+        "repository": { "$ref": "#/$defs/repository" },
+        "taskContextDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "runIdentity": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["runId", "runContextDigest", "commitSha", "contractId"],
+          "properties": {
+            "runId": { "$ref": "#/$defs/boundedId" },
+            "runContextDigest": { "$ref": "#/$defs/sha256" },
+            "commitSha": { "$ref": "#/$defs/commit" },
+            "contractId": { "$ref": "#/$defs/boundedId" }
+          }
+        }
+      ]
+    },
+    "taskAssetLocator": {
+      "type": "object",
+      "required": ["source", "assetId"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "const": "task" },
+        "assetId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "runAssetLocator": {
+      "type": "object",
+      "required": ["source", "runId", "runContextDigest", "commitSha", "assetId"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "const": "run" },
+        "runId": { "$ref": "#/$defs/boundedId" },
+        "runContextDigest": { "$ref": "#/$defs/sha256" },
+        "commitSha": { "$ref": "#/$defs/commit" },
+        "assetId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "assetLocator": {
+      "oneOf": [
+        { "$ref": "#/$defs/taskAssetLocator" },
+        { "$ref": "#/$defs/runAssetLocator" }
+      ]
+    },
+    "getTaskContextArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["baseSha"],
+          "properties": {
+            "baseSha": { "$ref": "#/$defs/commit" },
+            "section": { "enum": ["summary", "issue", "assets", "graph", "profiles", "obligations", "source"], "default": "summary" },
+            "cursor": { "type": "integer", "minimum": 0, "default": 0 },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 },
+            "maxChars": { "type": "integer", "minimum": 1, "maximum": 32000, "default": 16000 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getIssueContextArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["issueFingerprint"],
+          "properties": {
+            "issueFingerprint": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "searchSurfaceArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "query": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "kinds": {
+              "type": "array",
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": { "enum": ["file", "symbol", "component", "route", "selector", "contract", "flow", "mutation"] },
+              "default": []
+            },
+            "cursor": { "type": "integer", "minimum": 0, "default": 0 },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getVisualAssetArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["assetId"],
+          "properties": {
+            "assetId": { "$ref": "#/$defs/boundedId" },
+            "maxBytes": { "type": "integer", "minimum": 1, "maximum": 8388608, "default": 8388608 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getScreenshotSetArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/runIdentity" },
+        {
+          "type": "object",
+          "required": ["screenshotName", "route", "state", "viewportId"],
+          "properties": {
+            "screenshotName": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "route": { "type": "string", "minLength": 1, "maxLength": 2048 },
+            "state": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "viewportId": { "$ref": "#/$defs/boundedId" },
+            "roles": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": { "enum": ["baseline", "actual", "diff"] },
+              "default": ["baseline", "actual", "diff"]
+            },
+            "maxBytesPerImage": { "type": "integer", "minimum": 1, "maximum": 8388608, "default": 8388608 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getBrowserEvidenceArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/runIdentity" },
+        {
+          "type": "object",
+          "properties": {
+            "includeImages": { "type": "boolean", "default": true },
+            "maxImages": { "type": "integer", "minimum": 0, "maximum": 4, "default": 2 },
+            "maxBytesPerImage": { "type": "integer", "minimum": 1, "maximum": 8388608, "default": 8388608 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "compareAssetsArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "$ref": "#/$defs/assetLocator" },
+            "after": { "$ref": "#/$defs/assetLocator" },
+            "maxBytesPerImage": { "type": "integer", "minimum": 1, "maximum": 8388608, "default": 8388608 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getRepairValidationArgs": {
+      "allOf": [
+        { "$ref": "#/$defs/taskIdentity" },
+        {
+          "type": "object",
+          "required": ["validationId", "findingFingerprint", "headSha", "receiptDigest"],
+          "properties": {
+            "validationId": { "$ref": "#/$defs/boundedId" },
+            "findingFingerprint": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "headSha": { "$ref": "#/$defs/commit" },
+            "receiptDigest": { "$ref": "#/$defs/sha256" },
+            "detail": { "enum": ["summary", "full"], "default": "summary" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "getTaskContext": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_task_context" },
+        "arguments": { "$ref": "#/$defs/getTaskContextArgs" }
+      }
+    },
+    "getIssueContext": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_issue_context" },
+        "arguments": { "$ref": "#/$defs/getIssueContextArgs" }
+      }
+    },
+    "searchSurface": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_search_surface" },
+        "arguments": { "$ref": "#/$defs/searchSurfaceArgs" }
+      }
+    },
+    "getVisualAsset": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_visual_asset" },
+        "arguments": { "$ref": "#/$defs/getVisualAssetArgs" }
+      }
+    },
+    "getScreenshotSet": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_screenshot_set" },
+        "arguments": { "$ref": "#/$defs/getScreenshotSetArgs" }
+      }
+    },
+    "getBrowserEvidence": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_browser_evidence" },
+        "arguments": { "$ref": "#/$defs/getBrowserEvidenceArgs" }
+      }
+    },
+    "compareAssets": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_compare_assets" },
+        "arguments": { "$ref": "#/$defs/compareAssetsArgs" }
+      }
+    },
+    "getRepairValidation": {
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "visual_hive_get_repair_validation" },
+        "arguments": { "$ref": "#/$defs/getRepairValidationArgs" }
+      }
+    }
+  }
+}

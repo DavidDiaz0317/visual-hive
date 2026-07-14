@@ -65,6 +65,22 @@ describe("visual-hive.run-context.v1", () => {
     expect(() => buildVisualRunContext(failedWithoutReason)).toThrow("requires a reason");
   });
 
+  it("allows distinct evidence identities to contain identical image bytes", () => {
+    const input = runInput();
+    input.evidenceAssets[0]!.assertion.screenshotName = "Card desktop state";
+    input.evidenceAssets.push({
+      ...structuredClone(input.evidenceAssets[0]!),
+      assetId: "asset.reference",
+      role: "reference",
+      path: ".visual-hive/results/card-reference.png"
+    });
+
+    const built = buildVisualRunContext(input);
+    expect(built.evidenceAssets).toHaveLength(2);
+    expect(built.evidenceAssets[0]!.sha256).toBe(built.evidenceAssets[1]!.sha256);
+    expect(built.evidenceAssets[0]!.assertion.screenshotName).toBe("Card desktop state");
+  });
+
   it("rejects digest tampering and noncanonical self-digested inputs", () => {
     const built = buildVisualRunContext(runInput());
     expect(() => parseVisualRunContext({ ...built, runContextDigest: sha("f") })).toThrow("digest mismatch");
