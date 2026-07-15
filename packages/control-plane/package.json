@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/control-plane",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Local-first Visual Hive Control Plane UI server.",
   "type": "module",
   "license": "MIT",

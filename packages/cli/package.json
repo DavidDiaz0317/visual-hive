@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/cli",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Visual Hive command-line interface.",
   "type": "module",
   "license": "MIT",
