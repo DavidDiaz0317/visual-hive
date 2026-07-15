@@ -81,8 +81,8 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     expect(before.report.mode).toBe("full");
     expect(before.report.repository).toMatchObject({ repository: fixture.repository, commitSha: fixture.baseSha });
     expect(verifyVisualHiveBundleDigest(before.bundleManifest)).toBe(true);
-    expect(before.bundleManifest.scan).toMatchObject({ scope: "full", authoritativeForResolution: true });
-    expect(before.bundleManifest.observations[0]?.state).toBe("absent");
+    expect(before.bundleManifest.scan).toMatchObject({ scope: "full", authoritativeForResolution: false });
+    expect(before.bundleManifest.observations[0]?.state).toBe("present");
     expect(before.artifactPaths).toContain(before.reportPath);
     expect(before.artifactPaths).toContain(before.runContextPath);
     expect(before.artifactPaths).toContain(before.runtimeIdentityPath);
@@ -93,6 +93,7 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     });
     expect(before.runDirectory).toBe(`${expectedSessionRoot}/runs/${before.runContext.runId}`);
     expect(before.runContext.evidenceAssets.map((asset) => asset.role)).toEqual(["actual", "baseline"]);
+    expect(before.runContext.evidenceAssets.every((asset) => asset.obligationIds.join(",") === "obligation.card")).toBe(true);
     expect(before.runContext.evidenceAssets.find((asset) => asset.role === "actual")?.path.startsWith(`${expectedSessionRoot}/runs/exec.`)).toBe(true);
     expect(before.report.executionBinding).toEqual(before.runContext.command.executionBinding);
     expect(allSerializedPaths(before)).not.toContain(fixture.rootDir);
@@ -137,6 +138,51 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     expect(after.runContext.execution.executionMatrixDigest).toBe(before.runContext.execution.executionMatrixDigest);
     expect(verifyVisualHiveBundleDigest(after.bundleManifest)).toBe(true);
     await verifyBundledFiles(fixture.rootDir, after.bundleDirectory, after.bundleManifest);
+  }, 120_000);
+
+  it("keeps mutable URL and unsandboxed command targets advisory even when the source claims trust", async () => {
+    const urlFixture = await createRepairFixture({ baseline: true });
+    const urlRequest = validationRequest(urlFixture, urlFixture.baseSha, "before");
+    const urlCapture = await runPlaywrightRepairCapture({
+      ...captureOptions(urlFixture, urlRequest, "before"),
+      source: { ref: "refs/heads/main", event: "verified-host-claim", trusted: true }
+    });
+    expect(urlCapture.captureStatus).toBe("passed");
+    expect(urlCapture.bundleManifest.source.trusted).toBe(true);
+    expect(urlCapture.bundleManifest.observations[0]?.state).toBe("present");
+    expect(urlCapture.bundleManifest.scan.authoritativeForResolution).toBe(false);
+
+    const commandFixture = await createRepairFixture({ baseline: true });
+    await closeServer(commandFixture.server);
+    const port = Number(new URL(commandFixture.url).port);
+    await writeFile(path.join(commandFixture.rootDir, "command-server.cjs"), [
+      "const http = require('node:http');",
+      `const html = ${JSON.stringify(pageHtml("EXPECTED RENDER"))};`,
+      `http.createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end(html); }).listen(${port}, '127.0.0.1');`
+    ].join("\n"), "utf8");
+    commandFixture.config = VisualHiveConfigSchema.parse({
+      ...commandFixture.config,
+      targets: { app: { kind: "command", serve: "node command-server.cjs", url: commandFixture.url, prSafe: true, cost: "cheap" } }
+    });
+    commandFixture.plan = {
+      ...commandFixture.plan,
+      targets: [{ ...commandFixture.plan.targets[0]!, kind: "command", url: commandFixture.url }]
+    };
+    const { authorizationDigest: _authorizationDigest, ...authorizationInput } = commandFixture.authorization;
+    void _authorizationDigest;
+    commandFixture.authorization = buildHiveExecutionAuthorization({
+      ...authorizationInput,
+      configDigest: canonicalSha256(commandFixture.config)
+    });
+    const commandRequest = validationRequest(commandFixture, commandFixture.baseSha, "before");
+    const commandCapture = await runPlaywrightRepairCapture({
+      ...captureOptions(commandFixture, commandRequest, "before"),
+      source: { ref: "refs/heads/main", event: "verified-host-claim", trusted: true }
+    });
+    expect(commandCapture.captureStatus).toBe("passed");
+    expect(commandCapture.bundleManifest.source.trusted).toBe(true);
+    expect(commandCapture.bundleManifest.observations[0]?.state).toBe("present");
+    expect(commandCapture.bundleManifest.scan.authoritativeForResolution).toBe(false);
   }, 120_000);
 
   it("preserves a real failed-before screenshot and its deterministic bundle instead of discarding defect evidence", async () => {
@@ -219,6 +265,15 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     })).rejects.toThrow("authorized base config digest");
     expect(() => parsePlaywrightRepairCaptureFinding({ ...fixture.finding, unexpected: true })).toThrow("missing or unknown fields");
 
+    const mismatchedObligation = await createRepairFixture({ baseline: true });
+    rebindFixtureTask(mismatchedObligation, {
+      ...mismatchedObligation.task.obligations[0]!,
+      route: "/unrelated"
+    });
+    const mismatchedRequest = validationRequest(mismatchedObligation, mismatchedObligation.baseSha, "before");
+    await expect(runPlaywrightRepairCapture(captureOptions(mismatchedObligation, mismatchedRequest, "before")))
+      .rejects.toThrow("does not match an affected obligation's contract, route, state, and viewport");
+
     const missing = await createRepairFixture({ baseline: false });
     const missingRequest = validationRequest(missing, missing.baseSha, "before");
     const missingResult = await runPlaywrightRepairCapture(captureOptions(missing, missingRequest, "before"));
@@ -270,8 +325,8 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     const result = await runPlaywrightRepairCapture(captureOptions(fixture, request, "before"));
     expect(result.report.status).toBe("failed");
     expect(result.report.results[0]?.screenshotAssertions?.[0]?.status).toBe("passed");
-    expect(result.bundleManifest.observations[0]?.state).toBe("absent");
-    expect(result.bundleManifest.scan.authoritativeForResolution).toBe(true);
+    expect(result.bundleManifest.observations[0]?.state).toBe("present");
+    expect(result.bundleManifest.scan.authoritativeForResolution).toBe(false);
   }, 120_000);
 
   it("publishes a deterministic blocked capture when every target fails before browser runtime identity exists", async () => {
@@ -316,11 +371,10 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     const fixture = await createRepairFixture({ baseline: true });
     const request = validationRequest(fixture, fixture.baseSha, "before");
     let clockReads = 0;
-    const activeBase = Date.now();
     const expired = new Date(Date.parse(fixture.authorization.expiresAt) + 1);
     await expect(runPlaywrightRepairCapture({
       ...captureOptions(fixture, request, "before"),
-      now: () => (++clockReads >= 4 ? expired : new Date(activeBase + clockReads * 1_000))
+      now: () => (++clockReads >= 4 ? expired : new Date())
     })).rejects.toThrow("authorization expired before Playwright repair capture completed");
     const completion = path.join(
       fixture.rootDir,
@@ -843,6 +897,22 @@ function captureOptions(
     },
     source: { ref: "refs/heads/main", event: "local", trusted: false }
   };
+}
+
+function rebindFixtureTask(
+  fixture: RepairFixture,
+  obligation: VisualHiveTaskContext["obligations"][number]
+): void {
+  const { contextDigest: _contextDigest, safety: _safety, ...taskInput } = fixture.task;
+  void _contextDigest;
+  void _safety;
+  fixture.task = buildVisualHiveTaskContext({ ...taskInput, obligations: [obligation] });
+  const { authorizationDigest: _authorizationDigest, ...authorizationInput } = fixture.authorization;
+  void _authorizationDigest;
+  fixture.authorization = buildHiveExecutionAuthorization({
+    ...authorizationInput,
+    taskContextDigest: fixture.task.contextDigest
+  });
 }
 
 function pageHtml(label: string): string {

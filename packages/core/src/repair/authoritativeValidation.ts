@@ -426,6 +426,7 @@ function verifyReportBinding(report: ParsedReport, run: VisualRunContext, task: 
   if (report.results.some((item) => !selectedContracts.includes(item.contractId))) throw new Error(`Visual Hive report contains a result outside run ${run.runId}.`);
   const evaluatedContracts = new Set(manifest.scan.evaluatedContracts);
   for (const contractId of selectedContracts) if (!evaluatedContracts.has(contractId)) throw new Error(`Visual Hive bundle scan does not bind evaluated contract ${contractId}.`);
+  for (const asset of run.evidenceAssets) verifyEvidenceObligationBinding(run, task, asset);
   verifyReportSummary(report);
   const usedAssetIds = new Set<string>();
   const baselineRecords: Array<{ path: string; sha256: string | null; size: number | null }> = [];
@@ -471,6 +472,22 @@ function verifyReportBinding(report: ParsedReport, run: VisualRunContext, task: 
   if (unused.length > 0) throw new Error(`Visual Hive run ${run.runId} contains screenshot evidence not bound to a structured assertion.`);
 }
 
+function verifyEvidenceObligationBinding(run: VisualRunContext, task: VisualHiveTaskContext, asset: VisualRunEvidenceAsset): void {
+  const matchingCases = run.execution.cases.filter((executionCase) =>
+    executionCase.contractIds.includes(asset.assertion.contractId) && executionCase.route === asset.assertion.route &&
+    executionCase.state === asset.assertion.state && executionCase.viewport.viewportId === asset.assertion.viewportId
+  );
+  if (matchingCases.length !== 1) {
+    throw new Error(`Visual Hive evidence asset ${asset.assetId} must bind exactly one executed contract, route, state, and viewport.`);
+  }
+  const expectedObligationIds = sortedUnique(task.obligations
+    .filter((obligation) => isExecutableScreenshotObligation(obligation) && obligationMatchesEvidenceAssertion(obligation, asset))
+    .map((obligation) => obligation.obligationId));
+  if (canonicalJson(asset.obligationIds) !== canonicalJson(expectedObligationIds)) {
+    throw new Error(`Visual Hive evidence asset ${asset.assetId} obligation binding does not match its declared contract, route, state, and viewport.`);
+  }
+}
+
 function exactScreenshotAsset(
   run: VisualRunContext,
   screenshot: z.infer<typeof ScreenshotAssertionSchema>,
@@ -502,8 +519,8 @@ function verifyCaptureBinding(report: ParsedReport, run: VisualRunContext, manif
   if (manifest.mode !== "full") {
     throw new Error(`Visual Hive ${phase} repair bundle must identify a full execution.`);
   }
-  if (manifest.scan.authoritativeForResolution !== (expectedStatus !== "blocked")) {
-    throw new Error(`Visual Hive ${phase} bundle authority does not match its capture completeness.`);
+  if (manifest.scan.authoritativeForResolution && expectedStatus === "blocked") {
+    throw new Error(`Visual Hive ${phase} bundle cannot claim authority from a blocked capture.`);
   }
 }
 
@@ -570,13 +587,22 @@ function deriveObligations(task: VisualHiveTaskContext, before: VerifiedRunArtif
   for (const obligation of task.obligations) {
     const deterministic = obligation.authority === "deterministic";
     const results = obligation.mappedContractIds.map((contractId) => afterResults.get(contractId));
-    const pairs = pairedActualAssets(obligation.obligationId, before, after);
+    const pairing = pairedActualAssets(obligation, before, after);
+    const pairs = pairing.pairs;
     const evidenceAssetIds = sortedUnique(pairs.flatMap((pair) => [pair.before.assetId, pair.after.assetId]));
     let status: "passed" | "failed" | "blocked" | "not_evaluated";
     let reason: string | undefined;
-    if (obligation.mappedContractIds.length === 0 || results.some((result) => !result)) {
+    if (!isExecutableScreenshotObligation(obligation)) {
+      status = deterministic ? "blocked" : "not_evaluated";
+      reason = obligation.status === "unresolved" || obligation.status === "blocked"
+        ? obligation.unresolvedReason ?? `Obligation is ${obligation.status}.`
+        : "Obligation has no executable mapped status with an exact route, state, and viewport.";
+    } else if (obligation.mappedContractIds.length === 0 || results.some((result) => !result)) {
       status = "not_evaluated";
       reason = "One or more obligation contracts have no structured after-run result.";
+    } else if (!pairing.complete) {
+      status = "blocked";
+      reason = pairing.reason;
     } else if (results.some((result) => result!.status === "failed" && !resultBlockedOnly(after.report, result!))) {
       status = "failed";
       reason = results.flatMap((result) => result?.errors ?? [])[0] ?? "A deterministic obligation contract failed.";
@@ -602,20 +628,58 @@ function deriveObligations(task: VisualHiveTaskContext, before: VerifiedRunArtif
   return { obligations, screenshotTriplets };
 }
 
-function pairedActualAssets(obligationId: string, before: VerifiedRunArtifacts, after: VerifiedRunArtifacts): Array<{ before: VisualRunEvidenceAsset; after: VisualRunEvidenceAsset }> {
-  const beforeAssets = before.runContext.evidenceAssets.filter((asset) => asset.role === "actual" && asset.obligationIds.includes(obligationId));
-  const afterAssets = after.runContext.evidenceAssets.filter((asset) => asset.role === "actual" && asset.obligationIds.includes(obligationId));
+function pairedActualAssets(
+  obligation: VisualHiveTaskContext["obligations"][number],
+  before: VerifiedRunArtifacts,
+  after: VerifiedRunArtifacts
+): { pairs: Array<{ before: VisualRunEvidenceAsset; after: VisualRunEvidenceAsset }>; complete: boolean; reason?: string } {
+  const beforeAssets = before.runContext.evidenceAssets.filter((asset) =>
+    asset.role === "actual" && asset.obligationIds.includes(obligation.obligationId) && obligationMatchesEvidenceAssertion(obligation, asset)
+  );
+  const afterAssets = after.runContext.evidenceAssets.filter((asset) =>
+    asset.role === "actual" && asset.obligationIds.includes(obligation.obligationId) && obligationMatchesEvidenceAssertion(obligation, asset)
+  );
+  uniqueBy(beforeAssets, assertionKey, `before assertion evidence for obligation ${obligation.obligationId}`);
+  uniqueBy(afterAssets, assertionKey, `after assertion evidence for obligation ${obligation.obligationId}`);
+  const beforeKeys = beforeAssets.map(assertionKey).sort(stableTextCompare);
+  const afterKeys = afterAssets.map(assertionKey).sort(stableTextCompare);
+  const coveredBeforeContracts = sortedUnique(beforeAssets.map((asset) => asset.assertion.contractId));
+  const coveredAfterContracts = sortedUnique(afterAssets.map((asset) => asset.assertion.contractId));
+  const expectedContracts = sortedUnique(obligation.mappedContractIds);
+  if (canonicalJson(beforeKeys) !== canonicalJson(afterKeys)) {
+    return { pairs: [], complete: false, reason: "Expected assertion-identical before and after screenshot evidence was incomplete." };
+  }
+  if (beforeAssets.length === 0) {
+    return { pairs: [], complete: false, reason: "No exact before and after screenshot evidence matched the obligation contract, route, state, and viewport." };
+  }
+  if (canonicalJson(coveredBeforeContracts) !== canonicalJson(expectedContracts) || canonicalJson(coveredAfterContracts) !== canonicalJson(expectedContracts)) {
+    return { pairs: [], complete: false, reason: "Expected before and after screenshot evidence did not cover every mapped obligation contract." };
+  }
   const afterByAssertion = new Map(afterAssets.map((asset) => [assertionKey(asset), asset]));
-  return beforeAssets.flatMap((beforeAsset) => {
+  const pairs = beforeAssets.map((beforeAsset) => {
     const afterAsset = afterByAssertion.get(assertionKey(beforeAsset));
-    if (!afterAsset) return [];
+    if (!afterAsset) throw new Error(`Visual Hive obligation ${obligation.obligationId} lost an expected after screenshot.`);
     if (beforeAsset.assetId === afterAsset.assetId) throw new Error(`Visual Hive before and after evidence assets reuse ID ${beforeAsset.assetId}.`);
-    return [{ before: beforeAsset, after: afterAsset }];
+    return { before: beforeAsset, after: afterAsset };
   });
+  return { pairs, complete: true };
 }
 
 function assertionKey(asset: VisualRunEvidenceAsset): string {
   return canonicalSha256(asset.assertion);
+}
+
+function isExecutableScreenshotObligation(obligation: VisualHiveTaskContext["obligations"][number]): boolean {
+  return obligation.route !== undefined && obligation.state !== undefined && obligation.viewportId !== undefined &&
+    obligation.mappedContractIds.length > 0 && ["mapped", "executed", "passed", "failed"].includes(obligation.status);
+}
+
+function obligationMatchesEvidenceAssertion(
+  obligation: VisualHiveTaskContext["obligations"][number],
+  asset: VisualRunEvidenceAsset
+): boolean {
+  return obligation.mappedContractIds.includes(asset.assertion.contractId) && obligation.route === asset.assertion.route &&
+    obligation.state === asset.assertion.state && obligation.viewportId === asset.assertion.viewportId;
 }
 
 function deriveTargetedLane(task: VisualHiveTaskContext, after: VerifiedRunArtifacts, obligations: VisualRepairValidationInput["obligations"]): VisualRepairValidationInput["lanes"]["targeted"] {

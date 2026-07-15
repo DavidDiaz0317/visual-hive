@@ -201,7 +201,7 @@ function deriveRepairVerdict(input: VisualRepairValidationInput, comparability: 
   if (comparability !== "comparable") return "blocked";
   if (input.findingBeforeStatus !== "present") return "blocked";
   if (!input.authoritativeForResolution || input.findingStatus === "not_evaluated") return "blocked";
-  if (input.policyChanges.validationPolicyChanged || input.policyChanges.thresholdWeakened || input.policyChanges.baselineChanged) return "blocked";
+  if (input.policyChanges.configChanged || input.policyChanges.validationPolicyChanged || input.policyChanges.thresholdWeakened || input.policyChanges.baselineChanged) return "blocked";
   const deterministic = input.obligations.filter((obligation) => obligation.deterministic);
   if (deterministic.some((obligation) => obligation.status === "blocked" || obligation.status === "not_evaluated")) return "blocked";
   if (input.lanes.targeted.status === "blocked" || input.lanes.targeted.status === "skipped" || input.lanes.regression.status === "blocked" || input.lanes.regression.status === "skipped" || input.lanes.mutation.status === "blocked") return "blocked";

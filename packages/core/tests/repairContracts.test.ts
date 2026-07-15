@@ -225,7 +225,7 @@ describe("visual-hive.repair-validation.v1", () => {
 
     const configOnly = validationInput();
     configOnly.policyChanges.configChanged = true;
-    expect(buildVisualRepairValidation(configOnly).verdict).toBe("pass");
+    expect(buildVisualRepairValidation(configOnly).verdict).toBe("blocked");
   });
 
   it("fails when the finding remains or deterministic failures are introduced", () => {

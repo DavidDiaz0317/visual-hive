@@ -465,10 +465,22 @@ async function validateAndDeriveInputs(
   if (options.finding.affectedObligationIds.length === 0 || options.finding.affectedAssertions.length === 0) {
     throw new Error("Hive repair validation finding requires exact obligation and screenshot assertion identities.");
   }
+  if (new Set(options.finding.affectedObligationIds).size !== options.finding.affectedObligationIds.length) {
+    throw new Error("Hive repair validation finding contains duplicate obligation identities.");
+  }
+  const findingAssertionKeys = options.finding.affectedAssertions.map((assertion) => canonicalSha256(assertion));
+  if (new Set(findingAssertionKeys).size !== findingAssertionKeys.length) {
+    throw new Error("Hive repair validation finding contains duplicate screenshot assertion identities.");
+  }
+  const affectedObligations: VisualHiveTaskContext["obligations"] = [];
   for (const obligationId of options.finding.affectedObligationIds) {
     const obligation = task.obligations.find((candidate) => candidate.obligationId === obligationId);
     if (!obligation || obligation.authority !== "deterministic") throw new Error(`Finding obligation ${obligationId} is not a declared deterministic obligation.`);
     if (!obligation.mappedContractIds.some((contractId) => affected.has(contractId))) throw new Error(`Finding obligation ${obligationId} is not mapped to an affected contract.`);
+    if (!isExecutableScreenshotObligation(obligation)) {
+      throw new Error(`Finding obligation ${obligationId} has no executable route, state, viewport, or mapped status.`);
+    }
+    affectedObligations.push(obligation);
   }
   for (const assertion of options.finding.affectedAssertions) {
     if (!affected.has(assertion.contractId)) throw new Error(`Finding assertion ${assertion.contractId}/${assertion.screenshotName} is outside the affected contracts.`);
@@ -477,6 +489,15 @@ async function validateAndDeriveInputs(
     if (!screenshot) throw new Error(`Finding assertion ${assertion.contractId}/${assertion.screenshotName} is not declared by the authorized config.`);
     if (!profile.scenarioIds.includes(assertion.state) || !profile.routes.includes(assertion.route) || !profile.viewports.some((viewport) => viewport.viewportId === assertion.viewportId)) {
       throw new Error(`Finding assertion ${assertion.contractId}/${assertion.screenshotName} is outside the authorized execution matrix.`);
+    }
+    const matchingObligations = affectedObligations.filter((obligation) => obligationMatchesAssertion(obligation, assertion));
+    if (matchingObligations.length === 0) {
+      throw new Error(`Finding assertion ${assertion.contractId}/${assertion.screenshotName} does not match an affected obligation's contract, route, state, and viewport.`);
+    }
+  }
+  for (const obligation of affectedObligations) {
+    if (!options.finding.affectedAssertions.some((assertion) => obligationMatchesAssertion(obligation, assertion))) {
+      throw new Error(`Finding obligation ${obligation.obligationId} does not bind an affected screenshot assertion at its declared route, state, and viewport.`);
     }
   }
   const deterministicObligations = task.obligations.filter((candidate) => candidate.authority === "deterministic");
@@ -759,9 +780,13 @@ async function executeCapture(
     ...screenshotSupportPaths
   ]);
   await validateArtifactInventory(rootDir, artifactPaths, inputs.budgetLimits);
-  const findingState = (capture.status === "passed" || (options.phase === "before" && capture.status === "failed"))
+  const reportedFindingState = (capture.status === "passed" || (options.phase === "before" && capture.status === "failed"))
     ? findingStateFromReport(report, options.finding)
     : "present";
+  // Until a broker-authenticated target/executor receipt exists, a passing
+  // advisory observation cannot publish lifecycle absence or close a finding.
+  const targetExecutionAuthoritativeForResolution = false;
+  const findingState = targetExecutionAuthoritativeForResolution ? reportedFindingState : "present";
   const { affectedAssertions: _affectedAssertions, affectedObligationIds: _affectedObligationIds, ...publicationFinding } = options.finding;
   void _affectedAssertions;
   void _affectedObligationIds;
@@ -802,7 +827,11 @@ async function executeCapture(
     },
     scan: {
       scope: "full",
-      authoritativeForResolution: options.phase === "before" ? capture.status !== "blocked" : capture.status === "passed",
+      // A verified browser run proves what the runner observed, but it does not
+      // prove that a mutable URL or an unsandboxed local target came from the
+      // requested commit. Re-enable resolution authority only when a future
+      // broker supplies a separately verified target/executor receipt.
+      authoritativeForResolution: targetExecutionAuthoritativeForResolution,
       evaluatedContracts: executionContractIds,
       evaluatedFiles: sortedUnique(inputs.task.sourceContext.files.map((file) => file.path)),
       testPlanVersion: inputs.testPlanVersion,
@@ -1045,14 +1074,15 @@ async function buildEvidenceAssets(
   const assets: VisualRunEvidenceAsset[] = [];
   const seenPaths = new Set<string>();
   for (const result of report.results) {
-    const obligationIds = sortedUnique(task.obligations
-      .filter((obligation) => obligation.mappedContractIds.includes(result.contractId))
-      .map((obligation) => obligation.obligationId));
     for (const screenshot of result.screenshotAssertions ?? []) {
-      const executionCase = cases.find((candidate) =>
+      if (screenshot.contractId !== result.contractId) {
+        throw new Error(`Screenshot ${screenshot.screenshotName} does not match its structured contract result ${result.contractId}.`);
+      }
+      const matchingCases = cases.filter((candidate) =>
         candidate.contractIds.includes(result.contractId) && candidate.route === screenshot.route && candidate.viewport.viewportId === screenshot.viewport
       );
-      if (!executionCase) throw new Error(`Screenshot ${result.contractId}/${screenshot.screenshotName} has no executed case identity.`);
+      if (matchingCases.length !== 1) throw new Error(`Screenshot ${result.contractId}/${screenshot.screenshotName} must have exactly one executed case identity.`);
+      const executionCase = matchingCases[0]!;
       const assertion = {
         contractId: result.contractId,
         screenshotName: screenshot.screenshotName,
@@ -1060,6 +1090,9 @@ async function buildEvidenceAssets(
         state: executionCase.state,
         viewportId: screenshot.viewport
       };
+      const obligationIds = sortedUnique(task.obligations
+        .filter((obligation) => isExecutableScreenshotObligation(obligation) && obligationMatchesAssertion(obligation, assertion))
+        .map((obligation) => obligation.obligationId));
       const addAsset = async (role: "baseline" | "actual" | "diff", artifactPath: string): Promise<void> => {
         const normalizedPath = RelativeArtifactPathSchema.parse(artifactPath);
         if (seenPaths.has(normalizedPath)) throw new Error(`Playwright repair capture reused screenshot evidence path ${normalizedPath}.`);
@@ -1086,6 +1119,19 @@ async function buildEvidenceAssets(
     }
   }
   return assets.sort((left, right) => stableTextCompare(left.assetId, right.assetId));
+}
+
+function isExecutableScreenshotObligation(obligation: VisualHiveTaskContext["obligations"][number]): boolean {
+  return obligation.route !== undefined && obligation.state !== undefined && obligation.viewportId !== undefined &&
+    obligation.mappedContractIds.length > 0 && ["mapped", "executed", "passed", "failed"].includes(obligation.status);
+}
+
+function obligationMatchesAssertion(
+  obligation: VisualHiveTaskContext["obligations"][number],
+  assertion: PlaywrightRepairCaptureAssertionIdentity
+): boolean {
+  return obligation.mappedContractIds.includes(assertion.contractId) && obligation.route === assertion.route &&
+    obligation.state === assertion.state && obligation.viewportId === assertion.viewportId;
 }
 
 function deriveCaptureStatus(

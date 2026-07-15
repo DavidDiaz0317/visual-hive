@@ -1,6 +1,8 @@
 import type { CoverageImprovementRecommendation } from "../coverage/improve.js";
 import type { EvidencePacketTestingLayer } from "../evidence/types.js";
 import type { HandoffWorkItem } from "../handoff/types.js";
+import type { VisualHiveConfig } from "../config/schema.js";
+import type { RepoMapReport } from "../repo/types.js";
 
 export type TestCreationPriority = "low" | "medium" | "high";
 export type TestCreationSource = "testing_layer" | "coverage_recommendation" | "mutation_survivor" | "handoff_work_item";
@@ -20,7 +22,7 @@ export type TestCreationKind =
   | "agent_handoff";
 
 export interface TestCreationPlan {
-  schemaVersion: "visual-hive.test-creation-plan.v1";
+  schemaVersion: "visual-hive.test-creation-plan.v2";
   generatedAt: string;
   project: string;
   outputResource?: TestCreationPlanOutputResource;
@@ -67,6 +69,7 @@ export interface TestCreationRecommendation {
   rationale: string[];
   affected: TestCreationAffected;
   currentEvidence: string[];
+  grounding: TestCreationGrounding;
   suggestedContract: TestCreationSuggestedContract;
   suggestedMutation: string;
   validationCommand: string;
@@ -95,14 +98,24 @@ export interface TestCreationSuggestedContract {
   id: string;
   description: string;
   targetId?: string;
-  route: string;
+  route?: string;
   viewport?: string;
   selectors: string[];
+  mustNotExistSelectors: string[];
+  textMustExist: string[];
+  textMustNotExist: string[];
+  maskSelectors: string[];
+}
+
+export interface TestCreationGrounding {
+  status: "grounded" | "unresolved";
+  evidence: string[];
+  unresolvedReasons: string[];
 }
 
 export type TestCreationRecommendationDraft = Omit<
   TestCreationRecommendation,
-  "gapId" | "affected" | "currentEvidence" | "suggestedContract" | "suggestedMutation" | "validationCommand" | "hiveOwner"
+  "gapId" | "affected" | "currentEvidence" | "grounding" | "suggestedContract" | "suggestedMutation" | "validationCommand" | "hiveOwner"
 >;
 
 export interface BuildTestCreationPlanOptions {
@@ -123,4 +136,6 @@ export interface BuildTestCreationPlanOptions {
   handoffPacket?: {
     workItems: HandoffWorkItem[];
   };
+  config?: VisualHiveConfig;
+  repoMap?: RepoMapReport;
 }

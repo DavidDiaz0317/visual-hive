@@ -40,6 +40,8 @@ export function buildTestRepairSession(
     visualHiveEntrypointSha256?: string;
     validationToolRegistryDigest?: string;
     configDigest?: string;
+    reproductionState?: "requested" | "started" | "completed" | "failed";
+    reproductionReceiptDigest?: string;
   }
 ): TestRepairSessionFixture {
   const candidateSha = options.candidateSha ?? commit("b");
@@ -138,6 +140,36 @@ export function buildTestRepairSession(
   const turnInput = { attemptId, ordinal: 0, providerInputDigest: digest("8"), consumedToolOutcomeDigests: [] as string[] };
   const turnDraft = { ...turnInput, inputDigest: computeHiveRepairTurnInputDigest(sessionId, turnInput) };
   const turnId = computeHiveRepairTurnId(sessionId, turnDraft);
+  const reproductionState = options.reproductionState ?? "requested";
+  if (reproductionState === "completed" && !options.reproductionReceiptDigest) {
+    throw new Error("A completed test reproduction request requires a capture receipt digest.");
+  }
+  const reproductionLifecycle = reproductionState === "completed"
+    ? {
+        ...reproductionRequest,
+        state: "completed" as const,
+        requestedAt: "2026-07-14T15:45:00.000Z",
+        startedAt: "2026-07-14T15:46:00.000Z",
+        completedAt: "2026-07-14T15:50:00.000Z",
+        receiptDigest: options.reproductionReceiptDigest
+      }
+    : reproductionState === "failed"
+      ? {
+          ...reproductionRequest,
+          state: "failed" as const,
+          requestedAt: "2026-07-14T15:45:00.000Z",
+          startedAt: "2026-07-14T15:46:00.000Z",
+          completedAt: "2026-07-14T15:50:00.000Z",
+          errorCode: "fixture_capture_failed"
+        }
+      : reproductionState === "started"
+      ? {
+          ...reproductionRequest,
+          state: "started" as const,
+          requestedAt: "2026-07-14T15:45:00.000Z",
+          startedAt: "2026-07-14T15:46:00.000Z"
+        }
+      : { ...reproductionRequest, state: "requested" as const, requestedAt: "2026-07-14T15:45:00.000Z" };
   const { authorizationDigest: _authorizationDigest, ...authorizationInput } = authorization;
   void _authorizationDigest;
   const totalSourceBytes = task.sourceContext.files.reduce((total, file) => total + file.size, 0);
@@ -190,7 +222,7 @@ export function buildTestRepairSession(
         modelInputTokensConsumed: 500,
         modelOutputTokensConsumed: 200,
         providerCostUsdMicrosConsumed: 10_000,
-        wallMillisecondsConsumed: 60_000
+        wallMillisecondsConsumed: reproductionState === "completed" || reproductionState === "failed" ? 300_000 : 60_000
       }
     },
     attempts: [{
@@ -220,7 +252,7 @@ export function buildTestRepairSession(
     }],
     toolReceipts: [],
     validationRequests: [
-      { ...reproductionRequest, state: "requested", requestedAt: "2026-07-14T15:45:00.000Z" },
+      reproductionLifecycle,
       { ...patchValidationRequest, state: "requested", requestedAt: "2026-07-14T15:45:00.000Z" }
     ],
     authorization: authorizationInput

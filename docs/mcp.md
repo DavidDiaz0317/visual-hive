@@ -136,7 +136,7 @@ The server checks every supplied identity against the signed session and returns
 
 Every call requires a repository, task ID, and canonical task-context digest. Run-backed calls additionally require the exact run-context digest and commit. Receipt retrieval requires the finding, repair head, and receipt digest. Callers provide identities only; filesystem paths are never accepted.
 
-Artifacts are stored below a content-addressed repair-session directory. Reads reject traversal, symlinks, oversized content, digest drift, repository drift, stale commits, ambiguous issue identities, and ambiguous screenshot roles. Image tools return raw MCP image blocks plus a compact JSON text fallback. Comparison uses `pixelmatch.v7.threshold-0.1.include-aa-false.v1` in memory and cannot accept a caller-supplied threshold.
+Artifacts are stored below a content-addressed repair-session directory. Reads reject traversal, symlinks, oversized content, digest drift, repository drift, stale commits, ambiguous issue identities, and ambiguous screenshot roles. Image tools return raw MCP image blocks plus a compact JSON text fallback. Comparison uses `pixelmatch.v7.threshold-0.1.include-aa-false.diagnostic-v2` in memory, reports exact before/after dimensions and changed bounds, renders added/removed/changed regions with fixed diagnostic colors, and cannot accept a caller-supplied threshold.
 
 These tools never execute Playwright, modify baselines, write source, call GitHub, or decide lifecycle state. Hive brokers declared reproduction and validation profiles; Visual Hive's deterministic receipt remains the visual oracle.
 

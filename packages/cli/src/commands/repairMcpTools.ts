@@ -15,6 +15,7 @@ import {
   VisualRepairGetVisualAssetInputSchema as GetVisualAssetInputSchema,
   VisualRepairSearchSurfaceInputSchema as SearchSurfaceInputSchema,
   VisualRepairToolNameSchema,
+  canonicalSha256,
   compareVisualPngBytes,
   computeVisualRepairSessionStorageId,
   loadVisualRunEvidenceAsset,
@@ -27,6 +28,9 @@ import {
   sanitizeText,
   sha256Bytes,
   stableTextCompare,
+  verifyVisualHiveBundleDigest,
+  type HiveRepairValidationRequest,
+  type VisualHiveBundleManifest,
   type VisualHiveTaskContext,
   type VisualRunContext,
   type HiveRepairSession
@@ -37,6 +41,38 @@ import {
   type VerifiedVisualHiveProducerIdentity
 } from "./repairProducerIdentity.js";
 import { assertHiveRepairSessionMatchesTask } from "./repairSessionScope.js";
+
+const MAX_BROWSER_EVIDENCE_ASSET_INDEX = 512;
+const MAX_CAPTURE_BUNDLE_FILE_BYTES = 64 * 1024 * 1024;
+
+const CaptureCompletionSchema = z.object({
+  schemaVersion: z.literal("visual-hive.playwright-repair-capture-completion.v1"),
+  phase: z.enum(["before", "after"]),
+  requestId: z.string().min(1).max(256),
+  requestDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  captureInputDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  commitSha: z.string().regex(/^[a-f0-9]{40}$/u),
+  captureStatus: z.enum(["passed", "failed", "blocked"]),
+  exitCode: z.number().int(),
+  receiptDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  runDirectory: RelativeArtifactPathSchema,
+  reportPath: RelativeArtifactPathSchema,
+  reportSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  runContextPath: RelativeArtifactPathSchema,
+  runContextDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  runtimeIdentityPath: RelativeArtifactPathSchema,
+  metadataPath: RelativeArtifactPathSchema,
+  bundleManifestPath: RelativeArtifactPathSchema,
+  bundleDirectory: RelativeArtifactPathSchema,
+  bundleDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  artifactPaths: z.array(RelativeArtifactPathSchema).max(4096),
+  completedAt: z.string().datetime({ offset: true })
+}).strict();
+
+interface VerifiedRunEvidence {
+  run: VisualRunContext;
+  captureReceiptDigest: string;
+}
 
 export interface VisualRepairMcpToolDefinition {
   name: string;
@@ -146,19 +182,19 @@ export async function callVisualRepairMcpTool(
       case "visual_hive_get_screenshot_set": {
         const input = GetScreenshotSetInputSchema.parse(rawArguments);
         await verifyToolSessionScope(rootDir, toolName, input, session, producer);
-        result = await getScreenshotSet(rootDir, input);
+        result = await getScreenshotSet(rootDir, input, session, producer);
         break;
       }
       case "visual_hive_get_browser_evidence": {
         const input = GetBrowserEvidenceInputSchema.parse(rawArguments);
         await verifyToolSessionScope(rootDir, toolName, input, session, producer);
-        result = await getBrowserEvidence(rootDir, input);
+        result = await getBrowserEvidence(rootDir, input, session, producer);
         break;
       }
       case "visual_hive_compare_assets": {
         const input = CompareAssetsInputSchema.parse(rawArguments);
         await verifyToolSessionScope(rootDir, toolName, input, session, producer);
-        result = await compareAssets(rootDir, input);
+        result = await compareAssets(rootDir, input, session, producer);
         break;
       }
       case "visual_hive_get_repair_validation": {
@@ -181,6 +217,26 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
   if (context.repository.baseSha !== input.baseSha) throw new Error("Task context base commit does not match the requested commit.");
   const authorizedAssetIds = new Set(session.authorization?.assetIds ?? []);
   const authorizedAssets = context.assets.filter((asset) => authorizedAssetIds.has(asset.assetId));
+  const authorizedImageReferences = context.imageReferences
+    .filter((reference) => authorizedAssetIds.has(reference.assetId))
+    .sort((left, right) => left.position - right.position)
+    .map((reference) => {
+      const asset = context.assets.find((candidate) => candidate.assetId === reference.assetId);
+      if (!asset) throw new Error(`Task image reference ${reference.position} names missing asset ${reference.assetId}.`);
+      return {
+        ...reference,
+        asset,
+        retrieval: {
+          tool: "visual_hive_get_visual_asset",
+          arguments: {
+            taskId: context.taskId,
+            repository: context.repository.name,
+            taskContextDigest: context.contextDigest,
+            assetId: reference.assetId
+          }
+        }
+      };
+    });
   const binding = taskBinding(context);
   let result: Record<string, unknown>;
   switch (input.section) {
@@ -212,7 +268,7 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
       break;
     }
     case "assets":
-      result = paged("assets", authorizedAssets, input.cursor, input.limit);
+      result = paged("assets", authorizedImageReferences, input.cursor, input.limit);
       break;
     case "graph":
       result = paged("graphCandidates", context.graphCandidates, input.cursor, input.limit);
@@ -294,9 +350,15 @@ async function getVisualAsset(rootDir: string, input: z.infer<typeof GetVisualAs
   }, [{ data: loaded.data, mimeType: loaded.asset.mediaType }]);
 }
 
-async function getScreenshotSet(rootDir: string, input: z.infer<typeof GetScreenshotSetInputSchema>): Promise<CallToolResult> {
-  const { context, taskRoot } = await loadTask(rootDir, input);
-  const run = await loadRun(rootDir, context, input.runId, input.runContextDigest, input.commitSha);
+async function getScreenshotSet(
+  rootDir: string,
+  input: z.infer<typeof GetScreenshotSetInputSchema>,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<CallToolResult> {
+  const { context } = await loadTask(rootDir, input);
+  const verified = await loadVerifiedRun(rootDir, context, input.runId, input.runContextDigest, input.commitSha, session, producer);
+  const run = verified.run;
   const requestedRoles = new Set(input.roles);
   const matching = run.evidenceAssets
     .filter((asset) => asset.assertion.contractId === input.contractId)
@@ -312,7 +374,7 @@ async function getScreenshotSet(rootDir: string, input: z.infer<typeof GetScreen
   const selected = matching;
   const images = await Promise.all(selected.map(async (asset) => {
     const loaded = await loadVisualRunEvidenceAsset({
-      evidenceRoot: taskRoot,
+      evidenceRoot: rootDir,
       runContext: run,
       taskId: context.taskId,
       taskContextDigest: context.contextDigest,
@@ -327,29 +389,41 @@ async function getScreenshotSet(rootDir: string, input: z.infer<typeof GetScreen
   return imageResult(rootDir, {
     schemaVersion: "visual-hive.mcp-tool-result.v1",
     tool: "visual_hive_get_screenshot_set",
-    binding: runBinding(context, run),
+    binding: runBinding(context, run, verified.captureReceiptDigest),
     assertion: { contractId: input.contractId, screenshotName: input.screenshotName, route: input.route, state: input.state, viewportId: input.viewportId },
     assets: selected,
     safety: readOnlySafety()
   }, images);
 }
 
-async function getBrowserEvidence(rootDir: string, input: z.infer<typeof GetBrowserEvidenceInputSchema>): Promise<CallToolResult> {
-  const { context, taskRoot } = await loadTask(rootDir, input);
-  const run = await loadRun(rootDir, context, input.runId, input.runContextDigest, input.commitSha);
-  const reportBytes = await readDeclaredFile(taskRoot, run.report.path, run.report.sha256, MAX_JSON_BYTES);
+async function getBrowserEvidence(
+  rootDir: string,
+  input: z.infer<typeof GetBrowserEvidenceInputSchema>,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<CallToolResult> {
+  const { context } = await loadTask(rootDir, input);
+  const verified = await loadVerifiedRun(rootDir, context, input.runId, input.runContextDigest, input.commitSha, session, producer);
+  const run = verified.run;
+  const reportBytes = await readDeclaredFile(rootDir, run.report.path, run.report.sha256, MAX_JSON_BYTES);
   const report = parseJsonObject(reportBytes, run.report.path);
   verifyReportIdentity(report, context, run);
   const results = Array.isArray(report.results) ? report.results.filter(isRecord).filter((result) => readRawString(result, "contractId") === input.contractId) : [];
   if (results.length !== 1) throw new Error(`Expected one browser result for contract ${input.contractId}; found ${results.length}.`);
   const result = results[0]!;
-  const evidenceAssets = run.evidenceAssets
+  const indexedEvidenceAssets = run.evidenceAssets
+    .filter((asset) => asset.assertion.contractId === input.contractId)
+    .sort(compareEvidenceAssetMetadata)
+    .slice(0, MAX_BROWSER_EVIDENCE_ASSET_INDEX);
+  const evidenceAssetIndex = indexedEvidenceAssets.map((asset, index) => ({ index, ...asset }));
+  const attachableEvidenceAssets = run.evidenceAssets
     .filter((asset) => asset.assertion.contractId === input.contractId && (asset.role === "actual" || asset.role === "diff" || asset.role === "reference"))
-    .slice(0, input.maxImages);
+    .sort(compareEvidenceAssetMetadata);
+  const evidenceAssets = attachableEvidenceAssets.slice(0, input.maxImages);
   const images = input.includeImages
     ? await Promise.all(evidenceAssets.map(async (asset) => {
         const loaded = await loadVisualRunEvidenceAsset({
-          evidenceRoot: taskRoot,
+          evidenceRoot: rootDir,
           runContext: run,
           taskId: context.taskId,
           taskContextDigest: context.contextDigest,
@@ -362,33 +436,59 @@ async function getBrowserEvidence(rootDir: string, input: z.infer<typeof GetBrow
         return { data: loaded.data, mimeType: loaded.asset.mediaType };
       }))
     : [];
+  const imageContentIndex = input.includeImages
+    ? evidenceAssets.map((asset, index) => ({ contentIndex: index + 1, assetId: asset.assetId, role: asset.role, sha256: asset.sha256 }))
+    : [];
   return imageResult(rootDir, {
     schemaVersion: "visual-hive.mcp-tool-result.v1",
     tool: "visual_hive_get_browser_evidence",
-    binding: { ...runBinding(context, run), reportSha256: run.report.sha256 },
+    binding: { ...runBinding(context, run, verified.captureReceiptDigest), reportSha256: run.report.sha256 },
     contractId: input.contractId,
     result: boundedBrowserResult(result),
     evidenceAssets,
+    evidenceAssetIndex,
+    evidenceAssetIndexCounts: {
+      total: run.evidenceAssets.filter((asset) => asset.assertion.contractId === input.contractId).length,
+      returned: evidenceAssetIndex.length,
+      omitted: run.evidenceAssets.filter((asset) => asset.assertion.contractId === input.contractId).length - evidenceAssetIndex.length
+    },
+    imageContentIndex,
+    imageContentCounts: {
+      total: attachableEvidenceAssets.length,
+      returned: imageContentIndex.length,
+      omitted: attachableEvidenceAssets.length - imageContentIndex.length
+    },
     safety: readOnlySafety()
   }, images);
 }
 
-async function compareAssets(rootDir: string, input: z.infer<typeof CompareAssetsInputSchema>): Promise<CallToolResult> {
+async function compareAssets(
+  rootDir: string,
+  input: z.infer<typeof CompareAssetsInputSchema>,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<CallToolResult> {
   const { context, taskRoot } = await loadTask(rootDir, input);
-  const before = await loadAssetLocator(rootDir, taskRoot, context, input.before, input.maxBytesPerImage);
-  const after = await loadAssetLocator(rootDir, taskRoot, context, input.after, input.maxBytesPerImage);
+  const before = await loadAssetLocator(rootDir, taskRoot, context, input.before, input.maxBytesPerImage, session, producer);
+  const after = await loadAssetLocator(rootDir, taskRoot, context, input.after, input.maxBytesPerImage, session, producer);
   if (before.mediaType !== "image/png" || after.mediaType !== "image/png") throw new Error("Deterministic direct asset comparison currently requires two PNG assets.");
   const comparison = compareVisualPngBytes(before.data, after.data);
   return imageResult(rootDir, {
     schemaVersion: "visual-hive.mcp-tool-result.v1",
     tool: "visual_hive_compare_assets",
-    binding: taskBinding(context),
+    binding: {
+      ...taskBinding(context),
+      verifiedCaptureReceipts: uniqueCaptureReceipts([before.captureReceipt, after.captureReceipt])
+    },
     before: before.identity,
     after: after.identity,
     comparison: {
       algorithm: comparison.algorithm,
       width: comparison.width,
       height: comparison.height,
+      beforeDimensions: comparison.beforeDimensions,
+      afterDimensions: comparison.afterDimensions,
+      changedBoundingBox: comparison.changedBoundingBox,
       diffPixels: comparison.diffPixels,
       totalPixels: comparison.totalPixels,
       diffRatio: comparison.diffRatio,
@@ -464,8 +564,7 @@ async function verifyToolSessionScope(
     if (!authorization.assetIds.includes(assetId)) throw new Error(`Task asset ${assetId} is not authorized for this Hive repair session.`);
   };
   const assertRun = async (runId: string, runContextDigest: string, commitSha: string): Promise<void> => {
-    const run = await loadRun(rootDir, context, runId, runContextDigest, commitSha);
-    assertRunMatchesSession(run, session, producer);
+    await loadVerifiedRun(rootDir, context, runId, runContextDigest, commitSha, session, producer);
   };
 
   switch (toolName) {
@@ -506,11 +605,12 @@ async function verifyToolSessionScope(
   }
 }
 
-function assertRunMatchesSession(
+async function assertRunMatchesSession(
+  rootDir: string,
   run: VisualRunContext,
   session: HiveRepairSession,
   producer: Readonly<VerifiedVisualHiveProducerIdentity>
-): void {
+): Promise<string> {
   const authorization = session.authorization;
   if (!authorization) throw new Error("Visual Hive repair run session has no execution authorization.");
   if (run.findingFingerprint !== session.finding.fingerprint) throw new Error("Visual Hive run does not bind the Hive session finding.");
@@ -524,6 +624,10 @@ function assertRunMatchesSession(
     request.authorizationDigest === authorization.authorizationDigest
   );
   if (requests.length !== 1) throw new Error("Visual Hive run is not the exact validation request declared by this Hive session.");
+  const request = requests[0]!;
+  if (request.state !== "completed" || !request.receiptDigest) {
+    throw new Error(`Visual Hive run validation request is ${request.state}; durable run evidence requires a completed request receipt.`);
+  }
   if (run.execution.configDigest !== authorization.configDigest) throw new Error("Visual Hive run config does not match its Hive authorization.");
   if (
     run.producer.visualHiveVersion !== session.capability.visualHiveVersion ||
@@ -538,6 +642,11 @@ function assertRunMatchesSession(
   ) {
     throw new Error("Visual Hive run producer or validation-tool identity does not match its Hive session.");
   }
+  const captureReceiptDigest = await verifyCompletedCapture(rootDir, run, request);
+  if (captureReceiptDigest !== request.receiptDigest) {
+    throw new Error("Visual Hive completed validation request receipt does not match its verified capture result.");
+  }
+  return captureReceiptDigest;
 }
 
 function bindToolResultToSession(
@@ -603,13 +712,135 @@ async function loadRun(rootDir: string, task: VisualHiveTaskContext, runId: stri
   return run;
 }
 
+async function loadVerifiedRun(
+  rootDir: string,
+  task: VisualHiveTaskContext,
+  runId: string,
+  expectedDigest: string,
+  expectedCommit: string,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<VerifiedRunEvidence> {
+  const run = await loadRun(rootDir, task, runId, expectedDigest, expectedCommit);
+  const captureReceiptDigest = await assertRunMatchesSession(rootDir, run, session, producer);
+  return { run, captureReceiptDigest };
+}
+
+async function verifyCompletedCapture(
+  rootDir: string,
+  run: VisualRunContext,
+  request: HiveRepairValidationRequest
+): Promise<string> {
+  const sessionStorageId = computeVisualRepairSessionStorageId({ taskId: run.taskId, repository: run.repository.name, taskContextDigest: run.taskContextDigest });
+  const expectedRunId = `run.${request.requestId}`;
+  if (run.runId !== expectedRunId) throw new Error("Visual Hive run ID does not bind its completed Hive validation request.");
+  const runDirectory = `.visual-hive/repair/sessions/${sessionStorageId}/runs/${run.runId}`;
+  const runContextPath = `${runDirectory}/run-context.json`;
+  const completionPath = `${runDirectory}/capture-result.json`;
+  const completionBytes = await readContainedFile(rootDir, completionPath, MAX_JSON_BYTES);
+  const completion = CaptureCompletionSchema.parse(parseJsonObject(completionBytes, completionPath));
+  if (
+    completion.phase !== run.phase ||
+    completion.requestId !== request.requestId ||
+    completion.requestDigest !== request.requestDigest ||
+    completion.commitSha !== run.repository.commitSha ||
+    completion.runDirectory !== runDirectory ||
+    completion.runContextPath !== runContextPath ||
+    completion.runContextDigest !== run.runContextDigest ||
+    completion.reportPath !== run.report.path ||
+    completion.reportSha256 !== run.report.sha256 ||
+    completion.captureStatus !== run.capture.status ||
+    completion.exitCode !== run.command.exitCode ||
+    completion.completedAt !== run.command.completedAt ||
+    completion.metadataPath !== `${runDirectory}/capture-metadata.json`
+  ) {
+    throw new Error("Visual Hive capture result does not match its request, run path, run context, status, or exit identity.");
+  }
+  if (completion.bundleManifestPath !== `${completion.bundleDirectory}/manifest.json` || !completion.bundleDirectory.startsWith(`${runDirectory}/bundle/`)) {
+    throw new Error("Visual Hive capture result bundle path does not belong to its immutable run directory.");
+  }
+  const sortedArtifacts = [...new Set(completion.artifactPaths)].sort(stableTextCompare);
+  if (sortedArtifacts.length !== completion.artifactPaths.length || sortedArtifacts.some((artifact, index) => artifact !== completion.artifactPaths[index])) {
+    throw new Error("Visual Hive capture result artifact inventory is duplicated or noncanonical.");
+  }
+  const manifestBytes = await readContainedFile(rootDir, completion.bundleManifestPath, MAX_JSON_BYTES);
+  const manifestValue = parseJsonObject(manifestBytes, completion.bundleManifestPath);
+  const manifest = manifestValue as unknown as VisualHiveBundleManifest;
+  const manifestFiles = readBundleFiles(manifestValue);
+  let bundleDigestValid = false;
+  try {
+    bundleDigestValid = verifyVisualHiveBundleDigest(manifest);
+  } catch {
+    bundleDigestValid = false;
+  }
+  if (!bundleDigestValid || manifest.overallDigest !== completion.bundleDigest) {
+    throw new Error("Visual Hive capture result bundle manifest digest is invalid.");
+  }
+  if (
+    manifest.source.repository !== run.repository.name ||
+    manifest.source.commitSha !== run.repository.commitSha ||
+    manifest.producer.version !== run.producer.visualHiveVersion ||
+    manifest.producer.gitCommit !== run.producer.visualHiveCommit
+  ) {
+    throw new Error("Visual Hive capture result bundle repository, commit, or producer identity is invalid.");
+  }
+  const manifestSourcePaths = manifestFiles.map((file) => file.sourcePath).sort(stableTextCompare);
+  if (manifestSourcePaths.length !== completion.artifactPaths.length || manifestSourcePaths.some((sourcePath, index) => sourcePath !== completion.artifactPaths[index])) {
+    throw new Error("Visual Hive capture result bundle does not contain its exact artifact inventory.");
+  }
+  let aggregateBytes = 0;
+  for (const file of manifestFiles) {
+    aggregateBytes += file.size;
+    if (aggregateBytes > 512 * 1024 * 1024) throw new Error("Visual Hive capture result bundle exceeds the verified aggregate size limit.");
+    const sourceBytes = await readContainedFile(rootDir, file.sourcePath, MAX_CAPTURE_BUNDLE_FILE_BYTES);
+    const bundledBytes = await readContainedFile(rootDir, `${completion.bundleDirectory}/${file.path}`, MAX_CAPTURE_BUNDLE_FILE_BYTES);
+    if (
+      sourceBytes.byteLength !== file.size || bundledBytes.byteLength !== file.size ||
+      sha256Bytes(sourceBytes) !== file.sha256 || sha256Bytes(bundledBytes) !== file.sha256
+    ) {
+      throw new Error(`Visual Hive capture result bundle payload digest is invalid: ${file.sourcePath}.`);
+    }
+  }
+  const expectedReceiptDigest = canonicalSha256({
+    schemaVersion: "visual-hive.playwright-repair-capture-receipt.v1",
+    phase: completion.phase,
+    requestId: completion.requestId,
+    requestDigest: completion.requestDigest,
+    captureInputDigest: completion.captureInputDigest,
+    commitSha: completion.commitSha,
+    runContextDigest: completion.runContextDigest,
+    bundleDigest: completion.bundleDigest,
+    captureStatus: completion.captureStatus,
+    exitCode: completion.exitCode
+  });
+  if (completion.receiptDigest !== expectedReceiptDigest) {
+    throw new Error("Visual Hive capture result receipt digest is invalid.");
+  }
+  return completion.receiptDigest;
+}
+
+function readBundleFiles(value: Record<string, unknown>): Array<{ path: string; sourcePath: string; sha256: string; size: number }> {
+  if (value.schemaVersion !== "visual-hive.bundle.v2" || !Array.isArray(value.files)) throw new Error("Visual Hive capture result bundle manifest shape is invalid.");
+  return value.files.map((entry) => {
+    if (!isRecord(entry)) throw new Error("Visual Hive capture result bundle file entry is invalid.");
+    const filePath = RelativeArtifactPathSchema.parse(entry.path);
+    const sourcePath = RelativeArtifactPathSchema.parse(entry.sourcePath);
+    const sha256 = typeof entry.sha256 === "string" && /^[a-f0-9]{64}$/u.test(entry.sha256) ? entry.sha256 : undefined;
+    const size = typeof entry.size === "number" && Number.isSafeInteger(entry.size) && entry.size > 0 && entry.size <= MAX_CAPTURE_BUNDLE_FILE_BYTES ? entry.size : undefined;
+    if (!sha256 || size === undefined) throw new Error("Visual Hive capture result bundle file identity is invalid.");
+    return { path: filePath, sourcePath, sha256, size };
+  });
+}
+
 async function loadAssetLocator(
   rootDir: string,
   taskRoot: string,
   context: VisualHiveTaskContext,
   locator: z.infer<typeof AssetLocatorSchema>,
-  maxBytes: number
-): Promise<{ data: Buffer; mediaType: string; identity: Record<string, unknown> }> {
+  maxBytes: number,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<{ data: Buffer; mediaType: string; identity: Record<string, unknown>; captureReceipt?: { runId: string; receiptDigest: string } }> {
   if (locator.source === "task") {
     const loaded = await loadVisualTaskAsset({
       evidenceRoot: taskRoot,
@@ -622,9 +853,10 @@ async function loadAssetLocator(
     });
     return { data: loaded.data, mediaType: loaded.asset.mediaType, identity: { source: "task", assetId: loaded.asset.assetId, sha256: loaded.asset.sha256, commitSha: loaded.commitSha } };
   }
-  const run = await loadRun(rootDir, context, locator.runId, locator.runContextDigest, locator.commitSha);
+  const verified = await loadVerifiedRun(rootDir, context, locator.runId, locator.runContextDigest, locator.commitSha, session, producer);
+  const run = verified.run;
   const loaded = await loadVisualRunEvidenceAsset({
-    evidenceRoot: taskRoot,
+    evidenceRoot: rootDir,
     runContext: run,
     taskId: context.taskId,
     taskContextDigest: context.contextDigest,
@@ -634,7 +866,12 @@ async function loadAssetLocator(
     assetId: locator.assetId,
     maxBytes
   });
-  return { data: loaded.data, mediaType: loaded.asset.mediaType, identity: { source: "run", runId: run.runId, runContextDigest: run.runContextDigest, assetId: loaded.asset.assetId, sha256: loaded.asset.sha256, commitSha: run.repository.commitSha } };
+  return {
+    data: loaded.data,
+    mediaType: loaded.asset.mediaType,
+    identity: { source: "run", runId: run.runId, runContextDigest: run.runContextDigest, captureReceiptDigest: verified.captureReceiptDigest, assetId: loaded.asset.assetId, sha256: loaded.asset.sha256, commitSha: run.repository.commitSha },
+    captureReceipt: { runId: run.runId, receiptDigest: verified.captureReceiptDigest }
+  };
 }
 
 async function readDeclaredFile(root: string, relativePath: string, expectedSha256: string, maxBytes: number): Promise<Buffer> {
@@ -694,28 +931,75 @@ function taskBinding(task: VisualHiveTaskContext): Record<string, unknown> {
   };
 }
 
-function runBinding(task: VisualHiveTaskContext, run: VisualRunContext): Record<string, unknown> {
-  return { ...taskBinding(task), runId: run.runId, runContextDigest: run.runContextDigest, commitSha: run.repository.commitSha, browser: run.execution.browser, environment: run.execution.environment };
+function runBinding(task: VisualHiveTaskContext, run: VisualRunContext, captureReceiptDigest: string): Record<string, unknown> {
+  return { ...taskBinding(task), runId: run.runId, runContextDigest: run.runContextDigest, captureReceiptDigest, commitSha: run.repository.commitSha, browser: run.execution.browser, environment: run.execution.environment };
+}
+
+function uniqueCaptureReceipts(values: Array<{ runId: string; receiptDigest: string } | undefined>): Array<{ runId: string; receiptDigest: string }> {
+  const byRun = new Map<string, { runId: string; receiptDigest: string }>();
+  for (const value of values) {
+    if (!value) continue;
+    const existing = byRun.get(value.runId);
+    if (existing && existing.receiptDigest !== value.receiptDigest) throw new Error(`Visual Hive run ${value.runId} has conflicting verified capture receipts.`);
+    byRun.set(value.runId, value);
+  }
+  return [...byRun.values()].sort((left, right) => stableTextCompare(left.runId, right.runId));
 }
 
 function boundedBrowserResult(result: Record<string, unknown>): Record<string, unknown> {
+  const errors = boundedBrowserArray(result.errors, 64, true);
+  const selectorAssertions = boundedBrowserArray(result.selectorAssertions, 128);
+  const flowSteps = boundedBrowserArray(result.flowSteps, 128);
+  const screenshotAssertions = boundedBrowserArray(result.screenshotAssertions, 64);
+  const consoleErrors = boundedBrowserArray(result.consoleErrors, 64, true);
+  const pageErrors = boundedBrowserArray(result.pageErrors, 64, true);
+  const networkErrors = boundedBrowserArray(result.networkErrors, 64, true);
   return {
     contractId: readRawString(result, "contractId"),
     targetId: readRawString(result, "targetId"),
     status: readRawString(result, "status"),
     durationMs: result.durationMs,
-    errors: boundedArray(result.errors, 64),
-    selectorAssertions: boundedArray(result.selectorAssertions, 128),
-    flowSteps: boundedArray(result.flowSteps, 128),
-    screenshotAssertions: boundedArray(result.screenshotAssertions, 64),
-    consoleErrors: boundedArray(result.consoleErrors, 64),
-    pageErrors: boundedArray(result.pageErrors, 64),
-    networkErrors: boundedArray(result.networkErrors, 64)
+    errors: errors.values,
+    selectorAssertions: selectorAssertions.values,
+    flowSteps: flowSteps.values,
+    screenshotAssertions: screenshotAssertions.values,
+    consoleErrors: consoleErrors.values,
+    pageErrors: pageErrors.values,
+    networkErrors: networkErrors.values,
+    arrayCounts: {
+      errors: errors.counts,
+      selectorAssertions: selectorAssertions.counts,
+      flowSteps: flowSteps.counts,
+      screenshotAssertions: screenshotAssertions.counts,
+      consoleErrors: consoleErrors.counts,
+      pageErrors: pageErrors.counts,
+      networkErrors: networkErrors.counts
+    }
   };
 }
 
-function boundedArray(value: unknown, limit: number): unknown[] {
-  return Array.isArray(value) ? value.slice(0, limit) : [];
+function boundedBrowserArray(value: unknown, limit: number, everyEntryIsFailure = false): {
+  values: unknown[];
+  counts: { total: number; returned: number; omitted: number };
+} {
+  const source = Array.isArray(value) ? value : [];
+  const failures: unknown[] = [];
+  const remaining: unknown[] = [];
+  for (const entry of source) {
+    if (everyEntryIsFailure || isBrowserFailure(entry)) failures.push(entry);
+    else remaining.push(entry);
+  }
+  const values = [...failures, ...remaining].slice(0, limit);
+  return {
+    values,
+    counts: { total: source.length, returned: values.length, omitted: source.length - values.length }
+  };
+}
+
+function isBrowserFailure(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const status = readRawString(value, "status");
+  return status === "failed" || status === "missing_baseline" || status === "error" || status === "blocked" || status === "missing_credentials";
 }
 
 function normalizedTokens(value: string): string[] {
@@ -724,6 +1008,23 @@ function normalizedTokens(value: string): string[] {
 
 function screenshotRoleOrder(role: string): number {
   return role === "baseline" ? 0 : role === "actual" ? 1 : role === "diff" ? 2 : 3;
+}
+
+function compareEvidenceAssetMetadata(
+  left: VisualRunContext["evidenceAssets"][number],
+  right: VisualRunContext["evidenceAssets"][number]
+): number {
+  for (const comparison of [
+    stableTextCompare(left.assertion.screenshotName, right.assertion.screenshotName),
+    stableTextCompare(left.assertion.route, right.assertion.route),
+    stableTextCompare(left.assertion.state, right.assertion.state),
+    stableTextCompare(left.assertion.viewportId, right.assertion.viewportId),
+    screenshotRoleOrder(left.role) - screenshotRoleOrder(right.role),
+    stableTextCompare(left.assetId, right.assetId)
+  ]) {
+    if (comparison !== 0) return comparison;
+  }
+  return 0;
 }
 
 function paged(name: string, values: unknown[], cursor: number, limit: number): Record<string, unknown> {

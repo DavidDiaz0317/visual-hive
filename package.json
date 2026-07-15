@@ -141,6 +141,7 @@
     "smoke:consumer": "node scripts/smoke-consumer-install.mjs",
     "release:bundle": "npm run build && node scripts/build-release-bundle.mjs",
     "smoke:release": "node scripts/smoke-release-bundle.mjs",
+    "smoke:repair-local": "npm run build && node scripts/smoke-repair-local-proof.mjs",
     "smoke:console": "node scripts/smoke-console-dogfood.mjs",
     "smoke:console:run": "node scripts/smoke-console-local-preview.mjs",
     "smoke:consumer:regression": "node scripts/smoke-consumer-install.mjs",

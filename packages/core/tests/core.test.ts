@@ -14,6 +14,7 @@ import { auditTargets } from "../src/targets/audit.js";
 import { resolveTargetUrl } from "../src/targets/resolve.js";
 import { auditSchedules } from "../src/schedules/audit.js";
 import { createPlan } from "../src/planner/createPlan.js";
+import { canonicalSha256 } from "../src/repair/canonical.js";
 import { buildPlanLaneSummary } from "../src/planner/laneSummary.js";
 import { buildMutationReport, calculateMutationScore } from "../src/mutations/score.js";
 import { loadConfig, parseConfigText } from "../src/config/load.js";
@@ -1456,6 +1457,15 @@ describe("planner", () => {
   it("selects PR-safe contracts for PR mode", () => {
     const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: [] });
     expect(plan.items.map((item) => item.contractId)).toContain("safe-contract");
+  });
+
+  it("omits protected-only secret metadata from ordinary targets so plan identity is canonicalizable", () => {
+    const plan = createPlan(sampleConfig(), { mode: "pr", changedFiles: [] });
+    const ordinaryTargets = plan.targets.filter((target) => target.kind !== "protected");
+
+    expect(ordinaryTargets.length).toBeGreaterThan(0);
+    expect(ordinaryTargets.every((target) => !("requiresSecrets" in target))).toBe(true);
+    expect(() => canonicalSha256(plan)).not.toThrow();
   });
 
   it("records provider availability and cost policy in plans without planning external calls", () => {
@@ -7230,7 +7240,7 @@ describe("test creation plans", () => {
       handoffPacket: handoff.handoff
     });
 
-    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v2");
     expect(plan.outputResource).toEqual({
       artifactPath: ".visual-hive/test-creation-plan.json",
       evidenceResourceId: "test-creation-plan",
@@ -7254,10 +7264,8 @@ describe("test creation plans", () => {
       plan.recommendations.every(
         (recommendation) =>
           recommendation.gapId &&
-          Object.keys(recommendation.affected).length > 0 &&
           recommendation.currentEvidence.length > 0 &&
-          recommendation.suggestedContract.route &&
-          recommendation.suggestedContract.selectors.length > 0 &&
+          ["grounded", "unresolved"].includes(recommendation.grounding.status) &&
           recommendation.suggestedMutation &&
           recommendation.validationCommand.startsWith("visual-hive ") &&
           ["quality", "tester", "ci-maintainer"].includes(recommendation.hiveOwner)
@@ -7266,21 +7274,18 @@ describe("test creation plans", () => {
     const mutationRecommendation = plan.recommendations.find((recommendation) => recommendation.source === "mutation_survivor");
     expect(mutationRecommendation).toMatchObject({
       gapId: "mutation:force-login-on-demo",
-      affected: {
-        route: "/",
-        component: "auth-boundary",
-        state: "public-demo"
-      },
+      affected: {},
+      grounding: { status: "unresolved", evidence: [] },
       suggestedMutation: "force-login-on-demo",
       validationCommand: "visual-hive mutate --config visual-hive.config.yaml --enforce-min-score",
       hiveOwner: "quality"
     });
-    expect(mutationRecommendation?.suggestedContract.selectors).toEqual(
-      expect.arrayContaining(["[data-testid='dashboard-page']", "not:[data-testid='login-page']"])
-    );
+    expect(mutationRecommendation?.suggestedContract.selectors).toEqual([]);
+    expect(mutationRecommendation?.suggestedContract.route).toBeUndefined();
     const coverageRecommendation = plan.recommendations.find((recommendation) => recommendation.source === "coverage_recommendation");
     expect(coverageRecommendation?.gapId).toBe("assertions:dashboard");
-    expect(coverageRecommendation?.affected.component).toBe("dashboard-shell");
+    expect(coverageRecommendation?.affected).toEqual({});
+    expect(coverageRecommendation?.grounding.status).toBe("unresolved");
     expect(coverageRecommendation?.hiveOwner).toBe("tester");
     const serialized = JSON.stringify(plan);
     expect(serialized).toContain("[REDACTED]");
@@ -7309,7 +7314,7 @@ describe("test creation plans", () => {
     expect(result.planPath).toMatch(/test-creation-plan\.json$/);
     expect(result.markdownPath).toMatch(/test-creation-plan\.md$/);
     const writtenPlan = await readFile(result.planPath, "utf8");
-    expect(writtenPlan).toContain("visual-hive.test-creation-plan.v1");
+    expect(writtenPlan).toContain("visual-hive.test-creation-plan.v2");
     expect(writtenPlan).toContain("visual-hive://test-creation-plan");
     expect(await readFile(result.markdownPath, "utf8")).toContain("Visual Hive Test Creation Plan: test-creation-write");
   });

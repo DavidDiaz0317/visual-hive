@@ -276,12 +276,13 @@ async function buildVisualMap(input: {
   const componentNamesByFile = await collectComponents(input.repoRoot, input.sourceFiles);
   for (const [sourceFile, componentNames] of componentNamesByFile) {
     for (const componentName of componentNames) {
-      const componentId = `component:${safeId(componentName)}`;
-      addNode("component", componentId, componentName, {
+      const kind = visualOwnerKind(componentName);
+      const componentId = `${kind}:${safeId(componentName)}`;
+      addNode(kind, componentId, componentName, {
         sourceFiles: [sourceFile],
         provenance: { source: "static", confidence: "medium", sourceFile }
       });
-      addEdge(`file:${sourceFile}`, componentId, "declares", [`${sourceFile}:component:${componentName}`], "medium");
+      addEdge(`file:${sourceFile}`, componentId, "declares", [`${sourceFile}:${kind}:${componentName}`], "medium");
     }
   }
 
@@ -293,19 +294,9 @@ async function buildVisualMap(input: {
       provenance: { source: "static", confidence: "high", sourceFile: selector.sourceFile }
     });
     addEdge(`file:${selector.sourceFile}`, selectorId, "declares", [`${selector.sourceFile}:selector:${selector.selector}`], "high");
-    const componentId = selectorComponentId(selector.selector, componentNamesByFile.get(selector.sourceFile));
+    const componentId = selectorOwnerId(componentNamesByFile.get(selector.sourceFile));
     if (componentId) {
       addEdge(componentId, selectorId, "uses_selector", [selector.selector], "medium");
-    }
-    const layoutId = selectorLayoutId(selector.selector);
-    if (layoutId) {
-      addNode("layout", layoutId, labelFromId(layoutId), {
-        sourceFiles: [selector.sourceFile],
-        selectors: [selector.selector],
-        provenance: { source: "derived", confidence: "medium", sourceFile: selector.sourceFile }
-      });
-      if (componentId) addEdge(componentId, layoutId, "renders", [selector.selector], "medium");
-      addEdge(layoutId, selectorId, "uses_selector", [selector.selector], "medium");
     }
   }
 
@@ -496,15 +487,6 @@ function addConfigVisualMap(
         provenance: { source: "config", confidence: "high", sourceFile: "visual-hive.config.yaml" }
       });
       context.addEdge(contractId, selectorId, "uses_selector", [`contract:${contract.id}:selector:${selector}`], "high");
-      const layoutId = selectorLayoutId(selector);
-      if (layoutId) {
-        context.addNode("layout", layoutId, labelFromId(layoutId), {
-          selectors: [selector],
-          contractIds: [contract.id],
-          provenance: { source: "derived", confidence: "medium", sourceFile: "visual-hive.config.yaml" }
-        });
-        context.addEdge(layoutId, contractId, "validated_by", [`contract:${contract.id}:selector:${selector}`], "medium");
-      }
     }
 
     for (const screenshot of contract.screenshots) {
@@ -571,14 +553,6 @@ function addConfigVisualMap(
     }
   }
 
-  const dashboardComponent = context.nodes.get("component:app");
-  if (dashboardComponent) {
-    for (const edge of [...context.nodes.values()].filter((node) => node.kind === "route" || node.kind === "screenshot" || node.kind === "contract")) {
-      if (edge.contractIds.includes("dashboard-visual-stability") || edge.routes.includes("/") || edge.routes.some((route) => route.startsWith("/?issue="))) {
-        context.addEdge(dashboardComponent.id, edge.id, "impacts", ["derived:app-component-demo-impact"], "medium");
-      }
-    }
-  }
 }
 
 function nodeAdder(nodes: Map<string, RepoVisualMapNode>, generatedAt: string) {
@@ -658,22 +632,14 @@ async function collectComponents(repoRoot: string, sourceFiles: string[]): Promi
   return components;
 }
 
-function selectorComponentId(selector: string, componentNames?: string[]): string | undefined {
-  if (selector.includes("dashboard-card")) return "component:dashboard-card";
-  if (selector.includes("artifact-card")) return "component:artifact-card";
-  if (selector.includes("login")) return "component:login";
-  if (componentNames?.[0]) return `component:${safeId(componentNames[0])}`;
-  return undefined;
+function selectorOwnerId(componentNames?: string[]): string | undefined {
+  if (componentNames?.length !== 1) return undefined;
+  const componentName = componentNames[0]!;
+  return `${visualOwnerKind(componentName)}:${safeId(componentName)}`;
 }
 
-function selectorLayoutId(selector: string): string | undefined {
-  if (selector.includes("dashboard-page") || selector.includes("dashboard-card") || selector.includes("coverage-matrix") || selector.includes("target-lane-list")) {
-    return "layout:dashboard-shell";
-  }
-  if (selector.includes("login-page") || selector.includes("github-login-button")) return "layout:auth-boundary";
-  if (selector.includes("mobile-overflow")) return "layout:responsive-mobile";
-  if (selector.includes("error-banner") || selector.includes("empty-data")) return "layout:data-state";
-  return undefined;
+function visualOwnerKind(componentName: string): "component" | "layout" {
+  return /(?:Layout|Shell|Boundary)$/u.test(componentName) ? "layout" : "component";
 }
 
 function statesFromRoute(route: string): string[] {
@@ -716,10 +682,6 @@ function mergeNode(left: RepoVisualMapNode, right: RepoVisualMapNode): RepoVisua
     mutationOperators: unique([...left.mutationOperators, ...right.mutationOperators]),
     coverageGapIds: unique([...left.coverageGapIds, ...right.coverageGapIds])
   };
-}
-
-function labelFromId(id: string): string {
-  return id.split(":").at(-1)?.replaceAll("-", " ") ?? id;
 }
 
 function safeId(value: string): string {

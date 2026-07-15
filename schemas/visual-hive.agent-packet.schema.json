@@ -944,11 +944,19 @@
       "type": "object",
       "required": [
         "id",
+        "gapId",
         "source",
         "kind",
         "priority",
         "title",
         "rationale",
+        "affected",
+        "currentEvidence",
+        "grounding",
+        "suggestedContract",
+        "suggestedMutation",
+        "validationCommand",
+        "hiveOwner",
         "suggestedTests",
         "artifacts",
         "trustedOnly",
@@ -957,6 +965,9 @@
       "additionalProperties": false,
       "properties": {
         "id": {
+          "type": "string"
+        },
+        "gapId": {
           "type": "string"
         },
         "source": {
@@ -998,6 +1009,131 @@
           "items": {
             "type": "string"
           }
+        },
+        "affected": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "route": {
+              "type": "string"
+            },
+            "component": {
+              "type": "string"
+            },
+            "viewport": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            }
+          }
+        },
+        "currentEvidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "grounding": {
+          "type": "object",
+          "required": [
+            "status",
+            "evidence",
+            "unresolvedReasons"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "grounded"
+            },
+            "evidence": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "unresolvedReasons": {
+              "type": "array",
+              "maxItems": 0,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "suggestedContract": {
+          "type": "object",
+          "required": [
+            "id",
+            "description",
+            "selectors",
+            "mustNotExistSelectors",
+            "textMustExist",
+            "textMustNotExist",
+            "maskSelectors"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "targetId": {
+              "type": "string"
+            },
+            "route": {
+              "type": "string"
+            },
+            "viewport": {
+              "type": "string"
+            },
+            "selectors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "mustNotExistSelectors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "textMustExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "textMustNotExist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "maskSelectors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "suggestedMutation": {
+          "type": "string"
+        },
+        "validationCommand": {
+          "type": "string"
+        },
+        "hiveOwner": {
+          "enum": [
+            "quality",
+            "tester",
+            "ci-maintainer"
+          ]
         },
         "layer": {
           "type": "object",

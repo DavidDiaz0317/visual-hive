@@ -1,6 +1,13 @@
 import path from "node:path";
 import { createRequire } from "node:module";
-import { API_500_MUTATION_MARKER, writeText, type Plan, type VisualHiveConfig } from "@visual-hive/core";
+import {
+  API_500_MUTATION_MARKER,
+  VISUAL_REPAIR_IMAGE_COMPARISON_ALGORITHM,
+  VISUAL_REPAIR_IMAGE_COMPARISON_DIAGNOSTIC_COLORS,
+  writeText,
+  type Plan,
+  type VisualHiveConfig
+} from "@visual-hive/core";
 
 const trustedRequire = createRequire(import.meta.url);
 
@@ -131,6 +138,8 @@ const mutationOperator = process.env.VISUAL_HIVE_MUTATION_OPERATOR || "";
 const mutationOperators = parseMutationOperators();
 const mutationContractMatrix = parseMutationContractMatrix();
 const api500MutationMarker = ${JSON.stringify(API_500_MUTATION_MARKER)};
+const visualRepairImageComparisonAlgorithm = ${JSON.stringify(VISUAL_REPAIR_IMAGE_COMPARISON_ALGORITHM)};
+const visualRepairImageComparisonDiagnosticColors = ${JSON.stringify(VISUAL_REPAIR_IMAGE_COMPARISON_DIAGNOSTIC_COLORS)};
 const runtimeSidecarPath = process.env.VISUAL_HIVE_RUNTIME_SIDECAR || "";
 const executionNonce = process.env.VISUAL_HIVE_EXECUTION_NONCE || "";
 const executionPayload = process.env.VISUAL_HIVE_EXECUTION_PAYLOAD || "";
@@ -206,6 +215,7 @@ test.describe("visual-hive generated deterministic contracts", () => {
       const networkErrors = [];
       const artifacts = [];
       const errors = [];
+      const screenshotFailures = [];
       let contractStatus = "passed";
 
       page.on("console", (message) => {
@@ -259,7 +269,8 @@ test.describe("visual-hive generated deterministic contracts", () => {
             contractStatus = "created";
           }
           if (assertion.status === "failed" || assertion.status === "missing_baseline") {
-            throw new Error(assertion.message ?? \`Screenshot assertion failed for \${contract.id}/\${shot.name}: diffRatio=\${assertion.actualDiffPixelRatio}\`);
+            contractStatus = "failed";
+            screenshotFailures.push(assertion.message ?? \`Screenshot assertion failed for \${contract.id}/\${shot.name}: diffRatio=\${assertion.actualDiffPixelRatio}\`);
           }
         }
 
@@ -267,6 +278,9 @@ test.describe("visual-hive generated deterministic contracts", () => {
 
         if (contract.failOnConsoleError && (consoleErrors.length > 0 || pageErrors.length > 0)) {
           throw new Error(\`Unexpected console/page errors in \${contract.id}\`);
+        }
+        if (screenshotFailures.length > 0) {
+          throw new Error(\`Screenshot assertions failed for \${contract.id}: \${screenshotFailures.join("; ")}\`);
         }
       } catch (error) {
         contractStatus = "failed";
@@ -505,6 +519,9 @@ async function compareScreenshot(page, contractId, shot, artifacts, activeMutati
   const failed =
     diff.actualDiffPixelRatio > visual.maxDiffPixelRatio ||
     (typeof visual.maxDiffPixels === "number" && diff.diffPixels > visual.maxDiffPixels);
+  const dimensionsChanged =
+    diff.beforeDimensions.width !== diff.afterDimensions.width ||
+    diff.beforeDimensions.height !== diff.afterDimensions.height;
   return {
     ...baseAssertion,
     status: failed ? "failed" : "passed",
@@ -512,7 +529,13 @@ async function compareScreenshot(page, contractId, shot, artifacts, activeMutati
     actualDiffPixelRatio: diff.actualDiffPixelRatio,
     actualDiffPixels: diff.diffPixels,
     diffPixels: diff.diffPixels,
-    totalPixels: diff.totalPixels
+    totalPixels: diff.totalPixels,
+    message: dimensionsChanged
+      ? "Screenshot dimensions changed from " + diff.beforeDimensions.width + "x" + diff.beforeDimensions.height +
+        " to " + diff.afterDimensions.width + "x" + diff.afterDimensions.height +
+        "; changed bounds: " + formatChangedBoundingBox(diff.changedBoundingBox) +
+        "; comparator: " + visualRepairImageComparisonAlgorithm + "."
+      : undefined
   };
 }
 
@@ -522,22 +545,85 @@ function diffImages(baselineBuffer, actualBuffer) {
   if (baseline.width !== actual.width || baseline.height !== actual.height) {
     const width = Math.max(baseline.width, actual.width);
     const height = Math.max(baseline.height, actual.height);
+    const diffImage = new PNG({ width, height });
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const baselineExists = x < baseline.width && y < baseline.height;
+        const actualExists = x < actual.width && y < actual.height;
+        if (baselineExists && !actualExists) {
+          writeDiagnosticPixel(diffImage, x, y, visualRepairImageComparisonDiagnosticColors.removed);
+        } else if (!baselineExists && actualExists) {
+          writeDiagnosticPixel(diffImage, x, y, visualRepairImageComparisonDiagnosticColors.added);
+        } else if (baselineExists && actualExists && !imagePixelsEqual(baseline, actual, x, y)) {
+          writeDiagnosticPixel(diffImage, x, y, visualRepairImageComparisonDiagnosticColors.changed);
+        }
+      }
+    }
     return {
-      diffImage: new PNG({ width, height }),
+      diffImage,
       diffPixels: width * height,
       totalPixels: width * height,
-      actualDiffPixelRatio: 1
+      actualDiffPixelRatio: 1,
+      beforeDimensions: { width: baseline.width, height: baseline.height },
+      afterDimensions: { width: actual.width, height: actual.height },
+      changedBoundingBox: changedBoundingBox(diffImage)
     };
   }
   const diffImage = new PNG({ width: baseline.width, height: baseline.height });
-  const diffPixels = pixelmatch(baseline.data, actual.data, diffImage.data, baseline.width, baseline.height, { threshold: 0.1 });
+  const diffPixels = pixelmatch(baseline.data, actual.data, diffImage.data, baseline.width, baseline.height, {
+    threshold: 0.1,
+    includeAA: false,
+    diffMask: true,
+    diffColor: visualRepairImageComparisonDiagnosticColors.changed.slice(0, 3)
+  });
   const totalPixels = baseline.width * baseline.height;
   return {
     diffImage,
     diffPixels,
     totalPixels,
-    actualDiffPixelRatio: totalPixels === 0 ? 0 : diffPixels / totalPixels
+    actualDiffPixelRatio: totalPixels === 0 ? 0 : diffPixels / totalPixels,
+    beforeDimensions: { width: baseline.width, height: baseline.height },
+    afterDimensions: { width: actual.width, height: actual.height },
+    changedBoundingBox: changedBoundingBox(diffImage)
   };
+}
+
+function imagePixelsEqual(before, after, x, y) {
+  const beforeOffset = (y * before.width + x) * 4;
+  const afterOffset = (y * after.width + x) * 4;
+  for (let channel = 0; channel < 4; channel += 1) {
+    if (before.data[beforeOffset + channel] !== after.data[afterOffset + channel]) return false;
+  }
+  return true;
+}
+
+function writeDiagnosticPixel(image, x, y, rgba) {
+  const offset = (y * image.width + x) * 4;
+  image.data[offset] = rgba[0];
+  image.data[offset + 1] = rgba[1];
+  image.data[offset + 2] = rgba[2];
+  image.data[offset + 3] = rgba[3];
+}
+
+function changedBoundingBox(diffImage) {
+  let minX = diffImage.width;
+  let minY = diffImage.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < diffImage.height; y += 1) {
+    for (let x = 0; x < diffImage.width; x += 1) {
+      if (diffImage.data[(y * diffImage.width + x) * 4 + 3] === 0) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return maxX < 0 ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+}
+
+function formatChangedBoundingBox(bounds) {
+  return bounds ? bounds.x + "," + bounds.y + " " + bounds.width + "x" + bounds.height : "none";
 }
 
 function imagePixelCount(buffer) {

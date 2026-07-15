@@ -5,7 +5,12 @@ import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { API_500_MUTATION_MARKER, VisualHiveConfigSchema } from "@visual-hive/core";
+import {
+  API_500_MUTATION_MARKER,
+  VISUAL_REPAIR_IMAGE_COMPARISON_ALGORITHM,
+  VISUAL_REPAIR_IMAGE_COMPARISON_DIAGNOSTIC_COLORS,
+  VisualHiveConfigSchema
+} from "@visual-hive/core";
 import { buildPlaywrightConfigContent, buildSpecContent, generatePlaywrightSpec } from "../src/generator.js";
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
@@ -127,6 +132,14 @@ describe("buildSpecContent", () => {
     expect(content).toContain("url: sanitizeText(response.url())");
     expect(content).toContain("actualDiffPixelRatio");
     expect(content).toContain("pixelmatch");
+    expect(content).toContain(`const visualRepairImageComparisonAlgorithm = ${JSON.stringify(VISUAL_REPAIR_IMAGE_COMPARISON_ALGORITHM)}`);
+    expect(content).toContain(`const visualRepairImageComparisonDiagnosticColors = ${JSON.stringify(VISUAL_REPAIR_IMAGE_COMPARISON_DIAGNOSTIC_COLORS)}`);
+    expect(content).toContain("includeAA: false");
+    expect(content).toContain("diffMask: true");
+    expect(content).toContain("beforeDimensions: { width: baseline.width, height: baseline.height }");
+    expect(content).toContain("afterDimensions: { width: actual.width, height: actual.height }");
+    expect(content).toContain("changedBoundingBox: changedBoundingBox(diffImage)");
+    expect(content).toContain("Screenshot dimensions changed from ");
     expect(content).toContain("message.includes(pattern)");
     expect(content).toContain(`const api500MutationMarker = ${JSON.stringify(API_500_MUTATION_MARKER)}`);
     expect(content.match(new RegExp(API_500_MUTATION_MARKER, "g"))).toHaveLength(1);
@@ -262,6 +275,77 @@ describe("buildSpecContent", () => {
     const mutated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: true, rootDir: screenshotRoot });
     expect(mutated.exitCode).toBe(0);
     expect(mutated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
+  }, 60_000);
+
+  it("collects later screenshot evidence after an earlier visual assertion fails", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-complete-screenshot-run-"));
+    tempDirs.push(rootDir);
+    let firstRouteText = "stable first state";
+    let firstRouteColor = "white";
+    const server = createServer((request, response) => {
+      const body = request.url === "/first" ? firstRouteText : "stable second state";
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      const color = request.url === "/first" ? firstRouteColor : "white";
+      response.end(`<!doctype html><html><body><main style="width:300px;height:160px;background:${color}">${body}</main></body></html>`);
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("screenshot fixture server did not bind a TCP port");
+    const url = `http://127.0.0.1:${address.port}`;
+    try {
+      const config = VisualHiveConfigSchema.parse({
+        project: { name: "complete-screenshot-run" },
+        targets: { local: { kind: "url", url, prSafe: true } },
+        contracts: [{
+          id: "two-screenshots",
+          description: "Both independent screenshots are always collected.",
+          target: "local",
+          screenshots: [
+            { name: "first", route: "/first", viewport: "desktop", fullPage: false },
+            { name: "second", route: "/second", viewport: "desktop", fullPage: false }
+          ]
+        }],
+        viewports: { desktop: { width: 320, height: 200 } }
+      });
+      const plan = {
+        schemaVersion: 1 as const,
+        project: config.project.name,
+        mode: "full" as const,
+        generatedAt: "2026-07-15T12:00:00.000Z",
+        changedFiles: [],
+        effectiveChangedFiles: [],
+        ignoredChangedFiles: [],
+        targets: [{ id: "local", kind: "url", url, prSafe: true, cost: "medium" as const }],
+        items: [{
+          contractId: "two-screenshots",
+          targetId: "local",
+          targetUrl: url,
+          severity: "medium" as const,
+          cost: "medium" as const,
+          reasons: ["complete evidence fixture"],
+          screenshots: ["first:/first:desktop", "second:/second:desktop"]
+        }],
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+        providerPolicy: []
+      };
+
+      const baseline = await runPlaywrightContracts({ config, plan, rootDir, ci: false, runTargetCommands: false });
+      expect(baseline.report.results[0]?.screenshotAssertions).toHaveLength(2);
+      expect(baseline.report.results[0]?.screenshotAssertions?.map((assertion) => assertion.status)).toEqual(["created", "created"]);
+
+      firstRouteText = "changed first state";
+      firstRouteColor = "black";
+      const validation = await runPlaywrightContracts({ config, plan, rootDir, ci: true, runTargetCommands: false });
+      expect(validation.exitCode).toBe(1);
+      expect(validation.report.results[0]?.screenshotAssertions).toHaveLength(2);
+      expect(validation.report.results[0]?.screenshotAssertions?.map((assertion) => assertion.status)).toEqual(["failed", "passed"]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   }, 60_000);
 
   it("includes generated spec path in collected artifacts", async () => {

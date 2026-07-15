@@ -152,6 +152,29 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
     expect(failedReceipt.remainingFailures.length).toBeGreaterThan(0);
   });
 
+  it("retains advisory run evidence without authorizing resolution or absence", async () => {
+    const advisory = await repairFixture({ afterFinding: "present", afterAuthoritativeForResolution: false });
+    const receipt = buildVisualRepairValidationFromArtifacts(advisory.input);
+    expect(receipt.findingStatus).toBe("present");
+    expect(receipt.authoritativeForResolution).toBe(false);
+    expect(receipt.lanes.targeted.status).toBe("passed");
+    expect(receipt.verdict).toBe("blocked");
+    expect(receipt.closureRecommendation).toBe("keep_open");
+  });
+
+  it("binds obligation evidence to the exact contract, route, state, and viewport", async () => {
+    const overbound = await repairFixture({ obligationRoute: "/unrelated" });
+    expect(() => buildVisualRepairValidationFromArtifacts(overbound.input)).toThrow("obligation binding does not match");
+
+    const unexecutable = await repairFixture({ obligationRoute: "/unrelated", evidenceObligationIds: [] });
+    const receipt = buildVisualRepairValidationFromArtifacts(unexecutable.input);
+    expect(receipt.obligations[0]).toMatchObject({ obligationId: "obligation.card", deterministic: true, status: "blocked" });
+    expect(receipt.obligations[0]!.reason).toContain("contract, route, state, and viewport");
+    expect(receipt.screenshotTriplets).toEqual([]);
+    expect(receipt.lanes.targeted.status).toBe("blocked");
+    expect(receipt.verdict).toBe("blocked");
+  });
+
   it("blocks missing baselines and incomplete regression inventory, and fails a new deterministic regression", async () => {
     const missingBaseline = await repairFixture({ afterCardStatus: "missing_baseline" });
     const blockedBaseline = buildVisualRepairValidationFromArtifacts(missingBaseline.input);
@@ -171,11 +194,11 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
     expect(failedRegression.verdict).toBe("fail");
   });
 
-  it("allows a non-policy config repair but blocks policy, threshold, and baseline weakening", async () => {
+  it("blocks config, policy, threshold, and baseline changes", async () => {
     const config = await repairFixture({ afterConfigDigest: sha("f") });
     const configReceipt = buildVisualRepairValidationFromArtifacts(config.input);
     expect(configReceipt.policyChanges.configChanged).toBe(true);
-    expect(configReceipt.verdict).toBe("pass");
+    expect(configReceipt.verdict).toBe("blocked");
 
     const policy = await repairFixture({ afterMaxDiffPixelRatio: 0.005 });
     const policyReceipt = buildVisualRepairValidationFromArtifacts(policy.input);
@@ -256,6 +279,9 @@ interface FixtureOptions {
   requestRequestedAt?: string;
   sessionUpdatedAt?: string;
   resultGeneratedAt?: string;
+  obligationRoute?: string;
+  evidenceObligationIds?: string[];
+  afterAuthoritativeForResolution?: boolean;
 }
 
 interface FixtureResult {
@@ -309,7 +335,7 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     ],
     obligations: [{
       obligationId: "obligation.card", description: "Card rendering matches the reference.", sourceAssetIds: ["asset.reference"], mappedContractIds: ["contract.card"],
-      route: "/", state: "default", viewportId: "desktop", assertionKind: "pixel_region", authority: "deterministic", confidence: 1, status: "mapped"
+      route: options.obligationRoute ?? "/", state: "default", viewportId: "desktop", assertionKind: "pixel_region", authority: "deterministic", confidence: 1, status: "mapped"
     }],
     sourceContext: { digest: canonicalSha256({ files: sourceFiles, omittedPaths: 0, truncated: false }), files: sourceFiles, omittedPaths: 0, truncated: false }
   });
@@ -481,7 +507,8 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     root: beforeRoot, phase: "before", commitSha: baseSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
     image: beforePng, baseline: afterPng, imageId: "asset.before.actual", report: report("before", repository, baseSha, "failed", "failed", false, false),
     finding: options.beforeFinding === "missing" ? undefined : "present", findingRepositoryFingerprint, configDigest: sha("1"), maxDiffPixelRatio: 0.01, profileId: options.runProfileId,
-    brokerRequest: options.beforeUsesPatchRequest ? patchValidationRequest : reproductionRequest
+    brokerRequest: options.beforeUsesPatchRequest ? patchValidationRequest : reproductionRequest,
+    evidenceObligationIds: options.evidenceObligationIds
   });
   const afterCommitSha = options.afterCommitSha ?? headSha;
   const afterReport = report(
@@ -502,7 +529,9 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     findingRepositoryFingerprint,
     configDigest: options.afterConfigDigest ?? sha("1"),
     maxDiffPixelRatio: options.afterMaxDiffPixelRatio ?? 0.01, profileId: options.runProfileId,
-    brokerRequest: patchValidationRequest
+    brokerRequest: patchValidationRequest,
+    evidenceObligationIds: options.evidenceObligationIds,
+    authoritativeForResolution: options.afterAuthoritativeForResolution
   });
 
   return {
@@ -617,6 +646,8 @@ interface MakeRunInput {
   maxDiffPixelRatio: number;
   profileId?: string;
   brokerRequest: { requestId: string; requestDigest: string };
+  evidenceObligationIds?: string[];
+  authoritativeForResolution?: boolean;
 }
 
 async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidationArtifacts["before"]> {
@@ -709,7 +740,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       width: 2,
       height: 2,
       assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
-      obligationIds: ["obligation.card"]
+      obligationIds: input.evidenceObligationIds ?? ["obligation.card"]
     }, ...(!missingBaseline ? [{
       assetId: `asset.${input.phase}.baseline`,
       role: "baseline" as const,
@@ -720,7 +751,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       width: 2,
       height: 2,
       assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
-      obligationIds: ["obligation.card"]
+      obligationIds: input.evidenceObligationIds ?? ["obligation.card"]
     }] : []), ...(!missingBaseline && comparison.diffPixels > 0 ? [{
       assetId: `asset.${input.phase}.diff`,
       role: "diff" as const,
@@ -731,7 +762,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       width: 2,
       height: 2,
       assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
-      obligationIds: ["obligation.card"]
+      obligationIds: input.evidenceObligationIds ?? ["obligation.card"]
     }] : [])],
     thresholds,
     capture: { status: captureStatus, failures: captureFailures }
@@ -756,7 +787,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
     acmmRequest: 3,
     artifacts: payloads.map((payload) => payload.sourcePath),
     source: { repository: input.repository, repositoryId: input.repositoryId, ref: "main", commitSha: input.commitSha, event: "local", conclusion: input.report.status, trusted: false },
-    scan: { scope: "full", authoritativeForResolution: captureStatus !== "blocked", evaluatedContracts: ["contract.card", "contract.secondary"], evaluatedFiles: ["src/App.tsx"], testPlanVersion: "plan-v1", toolRegistryVersion: "tools-v1" },
+    scan: { scope: "full", authoritativeForResolution: input.authoritativeForResolution ?? (captureStatus !== "blocked"), evaluatedContracts: ["contract.card", "contract.secondary"], evaluatedFiles: ["src/App.tsx"], testPlanVersion: "plan-v1", toolRegistryVersion: "tools-v1" },
     observations,
     producerVersion: "0.3.2",
     producerGitCommit: commit("c"),
