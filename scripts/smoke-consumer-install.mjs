@@ -60,7 +60,10 @@ try {
   }
   await run("npx", ["playwright", "install", "chromium"], appRoot);
   await run("npm", ["run", "build"], appRoot);
-  const version = await runVisualHiveCapture(["--version"], appRoot, { npm_package_version: "99.99.99-consumer" });
+  const installedCliEntrypoint = path.join(appRoot, "node_modules", "@visual-hive", "cli", "dist", "index.js");
+  const version = await runCapture(process.execPath, [installedCliEntrypoint, "--version"], appRoot, DEFAULT_COMMAND_TIMEOUT_MS, {
+    npm_package_version: "99.99.99-consumer"
+  });
   if (version.stdout.trim() !== installedIdentity.version) {
     throw new Error(`Packed Visual Hive version mismatch: expected ${installedIdentity.version}, got ${version.stdout.trim()}`);
   }
