@@ -36,6 +36,8 @@ describe.sequential("verified Visual Hive producer identity", () => {
     const cases: Array<{ name: string; mutate: (manifest: Record<string, unknown>) => void; error: RegExp }> = [
       { name: "unknown field", mutate: (manifest) => { manifest.unexpected = true; }, error: /unrecognized_key/u },
       { name: "unversioned commit", mutate: (manifest) => { manifest.gitCommit = "unknown"; }, error: /invalid_string|Invalid/u },
+      { name: "non-release build", mutate: (manifest) => { manifest.release = false; }, error: /invalid_literal|Invalid/u },
+      { name: "dirty build", mutate: (manifest) => { manifest.clean = false; }, error: /invalid_literal|Invalid/u },
       { name: "version mismatch", mutate: (manifest) => { manifest.version = "9.9.9"; }, error: /does not match/u },
       { name: "unsafe inventory", mutate: (manifest) => { manifest.files = [{ path: "../visual-hive.mjs", sha256: sha256Bytes(fixture.entrypointBytes), size: fixture.entrypointBytes.length }]; }, error: /unsafe/u },
       { name: "duplicate entrypoint", mutate: (manifest) => { manifest.files = [manifest.files as unknown, manifest.files as unknown].flat(); }, error: /unique|exactly once/u }
@@ -106,6 +108,8 @@ async function releaseFixture(): Promise<{
     name: "visual-hive",
     version,
     gitCommit: commit,
+    release: true,
+    clean: true,
     node: ">=22",
     entrypoint: "visual-hive.mjs",
     playwrightVersion: "1.54.1",

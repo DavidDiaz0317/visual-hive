@@ -21,6 +21,8 @@ const ReleaseManifestSchema = z.object({
   name: z.literal("visual-hive"),
   version: z.string().trim().min(1).max(128),
   gitCommit: z.string().regex(/^[a-f0-9]{40}$/u),
+  release: z.literal(true),
+  clean: z.literal(true),
   node: z.literal(">=22"),
   entrypoint: z.string().trim().min(1).max(255),
   playwrightVersion: z.string().trim().min(1).max(128),
