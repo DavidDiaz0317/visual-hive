@@ -96,6 +96,10 @@ import { formatAdapterManagerResult, runAdapterManager } from "./commands/adapte
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
+import { runRepairTaskContextCommand } from "./commands/repairTaskContext.js";
+import { runRepairMcpCommand } from "./commands/repairMcp.js";
+import { runRepairCaptureCommand } from "./commands/repairCapture.js";
+import { runRepairValidateCommand } from "./commands/repairValidate.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -2211,6 +2215,124 @@ baselines
         reason: options.reason
       });
       console.log(formatBaselineRejection(rejection));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+const repair = program.command("repair").description("Trusted Hive-brokered multimodal repair operations");
+
+repair
+  .command("ingest-task")
+  .description("Verify and atomically store one exact task context and its original image bytes")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--input <path>", "Hive-produced visual-hive.task-context.v1 input JSON")
+  .requiredOption("--asset-root <path>", "root containing the task asset paths declared by the input")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runRepairTaskContextCommand({
+        storeRoot: options.store,
+        input: options.input,
+        assetRoot: options.assetRoot
+      }), null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("mcp")
+  .description("Expose exactly the eight authorized read-only repair tools over MCP stdio")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--hive-session <path>", "canonical hive.repair-session.v1 snapshot defining the tool scope")
+  .option("--stdio", "start the repair-only MCP stdio server")
+  .option("--describe", "print the exact repair-tool manifest and exit")
+  .action(async (options) => {
+    try {
+      if (options.stdio && options.describe) throw new Error("Use either repair mcp --stdio or repair mcp --describe, not both.");
+      const manifest = await runRepairMcpCommand({ storeRoot: options.store, hiveSession: options.hiveSession, stdio: options.stdio });
+      if (!options.stdio || options.describe) console.log(JSON.stringify(manifest, null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("capture")
+  .description("Run one exact Hive-authorized before or after Playwright repair capture")
+  .requiredOption("--task-context <path>", "verified visual-hive.task-context.v1 JSON")
+  .requiredOption("--hive-session <path>", "immutable hive.repair-session.v1 snapshot containing this validation request")
+  .requiredOption("--request <path>", "Hive validation-request specification JSON")
+  .requiredOption("--authorization <path>", "Hive execution-authorization JSON")
+  .requiredOption("--budget <path>", "Hive repair budget limits JSON bound by the authorization")
+  .requiredOption("--finding <path>", "canonical finding identity and publication evidence JSON")
+  .requiredOption("--phase <phase>", "capture phase: before or after")
+  .requiredOption("--source-ref <ref>", "captured repository ref")
+  .requiredOption("--source-event <event>", "capture source event")
+  .option("--cwd <path>", "repository worktree root")
+  .option("--config <path>", "Visual Hive config path")
+  .option("--source-trusted", "record the local/hosted producer trust claim")
+  .option("--source-workflow-name <name>", "hosted workflow name")
+  .option("--source-workflow-run-id <id>", "hosted workflow run ID")
+  .option("--source-workflow-run-attempt <attempt>", "hosted workflow run attempt")
+  .option("--source-workflow-artifact-id <id>", "hosted workflow artifact ID")
+  .option("--output-root <path>", "session-scoped repository-relative run root")
+  .option("--acmm-request <level>", "ACMM request recorded in the evidence bundle", Number.parseInt)
+  .action(async (options) => {
+    try {
+      if (options.phase !== "before" && options.phase !== "after") throw new Error("Repair capture phase must be before or after.");
+      console.log(JSON.stringify(await runRepairCaptureCommand({
+        cwd: options.cwd,
+        config: options.config,
+        taskContext: options.taskContext,
+        hiveSession: options.hiveSession,
+        request: options.request,
+        authorization: options.authorization,
+        budget: options.budget,
+        finding: options.finding,
+        phase: options.phase,
+        sourceRef: options.sourceRef,
+        sourceEvent: options.sourceEvent,
+        sourceTrusted: options.sourceTrusted,
+        sourceWorkflowName: options.sourceWorkflowName,
+        sourceWorkflowRunId: options.sourceWorkflowRunId,
+        sourceWorkflowRunAttempt: options.sourceWorkflowRunAttempt,
+        sourceWorkflowArtifactId: options.sourceWorkflowArtifactId,
+        outputRoot: options.outputRoot,
+        acmmRequest: options.acmmRequest
+      }), null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("validate")
+  .description("Derive the deterministic repair receipt from exact Hive and before/after bundle artifacts")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--task-context <path>", "verified visual-hive.task-context.v1 JSON")
+  .requiredOption("--hive-session <path>", "immutable hive.repair-session.v1 candidate snapshot")
+  .requiredOption("--hive-result <path>", "immutable hive.repair-result.v1 JSON")
+  .requiredOption("--before-bundle <path>", "before bundle directory containing manifest.json")
+  .requiredOption("--before-run-context <path>", "before run-context source path inside the bundle")
+  .requiredOption("--after-bundle <path>", "after bundle directory containing manifest.json")
+  .requiredOption("--after-run-context <path>", "after run-context source path inside the bundle")
+  .requiredOption("--validation-id <id>", "stable validation ID")
+  .option("--output <path>", "immutable receipt path relative to the store root")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runRepairValidateCommand({
+        storeRoot: options.store,
+        taskContext: options.taskContext,
+        hiveSession: options.hiveSession,
+        hiveResult: options.hiveResult,
+        beforeBundle: options.beforeBundle,
+        beforeRunContext: options.beforeRunContext,
+        afterBundle: options.afterBundle,
+        afterRunContext: options.afterRunContext,
+        validationId: options.validationId,
+        output: options.output
+      }), null, 2));
     } catch (error) {
       fail(error);
     }

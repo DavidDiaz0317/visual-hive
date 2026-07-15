@@ -14,6 +14,7 @@ import {
   VisualRepairGetValidationInputSchema as GetRepairValidationInputSchema,
   VisualRepairGetVisualAssetInputSchema as GetVisualAssetInputSchema,
   VisualRepairSearchSurfaceInputSchema as SearchSurfaceInputSchema,
+  VisualRepairToolNameSchema,
   compareVisualPngBytes,
   computeVisualRepairSessionStorageId,
   loadVisualRunEvidenceAsset,
@@ -21,14 +22,21 @@ import {
   parseVisualHiveTaskContext,
   parseVisualRepairValidation,
   parseVisualRunContext,
+  parseHiveRepairSession,
   sanitizeArtifactPathsForMarkdown,
   sanitizeText,
   sha256Bytes,
   stableTextCompare,
   type VisualHiveTaskContext,
-  type VisualRunContext
+  type VisualRunContext,
+  type HiveRepairSession
 } from "@visual-hive/core";
 import { z } from "zod";
+import {
+  assertVerifiedVisualHiveProducerIdentityMatchesPin,
+  type VerifiedVisualHiveProducerIdentity
+} from "./repairProducerIdentity.js";
+import { assertHiveRepairSessionMatchesTask } from "./repairSessionScope.js";
 
 export interface VisualRepairMcpToolDefinition {
   name: string;
@@ -90,36 +98,89 @@ export const VISUAL_REPAIR_MCP_TOOL_DEFINITIONS: readonly VisualRepairMcpToolDef
 
 export const VISUAL_REPAIR_MCP_TOOL_NAMES = new Set(VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.map((tool) => tool.name));
 
-export async function callVisualRepairMcpTool(rootDir: string, toolName: string, rawArguments: unknown): Promise<CallToolResult> {
+export interface VisualRepairMcpRuntime {
+  now?: () => Date;
+}
+
+export async function callVisualRepairMcpTool(
+  rootDir: string,
+  toolName: string,
+  rawArguments: unknown,
+  sessionValue: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>,
+  runtime: VisualRepairMcpRuntime = {}
+): Promise<CallToolResult> {
   try {
+    const session = parseHiveRepairSession(sessionValue);
+    if (session.effectiveMode !== "visual_hive" || !session.authorization) throw new Error("Visual Hive repair tools require an authorized visual_hive Hive session.");
+    assertVerifiedVisualHiveProducerIdentityMatchesPin(producer, session.capability);
+    assertActiveToolAuthorization(session, runtime.now?.() ?? new Date());
+    const registeredToolName = VisualRepairToolNameSchema.parse(toolName);
+    if (!session.authorization.toolNames.includes(registeredToolName)) throw new Error(`Visual Hive repair tool ${toolName} is not authorized by this Hive session.`);
+    let result: CallToolResult;
     switch (toolName) {
-      case "visual_hive_get_task_context":
-        return await getTaskContext(rootDir, GetTaskContextInputSchema.parse(rawArguments));
-      case "visual_hive_get_issue_context":
-        return await getIssueContext(rootDir, GetIssueContextInputSchema.parse(rawArguments));
-      case "visual_hive_search_surface":
-        return await searchSurface(rootDir, SearchSurfaceInputSchema.parse(rawArguments));
-      case "visual_hive_get_visual_asset":
-        return await getVisualAsset(rootDir, GetVisualAssetInputSchema.parse(rawArguments));
-      case "visual_hive_get_screenshot_set":
-        return await getScreenshotSet(rootDir, GetScreenshotSetInputSchema.parse(rawArguments));
-      case "visual_hive_get_browser_evidence":
-        return await getBrowserEvidence(rootDir, GetBrowserEvidenceInputSchema.parse(rawArguments));
-      case "visual_hive_compare_assets":
-        return await compareAssets(rootDir, CompareAssetsInputSchema.parse(rawArguments));
-      case "visual_hive_get_repair_validation":
-        return await getRepairValidation(rootDir, GetRepairValidationInputSchema.parse(rawArguments));
+      case "visual_hive_get_task_context": {
+        const input = GetTaskContextInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getTaskContext(rootDir, input, session);
+        break;
+      }
+      case "visual_hive_get_issue_context": {
+        const input = GetIssueContextInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getIssueContext(rootDir, input, session);
+        break;
+      }
+      case "visual_hive_search_surface": {
+        const input = SearchSurfaceInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await searchSurface(rootDir, input);
+        break;
+      }
+      case "visual_hive_get_visual_asset": {
+        const input = GetVisualAssetInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getVisualAsset(rootDir, input);
+        break;
+      }
+      case "visual_hive_get_screenshot_set": {
+        const input = GetScreenshotSetInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getScreenshotSet(rootDir, input);
+        break;
+      }
+      case "visual_hive_get_browser_evidence": {
+        const input = GetBrowserEvidenceInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getBrowserEvidence(rootDir, input);
+        break;
+      }
+      case "visual_hive_compare_assets": {
+        const input = CompareAssetsInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await compareAssets(rootDir, input);
+        break;
+      }
+      case "visual_hive_get_repair_validation": {
+        const input = GetRepairValidationInputSchema.parse(rawArguments);
+        await verifyToolSessionScope(rootDir, toolName, input, session, producer);
+        result = await getRepairValidation(rootDir, input, session);
+        break;
+      }
       default:
         throw new Error(`Parameterized Visual Hive tool ${toolName} is not registered.`);
     }
+    return bindToolResultToSession(result, session, producer);
   } catch (error) {
     return errorResult(rootDir, toolName, error);
   }
 }
 
-async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskContextInputSchema>): Promise<CallToolResult> {
+async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskContextInputSchema>, session: HiveRepairSession): Promise<CallToolResult> {
   const { context } = await loadTask(rootDir, input);
   if (context.repository.baseSha !== input.baseSha) throw new Error("Task context base commit does not match the requested commit.");
+  const authorizedAssetIds = new Set(session.authorization?.assetIds ?? []);
+  const authorizedAssets = context.assets.filter((asset) => authorizedAssetIds.has(asset.assetId));
   const binding = taskBinding(context);
   let result: Record<string, unknown>;
   switch (input.section) {
@@ -132,7 +193,7 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
           problemStatementSha256: context.issue.problemStatementSha256
         },
         counts: {
-          assets: context.assets.length,
+          assets: authorizedAssets.length,
           graphCandidates: context.graphCandidates.length,
           profiles: context.profiles.length,
           obligations: context.obligations.length,
@@ -151,7 +212,7 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
       break;
     }
     case "assets":
-      result = paged("assets", context.assets, input.cursor, input.limit);
+      result = paged("assets", authorizedAssets, input.cursor, input.limit);
       break;
     case "graph":
       result = paged("graphCandidates", context.graphCandidates, input.cursor, input.limit);
@@ -169,19 +230,20 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
   return textResult(rootDir, { schemaVersion: "visual-hive.mcp-tool-result.v1", tool: "visual_hive_get_task_context", binding, section: input.section, result });
 }
 
-async function getIssueContext(rootDir: string, input: z.infer<typeof GetIssueContextInputSchema>): Promise<CallToolResult> {
+async function getIssueContext(rootDir: string, input: z.infer<typeof GetIssueContextInputSchema>, session: HiveRepairSession): Promise<CallToolResult> {
   const { context } = await loadTask(rootDir, input);
-  const bytes = await readContainedFile(rootDir, ".visual-hive/issues.json", MAX_JSON_BYTES);
-  const issues = parseJsonObject(bytes, ".visual-hive/issues.json");
-  const candidates = Array.isArray(issues.issues) ? issues.issues.filter(isRecord) : [];
-  const matches = candidates.filter((issue) => readRawString(issue, "dedupeFingerprint") === input.issueFingerprint);
-  if (matches.length !== 1) throw new Error(`Expected one issue with fingerprint ${input.issueFingerprint}; found ${matches.length}.`);
-  const issue = matches[0]!;
+  if (session.finding.fingerprint !== input.issueFingerprint) throw new Error("Requested issue fingerprint does not match the Hive repair session finding.");
   return textResult(rootDir, {
     schemaVersion: "visual-hive.mcp-tool-result.v1",
     tool: "visual_hive_get_issue_context",
-    binding: { ...taskBinding(context), issueExternalId: context.issue.externalId, issueFingerprint: input.issueFingerprint, issuesArtifactSha256: sha256Bytes(bytes) },
-    issue: boundedObject(issue),
+    binding: { ...taskBinding(context), issueExternalId: context.issue.externalId, issueFingerprint: input.issueFingerprint },
+    issue: {
+      source: context.issue.source,
+      externalId: context.issue.externalId,
+      title: context.issue.title,
+      problemStatementSha256: context.issue.problemStatementSha256,
+      finding: session.finding
+    },
     safety: readOnlySafety()
   });
 }
@@ -338,12 +400,12 @@ async function compareAssets(rootDir: string, input: z.infer<typeof CompareAsset
   }, [{ data: comparison.diffPng, mimeType: "image/png" }]);
 }
 
-async function getRepairValidation(rootDir: string, input: z.infer<typeof GetRepairValidationInputSchema>): Promise<CallToolResult> {
+async function getRepairValidation(rootDir: string, input: z.infer<typeof GetRepairValidationInputSchema>, session: HiveRepairSession): Promise<CallToolResult> {
   const { context, sessionRelativeRoot } = await loadTask(rootDir, input);
   const relativePath = `${sessionRelativeRoot}/validations/${input.validationId}.json`;
   const bytes = await readContainedFile(rootDir, relativePath, MAX_JSON_BYTES);
   const receipt = parseVisualRepairValidation(JSON.parse(bytes.toString("utf8")) as unknown);
-  if (receipt.validationId !== input.validationId || receipt.taskId !== context.taskId || receipt.taskContextDigest !== context.contextDigest || receipt.repository !== context.repository.name || receipt.baseSha !== context.repository.baseSha || receipt.findingFingerprint !== input.findingFingerprint || receipt.headSha !== input.headSha || receipt.receiptDigest !== input.receiptDigest) {
+  if (receipt.validationId !== input.validationId || receipt.taskId !== context.taskId || receipt.taskContextDigest !== context.contextDigest || receipt.repository !== context.repository.name || receipt.baseSha !== context.repository.baseSha || receipt.findingFingerprint !== input.findingFingerprint || receipt.headSha !== input.headSha || receipt.receiptDigest !== input.receiptDigest || receipt.sessionId !== session.sessionId || receipt.sessionDigest !== session.sessionDigest || receipt.authorizationDigest !== session.authorization?.authorizationDigest) {
     throw new Error("Repair validation does not match the requested task, repository, base commit, or validation identity.");
   }
   const summary = {
@@ -351,6 +413,9 @@ async function getRepairValidation(rootDir: string, input: z.infer<typeof GetRep
     generatedAt: receipt.generatedAt,
     findingFingerprint: receipt.findingFingerprint,
     headSha: receipt.headSha,
+    sessionId: receipt.sessionId,
+    sessionDigest: receipt.sessionDigest,
+    authorizationDigest: receipt.authorizationDigest,
     verdict: receipt.verdict,
     closureRecommendation: receipt.closureRecommendation,
     comparability: receipt.comparability,
@@ -363,6 +428,150 @@ async function getRepairValidation(rootDir: string, input: z.infer<typeof GetRep
     validation: input.detail === "full" ? receipt : summary,
     safety: readOnlySafety()
   });
+}
+
+function assertActiveToolAuthorization(session: HiveRepairSession, now: Date): void {
+  const authorization = session.authorization;
+  const nowMs = now.getTime();
+  if (!authorization || !Number.isFinite(nowMs)) throw new Error("Visual Hive repair tool authorization clock is invalid.");
+  if (nowMs < Date.parse(authorization.issuedAt)) throw new Error("Visual Hive repair tool authorization is not yet active.");
+  if (nowMs > Date.parse(authorization.expiresAt) || nowMs > Date.parse(session.deadlineAt)) throw new Error("Visual Hive repair tool authorization has expired.");
+}
+
+type ScopedToolInput =
+  | z.infer<typeof GetTaskContextInputSchema>
+  | z.infer<typeof GetIssueContextInputSchema>
+  | z.infer<typeof SearchSurfaceInputSchema>
+  | z.infer<typeof GetVisualAssetInputSchema>
+  | z.infer<typeof GetScreenshotSetInputSchema>
+  | z.infer<typeof GetBrowserEvidenceInputSchema>
+  | z.infer<typeof CompareAssetsInputSchema>
+  | z.infer<typeof GetRepairValidationInputSchema>;
+
+async function verifyToolSessionScope(
+  rootDir: string,
+  toolName: string,
+  input: ScopedToolInput,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<void> {
+  const { context } = await loadTask(rootDir, input);
+  assertHiveRepairSessionMatchesTask(session, context);
+  const authorization = session.authorization;
+  if (!authorization) throw new Error("Visual Hive repair tool session has no execution authorization.");
+
+  const assertTaskAsset = (assetId: string): void => {
+    if (!authorization.assetIds.includes(assetId)) throw new Error(`Task asset ${assetId} is not authorized for this Hive repair session.`);
+  };
+  const assertRun = async (runId: string, runContextDigest: string, commitSha: string): Promise<void> => {
+    const run = await loadRun(rootDir, context, runId, runContextDigest, commitSha);
+    assertRunMatchesSession(run, session, producer);
+  };
+
+  switch (toolName) {
+    case "visual_hive_get_task_context":
+      if ((input as z.infer<typeof GetTaskContextInputSchema>).baseSha !== session.repository.baseSha) throw new Error("Task-context request does not match the Hive session base commit.");
+      break;
+    case "visual_hive_get_issue_context":
+      if ((input as z.infer<typeof GetIssueContextInputSchema>).issueFingerprint !== session.finding.fingerprint) throw new Error("Issue-context request does not match the Hive session finding.");
+      break;
+    case "visual_hive_get_visual_asset":
+      assertTaskAsset((input as z.infer<typeof GetVisualAssetInputSchema>).assetId);
+      break;
+    case "visual_hive_get_screenshot_set":
+    case "visual_hive_get_browser_evidence": {
+      const selected = input as z.infer<typeof GetScreenshotSetInputSchema> | z.infer<typeof GetBrowserEvidenceInputSchema>;
+      await assertRun(selected.runId, selected.runContextDigest, selected.commitSha);
+      break;
+    }
+    case "visual_hive_compare_assets": {
+      const selected = input as z.infer<typeof CompareAssetsInputSchema>;
+      for (const locator of [selected.before, selected.after]) {
+        if (locator.source === "task") assertTaskAsset(locator.assetId);
+        else await assertRun(locator.runId, locator.runContextDigest, locator.commitSha);
+      }
+      break;
+    }
+    case "visual_hive_get_repair_validation": {
+      const selected = input as z.infer<typeof GetRepairValidationInputSchema>;
+      if (selected.findingFingerprint !== session.finding.fingerprint) throw new Error("Repair-validation request does not match the Hive session finding.");
+      const patchRequests = session.validationRequests.filter((request) => request.kind === "patch_validation" && request.commitRole === "candidate" && request.commitSha === selected.headSha && request.authorizationDigest === authorization.authorizationDigest);
+      if (patchRequests.length !== 1) throw new Error("Repair-validation request head is not the exact candidate declared by this Hive session.");
+      break;
+    }
+    case "visual_hive_search_surface":
+      break;
+    default:
+      throw new Error(`Visual Hive repair tool ${toolName} has no session-scope policy.`);
+  }
+}
+
+function assertRunMatchesSession(
+  run: VisualRunContext,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): void {
+  const authorization = session.authorization;
+  if (!authorization) throw new Error("Visual Hive repair run session has no execution authorization.");
+  if (run.findingFingerprint !== session.finding.fingerprint) throw new Error("Visual Hive run does not bind the Hive session finding.");
+  if (!run.brokerRequest) throw new Error("Visual Hive run is not bound to a Hive validation request.");
+  const requests = session.validationRequests.filter((request) =>
+    request.requestId === run.brokerRequest?.requestId &&
+    request.requestDigest === run.brokerRequest.requestDigest &&
+    request.commitSha === run.repository.commitSha &&
+    request.profileId === run.execution.profileId &&
+    request.profileDigest === run.execution.profileDigest &&
+    request.authorizationDigest === authorization.authorizationDigest
+  );
+  if (requests.length !== 1) throw new Error("Visual Hive run is not the exact validation request declared by this Hive session.");
+  if (run.execution.configDigest !== authorization.configDigest) throw new Error("Visual Hive run config does not match its Hive authorization.");
+  if (
+    run.producer.visualHiveVersion !== session.capability.visualHiveVersion ||
+    run.producer.visualHiveCommit !== session.capability.visualHiveCommit ||
+    run.producer.manifestSha256 !== session.capability.visualHiveManifestSha256 ||
+    run.producer.entrypointSha256 !== session.capability.visualHiveEntrypointSha256 ||
+    run.execution.toolRegistryDigest !== session.capability.validationToolRegistryDigest ||
+    run.producer.visualHiveVersion !== producer.visualHiveVersion ||
+    run.producer.visualHiveCommit !== producer.visualHiveCommit ||
+    run.producer.manifestSha256 !== producer.manifestSha256 ||
+    run.producer.entrypointSha256 !== producer.entrypointSha256
+  ) {
+    throw new Error("Visual Hive run producer or validation-tool identity does not match its Hive session.");
+  }
+}
+
+function bindToolResultToSession(
+  result: CallToolResult,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): CallToolResult {
+  if (result.isError || !session.authorization) return result;
+  const authorizationDigest = session.authorization.authorizationDigest;
+  let bound = false;
+  const content = result.content.map((entry) => {
+    if (bound || entry.type !== "text") return entry;
+    const parsed: unknown = JSON.parse(entry.text);
+    if (!isRecord(parsed) || !isRecord(parsed.binding)) throw new Error("Visual Hive repair tool result has no structured identity binding.");
+    bound = true;
+    return {
+      ...entry,
+      text: JSON.stringify({
+        ...parsed,
+        binding: {
+          ...parsed.binding,
+          sessionId: session.sessionId,
+          sessionDigest: session.sessionDigest,
+          authorizationDigest,
+          visualHiveVersion: producer.visualHiveVersion,
+          visualHiveCommit: producer.visualHiveCommit,
+          visualHiveManifestSha256: producer.manifestSha256,
+          visualHiveEntrypointSha256: producer.entrypointSha256
+        }
+      }, null, 2)
+    };
+  });
+  if (!bound) throw new Error("Visual Hive repair tool result has no text identity envelope.");
+  return { ...result, content };
 }
 
 async function loadTask(rootDir: string, input: { taskId: string; repository: string; taskContextDigest: string }): Promise<{ context: VisualHiveTaskContext; taskRoot: string; sessionRelativeRoot: string }> {
@@ -503,11 +712,6 @@ function boundedBrowserResult(result: Record<string, unknown>): Record<string, u
     pageErrors: boundedArray(result.pageErrors, 64),
     networkErrors: boundedArray(result.networkErrors, 64)
   };
-}
-
-function boundedObject(value: Record<string, unknown>): Record<string, unknown> {
-  const entries = Object.entries(value).slice(0, 128);
-  return Object.fromEntries(entries.map(([key, child]) => [key, Array.isArray(child) ? child.slice(0, 128) : child]));
 }
 
 function boundedArray(value: unknown, limit: number): unknown[] {

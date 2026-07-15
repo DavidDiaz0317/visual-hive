@@ -4,11 +4,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { visualHiveVersion } from "../version.js";
 import {
-  VISUAL_REPAIR_MCP_TOOL_DEFINITIONS,
-  VISUAL_REPAIR_MCP_TOOL_NAMES,
-  callVisualRepairMcpTool
-} from "./repairMcpTools.js";
-import {
   VISUAL_HIVE_EVIDENCE_RESOURCES,
   createPlan,
   getEvidenceResourceByReadToolName,
@@ -200,13 +195,7 @@ const MCP_RESOURCE_READ_TOOLS: McpToolDefinition[] = VISUAL_HIVE_EVIDENCE_RESOUR
 
 export const MCP_READ_ONLY_TOOLS: McpToolDefinition[] = [
   ...MCP_STATIC_READ_ONLY_TOOLS,
-  ...MCP_RESOURCE_READ_TOOLS,
-  ...VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.map((tool) => ({
-    name: tool.name,
-    title: tool.title,
-    description: tool.description,
-    mode: "read_only" as const
-  }))
+  ...MCP_RESOURCE_READ_TOOLS
 ];
 
 const SETUP_ONLY_RESOURCE_IDS = new Set([
@@ -343,25 +332,6 @@ export function createVisualHiveMcpServer(loaded: LoadedConfig, manifest = build
   }
 
   for (const tool of manifest.tools) {
-    const parameterized = VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.find((definition) => definition.name === tool.name);
-    if (parameterized) {
-      server.registerTool(
-        tool.name,
-        {
-          title: tool.title,
-          description: tool.description,
-          inputSchema: parameterized.inputSchema,
-          annotations: {
-            readOnlyHint: true,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false
-          }
-        },
-        async (args) => callVisualRepairMcpTool(loaded.rootDir, tool.name, args)
-      );
-      continue;
-    }
     server.registerTool(
       tool.name,
       {
@@ -420,9 +390,6 @@ export function buildSetupOnlyMcpManifest(project: string): McpManifest {
 }
 
 export async function callReadOnlyTool(loaded: LoadedConfig, toolName: string): Promise<string> {
-  if (VISUAL_REPAIR_MCP_TOOL_NAMES.has(toolName)) {
-    return `Tool ${sanitizeText(toolName)} requires explicit task and artifact identities and must be called through MCP with its declared arguments.`;
-  }
   const resourceTool = getEvidenceResourceByReadToolName(toolName);
   if (resourceTool) {
     const filePath = resourceTool.uri === "visual-hive://config" ? loaded.configPath : path.join(loaded.rootDir, resourceTool.relativePath);

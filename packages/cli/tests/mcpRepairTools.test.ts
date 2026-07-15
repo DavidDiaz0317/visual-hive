@@ -10,22 +10,32 @@ import {
   computeVisualRepositoryFingerprint,
   computeVisualValidationPolicyDigest,
   computeVisualValidationProfileDigest,
-  loadConfig,
   sha256Bytes,
   sha256Utf8,
   visualRepairSessionRelativeRoot,
   type VisualHiveTaskContext,
+  type HiveRepairSession,
+  type HiveRepairValidationRequestSpec,
   type VisualRepairValidation,
   type VisualRunContext
 } from "@visual-hive/core";
 import { PNG } from "pngjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildVisualRepairValidation } from "../../core/src/repair/build.js";
-import { createVisualHiveMcpServer } from "../src/commands/mcp.js";
+import { createRepairMcpServer } from "../src/commands/repairMcp.js";
+import { buildTestRepairSession } from "./repairTestSession.js";
 
 const roots: string[] = [];
 const commit = (value: string): string => value.repeat(40);
 const digest = (value: string): string => value.repeat(64);
+const executionBinding = {
+  nonceSha256: digest("1"),
+  generatedSpecSha256: digest("2"),
+  generatedConfigSha256: digest("3"),
+  payloadSha256: digest("4"),
+  bindingMacSha256: digest("5")
+};
+const repairClock = { now: () => new Date("2026-07-14T16:10:00.000Z") };
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -34,8 +44,8 @@ afterEach(async () => {
 describe("parameterized Visual Hive repair MCP tools", () => {
   it("exposes exact schemas and returns identity-bound multimodal evidence", async () => {
     const fixture = await createFixture();
-    const loaded = await loadConfig(undefined, fixture.root);
-    const server = createVisualHiveMcpServer(loaded);
+    const producer = producerFor(fixture.session);
+    const server = createRepairMcpServer(fixture.root, fixture.session, producer, repairClock);
     const client = new Client({ name: "repair-tool-test", version: "1" }, { capabilities: {} });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -69,6 +79,16 @@ describe("parameterized Visual Hive repair MCP tools", () => {
         name: "visual_hive_get_task_context",
         arguments: { ...common, baseSha: fixture.task.repository.baseSha, section: "summary" }
       }, undefined, { timeout: 10_000 });
+      const taskEnvelope = JSON.parse(textOf(taskResult));
+      expect(taskEnvelope.binding).toMatchObject({
+        sessionId: fixture.session.sessionId,
+        sessionDigest: fixture.session.sessionDigest,
+        authorizationDigest: fixture.session.authorization!.authorizationDigest,
+        visualHiveVersion: producer.visualHiveVersion,
+        visualHiveCommit: producer.visualHiveCommit,
+        visualHiveManifestSha256: producer.manifestSha256,
+        visualHiveEntrypointSha256: producer.entrypointSha256
+      });
       expect(textOf(taskResult)).toContain(fixture.task.contextDigest);
       expect(textOf(taskResult)).toContain("sessionStorageId");
 
@@ -170,17 +190,54 @@ describe("parameterized Visual Hive repair MCP tools", () => {
     }
   });
 
-  it("fails closed on duplicate issue identities instead of selecting one", async () => {
+  it("rejects run evidence whose release-artifact hashes differ from the verified MCP producer", async () => {
     const fixture = await createFixture();
-    await writeJsonFile(path.join(fixture.root, ".visual-hive", "issues.json"), {
-      schemaVersion: "visual-hive.issues.v1",
-      issues: [
-        { dedupeFingerprint: "issue.target", title: "First duplicate" },
-        { dedupeFingerprint: "issue.target", title: "Second duplicate" }
-      ]
-    });
-    const loaded = await loadConfig(undefined, fixture.root);
-    const server = createVisualHiveMcpServer(loaded);
+    const producer = producerFor(fixture.session);
+    const server = createRepairMcpServer(fixture.root, fixture.session, producer, repairClock);
+    const client = new Client({ name: "repair-tool-producer-pin-test", version: "1" }, { capabilities: {} });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const sessionRoot = path.join(fixture.root, ...visualRepairSessionRelativeRoot({
+      taskId: fixture.task.taskId,
+      repository: fixture.task.repository.name,
+      taskContextDigest: fixture.task.contextDigest
+    }).split("/"));
+    const { runContextDigest: _runContextDigest, ...runInput } = fixture.run;
+    void _runContextDigest;
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      for (const producerOverride of [
+        { manifestSha256: digest("f") },
+        { entrypointSha256: digest("e") }
+      ]) {
+        const mismatched = buildVisualRunContext({
+          ...structuredClone(runInput),
+          producer: { ...runInput.producer, ...producerOverride }
+        });
+        await writeJsonFile(path.join(sessionRoot, "runs", mismatched.runId, "run-context.json"), mismatched);
+        const result = await client.callTool({
+          name: "visual_hive_get_browser_evidence",
+          arguments: {
+            taskId: fixture.task.taskId,
+            repository: fixture.task.repository.name,
+            taskContextDigest: fixture.task.contextDigest,
+            runId: mismatched.runId,
+            runContextDigest: mismatched.runContextDigest,
+            commitSha: mismatched.repository.commitSha,
+            contractId: "contract.card"
+          }
+        }, undefined, { timeout: 10_000 });
+        expect(result.isError).toBe(true);
+        expect(textOf(result)).toContain("producer or validation-tool identity does not match");
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("fails closed when issue or session identity differs", async () => {
+    const fixture = await createFixture();
+    const server = createRepairMcpServer(fixture.root, fixture.session, producerFor(fixture.session), repairClock);
     const client = new Client({ name: "repair-tool-duplicate-test", version: "1" }, { capabilities: {} });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     try {
@@ -191,11 +248,81 @@ describe("parameterized Visual Hive repair MCP tools", () => {
           taskId: fixture.task.taskId,
           repository: fixture.task.repository.name,
           taskContextDigest: fixture.task.contextDigest,
-          issueFingerprint: "issue.target"
+          issueFingerprint: "issue.other"
         }
       }, undefined, { timeout: 10_000 });
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain("found 2");
+      expect(textOf(result)).toContain("does not match the Hive session finding");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("checks the live authorization window on every tool call", async () => {
+    const fixture = await createFixture();
+    for (const [label, now, expected] of [
+      ["not-yet-active", "2026-07-14T14:59:59.000Z", "not yet active"],
+      ["expired", "2026-07-14T18:00:01.000Z", "expired"]
+    ] as const) {
+      const server = createRepairMcpServer(fixture.root, fixture.session, producerFor(fixture.session), { now: () => new Date(now) });
+      const client = new Client({ name: `repair-tool-${label}-test`, version: "1" }, { capabilities: {} });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      try {
+        await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+        const result = await client.callTool({
+          name: "visual_hive_get_task_context",
+          arguments: {
+            taskId: fixture.task.taskId,
+            repository: fixture.task.repository.name,
+            taskContextDigest: fixture.task.contextDigest,
+            baseSha: fixture.task.repository.baseSha,
+            section: "summary"
+          }
+        }, undefined, { timeout: 10_000 });
+        expect(result.isError).toBe(true);
+        expect(textOf(result)).toContain(expected);
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    }
+  });
+
+  it("rejects a canonically valid validation receipt from another Hive session", async () => {
+    const fixture = await createFixture();
+    const crossSession = {
+      ...fixture.session,
+      sessionId: digest("e"),
+      sessionDigest: digest("f")
+    } as HiveRepairSession;
+    const receipt = makeValidation(fixture.task, fixture.run, crossSession);
+    const sessionRoot = path.join(fixture.root, ...visualRepairSessionRelativeRoot({
+      taskId: fixture.task.taskId,
+      repository: fixture.task.repository.name,
+      taskContextDigest: fixture.task.contextDigest
+    }).split("/"));
+    await writeJsonFile(path.join(sessionRoot, "validations", `${receipt.validationId}.json`), receipt);
+
+    const server = createRepairMcpServer(fixture.root, fixture.session, producerFor(fixture.session), repairClock);
+    const client = new Client({ name: "repair-tool-cross-session-test", version: "1" }, { capabilities: {} });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      const result = await client.callTool({
+        name: "visual_hive_get_repair_validation",
+        arguments: {
+          taskId: fixture.task.taskId,
+          repository: fixture.task.repository.name,
+          taskContextDigest: fixture.task.contextDigest,
+          validationId: receipt.validationId,
+          findingFingerprint: receipt.findingFingerprint,
+          headSha: receipt.headSha,
+          receiptDigest: receipt.receiptDigest
+        }
+      }, undefined, { timeout: 10_000 });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toContain("does not match the requested task, repository, base commit, or validation identity");
     } finally {
       await client.close();
       await server.close();
@@ -208,6 +335,7 @@ async function createFixture(): Promise<{
   task: VisualHiveTaskContext;
   run: VisualRunContext;
   validation: VisualRepairValidation;
+  session: HiveRepairSession;
   expected: Buffer;
 }> {
   const root = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repair-mcp-"));
@@ -222,14 +350,6 @@ async function createFixture(): Promise<{
   await writeFile(path.join(sessionRoot, "assets", "expected.png"), expected);
   await writeFile(path.join(sessionRoot, "assets", "current.png"), current);
   await writeJsonFile(path.join(sessionRoot, "task-context.json"), task);
-
-  await writeJsonFile(path.join(root, ".visual-hive", "issues.json"), {
-    schemaVersion: "visual-hive.issues.v1",
-    issues: [
-      { dedupeFingerprint: "issue.unrelated", title: "First unrelated issue", status: "open_candidate" },
-      { dedupeFingerprint: "issue.target", title: "Target issue", status: "open_candidate", affected: [{ contractId: "contract.card" }], guardrails: ["Keep deterministic thresholds"] }
-    ]
-  });
 
   const report = {
     schemaVersion: 2,
@@ -247,7 +367,13 @@ async function createFixture(): Promise<{
     }]
   };
   const reportBytes = Buffer.from(JSON.stringify(report), "utf8");
-  const run = makeRun(task, expected, current, reportBytes);
+  const repairSession = buildTestRepairSession(task, {
+    findingFingerprint: "issue.target",
+    candidateSha: commit("b"),
+    validationToolRegistryDigest: digest("4"),
+    configDigest: digest("1")
+  });
+  const run = makeRun(task, expected, current, reportBytes, repairSession.reproductionRequest);
   const runRoot = path.join(sessionRoot, "runs", run.runId);
   await mkdir(path.join(runRoot, "assets"), { recursive: true });
   await writeFile(path.join(runRoot, "assets", "baseline.png"), expected);
@@ -256,9 +382,9 @@ async function createFixture(): Promise<{
   await writeFile(path.join(runRoot, "report.json"), reportBytes);
   await writeJsonFile(path.join(runRoot, "run-context.json"), run);
 
-  const validation = makeValidation(task, run);
+  const validation = makeValidation(task, run, repairSession.session);
   await writeJsonFile(path.join(sessionRoot, "validations", `${validation.validationId}.json`), validation);
-  return { root, task, run, validation, expected };
+  return { root, task, run, validation, session: repairSession.session, expected };
 }
 
 function makeTask(expected: Buffer, current: Buffer): VisualHiveTaskContext {
@@ -301,7 +427,7 @@ function makeTask(expected: Buffer, current: Buffer): VisualHiveTaskContext {
   });
 }
 
-function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, reportBytes: Buffer): VisualRunContext {
+function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, reportBytes: Buffer, request: HiveRepairValidationRequestSpec): VisualRunContext {
   const cases = [{ caseId: "case.card", targetId: "target.app", route: "/", state: "default", viewport: { viewportId: "viewport.desktop", width: 2, height: 2, deviceScaleFactor: 1 }, contractIds: ["contract.card"] }];
   const thresholds = [{ contractId: "contract.card", maxDiffPixelRatio: 0, missingBaseline: "fail" as const }];
   const assertion = { contractId: "contract.card", screenshotName: "Card desktop state", route: "/", state: "default", viewportId: "viewport.desktop" };
@@ -313,9 +439,9 @@ function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, 
     phase: "before",
     taskId: task.taskId,
     taskContextDigest: task.contextDigest,
-    findingFingerprint: "finding.card",
+    findingFingerprint: "issue.target",
     repository: { name: task.repository.name, repositoryId: task.repository.repositoryId, repositoryFingerprint: task.repository.repositoryFingerprint, commitSha: task.repository.baseSha },
-    brokerRequest: { requestId: digest("7"), requestDigest: digest("8") },
+    brokerRequest: { requestId: request.requestId, requestDigest: request.requestDigest },
     execution: {
       commitSha: task.repository.baseSha,
       profileId: task.profiles[0]!.profileId,
@@ -332,8 +458,20 @@ function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, 
       environment: { os: "windows", architecture: "x64", nodeVersion: "22.13.1", playwrightVersion: "1.54.1", fontManifestDigest: digest("6"), locale: "en-US", timezone: "UTC" },
       cases
     },
-    producer: { visualHiveVersion: "0.3.2", visualHiveCommit: commit("c"), playwrightVersion: "1.54.1" },
-    command: { validationCommandId: "command.playwright", startedAt: "2026-07-14T16:04:00.000Z", completedAt: "2026-07-14T16:05:00.000Z", exitCode: 1 },
+    producer: {
+      visualHiveVersion: "0.3.2",
+      visualHiveCommit: commit("c"),
+      manifestSha256: digest("9"),
+      entrypointSha256: digest("2"),
+      playwrightVersion: "1.54.1"
+    },
+    command: {
+      validationCommandId: "command.playwright",
+      startedAt: "2026-07-14T16:04:00.000Z",
+      completedAt: "2026-07-14T16:05:00.000Z",
+      exitCode: 1,
+      executionBinding
+    },
     report: { path: "runs/run.before/report.json", sha256: sha256Bytes(reportBytes) },
     evidenceAssets: [
       { assetId: "asset.run.baseline", role: "baseline", path: "runs/run.before/assets/baseline.png", mediaType: "image/png", sha256: sha256Bytes(baseline), size: baseline.length, width: 2, height: 2, assertion, obligationIds: ["obligation.card"] },
@@ -345,12 +483,15 @@ function makeRun(task: VisualHiveTaskContext, baseline: Buffer, actual: Buffer, 
   });
 }
 
-function makeValidation(task: VisualHiveTaskContext, run: VisualRunContext): VisualRepairValidation {
+function makeValidation(task: VisualHiveTaskContext, run: VisualRunContext, session: HiveRepairSession): VisualRepairValidation {
   const headSha = commit("b");
   return buildVisualRepairValidation({
     schemaVersion: "visual-hive.repair-validation.v1",
     generatedAt: "2026-07-14T16:10:00.000Z",
     validationId: "validation.card",
+    sessionId: session.sessionId,
+    sessionDigest: session.sessionDigest,
+    authorizationDigest: session.authorization!.authorizationDigest,
     taskId: task.taskId,
     taskContextDigest: task.contextDigest,
     findingFingerprint: run.findingFingerprint,
@@ -407,4 +548,14 @@ function imagesOf(result: { content: Array<{ type: string; data?: string; mimeTy
   return result.content
     .filter((item): item is { type: "image"; data: string; mimeType: string } => item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string")
     .map((item) => ({ data: item.data, mimeType: item.mimeType }));
+}
+
+function producerFor(session: HiveRepairSession) {
+  return {
+    identityKind: "verified_release_manifest" as const,
+    visualHiveVersion: session.capability.visualHiveVersion!,
+    visualHiveCommit: session.capability.visualHiveCommit!,
+    manifestSha256: session.capability.visualHiveManifestSha256!,
+    entrypointSha256: session.capability.visualHiveEntrypointSha256!
+  };
 }
