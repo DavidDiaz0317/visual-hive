@@ -6,12 +6,14 @@ const LOG_TAIL_LINES = 30;
 const SERVER_FETCH_TIMEOUT_MS = 750;
 const PROCESS_TERMINATION_GRACE_MS = 1_000;
 const PROCESS_FORCE_KILL_TIMEOUT_MS = 3_000;
+const MAX_SERVER_LOG_BYTES = 256 * 1024;
 
 export interface ManagedServer {
   command: string;
   cwd: string;
   url: string;
   pid?: number;
+  isRunning: () => boolean;
   stop: () => Promise<void>;
   logTail: () => string;
 }
@@ -22,10 +24,12 @@ export async function startManagedServer(input: {
   url: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  deadlineAtMs?: number;
 }): Promise<ManagedServer> {
-  if (await isServerReachable(input.url)) {
-    await waitForServerUrlToClose(input.url);
-    if (await isServerReachable(input.url)) {
+  const readyTimeoutMs = remainingTimeout(input.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS, input.deadlineAtMs);
+  if (await isServerReachable(input.url, Math.min(SERVER_FETCH_TIMEOUT_MS, readyTimeoutMs))) {
+    await waitForServerUrlToClose(input.url, Math.min(5_000, readyTimeoutMs));
+    if (await isServerReachable(input.url, Math.min(SERVER_FETCH_TIMEOUT_MS, remainingTimeout(readyTimeoutMs, input.deadlineAtMs)))) {
       throw new Error(
         targetStartupMessage({
           url: input.url,
@@ -45,12 +49,17 @@ export async function startManagedServer(input: {
     windowsHide: true
   });
   const logs: string[] = [];
+  let logBytes = 0;
   let closed: { code: number | null; signal: NodeJS.Signals | null } | undefined;
 
   const pushLog = (prefix: string, chunk: Buffer): void => {
-    for (const line of chunk.toString().split(/\r?\n/)) {
+    if (logBytes >= MAX_SERVER_LOG_BYTES) return;
+    const remaining = MAX_SERVER_LOG_BYTES - logBytes;
+    const bounded = chunk.subarray(0, remaining);
+    logBytes += bounded.byteLength;
+    for (const line of bounded.toString().split(/\r?\n/)) {
       if (line.trim()) {
-        logs.push(`${prefix}: ${line}`);
+        logs.push(`${prefix}: ${line.slice(0, 8_192)}`);
       }
     }
     if (logs.length > LOG_TAIL_LINES) {
@@ -69,6 +78,7 @@ export async function startManagedServer(input: {
     cwd: input.cwd,
     url: input.url,
     pid: child.pid,
+    isRunning: () => closed === undefined,
     stop: () => stopProcessTree(child, input.url),
     logTail: () => sanitizeText(logs.join("\n"))
   };
@@ -76,7 +86,7 @@ export async function startManagedServer(input: {
   try {
     await waitForServerUrl({
       url: input.url,
-      timeoutMs: input.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+      timeoutMs: remainingTimeout(readyTimeoutMs, input.deadlineAtMs),
       getClosed: () => closed ?? currentChildExit(child),
       logTail: server.logTail,
       command: input.command
@@ -108,8 +118,14 @@ export async function waitForServerUrl(input: {
   let stableSuccesses = 0;
 
   while (Date.now() < deadline) {
+    const closedBeforeProbe = input.getClosed?.();
+    if (closedBeforeProbe) {
+      throw new Error(targetStartupMessage({ url: input.url, command: input.command, reason: `managed process exited before readiness (code=${closedBeforeProbe.code ?? "null"}, signal=${closedBeforeProbe.signal ?? "none"})`, logTail: input.logTail?.() }));
+    }
     try {
-      const response = await fetchWithTimeout(input.url, SERVER_FETCH_TIMEOUT_MS);
+      const response = await fetchWithTimeout(input.url, Math.min(SERVER_FETCH_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
+      const closedAfterProbe = input.getClosed?.();
+      if (closedAfterProbe) throw new Error(`managed process exited during readiness (code=${closedAfterProbe.code ?? "null"}, signal=${closedAfterProbe.signal ?? "none"})`);
       if (response.status < 500) {
         stableSuccesses += 1;
         if (stableSuccesses >= 3) {
@@ -125,20 +141,6 @@ export async function waitForServerUrl(input: {
       lastError = error;
     }
 
-    const closed = input.getClosed?.();
-    if (closed) {
-      if (await isServerReachable(input.url)) {
-        return;
-      }
-      throw new Error(
-        targetStartupMessage({
-          url: input.url,
-          command: input.command,
-          reason: `process exited before the target became stably reachable (code=${closed.code ?? "null"}, signal=${closed.signal ?? "none"})`,
-          logTail: input.logTail?.()
-        })
-      );
-    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
@@ -160,13 +162,7 @@ export async function stopProcessTree(child: ChildProcess, url?: string): Promis
     }
 
     if (process.platform === "win32") {
-      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
-      if (url) {
-        await killWindowsListenersForUrl(url);
-        if (!(await waitForServerUrlToClose(url))) {
-          await killWindowsListenersForUrl(url, 10_000);
-        }
-      }
+      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true, timeout: 5_000 });
     } else {
       await stopUnixProcessGroup(pid);
     }
@@ -238,7 +234,7 @@ async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<
   const deadline = Date.now() + timeoutMs;
   let stableMisses = 0;
   while (Date.now() < deadline) {
-    if (!(await isServerReachable(url))) {
+    if (!(await isServerReachable(url, Math.min(SERVER_FETCH_TIMEOUT_MS, Math.max(1, deadline - Date.now()))))) {
       stableMisses += 1;
       if (stableMisses >= 3) {
         return true;
@@ -249,16 +245,25 @@ async function waitForServerUrlToClose(url: string, timeoutMs = 5_000): Promise<
     stableMisses = 0;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  return !(await isServerReachable(url));
+  return !(await isServerReachable(url, SERVER_FETCH_TIMEOUT_MS));
 }
 
-async function isServerReachable(url: string): Promise<boolean> {
+async function isServerReachable(url: string, timeoutMs = SERVER_FETCH_TIMEOUT_MS): Promise<boolean> {
   try {
-    await fetchWithTimeout(url, SERVER_FETCH_TIMEOUT_MS);
+    await fetchWithTimeout(url, timeoutMs);
     return true;
   } catch {
     return false;
   }
+}
+
+function remainingTimeout(requestedMs: number, deadlineAtMs?: number): number {
+  if (!Number.isSafeInteger(requestedMs) || requestedMs <= 0) throw new Error("Target server readiness timeout is invalid.");
+  if (deadlineAtMs === undefined) return requestedMs;
+  if (!Number.isSafeInteger(deadlineAtMs) || deadlineAtMs <= 0) throw new Error("Target server deadline is invalid.");
+  const remaining = Math.min(requestedMs, deadlineAtMs - Date.now());
+  if (remaining <= 0) throw new Error("Target server deadline elapsed before readiness.");
+  return remaining;
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
@@ -271,49 +276,6 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   }
 }
 
-async function killWindowsListenersForUrl(url: string, timeoutMs = 5_000): Promise<void> {
-  const parsed = safeUrl(url);
-  if (!parsed?.port) {
-    return;
-  }
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const pids = windowsListenerPidsForPort(parsed.port);
-    if (pids.size === 0) {
-      return;
-    }
-    for (const listenerPid of pids) {
-      spawnSync("taskkill", ["/pid", listenerPid, "/t", "/f"], { stdio: "ignore", windowsHide: true });
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
-
-function windowsListenerPidsForPort(port: string): Set<string> {
-  const netstat = spawnSync("netstat", ["-ano"], { encoding: "utf8", windowsHide: true });
-  const output = `${netstat.stdout ?? ""}\n${netstat.stderr ?? ""}`;
-  const pids = new Set<string>();
-  for (const line of output.split(/\r?\n/)) {
-    if (!line.includes("LISTENING")) {
-      continue;
-    }
-    const columns = line.trim().split(/\s+/);
-    const localAddress = columns[1] ?? "";
-    const pid = columns[columns.length - 1];
-    if (localAddress.endsWith(`:${port}`) && pid && /^\d+$/.test(pid)) {
-      pids.add(pid);
-    }
-  }
-  return pids;
-}
-
-function safeUrl(value: string): URL | undefined {
-  try {
-    return new URL(value);
-  } catch {
-    return undefined;
-  }
-}
 
 function targetStartupMessage(input: { url: string; command?: string; reason: string; logTail?: string }): string {
   const lines = [
