@@ -1,10 +1,14 @@
 # Hive + Visual Hive SWE-bench Multimodal Protocol
 
-Status: preregistered development protocol v1
+Status: preregistered development protocol v2
 
 Frozen: 2026-07-14
 
+Evaluation state at v2 freeze: not begun. No untouched-evaluation task has been opened, executed, inspected, or used for a product or protocol decision.
+
 Private test submissions: out of scope for this protocol
+
+Protocol v2 supersedes v1 before evaluation. It does not change the dataset, repository-grouped split, prompts, treatment definition, or evaluation instances. It freezes the previously unresolved dollar ceiling, restores numeric cost and infrastructure acceptance caps, defines the confirmatory uncertainty rule, and defines zero-control handling for relative uplift and cost efficiency. No result was available when these rules were set.
 
 ## Claim under test
 
@@ -83,9 +87,9 @@ Each pair starts from fresh, independently materialized workspaces. Conditions m
 - Maximum Visual Hive calls: 20 in treatment; every call counts against the same total token and wall-time budgets.
 - Maximum image fetches: 12 in treatment, with content deduplicated by SHA-256.
 - Maximum treatment-only evidence payload: 32 MiB binary and 2 MiB UTF-8 text per task.
-- Maximum dollar cost: must be set to the same non-null value for both conditions in the immutable run lock before inference begins.
+- Maximum billed provider cost: USD 2.50 per condition, therefore USD 5.00 per paired task-repetition. A run lock may lower but never raise this cap. The corresponding hard stage ceilings are USD 15.00 for smoke, USD 225.00 for the 15-task/three-repetition pilot, and USD 765.00 for the 51-task/three-repetition untouched evaluation. Tuning beyond the pilot requires a separate authorization and cannot increase the untouched-evaluation ceiling.
 
-If the selected provider cannot expose or enforce token and cost usage, that run is a plumbing result and cannot support the performance claim. Provider revision, model snapshot, effective sampling settings, Codex/agent version, prompts, tool schemas, Hive SHA, Visual Hive SHA, container images, OS, architecture, Node, Playwright, browser, fonts, locale, timezone, and evaluator revision must be captured in the immutable run lock.
+Cost includes every billed model/provider call made for the condition, including retries and any optional model used by the condition. Local browser, container, and evaluator compute is reported separately and is not silently converted into provider cost. If the selected provider cannot expose and enforce token and billed-cost usage, or any completed evaluation condition has missing usage, that run is a plumbing result and cannot support the performance claim. Missing usage is never zero. Provider revision, model snapshot, effective sampling settings, Codex/agent version, prompts, tool schemas, Hive SHA, Visual Hive SHA, container images, OS, architecture, Node, Playwright, browser, fonts, locale, timezone, and evaluator revision must be captured in the immutable run lock.
 
 No material-cost pilot or evaluation run starts until its task count, call count, expected duration, maximum cost, and expected cost have been shown to the user and explicitly authorized.
 
@@ -123,25 +127,33 @@ The frozen evaluation report includes:
 - micro and repository-macro resolve rates;
 - absolute treatment-minus-control resolve-rate difference;
 - treatment-only wins, control-only wins, and net paired wins;
-- exact two-sided McNemar test over discordant pairs;
-- 10,000-draw paired bootstrap confidence interval, stratified by repository and seeded with `20260714`;
+- exact two-sided McNemar test over discordant task outcomes after reducing each task's three repetitions to its majority outcome;
+- 10,000-draw paired bootstrap confidence interval over task clusters, retaining all three repetitions for each sampled task, stratified by repository and seeded with `20260714`;
 - F2P, P2P, patch-application, empty-patch, timeout, cost-limit, and infrastructure-failure rates;
 - tokens, dollars, wall time, and tool calls per task and per resolved task;
 - files inspected/changed, changed lines, unrelated-diff rate, and development-only localization metrics;
 - results by repository, asset type, native visual-test grading, and Visual Hive routing decision;
 - treatment tool contribution: requested, successful, consumed by the model, and followed by a changed action or validated patch.
 
-Cost per solve is total condition cost divided by resolved task-repetitions. Infrastructure failures remain in the primary denominator and are also reported separately. Missing usage data is not treated as zero.
+Cost per solve is total condition cost divided by resolved task-repetitions. Infrastructure failures remain unresolved in the primary denominator and are also reported separately. A harness, provider, image-prefetch, repository-materialization, browser-startup, evaluator, timeout, or cost-limit failure is infrastructure; a patch that applies but fails tests is an ordinary unresolved task. Missing usage data is not treated as zero.
+
+The sole confirmatory significance rule is that the lower endpoint of the preregistered paired 95% task-cluster bootstrap interval for treatment minus control is strictly greater than zero. The exact two-sided McNemar p-value is a required sensitivity analysis, not an alternative gate: it cannot rescue an interval containing zero, and a different conclusion must be reported rather than selectively replacing the bootstrap rule. No post-hoc normal approximation, one-sided test, repository exclusion, repetition exclusion, or seed change is allowed.
+
+Relative uplift is `(treatment resolve rate - control resolve rate) / control resolve rate` when the control rate is positive. When control is zero and treatment is also zero, relative uplift is defined as zero and the claim fails. When control is zero and treatment is positive, relative uplift is reported as `undefined (control=0)`, never as infinity; the 10% relative criterion is considered satisfied only when the absolute-improvement and confirmatory-bootstrap criteria also pass.
+
+When control has no solves, the cost-per-solve ratio is also reported as undefined. Its preregistered fallback is total billed cost per task: treatment must be no more than 25% above control and must remain below the absolute USD 2.50 condition cap. If control billed cost is zero, treatment must also have zero billed cost for this fallback to pass.
 
 ## Preregistered acceptance
 
 Treatment passes the performance claim only if all are true on the untouched evaluation partition:
 
-- absolute resolve-rate improvement is at least 2 percentage points;
-- the paired 95% bootstrap interval excludes zero in the positive direction;
+- absolute resolve-rate improvement is at least 5 percentage points;
+- relative resolve-rate improvement is at least 10% over control;
+- the lower endpoint of the preregistered paired 95% task-cluster bootstrap interval is strictly greater than zero;
 - repository-macro improvement is positive;
-- cost per resolved task is no more than 25% worse;
-- infrastructure-failure rate is no more than 1 percentage point worse;
+- cost per resolved task is no more than 25% worse, using the frozen zero-control fallback above when required;
+- infrastructure-failure rate is at most 5% in each condition and treatment is no more than 1 percentage point worse than control;
+- invalid, unrelated, and deterministically regressive patch counts do not increase;
 - leakage and forbidden-action counts are zero.
 
 These thresholds are immutable. A failed result is reported as a failed hypothesis, not repaired by changing metrics, excluding difficult repositories, weakening budgets, or tuning on evaluation tasks.
