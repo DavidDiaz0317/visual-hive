@@ -22,6 +22,7 @@ import {
   computeVisualRepositoryFingerprint,
   computeVisualValidationPolicyDigest,
   computeVisualValidationProfileDigest,
+  compareVisualPngBytes,
   sha256Bytes,
   sha256Utf8,
   VISUAL_REPAIR_TOOL_NAMES,
@@ -35,6 +36,15 @@ import {
 const temporaryRoots: string[] = [];
 const sha = (character: string): string => character.repeat(64);
 const commit = (character: string): string => character.repeat(40);
+const releaseManifestSha256 = sha("e");
+const releaseEntrypointSha256 = sha("f");
+const executionBinding = {
+  nonceSha256: sha("1"),
+  generatedSpecSha256: sha("2"),
+  generatedConfigSha256: sha("3"),
+  payloadSha256: sha("4"),
+  bindingMacSha256: sha("5")
+};
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -105,7 +115,7 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
     expect(() => buildVisualRepairValidationFromArtifacts(profile.input)).toThrow("Hive-brokered validation request");
 
     const producer = await repairFixture({ sessionVisualHiveVersion: "0.3.3" });
-    expect(() => buildVisualRepairValidationFromArtifacts(producer.input)).toThrow("authorized Visual Hive producer");
+    expect(() => buildVisualRepairValidationFromArtifacts(producer.input)).toThrow("authorized Visual Hive release artifact");
 
     const expired = await repairFixture({ authorizationExpiresAt: "2026-07-14T12:01:30.000Z" });
     expect(() => buildVisualRepairValidationFromArtifacts(expired.input)).toThrow("authorization window");
@@ -200,7 +210,30 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
       value.results[0].screenshotAssertions[0].actualDiffPixelRatio = 0.5;
       value.results[0].screenshotAssertions[0].actualDiffPixels = 0;
     });
-    expect(() => buildVisualRepairValidationFromArtifacts(arithmetic.input)).toThrow("inconsistent diff arithmetic");
+    expect(() => buildVisualRepairValidationFromArtifacts(arithmetic.input)).toThrow("direct baseline/actual pixel comparison");
+  });
+
+  it("rejects a capture status that contradicts the deterministic report", async () => {
+    const contradiction = await repairFixture();
+    await replaceBundledRunContext(contradiction, (value) => {
+      value.capture = { status: "failed", failures: ["Contradictory synthetic failure"] };
+      value.command.exitCode = 1;
+    });
+    expect(() => buildVisualRepairValidationFromArtifacts(contradiction.input)).toThrow("capture status does not match");
+  });
+
+  it("rejects top-level success when nested browser evidence contains a deterministic failure", async () => {
+    const selector = await repairFixture();
+    await replaceBundledReport(selector, (value) => {
+      value.results[0].selectorAssertions = [{ kind: "mustExist", value: "[data-testid=card]", status: "failed", message: "Card is missing" }];
+    });
+    expect(() => buildVisualRepairValidationFromArtifacts(selector.input)).toThrow("reports success despite structured deterministic failures");
+
+    const browser = await repairFixture();
+    await replaceBundledReport(browser, (value) => {
+      value.results[0].networkErrors = [{ type: "network", url: "https://fixture.invalid/api", status: 500, statusText: "Internal Server Error" }];
+    });
+    expect(() => buildVisualRepairValidationFromArtifacts(browser.input)).toThrow("reports success despite structured deterministic failures");
   });
 });
 
@@ -241,6 +274,7 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
   const findingRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(repository, findingFingerprint, "canonical", findingRootCauseKey);
   const beforePng = solidPng(255, 0, 0);
   const afterPng = solidPng(0, 255, 0);
+  const afterExecutionPng = options.afterBaselineDigest ? solidPng(0, 0, 255) : afterPng;
   const profileBody = {
     profileId: "profile.repair",
     targetId: "target.app",
@@ -332,7 +366,9 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     budgetDigest: canonicalSha256(limits),
     configDigest: sha("a"),
     toolRegistryDigest: sha("b"),
-    promptSchemaDigest: sha("c")
+    promptSchemaDigest: sha("c"),
+    visualHiveManifestSha256: releaseManifestSha256,
+    visualHiveEntrypointSha256: releaseEntrypointSha256
   });
   const toolTurnInput = { attemptId, ordinal: 0, providerInputDigest: sha("4"), consumedToolOutcomeDigests: [] as string[] };
   const toolTurnDraft = { ...toolTurnInput, inputDigest: computeHiveRepairTurnInputDigest(sessionId, toolTurnInput) };
@@ -376,7 +412,15 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     effectiveMode: "visual_hive",
     state: "awaiting_validation",
     ...sessionIdentity,
-    capability: { selectionReasons: ["Fixture has a visual task asset."], visualHiveVersion: options.sessionVisualHiveVersion ?? "0.3.2", visualHiveCommit: commit("c"), toolProtocolDigest: sha("b"), validationToolRegistryDigest: canonicalSha256("tools-v1") },
+    capability: {
+      selectionReasons: ["Fixture has a visual task asset."],
+      visualHiveVersion: options.sessionVisualHiveVersion ?? "0.3.2",
+      visualHiveCommit: commit("c"),
+      visualHiveManifestSha256: releaseManifestSha256,
+      visualHiveEntrypointSha256: releaseEntrypointSha256,
+      toolProtocolDigest: sha("b"),
+      validationToolRegistryDigest: canonicalSha256("tools-v1")
+    },
     sourceContext: {
       digest: task.sourceContext.digest,
       maxBytes: 4096,
@@ -435,8 +479,8 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
   const afterRoot = await makeRoot("after");
   const before = await makeRun({
     root: beforeRoot, phase: "before", commitSha: baseSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
-    image: beforePng, imageId: "asset.before.actual", report: report("before", repository, baseSha, "failed", "failed", false, false),
-    finding: options.beforeFinding === "missing" ? undefined : "present", findingRepositoryFingerprint, configDigest: sha("1"), baselineDigest: sha("9"), maxDiffPixelRatio: 0.01, profileId: options.runProfileId,
+    image: beforePng, baseline: afterPng, imageId: "asset.before.actual", report: report("before", repository, baseSha, "failed", "failed", false, false),
+    finding: options.beforeFinding === "missing" ? undefined : "present", findingRepositoryFingerprint, configDigest: sha("1"), maxDiffPixelRatio: 0.01, profileId: options.runProfileId,
     brokerRequest: options.beforeUsesPatchRequest ? patchValidationRequest : reproductionRequest
   });
   const afterCommitSha = options.afterCommitSha ?? headSha;
@@ -448,15 +492,16 @@ async function repairFixture(options: FixtureOptions = {}): Promise<FixtureResul
     options.afterCardStatus === "missing_baseline" ? "failed" : "passed",
     Boolean(options.omitAfterSecondaryResult),
     Boolean(options.failAfterSecondary),
-    options.afterCardStatus
+    options.afterCardStatus,
+    options.afterMaxDiffPixelRatio ?? 0.01
   );
   const after = await makeRun({
     root: afterRoot, phase: "after", commitSha: afterCommitSha, task, repository, repositoryId, repositoryFingerprint, findingFingerprint,
-    image: afterPng, imageId: "asset.after.actual", report: afterReport,
+    image: afterExecutionPng, baseline: afterExecutionPng, imageId: "asset.after.actual", report: afterReport,
     finding: options.afterFinding === "missing" ? undefined : (options.afterFinding ?? "absent"),
     findingRepositoryFingerprint,
     configDigest: options.afterConfigDigest ?? sha("1"),
-    baselineDigest: options.afterBaselineDigest ?? sha("9"), maxDiffPixelRatio: options.afterMaxDiffPixelRatio ?? 0.01, profileId: options.runProfileId,
+    maxDiffPixelRatio: options.afterMaxDiffPixelRatio ?? 0.01, profileId: options.runProfileId,
     brokerRequest: patchValidationRequest
   });
 
@@ -482,8 +527,14 @@ function report(
   cardStatus: "passed" | "failed",
   omitSecondary: boolean,
   failSecondary: boolean,
-  screenshotStatus: "passed" | "missing_baseline" = cardStatus === "passed" ? "passed" : "failed"
+  screenshotStatus: "passed" | "missing_baseline" = cardStatus === "passed" ? "passed" : "failed",
+  maxDiffPixelRatio = 0.01
 ): Record<string, any> {
+  const screenshotEvidence = screenshotStatus === "missing_baseline"
+    ? { actualDiffPixelRatio: 1, actualDiffPixels: 4, diffPixels: 4 }
+    : screenshotStatus === "failed"
+      ? { diffPath: ".visual-hive/results/card-diff.png", actualDiffPixelRatio: 1, actualDiffPixels: 4, diffPixels: 4 }
+      : { actualDiffPixelRatio: 0, actualDiffPixels: 0, diffPixels: 0 };
   const card = {
     contractId: "contract.card",
     targetId: "target.app",
@@ -494,8 +545,8 @@ function report(
     screenshotAssertions: [{
       contractId: "contract.card", screenshotName: "card", name: "card", route: "/", viewport: "desktop", status: screenshotStatus,
       baselinePath: ".visual-hive/baselines/card.png", actualPath: ".visual-hive/results/card-actual.png",
-      ...(screenshotStatus === "failed" ? { diffPath: ".visual-hive/results/card-diff.png", actualDiffPixelRatio: 1, actualDiffPixels: 4, diffPixels: 4 } : { actualDiffPixelRatio: 0, actualDiffPixels: 0, diffPixels: 0 }),
-      maxDiffPixelRatio: 0.01, totalPixels: 4,
+      ...screenshotEvidence,
+      maxDiffPixelRatio, totalPixels: 4,
       ...(screenshotStatus === "missing_baseline" ? { message: "Missing screenshot baseline" } : {})
     }]
   };
@@ -524,6 +575,7 @@ function report(
     excludedContracts: [],
     targetLifecycle: [],
     generatedSpecPath: ".visual-hive/generated.spec.ts",
+    executionBinding,
     results,
     summary: {
       passed: results.filter((item) => item.status === "passed" || item.status === "created").length,
@@ -556,12 +608,12 @@ interface MakeRunInput {
   repositoryFingerprint: string;
   findingFingerprint: string;
   image: Buffer;
+  baseline: Buffer;
   imageId: string;
   report: Record<string, any>;
   finding?: "present" | "absent";
   findingRepositoryFingerprint: string;
   configDigest: string;
-  baselineDigest: string;
   maxDiffPixelRatio: number;
   profileId?: string;
   brokerRequest: { requestId: string; requestDigest: string };
@@ -571,9 +623,16 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
   const reportPath = ".visual-hive/report.json";
   const runContextPath = ".visual-hive/repair/run-context.json";
   const imagePath = ".visual-hive/results/card-actual.png";
+  const baselinePath = ".visual-hive/baselines/card.png";
+  const diffPath = ".visual-hive/results/card-diff.png";
+  const screenshot = input.report.results[0].screenshotAssertions[0];
+  const missingBaseline = screenshot.status === "missing_baseline";
+  const comparison = compareVisualPngBytes(input.baseline, input.image);
   const reportBytes = jsonBytes(input.report);
   await writeArtifact(input.root, reportPath, reportBytes);
   await writeArtifact(input.root, imagePath, input.image);
+  if (!missingBaseline) await writeArtifact(input.root, baselinePath, input.baseline);
+  if (!missingBaseline && comparison.diffPixels > 0) await writeArtifact(input.root, diffPath, comparison.diffPng);
   const cases = [{
     caseId: "case.full",
     targetId: "target.app",
@@ -587,6 +646,12 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
     { contractId: "contract.secondary", maxDiffPixelRatio: 0, missingBaseline: "fail" as const }
   ];
   const runProfile = input.task.profiles.find((profile) => profile.profileId === (input.profileId ?? "profile.repair"))!;
+  const captureStatus = missingBaseline ? "blocked" : input.report.status === "failed" ? "failed" : "passed";
+  const captureFailures = captureStatus === "passed"
+    ? []
+    : input.report.results.flatMap((result: any) => result.errors).length > 0
+      ? input.report.results.flatMap((result: any) => result.errors)
+      : [`Fixture capture ${captureStatus}.`];
   const runContext = buildVisualRunContext({
     schemaVersion: "visual-hive.run-context.v1",
     digestAlgorithm: "visual-hive.canonical-json.sha256.v1",
@@ -608,7 +673,9 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       planDigest: sha("a"),
       testPlanDigest: canonicalSha256("plan-v1"),
       toolRegistryDigest: canonicalSha256("tools-v1"),
-      baselineIdentityDigest: input.baselineDigest,
+      baselineIdentityDigest: canonicalSha256([missingBaseline
+        ? { path: baselinePath, sha256: null, size: null }
+        : { path: baselinePath, sha256: sha256Bytes(input.baseline), size: input.baseline.byteLength }]),
       executionMatrixDigest: canonicalSha256(cases),
       browser: { name: "chromium", version: "130.0" },
       environment: {
@@ -617,12 +684,19 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       },
       cases
     },
-    producer: { visualHiveVersion: "0.3.2", visualHiveCommit: commit("c"), playwrightVersion: "1.54.1" },
+    producer: {
+      visualHiveVersion: "0.3.2",
+      visualHiveCommit: commit("c"),
+      manifestSha256: releaseManifestSha256,
+      entrypointSha256: releaseEntrypointSha256,
+      playwrightVersion: "1.54.1"
+    },
     command: {
       validationCommandId: runProfile.validationCommandId,
       startedAt: input.phase === "before" ? "2026-07-14T12:00:00.000Z" : "2026-07-14T12:02:00.000Z",
       completedAt: input.phase === "before" ? "2026-07-14T12:01:00.000Z" : "2026-07-14T12:03:00.000Z",
-      exitCode: 0
+      exitCode: captureStatus === "passed" ? 0 : 1,
+      executionBinding
     },
     report: { path: reportPath, sha256: sha256Bytes(reportBytes) },
     evidenceAssets: [{
@@ -636,22 +710,53 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
       height: 2,
       assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
       obligationIds: ["obligation.card"]
-    }],
+    }, ...(!missingBaseline ? [{
+      assetId: `asset.${input.phase}.baseline`,
+      role: "baseline" as const,
+      path: baselinePath,
+      mediaType: "image/png" as const,
+      sha256: sha256Bytes(input.baseline),
+      size: input.baseline.byteLength,
+      width: 2,
+      height: 2,
+      assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
+      obligationIds: ["obligation.card"]
+    }] : []), ...(!missingBaseline && comparison.diffPixels > 0 ? [{
+      assetId: `asset.${input.phase}.diff`,
+      role: "diff" as const,
+      path: diffPath,
+      mediaType: "image/png" as const,
+      sha256: sha256Bytes(comparison.diffPng),
+      size: comparison.diffPng.byteLength,
+      width: 2,
+      height: 2,
+      assertion: { contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" },
+      obligationIds: ["obligation.card"]
+    }] : [])],
     thresholds,
-    capture: { status: "passed", failures: [] }
+    capture: { status: captureStatus, failures: captureFailures }
   });
   const runContextBytes = jsonBytes(runContext);
   await writeArtifact(input.root, runContextPath, runContextBytes);
-  const observations = input.finding ? [observation(input.findingFingerprint, input.findingRepositoryFingerprint, input.finding)] : [];
+  const observations = input.finding
+    ? [observation(input.findingFingerprint, input.findingRepositoryFingerprint, captureStatus === "blocked" ? "present" : input.finding)]
+    : [];
+  const payloads = [
+    { sourcePath: reportPath, bytes: reportBytes },
+    { sourcePath: runContextPath, bytes: runContextBytes },
+    { sourcePath: imagePath, bytes: input.image },
+    ...(!missingBaseline ? [{ sourcePath: baselinePath, bytes: input.baseline }] : []),
+    ...(!missingBaseline && comparison.diffPixels > 0 ? [{ sourcePath: diffPath, bytes: comparison.diffPng }] : [])
+  ];
   const bundle = await writeVisualHiveBundle({
     rootDir: input.root,
     project: "fixture",
-    mode: "measured",
-    verdict: input.phase === "after" && input.finding === "absent" ? "ready" : "blocked",
+    mode: "full",
+    verdict: input.report.status,
     acmmRequest: 3,
-    artifacts: [reportPath, runContextPath, imagePath],
-    source: { repository: input.repository, repositoryId: input.repositoryId, ref: "main", commitSha: input.commitSha, event: "local", conclusion: "success", trusted: false },
-    scan: { scope: "full", authoritativeForResolution: true, evaluatedContracts: ["contract.card", "contract.secondary"], evaluatedFiles: ["src/App.tsx"], testPlanVersion: "plan-v1", toolRegistryVersion: "tools-v1" },
+    artifacts: payloads.map((payload) => payload.sourcePath),
+    source: { repository: input.repository, repositoryId: input.repositoryId, ref: "main", commitSha: input.commitSha, event: "local", conclusion: input.report.status, trusted: false },
+    scan: { scope: "full", authoritativeForResolution: captureStatus !== "blocked", evaluatedContracts: ["contract.card", "contract.secondary"], evaluatedFiles: ["src/App.tsx"], testPlanVersion: "plan-v1", toolRegistryVersion: "tools-v1" },
     observations,
     producerVersion: "0.3.2",
     producerGitCommit: commit("c"),
@@ -661,11 +766,7 @@ async function makeRun(input: MakeRunInput): Promise<BuildVisualRepairValidation
   return {
     manifest: jsonArtifact("manifest.json", bundle.manifest),
     runContextPath,
-    payloads: [
-      { sourcePath: reportPath, bytes: reportBytes },
-      { sourcePath: runContextPath, bytes: runContextBytes },
-      { sourcePath: imagePath, bytes: input.image }
-    ]
+    payloads
   };
 }
 
@@ -707,21 +808,55 @@ async function replaceBundledReport(fixture: FixtureResult, mutate: (value: any)
   const root = fixture.roots.after;
   await writeArtifact(root, ".visual-hive/report.json", reportBytes);
   await writeArtifact(root, ".visual-hive/repair/run-context.json", contextBytes);
-  const imagePayload = fixture.input.after.payloads.find((item) => item.sourcePath === ".visual-hive/results/card-actual.png")!;
+  const payloads = fixture.input.after.payloads.map((payload) => {
+    if (payload.sourcePath === ".visual-hive/report.json") return { sourcePath: payload.sourcePath, bytes: reportBytes };
+    if (payload.sourcePath === ".visual-hive/repair/run-context.json") return { sourcePath: payload.sourcePath, bytes: contextBytes };
+    return payload;
+  });
   const manifestValue = JSON.parse(Buffer.from(fixture.input.after.manifest.bytes).toString("utf8"));
   await rm(path.join(root, ".visual-hive", "bundles", manifestValue.bundleId), { recursive: true, force: true });
   const rebuilt = await writeVisualHiveBundle({
-    rootDir: root, project: "fixture", mode: "measured", verdict: "ready", acmmRequest: 3,
-    artifacts: [".visual-hive/report.json", ".visual-hive/repair/run-context.json", ".visual-hive/results/card-actual.png"],
+    rootDir: root, project: "fixture", mode: "full", verdict: report.status, acmmRequest: 3,
+    artifacts: payloads.map((payload) => payload.sourcePath),
     source: manifestValue.source, scan: manifestValue.scan, observations: manifestValue.observations,
     producerVersion: "0.3.2", producerGitCommit: commit("c"), bundleId: manifestValue.bundleId, now: new Date(manifestValue.generatedAt)
   });
   fixture.input.after.manifest = jsonArtifact("manifest.json", rebuilt.manifest);
-  fixture.input.after.payloads = [
-    { sourcePath: ".visual-hive/report.json", bytes: reportBytes },
-    { sourcePath: ".visual-hive/repair/run-context.json", bytes: contextBytes },
-    { sourcePath: ".visual-hive/results/card-actual.png", bytes: imagePayload.bytes }
-  ];
+  fixture.input.after.payloads = payloads;
+}
+
+async function replaceBundledRunContext(fixture: FixtureResult, mutate: (value: any) => void): Promise<void> {
+  const contextPayload = fixture.input.after.payloads.find((item) => item.sourcePath === ".visual-hive/repair/run-context.json")!;
+  const context = JSON.parse(Buffer.from(contextPayload.bytes).toString("utf8"));
+  mutate(context);
+  const { runContextDigest: _digest, ...contextContent } = context;
+  void _digest;
+  context.runContextDigest = canonicalSha256(contextContent);
+  const contextBytes = jsonBytes(context);
+  const payloads = fixture.input.after.payloads.map((payload) => payload.sourcePath === ".visual-hive/repair/run-context.json"
+    ? { sourcePath: payload.sourcePath, bytes: contextBytes }
+    : payload);
+  const manifestValue = JSON.parse(Buffer.from(fixture.input.after.manifest.bytes).toString("utf8"));
+  const root = fixture.roots.after;
+  await writeArtifact(root, ".visual-hive/repair/run-context.json", contextBytes);
+  await rm(path.join(root, ".visual-hive", "bundles", manifestValue.bundleId), { recursive: true, force: true });
+  const rebuilt = await writeVisualHiveBundle({
+    rootDir: root,
+    project: "fixture",
+    mode: "full",
+    verdict: manifestValue.verdict,
+    acmmRequest: 3,
+    artifacts: payloads.map((payload) => payload.sourcePath),
+    source: manifestValue.source,
+    scan: manifestValue.scan,
+    observations: manifestValue.observations,
+    producerVersion: "0.3.2",
+    producerGitCommit: commit("c"),
+    bundleId: manifestValue.bundleId,
+    now: new Date(manifestValue.generatedAt)
+  });
+  fixture.input.after.manifest = jsonArtifact("manifest.json", rebuilt.manifest);
+  fixture.input.after.payloads = payloads;
 }
 
 function tamperAndRedigestHive(artifact: RawRepairArtifact, mutate: (value: any) => void): RawRepairArtifact {

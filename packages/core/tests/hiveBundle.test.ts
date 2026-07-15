@@ -85,6 +85,42 @@ describe("Visual Hive atomic bundle", () => {
     await expect(readFile(path.join(rootDir, ".visual-hive/bundles/unsafe/manifest.json"))).rejects.toThrow();
   });
 
+  it("enforces caller-supplied bundle file, per-file, and aggregate byte limits", async () => {
+    const rootDir = await makeRoot();
+    await mkdir(path.join(rootDir, "evidence"), { recursive: true });
+    await Promise.all([
+      writeFile(path.join(rootDir, "evidence", "one.bin"), Buffer.alloc(4, 1)),
+      writeFile(path.join(rootDir, "evidence", "two.bin"), Buffer.alloc(4, 2))
+    ]);
+    const base = {
+      rootDir,
+      project: "demo",
+      mode: "measured" as const,
+      verdict: "ready" as const,
+      acmmRequest: 3,
+      artifacts: ["evidence/one.bin", "evidence/two.bin"],
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    };
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "too-many-files",
+      artifactLimits: { maxFiles: 1, maxFileBytes: 4, maxTotalBytes: 8 }
+    })).rejects.toThrow("1-file limit");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "file-too-large",
+      artifactLimits: { maxFiles: 2, maxFileBytes: 3, maxTotalBytes: 8 }
+    })).rejects.toThrow("bounded file size");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "aggregate-too-large",
+      artifactLimits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 7 }
+    })).rejects.toThrow("7-byte aggregate limit");
+  });
+
   it("rejects absent lifecycle observations from a non-authoritative scan", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });

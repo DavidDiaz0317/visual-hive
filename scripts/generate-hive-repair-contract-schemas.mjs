@@ -229,7 +229,15 @@ const sessionDefs = {
       configDigest: ref("sha256"),
       toolRegistryDigest: ref("sha256"),
       promptSchemaDigest: ref("sha256"),
+      visualHiveManifestSha256: ref("sha256"),
+      visualHiveEntrypointSha256: ref("sha256"),
       authorizationDigest: ref("sha256")
+    },
+    {
+      dependentRequired: {
+        visualHiveManifestSha256: ["visualHiveEntrypointSha256"],
+        visualHiveEntrypointSha256: ["visualHiveManifestSha256"]
+      }
     }
   ),
   attempt: object(
@@ -337,7 +345,13 @@ const sessionSchema = {
         ["selectionReasons"],
         {
           selectionReasons: array(ref("shortText"), { maxItems: 64, uniqueItems: true }),
-          visualHiveVersion: ref("providerText"), visualHiveCommit: ref("gitCommit"), toolProtocolDigest: ref("sha256"), validationToolRegistryDigest: ref("sha256")
+          visualHiveVersion: ref("providerText"), visualHiveCommit: ref("gitCommit"), visualHiveManifestSha256: ref("sha256"), visualHiveEntrypointSha256: ref("sha256"), toolProtocolDigest: ref("sha256"), validationToolRegistryDigest: ref("sha256")
+        },
+        {
+          dependentRequired: {
+            visualHiveManifestSha256: ["visualHiveEntrypointSha256"],
+            visualHiveEntrypointSha256: ["visualHiveManifestSha256"]
+          }
         }
       ),
       sourceContext: ref("sourceContext"),
@@ -360,8 +374,28 @@ const sessionSchema = {
     },
     {
       allOf: [
-        { if: { properties: { effectiveMode: { const: "standard" } }, required: ["effectiveMode"] }, then: { not: { required: ["authorization"] } } },
-        { if: { properties: { effectiveMode: { const: "visual_hive" } }, required: ["effectiveMode"] }, then: { required: ["authorization"], properties: { capability: { required: ["selectionReasons", "visualHiveVersion", "visualHiveCommit", "toolProtocolDigest", "validationToolRegistryDigest"] } } } },
+        { if: { properties: { requestedMode: { const: "off" } }, required: ["requestedMode"] }, then: { properties: { effectiveMode: { const: "standard" } } } },
+        { if: { properties: { requestedMode: { enum: ["on", "required"] } }, required: ["requestedMode"] }, then: { properties: { effectiveMode: { const: "visual_hive" } } } },
+        {
+          if: { properties: { effectiveMode: { const: "standard" } }, required: ["effectiveMode"] },
+          then: {
+            not: { required: ["authorization"] },
+            properties: {
+              toolReceipts: { maxItems: 0 },
+              validationRequests: { items: { not: { required: ["authorizationDigest"] } } }
+            }
+          }
+        },
+        {
+          if: { properties: { effectiveMode: { const: "visual_hive" } }, required: ["effectiveMode"] },
+          then: {
+            required: ["authorization"],
+            properties: {
+              capability: { required: ["selectionReasons", "visualHiveVersion", "visualHiveCommit", "toolProtocolDigest", "validationToolRegistryDigest"] },
+              validationRequests: { items: { required: ["authorizationDigest"] } }
+            }
+          }
+        },
         { if: { properties: { state: { enum: ["completed", "failed", "blocked", "exhausted"] } }, required: ["state"] }, then: { required: ["terminal"] }, else: { not: { required: ["terminal"] } } }
       ]
     }
@@ -421,8 +455,23 @@ const resultSchema = {
     },
     {
       allOf: [
-        { if: { properties: { effectiveMode: { const: "standard" } }, required: ["effectiveMode"] }, then: { not: { required: ["authorizationDigest"] } } },
-        { if: { properties: { effectiveMode: { const: "visual_hive" } }, required: ["effectiveMode"] }, then: { required: ["authorizationDigest"] } }
+        {
+          if: { properties: { effectiveMode: { const: "standard" } }, required: ["effectiveMode"] },
+          then: {
+            not: { required: ["authorizationDigest"] },
+            properties: {
+              toolReceipts: { maxItems: 0 },
+              validationRequests: { items: { not: { required: ["authorizationDigest"] } } }
+            }
+          }
+        },
+        {
+          if: { properties: { effectiveMode: { const: "visual_hive" } }, required: ["effectiveMode"] },
+          then: {
+            required: ["authorizationDigest"],
+            properties: { validationRequests: { items: { required: ["authorizationDigest"] } } }
+          }
+        }
       ]
     }
   ),
@@ -504,7 +553,9 @@ const authorizationContent = {
   budgetDigest: "b".repeat(64),
   configDigest: "c".repeat(64),
   toolRegistryDigest: "d".repeat(64),
-  promptSchemaDigest: "e".repeat(64)
+  promptSchemaDigest: "e".repeat(64),
+  visualHiveManifestSha256: "f".repeat(64),
+  visualHiveEntrypointSha256: "0".repeat(64)
 };
 const authorizationVector = vector("execution-authorization", authorizationContent);
 const requestIdentityProjection = {
@@ -535,6 +586,321 @@ const requestDigestProjection = {
   authorizationDigest: authorizationVector.sha256
 };
 
+const repeatSha = (character) => character.repeat(64);
+const repeatCommit = (character) => character.repeat(40);
+const digest = (value) => vector("digest", value).sha256;
+
+function buildFullContractVectors(mode) {
+  const visual = mode === "visual_hive";
+  const repository = {
+    name: "owner/repo",
+    repositoryId: "42",
+    repositoryFingerprint,
+    baseSha: repeatCommit("a"),
+    baseTreeSha: repeatCommit("c")
+  };
+  const rootCauseKey = "finding/visual_regression/card";
+  const finding = {
+    fingerprint: "visual-hive:fixture:card-layout",
+    repositoryFingerprint: createHash("sha256").update(`owner/repo\0${rootCauseKey}`, "utf8").digest("hex"),
+    publicationRole: "canonical",
+    rootCauseKey,
+    recurrenceKey: "recurrence/visual_regression/card"
+  };
+  const task = {
+    taskId: "task.card-layout",
+    taskContextDigest: repeatSha("1"),
+    issueSource: "fixture",
+    issueExternalId: "fixture-1",
+    problemStatementDigest: repeatSha("2"),
+    imageAttachments: [{ position: 0, assetId: "asset.reference", role: "reference", sha256: repeatSha("3"), mediaType: "image/png", size: 128 }]
+  };
+  const profile = { ...profileProjection, profileDigest: profileVector.sha256 };
+  const limits = {
+    maxTurns: 8,
+    maxToolCalls: 8,
+    maxInputBytes: 1_000_000,
+    maxImageBytes: 1_000_000,
+    maxModelInputTokens: 20_000,
+    maxModelOutputTokens: 10_000,
+    maxProviderCostUsdMicros: 5_000_000,
+    maxWallSeconds: 1800,
+    maxRepairAttempts: 2
+  };
+  const provider = { ...providerVector.projection };
+  const sessionId = digest({
+    schemaVersion: "hive.repair-session-id.v1",
+    repository: {
+      name: repository.name,
+      repositoryId: repository.repositoryId,
+      repositoryFingerprint: repository.repositoryFingerprint
+    },
+    finding: { repositoryFingerprint: finding.repositoryFingerprint, recurrenceKey: finding.recurrenceKey },
+    task: {
+      taskId: task.taskId,
+      issueSource: task.issueSource,
+      issueExternalId: task.issueExternalId,
+      problemStatementDigest: task.problemStatementDigest
+    },
+    baseSha: repository.baseSha
+  });
+  const promptDigest = repeatSha("4");
+  const attemptId = digest({ schemaVersion: "hive.repair-attempt-id.v1", sessionId, ordinal: 0, promptDigest });
+  const providerIdentityDigest = providerVector.sha256;
+  const firstTurnInput = {
+    schemaVersion: "hive.repair-turn-input.v1",
+    sessionId,
+    attemptId,
+    ordinal: 0,
+    providerInputDigest: repeatSha("5"),
+    previousTurnOutputDigest: null,
+    consumedToolOutcomeDigests: []
+  };
+  const firstTurnInputDigest = digest(firstTurnInput);
+  const firstTurnId = digest({ schemaVersion: "hive.repair-turn-id.v1", sessionId, attemptId, ordinal: 0, inputDigest: firstTurnInputDigest });
+  const receiptIdentity = {
+    turnId: firstTurnId,
+    sequence: 0,
+    toolName: "visual_hive_get_task_context",
+    argumentsDigest: repeatSha("6")
+  };
+  const callId = digest({ schemaVersion: "hive.repair-tool-call-id.v1", sessionId, ...receiptIdentity });
+  const receiptOutcome = {
+    schemaVersion: "hive.repair-tool-outcome.v1",
+    callId,
+    toolName: receiptIdentity.toolName,
+    argumentsDigest: receiptIdentity.argumentsDigest,
+    resultDigest: repeatSha("b"),
+    status: "passed",
+    textBytes: 256,
+    imageBytes: 128,
+    errorCode: null
+  };
+  const receipt = {
+    ...receiptIdentity,
+    callId,
+    resultDigest: receiptOutcome.resultDigest,
+    status: "passed",
+    startedAt: "2026-07-14T11:12:00.000Z",
+    completedAt: "2026-07-14T11:13:00.000Z",
+    textBytes: receiptOutcome.textBytes,
+    imageBytes: receiptOutcome.imageBytes,
+    outcomeDigest: digest(receiptOutcome)
+  };
+  const firstTurn = {
+    turnId: firstTurnId,
+    attemptId,
+    ordinal: 0,
+    state: "completed",
+    startedAt: "2026-07-14T11:10:00.000Z",
+    completedAt: "2026-07-14T11:11:00.000Z",
+    inputDigest: firstTurnInputDigest,
+    providerInputDigest: firstTurnInput.providerInputDigest,
+    consumedToolOutcomeDigests: [],
+    providerIdentityDigest,
+    usage: { inputBytes: 500, imageBytes: 0, modelInputTokens: 500, modelOutputTokens: 100, providerCostUsdMicros: 50_000, wallMilliseconds: 60_000 },
+    providerReceiptDigest: repeatSha("c"),
+    outputKind: "tool_request",
+    outputDigest: repeatSha("9"),
+    toolCallId: callId
+  };
+  const finalOrdinal = visual ? 1 : 0;
+  const finalInput = {
+    schemaVersion: "hive.repair-turn-input.v1",
+    sessionId,
+    attemptId,
+    ordinal: finalOrdinal,
+    providerInputDigest: repeatSha("7"),
+    previousTurnOutputDigest: visual ? firstTurn.outputDigest : null,
+    consumedToolOutcomeDigests: visual ? [receipt.outcomeDigest] : []
+  };
+  const finalInputDigest = digest(finalInput);
+  const finalTurnId = digest({ schemaVersion: "hive.repair-turn-id.v1", sessionId, attemptId, ordinal: finalOrdinal, inputDigest: finalInputDigest });
+  const finalTurn = {
+    turnId: finalTurnId,
+    attemptId,
+    ordinal: finalOrdinal,
+    state: "completed",
+    startedAt: "2026-07-14T11:30:00.000Z",
+    completedAt: "2026-07-14T11:40:00.000Z",
+    inputDigest: finalInputDigest,
+    providerInputDigest: finalInput.providerInputDigest,
+    ...(visual ? { previousTurnOutputDigest: firstTurn.outputDigest } : {}),
+    consumedToolOutcomeDigests: finalInput.consumedToolOutcomeDigests,
+    providerIdentityDigest,
+    usage: visual
+      ? { inputBytes: 524, imageBytes: 128, modelInputTokens: 500, modelOutputTokens: 400, providerCostUsdMicros: 50_000, wallMilliseconds: 600_000 }
+      : { inputBytes: 512, imageBytes: 0, modelInputTokens: 1000, modelOutputTokens: 500, providerCostUsdMicros: 100_000, wallMilliseconds: 600_000 },
+    providerReceiptDigest: repeatSha("d"),
+    outputKind: "final_result",
+    outputDigest: repeatSha("a")
+  };
+  const authorizationInput = {
+    authorizationId: "authorization.fixture",
+    issuedAt: "2026-07-14T10:55:00.000Z",
+    expiresAt: "2026-07-14T13:00:00.000Z",
+    repositoryFingerprint,
+    taskContextDigest: task.taskContextDigest,
+    baseSha: repository.baseSha,
+    profile,
+    toolNames: [...visualTools].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
+    assetIds: ["asset.reference"],
+    budgetDigest: digest(limits),
+    configDigest: repeatSha("a"),
+    toolRegistryDigest: repeatSha("c"),
+    promptSchemaDigest: repeatSha("e"),
+    visualHiveManifestSha256: repeatSha("6"),
+    visualHiveEntrypointSha256: repeatSha("7")
+  };
+  const authorization = { ...authorizationInput, authorizationDigest: digest(authorizationInput) };
+  const requestIdentity = {
+    sessionId,
+    attemptId,
+    kind: "patch_validation",
+    commitRole: "candidate",
+    profileId: profile.profileId,
+    profileDigest: profile.profileDigest,
+    commitSha: repeatCommit("b"),
+    authorizationDigest: visual ? authorization.authorizationDigest : null
+  };
+  const requestId = digest({ schemaVersion: "hive.repair-validation-request-id.v1", ...requestIdentity });
+  const idempotencyKey = digest({ schemaVersion: "hive.repair-validation-request-identity.v1", ...requestIdentity });
+  const requestDigest = digest({ schemaVersion: "hive.repair-validation-request.v1", requestId, idempotencyKey, ...requestIdentity });
+  const requestSpec = {
+    requestId,
+    idempotencyKey,
+    sessionId,
+    attemptId,
+    kind: requestIdentity.kind,
+    commitRole: requestIdentity.commitRole,
+    profileId: profile.profileId,
+    profileDigest: profile.profileDigest,
+    commitSha: requestIdentity.commitSha,
+    ...(visual ? { authorizationDigest: authorization.authorizationDigest } : {}),
+    requestDigest
+  };
+  const turns = visual ? [firstTurn, finalTurn] : [finalTurn];
+  const toolReceipts = visual ? [receipt] : [];
+  const attempt = {
+    attemptId,
+    ordinal: 0,
+    state: "candidate",
+    startedAt: "2026-07-14T11:05:00.000Z",
+    completedAt: "2026-07-14T11:50:00.000Z",
+    promptDigest,
+    turnIds: turns.map((turn) => turn.turnId),
+    candidatePatchDigest: repeatSha("4"),
+    candidateHeadSha: repeatCommit("b"),
+    candidateHeadTreeSha: repeatCommit("d"),
+    validationRequestIds: [requestId]
+  };
+  const transcriptDigest = digest({ turns, toolReceipts });
+  const sessionContent = {
+    schemaVersion: "hive.repair-session.v1",
+    digestAlgorithm: "hive.canonical-json.sha256.v1",
+    createdAt: "2026-07-14T11:00:00.000Z",
+    updatedAt: "2026-07-14T12:00:00.000Z",
+    deadlineAt: "2026-07-14T12:30:00.000Z",
+    requestedMode: visual ? "on" : "off",
+    effectiveMode: mode,
+    state: "awaiting_validation",
+    repository,
+    finding,
+    task,
+    capability: visual ? {
+      selectionReasons: ["Task includes a reference image."],
+      visualHiveVersion: "0.3.2",
+      visualHiveCommit: repeatCommit("d"),
+      visualHiveManifestSha256: authorization.visualHiveManifestSha256,
+      visualHiveEntrypointSha256: authorization.visualHiveEntrypointSha256,
+      toolProtocolDigest: repeatSha("c"),
+      validationToolRegistryDigest: repeatSha("d")
+    } : { selectionReasons: ["Visual Hive was disabled."] },
+    sourceContext: {
+      digest: digest(sourceProjection),
+      maxBytes: 4096,
+      totalBytes: 200,
+      ...sourceProjection
+    },
+    validationProfiles: [profile],
+    promptIdentities: {
+      systemPromptDigest: repeatSha("d"),
+      repairPromptDigest: repeatSha("e"),
+      toolSchemaDigest: repeatSha("f"),
+      taskSchemaDigest: repeatSha("0"),
+      modelConfigurationDigest: repeatSha("1")
+    },
+    executionIdentities: { configDigest: repeatSha("a"), toolRegistryDigest: repeatSha("c"), promptSchemaDigest: repeatSha("e") },
+    provider,
+    budgets: {
+      limits,
+      usage: {
+        turnsConsumed: turns.length,
+        toolCallsConsumed: toolReceipts.length,
+        inputBytesConsumed: visual ? 1024 : 512,
+        imageBytesConsumed: visual ? 128 : 0,
+        modelInputTokensConsumed: 1000,
+        modelOutputTokensConsumed: 500,
+        providerCostUsdMicrosConsumed: 100_000,
+        wallMillisecondsConsumed: visual ? 720_000 : 600_000
+      }
+    },
+    attempts: [attempt],
+    turns,
+    toolReceipts,
+    validationRequests: [{ ...requestSpec, state: "requested", requestedAt: "2026-07-14T11:45:00.000Z" }],
+    sessionId,
+    ...(visual ? { authorization } : {}),
+    transcriptDigest
+  };
+  const sessionDigestVector = vector(`${visual ? "visual-hive" : "standard"}-session-digest`, sessionContent);
+  const resultContent = {
+    schemaVersion: "hive.repair-result.v1",
+    digestAlgorithm: "hive.canonical-json.sha256.v1",
+    generatedAt: "2026-07-14T12:01:00.000Z",
+    sessionId,
+    sessionDigest: sessionDigestVector.sha256,
+    transcriptDigest,
+    effectiveMode: mode,
+    taskId: task.taskId,
+    taskContextDigest: task.taskContextDigest,
+    repository: { name: repository.name, repositoryId: repository.repositoryId, repositoryFingerprint },
+    finding,
+    baseSha: repository.baseSha,
+    baseTreeSha: repository.baseTreeSha,
+    headSha: repeatCommit("b"),
+    headTreeSha: repeatCommit("d"),
+    diff: {
+      algorithm: "git.diff.binary.sha256.v1",
+      sha256: repeatSha("4"),
+      changedFiles: [{ path: "src/App.tsx", status: "modified", beforeSha256: repeatSha("5"), afterSha256: repeatSha("6"), beforeMode: "100644", afterMode: "100644" }]
+    },
+    provider,
+    attempts: [{
+      attemptId,
+      ordinal: 0,
+      state: "candidate",
+      promptDigest,
+      startedAt: attempt.startedAt,
+      completedAt: attempt.completedAt,
+      turnCount: turns.length,
+      toolCallCount: toolReceipts.length
+    }],
+    toolReceipts,
+    ...(visual ? { authorizationDigest: authorization.authorizationDigest } : {}),
+    validationRequests: [requestSpec],
+    claimedOutcome: { summary: "Updated the card layout without changing visual policy.", advisory: true },
+    status: "candidate"
+  };
+  return {
+    session: sessionDigestVector,
+    result: vector(`${visual ? "visual-hive" : "standard"}-result-digest`, resultContent)
+  };
+}
+
+const standardContractVectors = buildFullContractVectors("standard");
+const visualHiveContractVectors = buildFullContractVectors("visual_hive");
+
 const contractVectors = {
   schemaVersion: "hive.repair-contract-vectors.v1",
   digestAlgorithm: "hive.canonical-json.sha256.v1",
@@ -552,7 +918,11 @@ const contractVectors = {
     authorizationVector,
     requestIdVector,
     requestIdentityVector,
-    vector("validation-request-digest", requestDigestProjection)
+    vector("validation-request-digest", requestDigestProjection),
+    standardContractVectors.session,
+    standardContractVectors.result,
+    visualHiveContractVectors.session,
+    visualHiveContractVectors.result
   ]
 };
 await writeFile(path.join(root, "schemas", "fixtures", "hive.repair-contract-vectors.v1.json"), `${JSON.stringify(contractVectors, null, 2)}\n`, "utf8");

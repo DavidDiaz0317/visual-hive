@@ -13,6 +13,7 @@ import {
   RelativeArtifactPathSchema,
   RepositorySchema,
   Sha256Schema,
+  VisualRunExecutionBindingSchema,
   type VisualHiveTaskContext,
   type VisualRepairValidation,
   type VisualRepairValidationInput,
@@ -106,7 +107,7 @@ const BundleManifestSchema = z.object({
   project: z.string().trim().min(1).max(1024),
   mode: z.string().trim().min(1).max(256),
   verdict: z.string().trim().min(1).max(256),
-  acmmRequest: z.number().int().min(0).max(5),
+  acmmRequest: z.number().int().min(1).max(6),
   externalCallsMade: z.number().int().nonnegative(),
   scan: BundleScanSchema,
   observations: z.array(BundleObservationSchema).max(16_384),
@@ -148,7 +149,7 @@ const ScreenshotAssertionSchema = z.object({
 
 const RuntimeErrorSchema = z.object({ type: z.enum(["console", "page"]), message: TextSchema }).strict();
 
-const ContractResultSchema = z.object({
+export const ContractResultSchema = z.object({
   contractId: BoundedIdSchema,
   mutationOperator: z.string().trim().min(1).max(1024).optional(),
   targetId: BoundedIdSchema,
@@ -197,6 +198,7 @@ const ReportSchema = z.object({
     url: z.string().max(4096).optional(), message: z.string().max(60_000).optional()
   }).strict()).max(16_384),
   generatedSpecPath: RelativeArtifactPathSchema,
+  executionBinding: VisualRunExecutionBindingSchema.optional(),
   results: z.array(ContractResultSchema).max(4096),
   summary: z.object({
     passed: z.number().int().nonnegative(), failed: z.number().int().nonnegative(), screenshotsPassed: z.number().int().nonnegative(),
@@ -271,6 +273,9 @@ export function buildVisualRepairValidationFromArtifacts(input: BuildVisualRepai
     taskId: taskContext.taskId,
     taskContextDigest: taskContext.contextDigest,
     findingFingerprint: hiveResult.finding.fingerprint,
+    sessionId: hiveSession.sessionId,
+    sessionDigest: hiveSession.sessionDigest,
+    authorizationDigest: hiveSession.authorization!.authorizationDigest,
     hiveRepairResultDigest: hiveResult.resultDigest,
     repository: taskContext.repository.name,
     baseSha: hiveResult.baseSha,
@@ -334,9 +339,12 @@ function verifyHiveResultBinding(task: VisualHiveTaskContext, session: HiveRepai
 
 function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after", task: VisualHiveTaskContext, session: HiveRepairSession, result: ParsedHiveRepairResult, validationAt: string): VerifiedRunArtifacts {
   const manifest = BundleManifestSchema.parse(parseJsonArtifact(input.manifest)) as VisualHiveBundleManifest;
+  const validationTimestamp = Date.parse(validationAt);
+  if (!Number.isFinite(validationTimestamp)) throw new Error("Visual Hive repair validation time is invalid.");
   if (!verifyVisualHiveBundleDigest(manifest)) throw new Error(`Visual Hive ${phase} bundle publication digest is invalid.`);
   if (manifest.provenance.subjectDigest !== manifest.overallDigest) throw new Error(`Visual Hive ${phase} bundle provenance subject does not match its digest.`);
-  if (Date.parse(manifest.expiresAt) < Date.parse(validationAt)) throw new Error(`Visual Hive ${phase} bundle expired before repair validation.`);
+  if (Date.parse(manifest.generatedAt) > validationTimestamp) throw new Error(`Visual Hive ${phase} bundle was generated after repair validation.`);
+  if (Date.parse(manifest.expiresAt) < validationTimestamp) throw new Error(`Visual Hive ${phase} bundle expired before repair validation.`);
   if (Date.parse(manifest.expiresAt) <= Date.parse(manifest.generatedAt)) throw new Error(`Visual Hive ${phase} bundle has an invalid expiry window.`);
   if (manifest.source.repository !== task.repository.name || manifest.source.repositoryId !== task.repository.repositoryId) throw new Error(`Visual Hive ${phase} bundle repository identity mismatch.`);
   const expectedCommit = phase === "before" ? result.baseSha : result.headSha;
@@ -359,17 +367,20 @@ function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after"
   if (phase === "after" && Date.parse(runContext.command.startedAt) < Date.parse(result.generatedAt)) throw new Error("Visual Hive after run predates the immutable Hive repair result it validates.");
   if (runContext.taskId !== task.taskId || runContext.taskContextDigest !== task.contextDigest || runContext.findingFingerprint !== result.finding.fingerprint) throw new Error(`Visual Hive ${phase} run context task or finding identity mismatch.`);
   if (runContext.producer.visualHiveVersion !== manifest.producer.version || runContext.producer.visualHiveCommit !== manifest.producer.gitCommit || runContext.producer.playwrightVersion !== runContext.execution.environment.playwrightVersion) throw new Error(`Visual Hive ${phase} producer identity mismatch.`);
-  if (runContext.producer.visualHiveVersion !== session.capability.visualHiveVersion || runContext.producer.visualHiveCommit !== session.capability.visualHiveCommit || runContext.execution.toolRegistryDigest !== session.capability.validationToolRegistryDigest) throw new Error(`Visual Hive ${phase} run does not match the authorized Visual Hive producer and validation tool registry.`);
+  if (runContext.producer.visualHiveVersion !== session.capability.visualHiveVersion || runContext.producer.visualHiveCommit !== session.capability.visualHiveCommit || runContext.producer.manifestSha256 !== session.capability.visualHiveManifestSha256 || runContext.producer.entrypointSha256 !== session.capability.visualHiveEntrypointSha256 || runContext.execution.toolRegistryDigest !== session.capability.validationToolRegistryDigest) throw new Error(`Visual Hive ${phase} run does not match the authorized Visual Hive release artifact and validation tool registry.`);
   const authorization = session.authorization;
   if (!authorization || runContext.execution.profileId !== authorization.profile.profileId || runContext.execution.profileDigest !== authorization.profile.profileDigest || runContext.command.validationCommandId !== authorization.profile.validationCommandId) throw new Error(`Visual Hive ${phase} run does not use the authorized validation profile.`);
   if (Date.parse(runContext.command.startedAt) < Date.parse(authorization.issuedAt) || Date.parse(runContext.command.completedAt) > Date.parse(authorization.expiresAt)) throw new Error(`Visual Hive ${phase} run falls outside its execution authorization window.`);
+  if (Date.parse(runContext.command.completedAt) > validationTimestamp || Date.parse(result.generatedAt) > validationTimestamp) throw new Error(`Visual Hive ${phase} evidence or Hive repair result postdates repair validation.`);
   if (runContext.execution.testPlanDigest !== canonicalSha256(manifest.scan.testPlanVersion) || runContext.execution.toolRegistryDigest !== canonicalSha256(manifest.scan.toolRegistryVersion)) throw new Error(`Visual Hive ${phase} plan or tool registry identity mismatch.`);
 
   const reportBytes = requireBundlePayload(manifest, payloads, runContext.report.path);
   if (sha256Bytes(reportBytes) !== runContext.report.sha256) throw new Error(`Visual Hive ${phase} report digest does not match its run context.`);
   const report = ReportSchema.parse(parseJsonBytes(reportBytes, runContext.report.path));
   if (report.mode !== "full") throw new Error(`Visual Hive ${phase} repair validation requires a full execution-matrix report.`);
-  verifyReportBinding(report, runContext, task, manifest);
+  for (const asset of runContext.evidenceAssets) verifyEvidenceAsset(manifest, payloads, asset);
+  verifyReportBinding(report, runContext, task, manifest, payloads);
+  verifyCaptureBinding(report, runContext, manifest, phase);
 
   let mutationReport: ParsedMutationReport | undefined;
   if (runContext.mutationReport) {
@@ -378,7 +389,6 @@ function verifyRunArtifacts(input: RepairRunArtifacts, phase: "before" | "after"
     mutationReport = MutationReportSchema.parse(parseJsonBytes(bytes, runContext.mutationReport.path));
   }
 
-  for (const asset of runContext.evidenceAssets) verifyEvidenceAsset(manifest, payloads, asset);
   return { bundle: manifest, runContext, report, mutationReport, payloads };
 }
 
@@ -388,6 +398,7 @@ function verifyRunPair(before: VerifiedRunArtifacts, after: VerifiedRunArtifacts
   for (const run of [before.runContext, after.runContext]) verifyRunAgainstTaskProfile(run, task);
   if (before.bundle.bundleId === after.bundle.bundleId || before.bundle.replayProtection.key === after.bundle.replayProtection.key) throw new Error("Visual Hive before and after bundles must not reuse replay identity.");
   if (before.runContext.execution.commitSha !== result.baseSha || after.runContext.execution.commitSha !== result.headSha) throw new Error("Visual Hive execution commits do not match the Hive repair result.");
+  if (canonicalJson(before.runContext.producer) !== canonicalJson(after.runContext.producer)) throw new Error("Visual Hive before and after runs use different release artifacts or Playwright producers.");
 }
 
 function verifyRunAgainstTaskProfile(run: VisualRunContext, task: VisualHiveTaskContext): void {
@@ -405,8 +416,9 @@ function verifyRunAgainstTaskProfile(run: VisualRunContext, task: VisualHiveTask
   }
 }
 
-function verifyReportBinding(report: ParsedReport, run: VisualRunContext, task: VisualHiveTaskContext, manifest: VisualHiveBundleManifest): void {
+function verifyReportBinding(report: ParsedReport, run: VisualRunContext, task: VisualHiveTaskContext, manifest: VisualHiveBundleManifest, payloads: Map<string, Buffer>): void {
   if (report.repository.repository !== task.repository.name || report.repository.commitSha !== run.repository.commitSha) throw new Error(`Visual Hive report repository or commit mismatch for run ${run.runId}.`);
+  if (!report.executionBinding || canonicalJson(report.executionBinding) !== canonicalJson(run.command.executionBinding)) throw new Error(`Visual Hive report does not bind the exact Playwright execution for run ${run.runId}.`);
   const expectedContracts = sortedUnique(run.execution.cases.flatMap((executionCase) => executionCase.contractIds));
   const selectedContracts = sortedUnique(report.selectedContracts);
   if (canonicalSha256(selectedContracts) !== canonicalSha256(expectedContracts)) throw new Error(`Visual Hive report contract inventory does not match run ${run.runId}.`);
@@ -415,20 +427,103 @@ function verifyReportBinding(report: ParsedReport, run: VisualRunContext, task: 
   const evaluatedContracts = new Set(manifest.scan.evaluatedContracts);
   for (const contractId of selectedContracts) if (!evaluatedContracts.has(contractId)) throw new Error(`Visual Hive bundle scan does not bind evaluated contract ${contractId}.`);
   verifyReportSummary(report);
+  const usedAssetIds = new Set<string>();
+  const baselineRecords: Array<{ path: string; sha256: string | null; size: number | null }> = [];
   for (const result of report.results) {
+    const threshold = run.thresholds.find((candidate) => candidate.contractId === result.contractId);
+    if (!threshold) throw new Error(`Visual Hive report contract ${result.contractId} has no verified threshold policy.`);
     for (const screenshot of result.screenshotAssertions ?? []) {
       if (screenshot.contractId !== result.contractId) throw new Error(`Visual Hive screenshot assertion contract mismatch in ${result.contractId}.`);
-      const asset = run.evidenceAssets.find((candidate) => candidate.path === screenshot.actualPath);
-      if (!asset || asset.role !== "actual" || asset.assertion.contractId !== result.contractId || asset.assertion.screenshotName !== screenshot.screenshotName || asset.assertion.route !== screenshot.route) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} is not bound to a verified actual asset.`);
-      const diffPixels = screenshot.diffPixels ?? screenshot.actualDiffPixels;
-      if (diffPixels !== undefined && diffPixels > screenshot.totalPixels) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} reports more differing pixels than total pixels.`);
-      if (diffPixels !== undefined && screenshot.actualDiffPixelRatio !== undefined && Math.abs(screenshot.actualDiffPixelRatio - diffPixels / screenshot.totalPixels) > 1e-12) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} reports inconsistent diff arithmetic.`);
+      if (screenshot.maxDiffPixelRatio !== threshold.maxDiffPixelRatio || screenshot.maxDiffPixels !== threshold.maxDiffPixels) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} does not use its verified threshold policy.`);
+      const actual = exactScreenshotAsset(run, screenshot, "actual", screenshot.actualPath);
+      usedAssetIds.add(actual.assetId);
+      if (screenshot.status === "created") throw new Error(`Visual Hive repair validation cannot accept a newly created baseline for ${screenshot.screenshotName}.`);
+      if (screenshot.status === "missing_baseline") {
+        if (run.evidenceAssets.some((asset) => asset.role === "baseline" && asset.path === screenshot.baselinePath)) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} reports a missing baseline that is present in evidence.`);
+        baselineRecords.push({ path: screenshot.baselinePath, sha256: null, size: null });
+        if (screenshot.actualDiffPixels !== screenshot.totalPixels || screenshot.diffPixels !== screenshot.totalPixels || screenshot.actualDiffPixelRatio !== 1 || screenshot.diffPath !== undefined) throw new Error(`Visual Hive missing-baseline arithmetic is inconsistent for ${screenshot.screenshotName}.`);
+        continue;
+      }
+      const baseline = exactScreenshotAsset(run, screenshot, "baseline", screenshot.baselinePath);
+      usedAssetIds.add(baseline.assetId);
+      baselineRecords.push({ path: screenshot.baselinePath, sha256: baseline.sha256, size: baseline.size });
+      const comparison = compareVisualPngBytes(payloads.get(baseline.path)!, payloads.get(actual.path)!);
+      if (comparison.totalPixels !== screenshot.totalPixels || comparison.diffPixels !== screenshot.diffPixels || comparison.diffPixels !== screenshot.actualDiffPixels || Math.abs(comparison.diffRatio - (screenshot.actualDiffPixelRatio ?? -1)) > 1e-12) {
+        throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} does not match direct baseline/actual pixel comparison.`);
+      }
+      const expectedFailure = comparison.diffRatio > threshold.maxDiffPixelRatio || (threshold.maxDiffPixels !== undefined && comparison.diffPixels > threshold.maxDiffPixels);
+      if (screenshot.status !== (expectedFailure ? "failed" : "passed")) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} status contradicts its verified pixel threshold.`);
+      const matchingDiffs = run.evidenceAssets.filter((asset) => asset.role === "diff" && assertionKey(asset) === assertionKey(actual));
+      if (comparison.diffPixels === 0) {
+        if (screenshot.diffPath !== undefined || matchingDiffs.length !== 0) throw new Error(`Visual Hive zero-diff screenshot ${screenshot.screenshotName} unexpectedly carries a diff artifact.`);
+      } else {
+        if (!screenshot.diffPath) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} is missing its deterministic diff artifact.`);
+        const diff = exactScreenshotAsset(run, screenshot, "diff", screenshot.diffPath);
+        usedAssetIds.add(diff.assetId);
+        if (diff.sha256 !== comparison.diffSha256 || !payloads.get(diff.path)?.equals(comparison.diffPng)) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} diff bytes do not match direct recomputation.`);
+      }
     }
+  }
+  uniqueBy(baselineRecords, (record) => record.path, "baseline inventory path");
+  baselineRecords.sort((left, right) => stableTextCompare(left.path, right.path));
+  if (canonicalSha256(baselineRecords) !== run.execution.baselineIdentityDigest) throw new Error(`Visual Hive report does not reproduce the approved baseline inventory for run ${run.runId}.`);
+  const unused = run.evidenceAssets.filter((asset) => ["baseline", "actual", "diff"].includes(asset.role) && !usedAssetIds.has(asset.assetId));
+  if (unused.length > 0) throw new Error(`Visual Hive run ${run.runId} contains screenshot evidence not bound to a structured assertion.`);
+}
+
+function exactScreenshotAsset(
+  run: VisualRunContext,
+  screenshot: z.infer<typeof ScreenshotAssertionSchema>,
+  role: "baseline" | "actual" | "diff",
+  artifactPath: string
+): VisualRunEvidenceAsset {
+  const matches = run.evidenceAssets.filter((asset) => asset.role === role && asset.path === artifactPath);
+  if (matches.length !== 1) throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} must bind exactly one ${role} asset.`);
+  const asset = matches[0]!;
+  if (asset.assertion.contractId !== screenshot.contractId || asset.assertion.screenshotName !== screenshot.screenshotName || asset.assertion.route !== screenshot.route || asset.assertion.viewportId !== screenshot.viewport) {
+    throw new Error(`Visual Hive screenshot ${screenshot.screenshotName} ${role} asset has a mismatched assertion identity.`);
+  }
+  return asset;
+}
+
+function verifyCaptureBinding(report: ParsedReport, run: VisualRunContext, manifest: VisualHiveBundleManifest, phase: "before" | "after"): void {
+  const missingBaseline = report.results.some((result) =>
+    (result.screenshotAssertions ?? []).some((screenshot) => screenshot.status === "missing_baseline")
+  );
+  const expectedStatus = run.execution.browser.name === "unavailable" || missingBaseline
+    ? "blocked"
+    : report.status === "failed" ? "failed" : "passed";
+  if (run.capture.status !== expectedStatus) {
+    throw new Error(`Visual Hive ${phase} capture status does not match its deterministic report and runtime evidence.`);
+  }
+  if (manifest.verdict !== report.status || manifest.source.conclusion !== report.status) {
+    throw new Error(`Visual Hive ${phase} bundle verdict does not match its deterministic report.`);
+  }
+  if (manifest.mode !== "full") {
+    throw new Error(`Visual Hive ${phase} repair bundle must identify a full execution.`);
+  }
+  if (manifest.scan.authoritativeForResolution !== (expectedStatus !== "blocked")) {
+    throw new Error(`Visual Hive ${phase} bundle authority does not match its capture completeness.`);
   }
 }
 
 function verifyReportSummary(report: ParsedReport): void {
   const screenshots = report.results.flatMap((result) => result.screenshotAssertions ?? []);
+  for (const result of report.results) {
+    const structuredFailures = [
+      ...result.errors,
+      ...(result.selectorAssertions ?? []).filter((assertion) => assertion.status === "failed").map((assertion) => assertion.message ?? `Selector ${assertion.kind} failed.`),
+      ...(result.flowSteps ?? []).filter((step) => step.status === "failed").map((step) => step.message ?? `Flow step ${step.action} failed.`),
+      ...(result.screenshotAssertions ?? []).filter((screenshot) => screenshot.status === "failed" || screenshot.status === "missing_baseline").map((screenshot) => screenshot.message ?? `Screenshot ${screenshot.screenshotName} failed.`),
+      ...(result.consoleErrors ?? []).map((error) => error.message),
+      ...(result.pageErrors ?? []).map((error) => error.message),
+      ...(result.networkErrors ?? []).map((error) => `${error.status} ${error.url}`)
+    ];
+    if ((result.status === "passed" || result.status === "created") && structuredFailures.length > 0) throw new Error(`Visual Hive contract ${result.contractId} reports success despite structured deterministic failures.`);
+    if (result.status === "failed" && structuredFailures.length === 0) throw new Error(`Visual Hive contract ${result.contractId} reports failure without structured evidence.`);
+    const created = (result.screenshotAssertions ?? []).some((screenshot) => screenshot.status === "created");
+    if ((result.status === "created") !== created) throw new Error(`Visual Hive contract ${result.contractId} baseline-creation status is inconsistent.`);
+  }
   const expected = {
     passed: report.results.filter((result) => result.status === "passed" || result.status === "created").length,
     failed: report.results.filter((result) => result.status === "failed").length,
@@ -526,7 +621,7 @@ function assertionKey(asset: VisualRunEvidenceAsset): string {
 function deriveTargetedLane(task: VisualHiveTaskContext, after: VerifiedRunArtifacts, obligations: VisualRepairValidationInput["obligations"]): VisualRepairValidationInput["lanes"]["targeted"] {
   const contractIds = sortedUnique(task.obligations.filter((item) => item.authority === "deterministic").flatMap((item) => item.mappedContractIds));
   const failures = obligations.filter((item) => item.deterministic && item.status !== "passed").map((item) => item.reason ?? `${item.obligationId} ${item.status}`);
-  const status = after.runContext.capture.status !== "passed" || obligations.some((item) => item.deterministic && (item.status === "blocked" || item.status === "not_evaluated"))
+  const status = after.runContext.capture.status === "blocked" || obligations.some((item) => item.deterministic && (item.status === "blocked" || item.status === "not_evaluated"))
     ? "blocked"
     : obligations.some((item) => item.deterministic && item.status === "failed") ? "failed" : "passed";
   return { profileId: after.runContext.execution.profileId, status, evaluatedContractIds: status === "blocked" ? contractIds.filter((id) => after.report.results.some((result) => result.contractId === id)) : contractIds, failures: status === "passed" ? [] : failures.length > 0 ? failures : after.runContext.capture.failures };
@@ -536,7 +631,7 @@ function deriveRegressionLane(after: VerifiedRunArtifacts): VisualRepairValidati
   const expected = sortedUnique(after.runContext.execution.cases.flatMap((executionCase) => executionCase.contractIds));
   const results = new Map(after.report.results.map((result) => [result.contractId, result]));
   const missing = expected.filter((contractId) => !results.has(contractId));
-  const blocked = after.runContext.capture.status !== "passed" || missing.length > 0 || after.report.targetLifecycle.some((event) => event.status === "failed") || after.report.selectedTargets.some((target) => (target.missingSecrets?.length ?? 0) > 0) || after.report.results.some((result) => result.status === "created" || result.status === "skipped" || resultBlockedOnly(after.report, result));
+  const blocked = after.runContext.capture.status === "blocked" || missing.length > 0 || after.report.targetLifecycle.some((event) => event.status === "failed") || after.report.selectedTargets.some((target) => (target.missingSecrets?.length ?? 0) > 0) || after.report.results.some((result) => result.status === "created" || result.status === "skipped" || resultBlockedOnly(after.report, result));
   const failed = after.report.results.some((result) => result.status === "failed" && !resultBlockedOnly(after.report, result));
   const status = blocked ? "blocked" : failed ? "failed" : "passed";
   const failures = [

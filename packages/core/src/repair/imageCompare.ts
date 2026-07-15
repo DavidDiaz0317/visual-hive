@@ -21,7 +21,23 @@ export function compareVisualPngBytes(beforeBytes: Uint8Array, afterBytes: Uint8
   const before = readPng(beforeBytes, "before");
   const after = readPng(afterBytes, "after");
   if (before.width !== after.width || before.height !== after.height) {
-    throw new Error(`Visual Hive direct comparison requires equal dimensions; before is ${before.width}x${before.height}, after is ${after.width}x${after.height}.`);
+    const width = Math.max(before.width, after.width);
+    const height = Math.max(before.height, after.height);
+    const diff = new PNG({ width, height });
+    const diffPng = PNG.sync.write(diff);
+    const totalPixels = width * height;
+    return {
+      algorithm: VISUAL_REPAIR_IMAGE_COMPARISON_ALGORITHM,
+      width,
+      height,
+      diffPixels: totalPixels,
+      totalPixels,
+      diffRatio: 1,
+      beforeSha256: sha256Bytes(beforeBytes),
+      afterSha256: sha256Bytes(afterBytes),
+      diffSha256: sha256Bytes(diffPng),
+      diffPng
+    };
   }
   const diff = new PNG({ width: before.width, height: before.height });
   const diffPixels = pixelmatch(before.data, after.data, diff.data, before.width, before.height, { threshold: 0.1, includeAA: false });

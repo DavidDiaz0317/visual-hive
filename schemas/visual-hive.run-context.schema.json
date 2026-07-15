@@ -39,9 +39,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["visualHiveVersion", "visualHiveCommit", "playwrightVersion"],
+      "dependentRequired": {
+        "manifestSha256": ["entrypointSha256"],
+        "entrypointSha256": ["manifestSha256"]
+      },
       "properties": {
         "visualHiveVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
         "visualHiveCommit": { "$ref": "#/$defs/gitCommit" },
+        "manifestSha256": { "$ref": "#/$defs/sha256" },
+        "entrypointSha256": { "$ref": "#/$defs/sha256" },
         "playwrightVersion": { "type": "string", "minLength": 1, "maxLength": 128 }
       }
     },
@@ -53,7 +59,8 @@
         "validationCommandId": { "$ref": "#/$defs/boundedId" },
         "startedAt": { "$ref": "#/$defs/timestamp" },
         "completedAt": { "$ref": "#/$defs/timestamp" },
-        "exitCode": { "type": "integer" }
+        "exitCode": { "type": "integer" },
+        "executionBinding": { "$ref": "#/$defs/executionBinding" }
       }
     },
     "report": {
@@ -139,6 +146,18 @@
     "repository": { "type": "string", "minLength": 3, "maxLength": 512, "pattern": "^(?!\\.\\.?/)(?![^/]+/\\.\\.?$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
     "relativePath": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*[:\\\\\\u0000-\\u001f\\u007f])(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*[. ](?:/|$))(?!(?:.*\/)?(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|/|$)).+$" },
     "timestamp": { "type": "string", "format": "date-time" },
+    "executionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nonceSha256", "generatedSpecSha256", "generatedConfigSha256", "payloadSha256", "bindingMacSha256"],
+      "properties": {
+        "nonceSha256": { "$ref": "#/$defs/sha256" },
+        "generatedSpecSha256": { "$ref": "#/$defs/sha256" },
+        "generatedConfigSha256": { "$ref": "#/$defs/sha256" },
+        "payloadSha256": { "$ref": "#/$defs/sha256" },
+        "bindingMacSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "viewport": {
       "type": "object",
       "additionalProperties": false,

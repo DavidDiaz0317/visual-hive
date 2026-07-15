@@ -23,6 +23,8 @@ import {
   parseHiveExecutionAuthorization,
   parseHiveRepairResult,
   parseHiveRepairSession,
+  HiveRepairResultSchema,
+  HiveRepairSessionSchema,
   verifyHiveRepairResultAgainstSession,
   visualHiveObservationRepositoryFingerprint,
   VISUAL_REPAIR_TOOL_NAMES,
@@ -98,19 +100,115 @@ describe("hive.repair-session.v1 and hive.repair-result.v1", () => {
     expect(builtRequest.requestId).toBe(request.requestId);
     expect(builtRequest.idempotencyKey).toBe(request.idempotencyKey);
     expect(builtRequest.requestDigest).toBe(vectors.get("validation-request-digest")!.sha256);
+
+    for (const mode of ["standard", "visual-hive"] as const) {
+      const sessionVector = vectors.get(`${mode}-session-digest`)!;
+      const resultVector = vectors.get(`${mode}-result-digest`)!;
+      const session = { ...sessionVector.projection, sessionDigest: sessionVector.sha256 };
+      const result = { ...resultVector.projection, resultDigest: resultVector.sha256 };
+      expect(parseHiveRepairSession(session).sessionDigest, mode).toBe(sessionVector.sha256);
+      expect(parseHiveRepairResult(result).resultDigest, mode).toBe(resultVector.sha256);
+      expect(verifyHiveRepairResultAgainstSession(result, session).resultDigest, mode).toBe(resultVector.sha256);
+    }
   });
 
   it("matches the checked-in draft-2020 JSON Schemas", async () => {
-    const fixture = buildFixture("visual_hive");
     const root = path.resolve(import.meta.dirname, "../../..");
     const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-    for (const [file, value] of [
-      ["visual-hive.hive-repair-session.schema.json", fixture.session],
-      ["visual-hive.hive-repair-result.schema.json", fixture.result]
+    const validators = new Map<string, ReturnType<typeof ajv.compile>>();
+    for (const file of ["visual-hive.hive-repair-session.schema.json", "visual-hive.hive-repair-result.schema.json"] as const) {
+      validators.set(file, ajv.compile(JSON.parse(await readFile(path.join(root, "schemas", file), "utf8"))));
+    }
+    for (const mode of ["standard", "visual_hive"] as const) {
+      const fixture = buildFixture(mode);
+      for (const [file, value] of [
+        ["visual-hive.hive-repair-session.schema.json", fixture.session],
+        ["visual-hive.hive-repair-result.schema.json", fixture.result]
+      ] as const) {
+        const validate = validators.get(file)!;
+        expect(validate(value), `${mode}: ${JSON.stringify(validate.errors)}`).toBe(true);
+      }
+    }
+  });
+
+  it("keeps Ajv and Zod aligned for the requested/effective mode matrix and mode-owned evidence", async () => {
+    const root = path.resolve(import.meta.dirname, "../../..");
+    const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
+    const sessionValidate = ajv.compile(JSON.parse(await readFile(path.join(root, "schemas", "visual-hive.hive-repair-session.schema.json"), "utf8")));
+    const resultValidate = ajv.compile(JSON.parse(await readFile(path.join(root, "schemas", "visual-hive.hive-repair-result.schema.json"), "utf8")));
+    const standard = buildFixture("standard");
+    const visual = buildFixture("visual_hive");
+
+    for (const [requestedMode, effectiveMode, expected] of [
+      ["off", "standard", true],
+      ["off", "visual_hive", false],
+      ["auto", "standard", true],
+      ["auto", "visual_hive", true],
+      ["on", "standard", false],
+      ["on", "visual_hive", true],
+      ["required", "standard", false],
+      ["required", "visual_hive", true]
     ] as const) {
-      const schema = JSON.parse(await readFile(path.join(root, "schemas", file), "utf8"));
-      const validate = ajv.compile(schema);
-      expect(validate(value), JSON.stringify(validate.errors)).toBe(true);
+      const session = structuredClone(effectiveMode === "standard" ? standard.session : visual.session) as any;
+      session.requestedMode = requestedMode;
+      expect(sessionValidate(session), `${requestedMode}/${effectiveMode}: ${JSON.stringify(sessionValidate.errors)}`).toBe(expected);
+      expect(HiveRepairSessionSchema.safeParse(session).success, `${requestedMode}/${effectiveMode}`).toBe(expected);
+    }
+
+    const sessionCases: Array<[string, any, boolean]> = [];
+    const standardWithAuthorization = structuredClone(standard.session) as any;
+    standardWithAuthorization.authorization = visual.session.authorization;
+    sessionCases.push(["standard authorization", standardWithAuthorization, false]);
+    const standardWithReceipt = structuredClone(standard.session) as any;
+    standardWithReceipt.toolReceipts = visual.session.toolReceipts;
+    sessionCases.push(["standard receipt", standardWithReceipt, false]);
+    const standardWithRequestAuthorization = structuredClone(standard.session) as any;
+    standardWithRequestAuthorization.validationRequests[0].authorizationDigest = visual.authorization.authorizationDigest;
+    sessionCases.push(["standard request authorization", standardWithRequestAuthorization, false]);
+    const visualWithoutAuthorization = structuredClone(visual.session) as any;
+    delete visualWithoutAuthorization.authorization;
+    sessionCases.push(["visual authorization", visualWithoutAuthorization, false]);
+    const visualWithoutRequestAuthorization = structuredClone(visual.session) as any;
+    delete visualWithoutRequestAuthorization.validationRequests[0].authorizationDigest;
+    sessionCases.push(["visual request authorization", visualWithoutRequestAuthorization, false]);
+    const legacyHashlessVisual = structuredClone(visual.session) as any;
+    delete legacyHashlessVisual.capability.visualHiveManifestSha256;
+    delete legacyHashlessVisual.capability.visualHiveEntrypointSha256;
+    delete legacyHashlessVisual.authorization.visualHiveManifestSha256;
+    delete legacyHashlessVisual.authorization.visualHiveEntrypointSha256;
+    sessionCases.push(["legacy hashless visual", legacyHashlessVisual, true]);
+    const capabilityHalfPair = structuredClone(legacyHashlessVisual);
+    capabilityHalfPair.capability.visualHiveManifestSha256 = sha("6");
+    sessionCases.push(["capability producer hash half-pair", capabilityHalfPair, false]);
+    const authorizationHalfPair = structuredClone(legacyHashlessVisual);
+    authorizationHalfPair.authorization.visualHiveManifestSha256 = sha("6");
+    sessionCases.push(["authorization producer hash half-pair", authorizationHalfPair, false]);
+
+    for (const [label, session, expected] of sessionCases) {
+      expect(sessionValidate(session), `${label}: ${JSON.stringify(sessionValidate.errors)}`).toBe(expected);
+      expect(HiveRepairSessionSchema.safeParse(session).success, label).toBe(expected);
+    }
+
+    const resultCases: Array<[string, any, boolean]> = [["standard", standard.result, true], ["visual", visual.result, true]];
+    const standardResultWithAuthorization = structuredClone(standard.result) as any;
+    standardResultWithAuthorization.authorizationDigest = visual.authorization.authorizationDigest;
+    resultCases.push(["standard result authorization", standardResultWithAuthorization, false]);
+    const standardResultWithReceipt = structuredClone(standard.result) as any;
+    standardResultWithReceipt.toolReceipts = visual.result.toolReceipts;
+    resultCases.push(["standard result receipt", standardResultWithReceipt, false]);
+    const standardResultWithRequestAuthorization = structuredClone(standard.result) as any;
+    standardResultWithRequestAuthorization.validationRequests[0].authorizationDigest = visual.authorization.authorizationDigest;
+    resultCases.push(["standard result request authorization", standardResultWithRequestAuthorization, false]);
+    const visualResultWithoutAuthorization = structuredClone(visual.result) as any;
+    delete visualResultWithoutAuthorization.authorizationDigest;
+    resultCases.push(["visual result authorization", visualResultWithoutAuthorization, false]);
+    const visualResultWithoutRequestAuthorization = structuredClone(visual.result) as any;
+    delete visualResultWithoutRequestAuthorization.validationRequests[0].authorizationDigest;
+    resultCases.push(["visual result request authorization", visualResultWithoutRequestAuthorization, false]);
+
+    for (const [label, result, expected] of resultCases) {
+      expect(resultValidate(result), `${label}: ${JSON.stringify(resultValidate.errors)}`).toBe(expected);
+      expect(HiveRepairResultSchema.safeParse(result).success, label).toBe(expected);
     }
   });
 
@@ -417,6 +515,8 @@ function buildFixture(mode: "standard" | "visual_hive"): Fixture {
     maxRepairAttempts: 2
   };
   const provider = { providerId: "provider.fixture", providerKind: "fixture", model: "fixture-model", executableIdentityDigest: sha("2"), capabilityDigest: sha("3"), modelConfigurationDigest: sha("1") };
+  const visualHiveManifestSha256 = sha("6");
+  const visualHiveEntrypointSha256 = sha("7");
   const providerIdentityDigest = computeHiveRepairProviderIdentityDigest(provider);
   const identity = {
     repository: { name: repository, repositoryId, repositoryFingerprint, baseSha: commit("a"), baseTreeSha: commit("c") },
@@ -524,6 +624,8 @@ function buildFixture(mode: "standard" | "visual_hive"): Fixture {
       selectionReasons: ["Task includes a reference image."],
       visualHiveVersion: "0.3.2",
       visualHiveCommit: commit("d"),
+      visualHiveManifestSha256,
+      visualHiveEntrypointSha256,
       toolProtocolDigest: sha("c"),
       validationToolRegistryDigest: sha("d")
     } : { selectionReasons: ["Visual Hive was disabled."] },
@@ -638,7 +740,9 @@ function authorizationInput(profile: HiveRepairValidationProfile, session: HiveR
     budgetDigest: canonicalSha256(session.budgets.limits),
     configDigest: sha("a"),
     toolRegistryDigest: sha("c"),
-    promptSchemaDigest: sha("e")
+    promptSchemaDigest: sha("e"),
+    visualHiveManifestSha256: sha("6"),
+    visualHiveEntrypointSha256: sha("7")
   };
 }
 

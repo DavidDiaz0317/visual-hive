@@ -4,11 +4,19 @@
   "title": "Visual Hive Repair Validation v1",
   "type": "object",
   "additionalProperties": false,
+  "dependentRequired": {
+    "sessionId": ["sessionDigest", "authorizationDigest"],
+    "sessionDigest": ["sessionId", "authorizationDigest"],
+    "authorizationDigest": ["sessionId", "sessionDigest"]
+  },
   "required": ["schemaVersion", "generatedAt", "validationId", "taskId", "taskContextDigest", "findingFingerprint", "hiveRepairResultDigest", "repository", "baseSha", "headSha", "beforeBundleDigest", "afterBundleDigest", "beforeReportDigest", "afterReportDigest", "beforeRunContextDigest", "afterRunContextDigest", "before", "after", "comparability", "obligations", "screenshotTriplets", "lanes", "remainingFailures", "newFailures", "findingBeforeStatus", "findingStatus", "authoritativeForResolution", "policyChanges", "verdict", "closureRecommendation", "digestAlgorithm", "receiptDigest"],
   "properties": {
     "schemaVersion": { "const": "visual-hive.repair-validation.v1" },
     "generatedAt": { "$ref": "#/$defs/timestamp" },
     "validationId": { "$ref": "#/$defs/boundedId" },
+    "sessionId": { "$ref": "#/$defs/sha256" },
+    "sessionDigest": { "$ref": "#/$defs/sha256" },
+    "authorizationDigest": { "$ref": "#/$defs/sha256" },
     "taskId": { "$ref": "#/$defs/boundedId" },
     "taskContextDigest": { "$ref": "#/$defs/sha256" },
     "findingFingerprint": { "type": "string", "minLength": 1, "maxLength": 1024 },

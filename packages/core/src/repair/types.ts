@@ -234,6 +234,12 @@ const VisualRepairValidationObjectSchema = z.object({
   taskId: BoundedIdSchema,
   taskContextDigest: Sha256Schema,
   findingFingerprint: z.string().trim().min(1).max(1024),
+  // Added to v1 for Hive-mediated validation. Keep optional at the persisted
+  // parse boundary so pre-integration v1 receipts remain readable; the
+  // authoritative artifact builder and Hive publication gate require them.
+  sessionId: Sha256Schema.optional(),
+  sessionDigest: Sha256Schema.optional(),
+  authorizationDigest: Sha256Schema.optional(),
   hiveRepairResultDigest: Sha256Schema,
   repository: RepositorySchema,
   baseSha: GitCommitSchema,
@@ -311,6 +317,10 @@ const VisualRepairValidationObjectSchema = z.object({
 }).strict();
 
 export const VisualRepairValidationSchema = VisualRepairValidationObjectSchema.superRefine((validation, context) => {
+  const hiveBindingCount = [validation.sessionId, validation.sessionDigest, validation.authorizationDigest].filter((value) => value !== undefined).length;
+  if (hiveBindingCount !== 0 && hiveBindingCount !== 3) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["sessionId"], message: "Hive session and authorization validation bindings must be provided together." });
+  }
   if (validation.before.commitSha !== validation.baseSha) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["before", "commitSha"], message: "Before execution must bind the base SHA." });
   }
@@ -415,6 +425,14 @@ export const VisualRunThresholdSchema = z.object({
   missingBaseline: z.enum(["fail", "create"])
 }).strict();
 
+export const VisualRunExecutionBindingSchema = z.object({
+  nonceSha256: Sha256Schema,
+  generatedSpecSha256: Sha256Schema,
+  generatedConfigSha256: Sha256Schema,
+  payloadSha256: Sha256Schema,
+  bindingMacSha256: Sha256Schema
+}).strict();
+
 const VisualRunContextObjectSchema = z.object({
   schemaVersion: z.literal("visual-hive.run-context.v1"),
   digestAlgorithm: z.literal("visual-hive.canonical-json.sha256.v1"),
@@ -438,13 +456,20 @@ const VisualRunContextObjectSchema = z.object({
   producer: z.object({
     visualHiveVersion: z.string().trim().min(1).max(128),
     visualHiveCommit: GitCommitSchema,
+    // Optional only for persisted pre-integration v1 contexts. Authoritative
+    // repair validation requires both and binds them to Hive authorization.
+    manifestSha256: Sha256Schema.optional(),
+    entrypointSha256: Sha256Schema.optional(),
     playwrightVersion: z.string().trim().min(1).max(128)
   }).strict(),
   command: z.object({
     validationCommandId: BoundedIdSchema,
     startedAt: TimestampSchema,
     completedAt: TimestampSchema,
-    exitCode: z.number().int()
+    exitCode: z.number().int(),
+    // Optional only for persisted pre-integration v1 contexts. A run without
+    // this binding cannot satisfy authoritative repair validation.
+    executionBinding: VisualRunExecutionBindingSchema.optional()
   }).strict(),
   report: z.object({ path: RelativeArtifactPathSchema, sha256: Sha256Schema }).strict(),
   mutationReport: z.object({ path: RelativeArtifactPathSchema, sha256: Sha256Schema }).strict().optional(),
@@ -456,6 +481,9 @@ const VisualRunContextObjectSchema = z.object({
   }).strict(),
   runContextDigest: Sha256Schema
 }).strict().superRefine((runContext, context) => {
+  if ((runContext.producer.manifestSha256 === undefined) !== (runContext.producer.entrypointSha256 === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["producer", "manifestSha256"], message: "Visual Hive manifest and entrypoint identities must be provided together." });
+  }
   if (runContext.repository.commitSha !== runContext.execution.commitSha) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["execution", "commitSha"], message: "Run execution commit must match the repository commit." });
   }
@@ -488,5 +516,6 @@ export type VisualRepairValidation = z.infer<typeof VisualRepairValidationSchema
 export type VisualRepairValidationInput = z.infer<typeof VisualRepairValidationInputSchema>;
 export type VisualRunEvidenceAsset = z.infer<typeof VisualRunEvidenceAssetSchema>;
 export type VisualRunThreshold = z.infer<typeof VisualRunThresholdSchema>;
+export type VisualRunExecutionBinding = z.infer<typeof VisualRunExecutionBindingSchema>;
 export type VisualRunContext = z.infer<typeof VisualRunContextSchema>;
 export type VisualRunContextInput = z.infer<typeof VisualRunContextInputSchema>;

@@ -73,6 +73,8 @@ export const HiveRepairBudgetLimitsSchema = z.object({
   maxRepairAttempts: z.number().int().positive().max(32)
 }).strict();
 
+export type HiveRepairBudgetLimits = z.infer<typeof HiveRepairBudgetLimitsSchema>;
+
 export const HiveRepairBudgetUsageSchema = z.object({
   turnsConsumed: z.number().int().nonnegative(),
   toolCallsConsumed: z.number().int().nonnegative(),
@@ -97,7 +99,11 @@ const HiveExecutionAuthorizationContentSchema = z.object({
   budgetDigest: Sha256Schema,
   configDigest: Sha256Schema,
   toolRegistryDigest: Sha256Schema,
-  promptSchemaDigest: Sha256Schema
+  promptSchemaDigest: Sha256Schema,
+  // Optional at the v1 persistence boundary for sessions written before
+  // release-artifact pinning. New authoritative executions require both.
+  visualHiveManifestSha256: Sha256Schema.optional(),
+  visualHiveEntrypointSha256: Sha256Schema.optional()
 }).strict();
 
 export const HiveExecutionAuthorizationSchema = HiveExecutionAuthorizationContentSchema.extend({
@@ -111,6 +117,9 @@ export const HiveExecutionAuthorizationSchema = HiveExecutionAuthorizationConten
   }
   if (canonicalJson([...authorization.toolNames].sort(stableTextCompare)) !== canonicalJson([...VISUAL_REPAIR_TOOL_NAMES].sort(stableTextCompare))) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["toolNames"], message: "Hive execution authorization must expose exactly the frozen Visual Hive treatment tools." });
+  }
+  if ((authorization.visualHiveManifestSha256 === undefined) !== (authorization.visualHiveEntrypointSha256 === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["visualHiveManifestSha256"], message: "Visual Hive manifest and entrypoint identities must be provided together." });
   }
 });
 
@@ -299,6 +308,8 @@ const HiveRepairSessionBaseSchema = z.object({
     selectionReasons: z.array(ShortTextSchema).max(64),
     visualHiveVersion: ProviderTextSchema.optional(),
     visualHiveCommit: GitCommitSchema.optional(),
+    visualHiveManifestSha256: Sha256Schema.optional(),
+    visualHiveEntrypointSha256: Sha256Schema.optional(),
     toolProtocolDigest: Sha256Schema.optional(),
     validationToolRegistryDigest: Sha256Schema.optional()
   }).strict(),
@@ -914,6 +925,9 @@ function validateSessionInputRelationships(session: HiveRepairSessionRelationshi
     if (authorization.repositoryFingerprint !== session.repository.repositoryFingerprint || authorization.taskContextDigest !== session.task.taskContextDigest || authorization.baseSha !== session.repository.baseSha) throw new Error("Hive execution authorization does not bind the session repository, task, and base commit.");
     if (authorization.budgetDigest !== canonicalSha256(session.budgets.limits)) throw new Error("Hive execution authorization does not bind the session budget.");
     if (authorization.configDigest !== session.executionIdentities.configDigest || authorization.toolRegistryDigest !== session.executionIdentities.toolRegistryDigest || authorization.promptSchemaDigest !== session.executionIdentities.promptSchemaDigest) throw new Error("Hive execution authorization does not bind the session config, tool registry, and prompt schema.");
+    const capabilityHasReleaseIdentity = session.capability.visualHiveManifestSha256 !== undefined || session.capability.visualHiveEntrypointSha256 !== undefined;
+    const authorizationHasReleaseIdentity = authorization.visualHiveManifestSha256 !== undefined || authorization.visualHiveEntrypointSha256 !== undefined;
+    if ((session.capability.visualHiveManifestSha256 === undefined) !== (session.capability.visualHiveEntrypointSha256 === undefined) || capabilityHasReleaseIdentity !== authorizationHasReleaseIdentity || (capabilityHasReleaseIdentity && (authorization.visualHiveManifestSha256 !== session.capability.visualHiveManifestSha256 || authorization.visualHiveEntrypointSha256 !== session.capability.visualHiveEntrypointSha256))) throw new Error("Hive execution authorization does not bind the pinned Visual Hive release artifact.");
     if (session.capability.toolProtocolDigest !== session.executionIdentities.toolRegistryDigest) throw new Error("Visual Hive capability protocol does not match the authorized tool registry.");
     if (Date.parse(authorization.issuedAt) > updatedAt || Date.parse(authorization.expiresAt) < updatedAt) throw new Error("Hive execution authorization is not valid at the session snapshot time.");
     const profile = session.validationProfiles.find((candidate) => candidate.profileId === authorization.profile.profileId);

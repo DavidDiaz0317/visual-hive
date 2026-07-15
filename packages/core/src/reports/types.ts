@@ -155,6 +155,14 @@ export interface ReportOutputResource {
   evidenceReadToolName?: string;
 }
 
+export interface PlaywrightExecutionBinding {
+  nonceSha256: string;
+  generatedSpecSha256: string;
+  generatedConfigSha256: string;
+  payloadSha256: string;
+  bindingMacSha256: string;
+}
+
 export interface ContractResult {
   contractId: string;
   mutationOperator?: string;
@@ -186,6 +194,7 @@ export interface Report {
   excludedContracts: Array<{ contractId: string; targetId: string; reasons: string[] }>;
   targetLifecycle: TargetLifecycleEvent[];
   generatedSpecPath: string;
+  executionBinding?: PlaywrightExecutionBinding;
   results: ContractResult[];
   summary: ReportSummary;
   consoleErrors: string[];

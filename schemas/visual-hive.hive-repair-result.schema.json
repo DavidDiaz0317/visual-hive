@@ -171,6 +171,20 @@
           "required": [
             "authorizationDigest"
           ]
+        },
+        "properties": {
+          "toolReceipts": {
+            "maxItems": 0
+          },
+          "validationRequests": {
+            "items": {
+              "not": {
+                "required": [
+                  "authorizationDigest"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -188,7 +202,16 @@
       "then": {
         "required": [
           "authorizationDigest"
-        ]
+        ],
+        "properties": {
+          "validationRequests": {
+            "items": {
+              "required": [
+                "authorizationDigest"
+              ]
+            }
+          }
+        }
       }
     }
   ],

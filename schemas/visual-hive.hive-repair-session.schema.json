@@ -146,12 +146,26 @@
         "visualHiveCommit": {
           "$ref": "#/$defs/gitCommit"
         },
+        "visualHiveManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "visualHiveEntrypointSha256": {
+          "$ref": "#/$defs/sha256"
+        },
         "toolProtocolDigest": {
           "$ref": "#/$defs/sha256"
         },
         "validationToolRegistryDigest": {
           "$ref": "#/$defs/sha256"
         }
+      },
+      "dependentRequired": {
+        "visualHiveManifestSha256": [
+          "visualHiveEntrypointSha256"
+        ],
+        "visualHiveEntrypointSha256": [
+          "visualHiveManifestSha256"
+        ]
       }
     },
     "sourceContext": {
@@ -276,6 +290,47 @@
     {
       "if": {
         "properties": {
+          "requestedMode": {
+            "const": "off"
+          }
+        },
+        "required": [
+          "requestedMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "effectiveMode": {
+            "const": "standard"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "requestedMode": {
+            "enum": [
+              "on",
+              "required"
+            ]
+          }
+        },
+        "required": [
+          "requestedMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "effectiveMode": {
+            "const": "visual_hive"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "effectiveMode": {
             "const": "standard"
           }
@@ -289,6 +344,20 @@
           "required": [
             "authorization"
           ]
+        },
+        "properties": {
+          "toolReceipts": {
+            "maxItems": 0
+          },
+          "validationRequests": {
+            "items": {
+              "not": {
+                "required": [
+                  "authorizationDigest"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -316,6 +385,13 @@
               "toolProtocolDigest",
               "validationToolRegistryDigest"
             ]
+          },
+          "validationRequests": {
+            "items": {
+              "required": [
+                "authorizationDigest"
+              ]
+            }
           }
         }
       }
@@ -1204,9 +1280,23 @@
         "promptSchemaDigest": {
           "$ref": "#/$defs/sha256"
         },
+        "visualHiveManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "visualHiveEntrypointSha256": {
+          "$ref": "#/$defs/sha256"
+        },
         "authorizationDigest": {
           "$ref": "#/$defs/sha256"
         }
+      },
+      "dependentRequired": {
+        "visualHiveManifestSha256": [
+          "visualHiveEntrypointSha256"
+        ],
+        "visualHiveEntrypointSha256": [
+          "visualHiveManifestSha256"
+        ]
       }
     },
     "attempt": {

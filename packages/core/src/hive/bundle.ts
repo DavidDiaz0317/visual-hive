@@ -121,6 +121,11 @@ export interface WriteVisualHiveBundleOptions {
   outputDir?: string;
   now?: Date;
   bundleId?: string;
+  artifactLimits?: {
+    maxFiles: number;
+    maxFileBytes: number;
+    maxTotalBytes: number;
+  };
 }
 
 export interface WriteVisualHiveBundleResult {
@@ -141,16 +146,26 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
   await mkdir(temporaryDir, { recursive: true });
   try {
     const files: VisualHiveBundleFile[] = [];
-    for (const artifact of uniqueSorted(options.artifacts)) {
+    const artifacts = uniqueSorted(options.artifacts);
+    const limits = sanitizeArtifactLimits(options.artifactLimits);
+    if (artifacts.length > limits.maxFiles) throw new Error(`Visual Hive bundle exceeds its ${limits.maxFiles}-file limit.`);
+    let totalBytes = 0;
+    for (const artifact of artifacts) {
       const sourcePath = normalizeRelativeArtifactPath(artifact);
       const absoluteSource = resolveInsideRoot(rootDir, sourcePath);
       const sourceStat = await lstat(absoluteSource);
       if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) throw new Error(`Visual Hive bundle artifact is not a regular file: ${sourcePath}`);
+      if (sourceStat.size <= 0 || sourceStat.size > limits.maxFileBytes) throw new Error(`Visual Hive bundle artifact exceeds its bounded file size: ${sourcePath}`);
+      totalBytes += sourceStat.size;
+      if (totalBytes > limits.maxTotalBytes) throw new Error(`Visual Hive bundle exceeds its ${limits.maxTotalBytes}-byte aggregate limit.`);
       const bundledPath = normalizeRelativeArtifactPath(path.join("files", sourcePath));
       const destination = path.join(temporaryDir, ...bundledPath.split("/"));
       await mkdir(path.dirname(destination), { recursive: true });
       await cp(absoluteSource, destination, { force: false, errorOnExist: true });
+      const destinationStat = await lstat(destination);
+      if (!destinationStat.isFile() || destinationStat.isSymbolicLink() || destinationStat.size !== sourceStat.size) throw new Error(`Visual Hive bundle artifact changed while being copied: ${sourcePath}`);
       const data = await readFile(destination);
+      if (data.byteLength !== sourceStat.size) throw new Error(`Visual Hive bundle artifact changed while being read: ${sourcePath}`);
       files.push({
         path: bundledPath,
         sourcePath,
@@ -236,6 +251,14 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     await rm(temporaryDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     throw error;
   }
+}
+
+function sanitizeArtifactLimits(value: WriteVisualHiveBundleOptions["artifactLimits"]): { maxFiles: number; maxFileBytes: number; maxTotalBytes: number } {
+  const limits = value ?? { maxFiles: 4096, maxFileBytes: 64 * 1024 * 1024, maxTotalBytes: 512 * 1024 * 1024 };
+  if (!Number.isSafeInteger(limits.maxFiles) || limits.maxFiles <= 0 || limits.maxFiles > 100_000) throw new Error("Visual Hive bundle file-count limit is invalid.");
+  if (!Number.isSafeInteger(limits.maxFileBytes) || limits.maxFileBytes <= 0 || limits.maxFileBytes > 1024 * 1024 * 1024) throw new Error("Visual Hive bundle per-file limit is invalid.");
+  if (!Number.isSafeInteger(limits.maxTotalBytes) || limits.maxTotalBytes < limits.maxFileBytes || limits.maxTotalBytes > 4 * 1024 * 1024 * 1024) throw new Error("Visual Hive bundle aggregate limit is invalid.");
+  return limits;
 }
 
 export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest): boolean {
