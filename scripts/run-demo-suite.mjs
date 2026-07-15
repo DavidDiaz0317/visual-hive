@@ -83,7 +83,8 @@ const agentSteps = [
   script("demo:agent-packet:handoff"),
   script("demo:agent-packet:provider"),
   script("demo:tools"),
-  script("demo:mcp")
+  script("demo:mcp"),
+  script("demo:hive-bundle")
 ];
 
 const portfolioSteps = [
@@ -93,6 +94,7 @@ const portfolioSteps = [
   script("demo:schemas"),
   script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:hive-bundle"),
   script("demo:evidence-resources"),
   script("demo:ui")
 ];
@@ -144,11 +146,16 @@ const acceptanceSteps = [
   script("demo:schemas"),
   script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:hive-bundle"),
   script("demo:evidence-resources"),
   script("demo:ui")
 ];
 
-const ciSteps = acceptanceSteps;
+// Hosted source-checkout CI cannot publish a trusted Hive bundle: that path
+// requires the immutable identity exercised by smoke:release/smoke:consumer.
+// Keep the local advisory bundle proof in demo:all without weakening the
+// hosted release-identity gate.
+const ciSteps = acceptanceSteps.filter((step) => step.label !== "demo:hive-bundle");
 
 const e2eCleanSteps = [
   script("demo:build"),

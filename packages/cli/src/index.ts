@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 import { Command } from "commander";
-import { sanitizeText } from "@visual-hive/core";
+import { sanitizeText, VISUAL_HIVE_CAPABILITY_BASELINE } from "@visual-hive/core";
 import { runDoctor, formatDiagnostics } from "./commands/doctor.js";
 import { runInit } from "./commands/init.js";
 import { formatPlanSummary, runPlanCommand } from "./commands/plan.js";
@@ -92,9 +93,14 @@ import { formatAgentWritePreviewResult, runAgentWritePreviewCommand } from "./co
 import { formatAgentValidateResult, runAgentValidateCommand } from "./commands/agentValidate.js";
 import { formatToolsRegistry, runToolsCommand } from "./commands/tools.js";
 import { runODiffCompare, runVRTUpload } from "./commands/adapters.js";
+import { formatAdapterManagerResult, runAdapterManager } from "./commands/adapterManager.js";
 import { formatSchemasVerifyResult, runSchemasVerifyCommand } from "./commands/schemas.js";
 import { formatContextLedger, runContextCommand } from "./commands/context.js";
 import { formatMcpManifest, runMcpCommand } from "./commands/mcp.js";
+import { runRepairTaskContextCommand } from "./commands/repairTaskContext.js";
+import { runRepairMcpCommand } from "./commands/repairMcp.js";
+import { runRepairCaptureCommand } from "./commands/repairCapture.js";
+import { runRepairValidateCommand } from "./commands/repairValidate.js";
 import { formatLLMDecision, formatLLMUsage, runLLMCommand, runLLMDecisionCommand } from "./commands/llm.js";
 import { formatRiskRegister, runRiskCommand } from "./commands/risk.js";
 import { formatReadinessReport, runReadinessCommand } from "./commands/readiness.js";
@@ -126,10 +132,13 @@ import {
   runConnectionsListCommand,
   runConnectionsRemoveCommand
 } from "./commands/connections.js";
+import { visualHiveVersion } from "./version.js";
+import { collectCliCapabilitySurface } from "./capabilitySurface.js";
+import { formatCapabilitiesResult, runCapabilitiesCommand } from "./commands/capabilities.js";
 
-const program = new Command();
+export const program = new Command();
 
-program.name("visual-hive").description("Deterministic-first visual QA orchestration").version("0.2.2");
+program.name("visual-hive").description("Deterministic-first visual QA orchestration").version(visualHiveVersion);
 
 program
   .command("init")
@@ -218,7 +227,8 @@ program
           skipBuild: options.skipBuild,
           enforceMutation: options.enforceMutation,
         continueOnError: options.continueOnError,
-        githubStepSummary: options.githubStepSummary
+        githubStepSummary: options.githubStepSummary,
+        capabilityCli: collectCliCapabilitySurface(program)
       });
       console.log(formatPipelineSummary(result, options.format));
       process.exitCode = result.exitCode;
@@ -767,7 +777,7 @@ hiveCommand
   .option("--validation-summary <path>", "Hive validation summary path", ".visual-hive/hive/hive-validation-summary.json")
   .option("--issues <path>", "Visual Hive lifecycle observation source", ".visual-hive/issues.json")
   .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
-  .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--trusted-source", "retain a local operator trust claim; hosted sources still require complete v3 identity")
   .option("--acmm-request <level>", "requested Hive ACMM authority for this evidence bundle", parseIntegerOption)
   .option("--scan-scope <scope>", "full, partial, changed-files, or targeted", "partial")
   .option("--authoritative-for-resolution", "allow absent observations to resolve findings; requires a full scan")
@@ -1289,6 +1299,28 @@ program
   });
 
 const adapters = program.command("adapters").description("Run optional open-source adapters without changing Visual Hive verdict authority");
+
+adapters
+  .command("manage")
+  .description("Plan or apply repository-specific open-source adapter lifecycle decisions")
+  .option("--config <path>", "config path", "visual-hive.config.yaml")
+  .option("--apply", "apply exact local dependency changes and run health/parity verification")
+  .option("--output <path>", "lifecycle plan output path", ".visual-hive/adapters/lifecycle-plan.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runAdapterManager({
+        config: options.config,
+        apply: options.apply,
+        output: options.output
+      });
+      console.log(formatAdapterManagerResult(result, options.format));
+      if (result.plan.status === "blocked") process.exitCode = 1;
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 const odiff = adapters.command("odiff").description("Use the pinned ODiff adapter as supplemental deterministic evidence");
 
 odiff
@@ -1344,7 +1376,7 @@ const schemas = program.command("schemas").description("Verify checked-in Visual
 schemas
   .command("verify")
   .description("Check schema IDs and evidence-resource enum parity")
-  .option("--schemas-dir <path>", "schemas directory", "schemas")
+  .option("--schemas-dir <path>", "schemas directory; auto-detected for source, npm, and release-bundle installs")
   .option("--output <path>", "optional JSON report path")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
@@ -1358,6 +1390,29 @@ schemas
       if (result.report.status !== "passed") {
         process.exitCode = 1;
       }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("capabilities")
+  .description("Verify every public Visual Hive capability against the frozen parity baseline")
+  .option("--config <path>", "config path; controls the report output root")
+  .option("--schemas-dir <path>", "Visual Hive schemas directory; auto-detected for source and release bundles")
+  .option("--output <path>", "capability parity report path", ".visual-hive/capability-parity.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runCapabilitiesCommand({
+        config: options.config,
+        schemasDir: options.schemasDir,
+        output: options.output,
+        cli: collectCliCapabilitySurface(program),
+        baseline: VISUAL_HIVE_CAPABILITY_BASELINE
+      });
+      console.log(formatCapabilitiesResult(result, options.format));
+      if (result.report.status === "failed") process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1588,6 +1643,7 @@ program
   .option("--project <name>", "project name to use with --repo; defaults to the repository directory name")
   .option("--max-artifacts <count>", "maximum artifact entries to index", (value) => Number.parseInt(value, 10))
   .option("--max-preview-bytes <count>", "maximum bytes to preview for text-like artifacts", (value) => Number.parseInt(value, 10))
+  .option("--complete", "fail if the artifact index must omit entries")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -1597,6 +1653,7 @@ program
         project: options.project,
         maxArtifacts: options.maxArtifacts,
         maxPreviewBytes: options.maxPreviewBytes,
+        complete: options.complete,
         format: options.format
       });
       console.log(formatArtifactsIndex(result.index, result.indexPath, options.format));
@@ -2192,6 +2249,124 @@ baselines
     }
   });
 
+const repair = program.command("repair").description("Trusted Hive-brokered multimodal repair operations");
+
+repair
+  .command("ingest-task")
+  .description("Verify and atomically store one exact task context and its original image bytes")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--input <path>", "Hive-produced visual-hive.task-context.v1 input JSON")
+  .requiredOption("--asset-root <path>", "root containing the task asset paths declared by the input")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runRepairTaskContextCommand({
+        storeRoot: options.store,
+        input: options.input,
+        assetRoot: options.assetRoot
+      }), null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("mcp")
+  .description("Expose exactly the eight authorized read-only repair tools over MCP stdio")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--hive-session <path>", "canonical hive.repair-session.v1 snapshot defining the tool scope")
+  .option("--stdio", "start the repair-only MCP stdio server")
+  .option("--describe", "print the exact repair-tool manifest and exit")
+  .action(async (options) => {
+    try {
+      if (options.stdio && options.describe) throw new Error("Use either repair mcp --stdio or repair mcp --describe, not both.");
+      const manifest = await runRepairMcpCommand({ storeRoot: options.store, hiveSession: options.hiveSession, stdio: options.stdio });
+      if (!options.stdio || options.describe) console.log(JSON.stringify(manifest, null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("capture")
+  .description("Run one exact Hive-authorized before or after Playwright repair capture")
+  .requiredOption("--task-context <path>", "verified visual-hive.task-context.v1 JSON")
+  .requiredOption("--hive-session <path>", "immutable hive.repair-session.v1 snapshot containing this validation request")
+  .requiredOption("--request <path>", "Hive validation-request specification JSON")
+  .requiredOption("--authorization <path>", "Hive execution-authorization JSON")
+  .requiredOption("--budget <path>", "Hive repair budget limits JSON bound by the authorization")
+  .requiredOption("--finding <path>", "canonical finding identity and publication evidence JSON")
+  .requiredOption("--phase <phase>", "capture phase: before or after")
+  .requiredOption("--source-ref <ref>", "captured repository ref")
+  .requiredOption("--source-event <event>", "capture source event")
+  .option("--cwd <path>", "repository worktree root")
+  .option("--config <path>", "Visual Hive config path")
+  .option("--source-trusted", "record the local/hosted producer trust claim")
+  .option("--source-workflow-name <name>", "hosted workflow name")
+  .option("--source-workflow-run-id <id>", "hosted workflow run ID")
+  .option("--source-workflow-run-attempt <attempt>", "hosted workflow run attempt")
+  .option("--source-workflow-artifact-id <id>", "hosted workflow artifact ID")
+  .option("--output-root <path>", "session-scoped repository-relative run root")
+  .option("--acmm-request <level>", "ACMM request recorded in the evidence bundle", Number.parseInt)
+  .action(async (options) => {
+    try {
+      if (options.phase !== "before" && options.phase !== "after") throw new Error("Repair capture phase must be before or after.");
+      console.log(JSON.stringify(await runRepairCaptureCommand({
+        cwd: options.cwd,
+        config: options.config,
+        taskContext: options.taskContext,
+        hiveSession: options.hiveSession,
+        request: options.request,
+        authorization: options.authorization,
+        budget: options.budget,
+        finding: options.finding,
+        phase: options.phase,
+        sourceRef: options.sourceRef,
+        sourceEvent: options.sourceEvent,
+        sourceTrusted: options.sourceTrusted,
+        sourceWorkflowName: options.sourceWorkflowName,
+        sourceWorkflowRunId: options.sourceWorkflowRunId,
+        sourceWorkflowRunAttempt: options.sourceWorkflowRunAttempt,
+        sourceWorkflowArtifactId: options.sourceWorkflowArtifactId,
+        outputRoot: options.outputRoot,
+        acmmRequest: options.acmmRequest
+      }), null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+repair
+  .command("validate")
+  .description("Derive the deterministic repair receipt from exact Hive and before/after bundle artifacts")
+  .requiredOption("--store <path>", "durable Visual Hive repair artifact store root")
+  .requiredOption("--task-context <path>", "verified visual-hive.task-context.v1 JSON")
+  .requiredOption("--hive-session <path>", "immutable hive.repair-session.v1 candidate snapshot")
+  .requiredOption("--hive-result <path>", "immutable hive.repair-result.v1 JSON")
+  .requiredOption("--before-bundle <path>", "before bundle directory containing manifest.json")
+  .requiredOption("--before-run-context <path>", "before run-context source path inside the bundle")
+  .requiredOption("--after-bundle <path>", "after bundle directory containing manifest.json")
+  .requiredOption("--after-run-context <path>", "after run-context source path inside the bundle")
+  .requiredOption("--validation-id <id>", "stable validation ID")
+  .option("--output <path>", "immutable receipt path relative to the store root")
+  .action(async (options) => {
+    try {
+      console.log(JSON.stringify(await runRepairValidateCommand({
+        storeRoot: options.store,
+        taskContext: options.taskContext,
+        hiveSession: options.hiveSession,
+        hiveResult: options.hiveResult,
+        beforeBundle: options.beforeBundle,
+        beforeRunContext: options.beforeRunContext,
+        afterBundle: options.afterBundle,
+        afterRunContext: options.afterRunContext,
+        validationId: options.validationId,
+        output: options.output
+      }), null, 2));
+    } catch (error) {
+      fail(error);
+    }
+  });
+
 program
   .command("mcp")
   .description("Expose Visual Hive read-only artifacts and advisory tools over MCP stdio")
@@ -2249,7 +2424,9 @@ program
     }
   });
 
-program.parseAsync(process.argv);
+if (isMainModule()) {
+  void program.parseAsync(process.argv);
+}
 
 function fail(error: unknown): void {
   console.error(sanitizeText(error instanceof Error ? error.message : String(error)));
@@ -2295,4 +2472,9 @@ async function waitForShutdown(close: () => Promise<void>): Promise<void> {
     process.on("SIGTERM", shutdown);
   });
   await close();
+}
+
+function isMainModule(): boolean {
+  const entrypoint = process.argv[1];
+  return Boolean(entrypoint) && import.meta.url === pathToFileURL(entrypoint).href;
 }

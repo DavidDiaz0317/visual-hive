@@ -32,10 +32,10 @@ export async function buildTestCreationPlan(options: BuildTestCreationPlanOption
     ...recommendationsFromCoverage(coverage?.recommendations ?? []),
     ...recommendationsFromMutationSurvivors(evidence?.mutation?.survivedOperators ?? []),
     ...recommendationsFromHandoff(handoff?.workItems ?? [])
-  ]).map(enrichRecommendation);
+  ]).map((recommendation) => enrichRecommendation(recommendation, options));
 
   const plan: TestCreationPlan = {
-    schemaVersion: "visual-hive.test-creation-plan.v1",
+    schemaVersion: "visual-hive.test-creation-plan.v2",
     generatedAt: (options.now ?? new Date()).toISOString(),
     project: options.project,
     outputResource: catalogedOutputResource("test-creation-plan", ".visual-hive/test-creation-plan.json"),
@@ -102,6 +102,10 @@ export function renderTestCreationPlanMarkdown(plan: TestCreationPlan): string {
             `  - Source: ${recommendation.source}`,
             `  - Kind: ${recommendation.kind}`,
             `  - Gap: ${recommendation.gapId}`,
+            `  - Grounding: ${recommendation.grounding.status}`,
+            ...(recommendation.grounding.unresolvedReasons.length
+              ? recommendation.grounding.unresolvedReasons.map((reason) => `  - Unresolved: ${reason}`)
+              : []),
             `  - Affected: ${formatAffected(recommendation.affected)}`,
             `  - Hive owner: ${recommendation.hiveOwner}`,
             `  - Suggested mutation: ${recommendation.suggestedMutation}`,
@@ -117,12 +121,21 @@ function recommendationsFromTestingLayers(layers: EvidencePacketTestingLayer[]):
   return layers
     .filter((layer) => layer.status === "missing" || layer.status === "unknown" || layer.status === "partial")
     .filter((layer) => [2, 3, 4, 5, 6, 9].includes(layer.id))
+    .map((layer) => layer.id === 2 ? {
+      ...layer,
+      gaps: layer.gaps.filter((gap) => !/^Advisory-only:/iu.test(gap) && / unit runner .+ has no matching executable unit test file\.$/u.test(gap))
+    } : layer)
+    .filter((layer) => layer.id !== 2 || (layer.gaps.length > 0 && layer.gaps.every((gap) => / unit runner .+ has no matching executable unit test file\.$/u.test(gap))))
     .map((layer) => recommendationForLayer(layer));
 }
 
 function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreationRecommendationDraft {
   const kind = kindForLayer(layer.id);
-  const priority = layer.status === "missing" ? "high" : layer.status === "unknown" ? "medium" : "low";
+  const priority = layer.status === "missing"
+    ? "high"
+    : layer.status === "unknown" || (layer.id === 2 && layer.status === "partial")
+      ? "medium"
+      : "low";
   return {
     id: safeId(`layer-${layer.id}-${layer.status}`),
     source: "testing_layer",
@@ -132,7 +145,6 @@ function recommendationForLayer(layer: EvidencePacketTestingLayer): TestCreation
     rationale: layer.gaps.length ? layer.gaps : [`Layer ${layer.id} (${layer.name}) is ${layer.status}.`],
     layer: { id: layer.id, name: layer.name, status: layer.status },
     suggestedTests: testsForLayer(layer),
-    suggestedConfigYaml: configSnippetForLayer(layer),
     artifacts: layer.evidence.length ? layer.evidence : [".visual-hive/testing-layers.json", ".visual-hive/evidence-packet.json"],
     trustedOnly: layer.id === 8,
     applyMode: "advisory_no_write"
@@ -152,7 +164,6 @@ function recommendationsFromCoverage(recommendations: CoverageImprovementRecomme
     mutationOperator: recommendation.mutationOperator,
     coverageRecommendationId: recommendation.id,
     suggestedTests: recommendation.suggestedTests,
-    suggestedConfigYaml: recommendation.suggestedConfigYaml,
     artifacts: [".visual-hive/coverage-recommendations.json"],
     trustedOnly: Boolean(recommendation.trustedOnly),
     applyMode: "advisory_no_write"
@@ -162,24 +173,23 @@ function recommendationsFromCoverage(recommendations: CoverageImprovementRecomme
 function recommendationsFromMutationSurvivors(
   survivors: Array<{ operator: string; contractIds: string[]; failedAssertion?: string; artifacts: string[] }>
 ): TestCreationRecommendationDraft[] {
-  return survivors.map((survivor) => ({
-    id: safeId(`mutation-${survivor.operator}-${survivor.contractIds[0] ?? "unmapped"}`),
-    source: "mutation_survivor",
-    kind: "mutation_mapping",
-    priority: "high",
-    title: `Create or strengthen tests for survived mutation ${survivor.operator}`,
-    rationale: [
-      `Mutation ${survivor.operator} survived deterministic adequacy checks.`,
-      ...(survivor.failedAssertion ? [survivor.failedAssertion] : [])
-    ],
-    contractId: survivor.contractIds[0],
-    mutationOperator: survivor.operator,
-    suggestedTests: testsForMutationOperator(survivor.operator),
-    suggestedConfigYaml: `mutation:\n  operators:\n    - id: ${survivor.operator}\n      contracts:\n        - ${survivor.contractIds[0] ?? "replace-with-contract-id"}`,
-    artifacts: survivor.artifacts.length ? survivor.artifacts : [".visual-hive/mutation-report.json"],
-    trustedOnly: false,
-    applyMode: "advisory_no_write"
-  }));
+  return survivors.flatMap((survivor) => (survivor.contractIds.length ? survivor.contractIds : [undefined]).map((contractId) => ({
+      id: safeId(`mutation-${survivor.operator}-${contractId ?? "unmapped"}`),
+      source: "mutation_survivor" as const,
+      kind: "mutation_mapping" as const,
+      priority: "high" as const,
+      title: `Create or strengthen tests for survived mutation ${survivor.operator}`,
+      rationale: [
+        `Mutation ${survivor.operator} survived deterministic adequacy checks.`,
+        ...(survivor.failedAssertion ? [survivor.failedAssertion] : [])
+      ],
+      ...(contractId ? { contractId } : {}),
+      mutationOperator: survivor.operator,
+      suggestedTests: ["Strengthen deterministic coverage for the observed mutation survivor using only exact configured or repository-map evidence."],
+      artifacts: survivor.artifacts.length ? survivor.artifacts : [".visual-hive/mutation-report.json"],
+      trustedOnly: false,
+      applyMode: "advisory_no_write" as const
+    })));
 }
 
 function recommendationsFromHandoff(items: HandoffWorkItem[]): TestCreationRecommendationDraft[] {
@@ -237,53 +247,188 @@ function titleForKind(kind: TestCreationKind): string {
 }
 
 function testsForLayer(layer: EvidencePacketTestingLayer): string[] {
-  if (layer.id === 2) return ["Add or expose unit test scripts for non-visual logic.", "Run unit tests before Visual Hive handoff."];
-  if (layer.id === 3) return ["Add accessibility checks for critical route shells.", "Verify labels, roles, contrast, and focus behavior with deterministic tooling."];
-  if (layer.id === 4) return ["Add API/data assertions for loading, error, empty, and success states.", "Connect API failures to user-visible contract failures."];
-  if (layer.id === 5) return ["Add stable component or route screenshots with masks for dynamic regions.", "Review baselines before enforcing CI."];
-  if (layer.id === 6) return ["Add user-flow steps for important navigation or state changes.", "Use stable data-testid selectors and no real credentials."];
-  if (layer.id === 9) return ["Run visual-hive mutate.", "Map survived operators to contracts and strengthen assertions until killed."];
-  return ["Add deterministic evidence for this layer."];
+  if (layer.id === 2) return ["Map the layer gap to an exact repository test runner or source scope before authoring unit coverage."];
+  if (layer.id === 9) return ["Map the layer gap to an observed mutation operator and exact configured contract before strengthening coverage."];
+  return ["Map the layer gap to an exact configured contract or repository-map node before authoring deterministic coverage."];
 }
 
-function configSnippetForLayer(layer: EvidencePacketTestingLayer): string | undefined {
-  if (layer.id === 3) {
-    return "contracts:\n  - id: accessibility-critical-route\n    selectors:\n      mustExist:\n        - \"[data-testid='replace-with-accessible-route-shell']\"";
-  }
-  if (layer.id === 4) {
-    return "contracts:\n  - id: api-data-contract\n    selectors:\n      mustExist:\n        - \"[data-testid='replace-with-api-data-area']\"";
-  }
-  if (layer.id === 5 || layer.id === 6) {
-    return "screenshots:\n  - name: replace-with-stable-state\n    route: \"/\"\n    viewport: desktop";
-  }
-  if (layer.id === 9) {
-    return "mutation:\n  enabled: true\n  operators:\n    - force-login-on-demo";
-  }
-  return undefined;
+interface GroundedRecommendationFacts {
+  status: "grounded" | "unresolved";
+  evidence: string[];
+  unresolvedReasons: string[];
+  contractId?: string;
+  description: string;
+  targetId?: string;
+  routes: string[];
+  viewports: string[];
+  selectors: string[];
+  mustNotExistSelectors: string[];
+  textMustExist: string[];
+  textMustNotExist: string[];
+  maskSelectors: string[];
+  components: string[];
+  states: string[];
+  configMappedMutation?: string;
 }
 
-function testsForMutationOperator(operator: string): string[] {
-  if (operator === "force-login-on-demo") return ["Assert login page and OAuth controls are absent from public demo targets."];
-  if (operator === "hide-critical-button") return ["Assert the critical action button exists and is usable."];
-  if (operator === "remove-demo-badge") return ["Assert demo badges render on demo cards."];
-  if (operator === "api-500") return ["Assert API-backed error state does not replace the expected dashboard state."];
-  if (operator === "empty-data") return ["Assert API-backed data is not empty when seeded demo data should render."];
-  if (operator === "mobile-overflow") return ["Add mobile screenshots or overflow assertions for responsive layouts."];
-  return [`Add selector, screenshot, or flow assertions that fail when ${operator} is injected.`];
-}
-
-function enrichRecommendation(recommendation: TestCreationRecommendationDraft): TestCreationRecommendation {
-  const affected = affectedForRecommendation(recommendation);
+function enrichRecommendation(
+  recommendation: TestCreationRecommendationDraft,
+  options: Pick<BuildTestCreationPlanOptions, "config" | "repoMap">
+): TestCreationRecommendation {
+  const facts = groundRecommendation(recommendation, options);
+  const affected = facts.status === "grounded"
+    ? compactAffected({
+        route: facts.routes[0],
+        component: facts.components[0],
+        viewport: facts.viewports[0],
+        state: facts.states[0]
+      })
+    : {};
+  const suggestedMutation = recommendation.mutationOperator ?? facts.configMappedMutation ?? "not_applicable";
   return {
     ...recommendation,
     gapId: gapIdForRecommendation(recommendation),
     affected,
     currentEvidence: currentEvidenceForRecommendation(recommendation),
-    suggestedContract: suggestedContractForRecommendation(recommendation, affected),
-    suggestedMutation: suggestedMutationForRecommendation(recommendation),
+    grounding: {
+      status: facts.status,
+      evidence: facts.evidence,
+      unresolvedReasons: facts.unresolvedReasons
+    },
+    suggestedContract: compactSuggestedContract({
+      id: facts.contractId ?? recommendation.contractId ?? recommendation.id,
+      description: facts.description,
+      targetId: facts.status === "grounded" ? facts.targetId : undefined,
+      route: facts.status === "grounded" ? facts.routes[0] : undefined,
+      viewport: facts.status === "grounded" ? facts.viewports[0] : undefined,
+      selectors: facts.status === "grounded" ? facts.selectors : [],
+      mustNotExistSelectors: facts.status === "grounded" ? facts.mustNotExistSelectors : [],
+      textMustExist: facts.status === "grounded" ? facts.textMustExist : [],
+      textMustNotExist: facts.status === "grounded" ? facts.textMustNotExist : [],
+      maskSelectors: facts.status === "grounded" ? facts.maskSelectors : []
+    }),
+    suggestedMutation,
+    suggestedTests: groundedTestGuidance(recommendation, facts, suggestedMutation),
     validationCommand: validationCommandForRecommendation(recommendation),
     hiveOwner: hiveOwnerForRecommendation(recommendation)
   };
+}
+
+function groundRecommendation(
+  recommendation: TestCreationRecommendationDraft,
+  options: Pick<BuildTestCreationPlanOptions, "config" | "repoMap">
+): GroundedRecommendationFacts {
+  const evidence: string[] = [];
+  const unresolvedReasons: string[] = [];
+  const configuredMappings: Array<{ id: string; contracts: string[] }> = (options.config?.mutation.operators ?? [])
+    .flatMap((operator) => typeof operator === "string" ? [] : [{ id: operator.id, contracts: operator.contracts }])
+    .filter((operator) => !recommendation.mutationOperator || operator.id === recommendation.mutationOperator);
+  const mappedContractIds = sortedUnique(configuredMappings.flatMap((operator) => operator.contracts));
+  const contractId = recommendation.contractId ?? (mappedContractIds.length === 1 ? mappedContractIds[0] : undefined);
+  const configContract = contractId ? options.config?.contracts.find((contract) => contract.id === contractId) : undefined;
+  const repoNodes = contractId
+    ? groundingRepoNodes(options.repoMap).filter((node) => node.status === "active" && (node.id === contractId || node.contractIds.includes(contractId)))
+    : [];
+  const grounded = Boolean(configContract || repoNodes.length > 0);
+
+  if (configContract) evidence.push(`config.contract:${configContract.id}`);
+  for (const node of repoNodes) evidence.push(`repoMap.node:${node.id}`);
+  if (!contractId) {
+    unresolvedReasons.push("No exact contract identifier is present in the recommendation or an unambiguous configured mutation mapping.");
+  } else if (!grounded) {
+    unresolvedReasons.push(`Contract ${contractId} is not present in the loaded Visual Hive config or repository map.`);
+  }
+
+  const targetIds = sortedUnique([
+    ...(configContract ? [configContract.target] : []),
+    ...(recommendation.targetId && options.config?.targets[recommendation.targetId] ? [recommendation.targetId] : []),
+    ...repoNodes.flatMap((node) => node.targetIds)
+  ]);
+  const routes = sortedUnique([
+    ...(configContract?.screenshots.map((screenshot) => screenshot.route) ?? []),
+    ...(configContract?.steps.filter((step) => step.action === "goto").flatMap((step) => step.route ? [step.route] : []) ?? []),
+    ...repoNodes.flatMap((node) => node.routes)
+  ]);
+  const viewports = sortedUnique([
+    ...(configContract?.screenshots.map((screenshot) => screenshot.viewport) ?? []),
+    ...repoNodes.flatMap((node) => node.viewports)
+  ]);
+  const selectors = sortedUnique([
+    ...(configContract ? [
+      ...configContract.selectors.mustExist,
+      ...configContract.waitFor.map((wait) => wait.selector),
+      ...configContract.steps.flatMap((step) => step.selector ? [step.selector] : [])
+    ] : []),
+    ...repoNodes.flatMap((node) => node.selectors)
+  ]);
+  const mustNotExistSelectors = sortedUnique(configContract?.selectors.mustNotExist ?? []);
+  const textMustExist = sortedUnique(configContract?.selectors.textMustExist ?? []);
+  const textMustNotExist = sortedUnique(configContract?.selectors.textMustNotExist ?? []);
+  const maskSelectors = sortedUnique(configContract?.screenshots.flatMap((screenshot) => screenshot.mask) ?? []);
+  const components = sortedUnique(repoNodes.filter((node) => node.kind === "component").map((node) => node.id));
+  const states = sortedUnique(repoNodes.flatMap((node) => node.states));
+  if (grounded) {
+    for (const targetId of targetIds) evidence.push(`config-or-repo.target:${targetId}`);
+    for (const route of routes) evidence.push(`config-or-repo.route:${route}`);
+    for (const viewport of viewports) evidence.push(`config-or-repo.viewport:${viewport}`);
+    for (const selector of selectors) evidence.push(`config-or-repo.selector:${selector}`);
+    for (const selector of mustNotExistSelectors) evidence.push(`config.selector.mustNotExist:${selector}`);
+    for (const text of textMustExist) evidence.push(`config.text.mustExist:${text}`);
+    for (const text of textMustNotExist) evidence.push(`config.text.mustNotExist:${text}`);
+    for (const selector of maskSelectors) evidence.push(`config.screenshot.mask:${selector}`);
+  }
+
+  const configMappedMutation = contractId
+    ? configuredMappings.find((operator) => operator.contracts.includes(contractId))
+    : undefined;
+  if (configMappedMutation) evidence.push(`config.mutation:${configMappedMutation.id}->${contractId}`);
+
+  return {
+    status: grounded ? "grounded" : "unresolved",
+    evidence: sortedUnique(evidence).slice(0, 128),
+    unresolvedReasons: grounded ? [] : unresolvedReasons,
+    contractId,
+    description: configContract?.description ?? recommendation.title,
+    targetId: targetIds[0],
+    routes,
+    viewports,
+    selectors,
+    mustNotExistSelectors,
+    textMustExist,
+    textMustNotExist,
+    maskSelectors,
+    components,
+    states,
+    configMappedMutation: configMappedMutation?.id
+  };
+}
+
+function compactAffected(affected: TestCreationRecommendation["affected"]): TestCreationRecommendation["affected"] {
+  return Object.fromEntries(Object.entries(affected).filter(([, value]) => value !== undefined)) as TestCreationRecommendation["affected"];
+}
+
+function compactSuggestedContract(contract: TestCreationRecommendation["suggestedContract"]): TestCreationRecommendation["suggestedContract"] {
+  return Object.fromEntries(Object.entries(contract).filter(([, value]) => value !== undefined)) as TestCreationRecommendation["suggestedContract"];
+}
+
+function groundedTestGuidance(
+  recommendation: TestCreationRecommendationDraft,
+  facts: GroundedRecommendationFacts,
+  suggestedMutation: string
+): string[] {
+  if (facts.status === "unresolved" || !facts.contractId) {
+    return ["Resolve this gap to an exact configured contract or repository-map node before authoring a test."];
+  }
+  return [
+    `Add deterministic ${recommendation.kind.replaceAll("_", " ")} coverage for the observed contract ${facts.contractId}.`,
+    ...(facts.routes[0] ? [`Exercise the observed route ${facts.routes[0]}.`] : []),
+    ...(facts.selectors.length ? [`Use only observed positive or interaction selectors: ${facts.selectors.join(", ")}.`] : []),
+    ...(facts.mustNotExistSelectors.length ? [`Preserve negative selector assertions: ${facts.mustNotExistSelectors.join(", ")}.`] : []),
+    ...(facts.textMustExist.length ? [`Preserve required text assertions: ${facts.textMustExist.join(", ")}.`] : []),
+    ...(facts.textMustNotExist.length ? [`Preserve forbidden text assertions: ${facts.textMustNotExist.join(", ")}.`] : []),
+    ...(facts.maskSelectors.length ? [`Treat screenshot masks as masks, not assertion targets: ${facts.maskSelectors.join(", ")}.`] : []),
+    ...(suggestedMutation !== "not_applicable" ? [`Verify the observed or configured mutation ${suggestedMutation}.`] : [])
+  ];
 }
 
 function gapIdForRecommendation(recommendation: TestCreationRecommendationDraft): string {
@@ -294,45 +439,6 @@ function gapIdForRecommendation(recommendation: TestCreationRecommendationDraft)
   return recommendation.id;
 }
 
-function affectedForRecommendation(recommendation: TestCreationRecommendationDraft): TestCreationRecommendation["affected"] {
-  const text = [recommendation.id, recommendation.title, recommendation.contractId, recommendation.mutationOperator, recommendation.kind]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const affected: TestCreationRecommendation["affected"] = {};
-
-  if (text.includes("mobile")) affected.viewport = "mobile";
-  else if (recommendation.kind === "screenshot") affected.viewport = "desktop";
-
-  if (text.includes("login") || text.includes("oauth") || text.includes("auth")) {
-    affected.route = "/";
-    affected.component = "auth-boundary";
-    affected.state = "public-demo";
-  } else if (text.includes("api") || text.includes("data") || recommendation.kind === "api_contract") {
-    affected.route = "/";
-    affected.component = "api-backed-data-area";
-    affected.state = "success-error-empty";
-  } else if (text.includes("cluster")) {
-    affected.route = "/clusters";
-    affected.component = "clusters-page";
-  } else if (text.includes("settings")) {
-    affected.route = "/settings";
-    affected.component = "settings-page";
-  } else if (text.includes("dashboard") || recommendation.contractId === "dashboard") {
-    affected.route = "/";
-    affected.component = "dashboard-shell";
-  } else if (recommendation.layer?.id === 9 || recommendation.kind === "mutation_mapping") {
-    affected.route = "/";
-    affected.component = "contract-under-mutation";
-    affected.state = "mutated";
-  } else {
-    affected.route = "/";
-    affected.component = "critical-route-shell";
-  }
-
-  return affected;
-}
-
 function currentEvidenceForRecommendation(recommendation: TestCreationRecommendationDraft): string[] {
   return [
     ...recommendation.rationale,
@@ -340,86 +446,6 @@ function currentEvidenceForRecommendation(recommendation: TestCreationRecommenda
       ? recommendation.artifacts.map((artifact) => `Artifact: ${artifact}`)
       : ["Artifact: .visual-hive/evidence-packet.json"])
   ];
-}
-
-function suggestedContractForRecommendation(
-  recommendation: TestCreationRecommendationDraft,
-  affected: TestCreationRecommendation["affected"]
-): TestCreationRecommendation["suggestedContract"] {
-  const mutation = recommendation.mutationOperator;
-  if (mutation === "force-login-on-demo") {
-    return {
-      id: recommendation.contractId ?? "public-demo-never-login",
-      description: "Public/demo target should render the dashboard and never expose login controls.",
-      targetId: recommendation.targetId,
-      route: affected.route ?? "/",
-      selectors: ["[data-testid='dashboard-page']", "not:[data-testid='login-page']", "not:[data-testid='github-login-button']"]
-    };
-  }
-  if (mutation === "hide-critical-button") {
-    return {
-      id: recommendation.contractId ?? "critical-action-visible",
-      description: "Critical user action remains visible and actionable.",
-      targetId: recommendation.targetId,
-      route: affected.route ?? "/",
-      selectors: ["[data-testid='critical-action-button']"]
-    };
-  }
-  if (mutation === "remove-demo-badge") {
-    return {
-      id: recommendation.contractId ?? "demo-badges-render",
-      description: "Demo cards keep visible demo badges.",
-      targetId: recommendation.targetId,
-      route: affected.route ?? "/",
-      selectors: ["[data-testid='demo-badge']"]
-    };
-  }
-  if (mutation === "api-500" || mutation === "empty-data" || recommendation.kind === "api_contract") {
-    return {
-      id: recommendation.contractId ?? "api-backed-data-contract",
-      description: "API-backed data area renders expected success/error/empty state evidence.",
-      targetId: recommendation.targetId,
-      route: affected.route ?? "/",
-      selectors: ["[data-testid='api-data-area']", "[data-testid='dashboard-page']"]
-    };
-  }
-  if (mutation === "mobile-overflow" || affected.viewport === "mobile") {
-    return {
-      id: recommendation.contractId ?? "mobile-layout-stability",
-      description: "Mobile viewport should not regress layout or overflow critical content.",
-      targetId: recommendation.targetId,
-      route: affected.route ?? "/",
-      viewport: "mobile",
-      selectors: ["[data-testid='dashboard-page']"]
-    };
-  }
-
-  return {
-    id: recommendation.contractId ?? safeId(`suggested-${recommendation.kind}-${affected.component ?? "route"}`),
-    description: recommendation.title,
-    targetId: recommendation.targetId,
-    route: affected.route ?? "/",
-    viewport: affected.viewport,
-    selectors: selectorsForKind(recommendation.kind)
-  };
-}
-
-function selectorsForKind(kind: TestCreationKind): string[] {
-  if (kind === "accessibility_check") return ["[data-testid='dashboard-page']", "[role='main']"];
-  if (kind === "api_contract") return ["[data-testid='api-data-area']"];
-  if (kind === "flow") return ["[data-testid='dashboard-page']", "[data-testid='critical-action-button']"];
-  return ["[data-testid='dashboard-page']"];
-}
-
-function suggestedMutationForRecommendation(recommendation: TestCreationRecommendationDraft): string {
-  if (recommendation.mutationOperator) return recommendation.mutationOperator;
-  if (recommendation.kind === "api_contract") return "api-500";
-  if (recommendation.kind === "flow") return "hide-critical-button";
-  if (recommendation.kind === "screenshot") return "mobile-overflow";
-  if (recommendation.kind === "mutation_mapping") return "force-login-on-demo";
-  const title = recommendation.title.toLowerCase();
-  if (title.includes("login") || title.includes("auth")) return "force-login-on-demo";
-  return "not_applicable";
 }
 
 function validationCommandForRecommendation(recommendation: TestCreationRecommendationDraft): string {
@@ -481,6 +507,19 @@ function dedupeRecommendations(recommendations: TestCreationRecommendationDraft[
 
 function priorityRank(priority: TestCreationPriority): number {
   return { low: 1, medium: 2, high: 3 }[priority];
+}
+
+function sortedUnique(values: string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function groundingRepoNodes(repoMap: BuildTestCreationPlanOptions["repoMap"]): NonNullable<BuildTestCreationPlanOptions["repoMap"]>["visualMap"]["nodes"] {
+  const visualMap = repoMap && typeof repoMap === "object" ? (repoMap as { visualMap?: unknown }).visualMap : undefined;
+  if (!visualMap || typeof visualMap !== "object" || !Array.isArray((visualMap as { nodes?: unknown }).nodes)) return [];
+  return (visualMap as { nodes: NonNullable<BuildTestCreationPlanOptions["repoMap"]>["visualMap"]["nodes"] }).nodes.filter((node) =>
+    node && typeof node === "object" && typeof node.id === "string" && typeof node.status === "string" && Array.isArray(node.contractIds) &&
+    Array.isArray(node.targetIds) && Array.isArray(node.routes) && Array.isArray(node.viewports) && Array.isArray(node.selectors) && Array.isArray(node.states)
+  );
 }
 
 function safeId(value: string): string {

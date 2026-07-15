@@ -162,19 +162,24 @@ function catalogedWorkflowAuditOutputResource(): WorkflowAuditOutputResource {
 
 function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
   const content = sanitizeText(file.content);
-  const parsed = parseWorkflow(content);
+  // Parse the original YAML before redacting report text. Redaction can
+  // intentionally rewrite credential-related words that are also valid job
+  // identifiers (for example, a setup authorization job).
+  const parsed = parseWorkflow(file.content);
   const triggers = workflowTriggers(parsed, content);
   const permissions = workflowPermissions(parsed, content);
   const kind = classifyWorkflow(sanitizeText(file.path), triggers, content);
   const actions = workflowActions(content);
   const unpinnedActions = actions.filter((action) => action.pinning !== "sha" && action.pinning !== "local");
+  const usesPullRequestTarget = triggers.includes("pull_request_target") || /\bpull_request_target\b/i.test(content);
+  const executesUntrustedPullRequestTargetCode = usesPullRequestTarget && !hasIsolatedHiveUninstallLane(parsed);
   const workflow: WorkflowAuditEntry = {
     path: sanitizeText(file.path),
     name: typeof parsed?.name === "string" ? sanitizeText(parsed.name) : undefined,
     kind,
     triggers,
     permissions,
-    usesPullRequestTarget: triggers.includes("pull_request_target") || /\bpull_request_target\b/i.test(content),
+    usesPullRequestTarget,
     usesSecrets: /\$\{\{\s*secrets\./i.test(content) || /\bsecrets\.[A-Z0-9_]+/i.test(content),
     usesWritePermissions: hasWritePermission(permissions) || hasWritePermissionText(content),
     uploadsVisualHiveArtifacts: /actions\/upload-artifact@/i.test(content) && /\.visual-hive/i.test(content),
@@ -207,19 +212,19 @@ function auditWorkflowFile(file: WorkflowAuditInputFile): WorkflowAuditEntry {
     findings: [],
     recommendations: []
   };
-  workflow.findings = workflowFindings(workflow);
+  workflow.findings = workflowFindings(workflow, executesUntrustedPullRequestTargetCode);
   workflow.risk = riskFor(workflow.findings);
   workflow.recommendations = workflowRecommendations(workflow);
   return workflow;
 }
 
-function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
+function workflowFindings(workflow: WorkflowAuditEntry, executesUntrustedPullRequestTargetCode: boolean): WorkflowFinding[] {
   const findings: WorkflowFinding[] = [];
   const add = (kind: string, severity: WorkflowFinding["severity"], message: string, evidence: string) => {
     findings.push({ workflowPath: workflow.path, kind, severity, message, evidence: sanitizeText(evidence) });
   };
 
-  if (workflow.usesPullRequestTarget) {
+  if (executesUntrustedPullRequestTargetCode) {
     add(
       "pull_request_target_execution",
       "critical",
@@ -420,6 +425,263 @@ function workflowFindings(workflow: WorkflowAuditEntry): WorkflowFinding[] {
   }
 
   return findings;
+}
+
+function hasIsolatedHiveUninstallLane(parsed: Record<string, unknown> | undefined): boolean {
+  const jobs = asRecord(parsed?.jobs);
+  if (!jobs || Object.keys(jobs).length === 0) return false;
+
+  const authorization = asRecord(jobs["setup-authorization"]);
+  if (!authorization || !isSafeHiveSetupAuthorizationJob(authorization)) return false;
+
+  const publisher = asRecord(jobs["uninstall-required-check"]);
+  if (!publisher || !isSafeHiveUninstallPublisherJob(publisher)) return false;
+
+  for (const [name, value] of Object.entries(jobs)) {
+    if (name === "setup-authorization" || name === "uninstall-required-check") continue;
+    const job = asRecord(value);
+    if (!job || !isPullRequestOnlyJob(job)) return false;
+  }
+  return true;
+}
+
+function isSafeHiveSetupAuthorizationJob(job: Record<string, unknown>): boolean {
+  const condition = stringValue(job.if);
+  if (
+    !eventCondition(condition, "pull_request_target") ||
+    !eventCondition(condition, "pull_request") ||
+    !/github\.event\.pull_request\.head\.ref\s*==\s*["']hive\/uninstall-[1-9][0-9]*["']/u.test(condition) ||
+    !/github\.event\.pull_request\.head\.repo\.full_name\s*==\s*github\.repository/u.test(condition) ||
+    !/github\.event\.pull_request\.base\.repo\.full_name\s*==\s*github\.repository/u.test(condition)
+  ) {
+    return false;
+  }
+  if (
+    !isFixedHostedRunner(job) ||
+    hasExecutionTopology(job) ||
+    !hasExactPermissions(job, { contents: "read", "pull-requests": "read", statuses: "read" })
+  ) {
+    return false;
+  }
+  const outputs = asRecord(job.outputs);
+  if (!outputs || stringValue(outputs.operation) !== "${{ steps.authorize.outputs.operation }}") return false;
+  const steps = asArray(job.steps);
+  if (!steps || steps.length !== 3) return false;
+
+  let checkoutCount = 0;
+  let setupNodeCount = 0;
+  let verifierCount = 0;
+  for (const value of steps) {
+    const step = asRecord(value);
+    if (!step || containsSecretExpression(step) || typeof step["working-directory"] === "string" || !hasOnlyHiveEnvironment(step)) return false;
+    const uses = stringValue(step.uses);
+    const run = stringValue(step.run);
+    if (uses) {
+      const action = parseActionReference(uses, 0);
+      if (action.pinning !== "sha") return false;
+      if (action.action === "actions/checkout") {
+        const withValues = asRecord(step.with);
+        if (
+          !withValues ||
+          stringValue(withValues.ref) !== "${{ github.event.pull_request.base.sha }}" ||
+          !isFalse(withValues["persist-credentials"]) ||
+          withValues.repository !== undefined ||
+          withValues.path !== undefined
+        ) {
+          return false;
+        }
+        checkoutCount += 1;
+      } else if (action.action === "actions/setup-node") {
+        setupNodeCount += 1;
+      } else {
+        return false;
+      }
+      continue;
+    }
+    if (
+      !run ||
+      stringValue(step.shell) !== "bash" ||
+      !hasExactEnvironmentValue(step, "HIVE_STATUS_TOKEN", "${{ github.token }}") ||
+      !hasExactEnvironmentValue(step, "HIVE_HEAD_REF", "${{ github.event.pull_request.head.ref }}") ||
+      !hasExactEnvironmentValue(step, "HIVE_HEAD_SHA", "${{ github.event.pull_request.head.sha }}") ||
+      !hasExactEnvironmentValue(step, "HIVE_BASE_SHA", "${{ github.event.pull_request.base.sha }}") ||
+      !/^hive\/uninstall-[1-9][0-9]*$/u.test(environmentValue(step, "HIVE_EXPECTED_UNINSTALL_REF")) ||
+      !condition.includes(`github.event.pull_request.head.ref == '${environmentValue(step, "HIVE_EXPECTED_UNINSTALL_REF")}'`) ||
+      !isSafeHiveAuthorizationVerifier(run)
+    ) {
+      return false;
+    }
+    verifierCount += 1;
+  }
+  return checkoutCount === 1 && setupNodeCount === 1 && verifierCount === 1;
+}
+
+function isSafeHiveUninstallPublisherJob(job: Record<string, unknown>): boolean {
+  const condition = stringValue(job.if);
+  if (
+    !eventCondition(condition, "pull_request_target") ||
+    !/needs\.setup-authorization\.outputs\.operation\s*==\s*["']uninstall["']/u.test(condition) ||
+    !hasOnlyNeed(job.needs, "setup-authorization") ||
+    !isFixedHostedRunner(job) ||
+    hasExecutionTopology(job) ||
+    !hasExactPermissions(job, { checks: "write" })
+  ) {
+    return false;
+  }
+  const steps = asArray(job.steps);
+  if (!steps || steps.length !== 1) return false;
+  const step = asRecord(steps[0]);
+  if (
+    !step ||
+    stringValue(step.uses) ||
+    containsSecretExpression(step) ||
+    typeof step["working-directory"] === "string" ||
+    stringValue(step.shell) !== "bash" ||
+    !hasOnlyHiveEnvironment(step) ||
+    !hasExactEnvironmentValue(step, "HIVE_CHECK_TOKEN", "${{ github.token }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_API_URL", "${{ github.api_url }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_REPOSITORY", "${{ github.repository }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_HEAD_SHA", "${{ github.event.pull_request.head.sha }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_PULL_REQUEST_URL", "${{ github.event.pull_request.html_url }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_SETUP_AUTHORIZED", "${{ needs.setup-authorization.outputs.authorized }}") ||
+    !hasExactEnvironmentValue(step, "HIVE_SETUP_BINDING_DIGEST", "${{ needs.setup-authorization.outputs.binding_digest }}")
+  ) {
+    return false;
+  }
+  return isSafeHiveUninstallPublisher(stringValue(step.run));
+}
+
+function isPullRequestOnlyJob(job: Record<string, unknown>): boolean {
+  const condition = stringValue(job.if);
+  return eventCondition(condition, "pull_request") && !condition.includes("pull_request_target");
+}
+
+function isSafeHiveAuthorizationVerifier(run: string): boolean {
+  const marker = "node <<'NODE'";
+  const markerIndex = run.indexOf(marker);
+  if (markerIndex < 0 || !run.trimEnd().endsWith("NODE")) return false;
+  const shell = run.slice(0, markerIndex).trim();
+  const script = run.slice(markerIndex + marker.length, run.lastIndexOf("NODE"));
+  const shellLines = shell.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  const allowedShellLine = (line: string) =>
+    line === "set -euo pipefail" ||
+    line === 'case "$HIVE_HEAD_REF" in' ||
+    line === ";;" ||
+    line === "esac" ||
+    line === "unset authorization_header" ||
+    /^"\$HIVE_EXPECTED_HEAD_REF"\|"\$HIVE_EXPECTED_UPGRADE_REF"\|"\$HIVE_EXPECTED_ROLLBACK_REF"\|"\$HIVE_EXPECTED_AUTHORIZER_TRANSFER_REF"\|"\$HIVE_EXPECTED_UNINSTALL_REF"\)$/u.test(line) ||
+    /^authorization_header="\$\(printf 'x-access-token:%s' "\$HIVE_STATUS_TOKEN" \| base64 \| tr -d '\\r\\n'\)"$/u.test(line) ||
+    /^git -c protocol\.file\.allow=never -c "http\.extraheader=AUTHORIZATION: basic \$authorization_header" fetch --force --no-tags --no-recurse-submodules origin "refs\/heads\/\$HIVE_HEAD_REF:refs\/remotes\/origin\/hive-authorization-head"$/u.test(line);
+  if (shellLines.length < 8 || shellLines.some((line) => !allowedShellLine(line))) return false;
+  if (
+    !script.includes('require("child_process")') ||
+    !script.includes('require("crypto")') ||
+    !script.includes('require("fs")') ||
+    !script.includes('child.spawnSync("git", args') ||
+    !script.includes('"diff-tree"') ||
+    !script.includes('"--no-renames"') ||
+    !script.includes('"cat-file"') ||
+    !script.includes('createHash("sha256")') ||
+    !script.includes("HIVE_EXPECTED_UNINSTALL_REF") ||
+    !script.includes("HIVE_STATUS_TOKEN") ||
+    !script.includes("fs.appendFileSync(process.env.GITHUB_OUTPUT")
+  ) {
+    return false;
+  }
+  return !hasUnsafeInlineExecution(script, true);
+}
+
+function isSafeHiveUninstallPublisher(run: string): boolean {
+  const marker = "node <<'NODE'";
+  const markerIndex = run.indexOf(marker);
+  if (markerIndex < 0 || run.slice(0, markerIndex).trim() !== "set -euo pipefail" || !run.trimEnd().endsWith("NODE")) return false;
+  const script = run.slice(markerIndex + marker.length, run.lastIndexOf("NODE"));
+  if (!script.includes("HIVE_SETUP_AUTHORIZED") || !script.includes("HIVE_SETUP_BINDING_DIGEST")) return false;
+  if (!script.includes("/check-runs") || !script.includes('name: "visual-hive"') || !script.includes('conclusion: "success"')) return false;
+  return !hasUnsafeInlineExecution(script, false);
+}
+
+function hasUnsafeInlineExecution(script: string, allowGitMetadataProcess: boolean): boolean {
+  if (/\$\{\{\s*secrets\.|\b(?:eval|Function)\s*\(|\bWebAssembly\b|\bprocess\.dlopen\b|\bvm\.|\bimport\s*\(|\brequire\s*\(\s*[^"']/u.test(script)) return true;
+  const requiredModules = [...script.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/gu)].map((match) => match[1]);
+  const allowedModules = allowGitMetadataProcess ? new Set(["child_process", "crypto", "fs"]) : new Set<string>();
+  if (requiredModules.some((moduleName) => !allowedModules.has(moduleName))) return true;
+  if (!allowGitMetadataProcess && /\bchild_process\b|\bspawn(?:Sync)?\s*\(|\bexec(?:File|Sync)?\s*\(|\bfork\s*\(/u.test(script)) return true;
+  if (allowGitMetadataProcess) {
+    if (/\bchild\.(?:exec|execFile|fork|spawn)\s*\(/u.test(script)) return true;
+    const spawnCalls = [...script.matchAll(/\bchild\.spawnSync\s*\(\s*([^,\n]+)/gu)].map((match) => match[1].trim());
+    if (spawnCalls.length === 0 || spawnCalls.some((command) => command !== '"git"' && command !== "'git'")) return true;
+  }
+  if (/\bfs\.(?:writeFile|createWriteStream|copyFile|rename|chmod|chown|symlink|link|mkdtemp|mkdir|rm|unlink)\w*\s*\(/u.test(script)) return true;
+  const appendCalls = [...script.matchAll(/\bfs\.appendFileSync\s*\(\s*([^,\n]+)/gu)].map((match) => match[1].trim());
+  if (appendCalls.some((target) => target !== "process.env.GITHUB_OUTPUT")) return true;
+  if (allowGitMetadataProcess && /\bmethod\s*:\s*["'](?:POST|PUT|PATCH|DELETE)["']/iu.test(script)) return true;
+  return /(^|\n)\s*(?:sudo\s+)?(?:npm|npx|pnpm|yarn|bun|python|python3|pytest|go|cargo|make|dotnet|bash|sh|pwsh|powershell)\b|\bgit\s+(?:checkout|switch|restore|archive|worktree|submodule)\b|(^|\s)(?:\.\/|\.\.\/)[^\s]+/imu.test(script);
+}
+
+function eventCondition(condition: string, event: "pull_request" | "pull_request_target"): boolean {
+  return new RegExp(`github\\.event_name\\s*==\\s*["']${event}["']`, "u").test(condition);
+}
+
+function hasExactPermissions(job: Record<string, unknown>, expected: Record<string, string>): boolean {
+  const permissions = asRecord(job.permissions);
+  if (!permissions || Object.keys(permissions).length !== Object.keys(expected).length) return false;
+  return Object.entries(expected).every(([key, value]) => stringValue(permissions[key]) === value);
+}
+
+function hasOnlyNeed(value: unknown, expected: string): boolean {
+  if (typeof value === "string") return value === expected;
+  return Array.isArray(value) && value.length === 1 && value[0] === expected;
+}
+
+function isFixedHostedRunner(job: Record<string, unknown>): boolean {
+  return stringValue(job["runs-on"]) === "ubuntu-latest";
+}
+
+function hasExecutionTopology(job: Record<string, unknown>): boolean {
+  return (
+    job.container !== undefined ||
+    job.services !== undefined ||
+    job.strategy !== undefined ||
+    job.defaults !== undefined ||
+    job.env !== undefined ||
+    job.environment !== undefined ||
+    job.uses !== undefined ||
+    job.with !== undefined
+  );
+}
+
+function hasOnlyHiveEnvironment(step: Record<string, unknown>): boolean {
+  const environment = asRecord(step.env);
+  return !environment || Object.keys(environment).every((key) => key.startsWith("HIVE_"));
+}
+
+function hasExactEnvironmentValue(step: Record<string, unknown>, key: string, expected: string): boolean {
+  return environmentValue(step, key) === expected;
+}
+
+function environmentValue(step: Record<string, unknown>, key: string): string {
+  return stringValue(asRecord(step.env)?.[key]);
+}
+
+function containsSecretExpression(value: unknown): boolean {
+  return /\$\{\{\s*secrets\./iu.test(JSON.stringify(value));
+}
+
+function isFalse(value: unknown): boolean {
+  return value === false || value === "false";
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function asArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
 }
 
 function workflowRecommendations(workflow: WorkflowAuditEntry): string[] {

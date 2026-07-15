@@ -5,10 +5,35 @@ import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitiz
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
-import type { TestCreationPlan } from "../testCreation/types.js";
-import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveSetupIssue } from "./types.js";
+import { TestCreationPlanV2Schema, type TestCreationRecommendation } from "../testCreation/types.js";
+import { VISUAL_HIVE_STANDALONE_LIFECYCLE } from "./lifecycle.js";
+import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveLifecyclePolicy, VisualHiveSetupIssue } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
+
+interface MutationPublicationRoot {
+  rootCauseKey: string;
+  operator: string;
+  targetId: string;
+  contractIds: string[];
+}
+
+interface TestAdequacyPublicationRoot {
+  rootCauseKey: string;
+  layerId: number;
+}
+
+interface PublicationContext {
+  mutationRoots: MutationPublicationRoot[];
+  testAdequacyRoots: TestAdequacyPublicationRoot[];
+  readinessBlockedRootKeys?: string[];
+}
+
+interface TestCreationAutomationView {
+  recommendations: TestCreationRecommendation[];
+  canResolveTestAdequacy: boolean;
+  resolutionBlockReason?: string;
+}
 
 const DEFAULT_GUARDRAILS = [
   "Visual Hive does not repair code; it detects, proves, packages, and routes this finding.",
@@ -48,6 +73,7 @@ export interface BuildIssuesOptions {
   now?: Date;
   sourcePaths?: Partial<VisualHiveIssuesReport["sourceArtifacts"]>;
   suppressionPath?: string;
+  lifecycle?: VisualHiveLifecyclePolicy;
 }
 
 export interface WriteIssuesOptions extends BuildIssuesOptions {
@@ -77,23 +103,25 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       readOptional<JsonObject>(rootDir, sourceArtifacts.hiveExport),
       readOptional<JsonObject>(rootDir, sourceArtifacts.knowledgeGraph),
       readOptional<JsonObject>(rootDir, sourceArtifacts.agentPacket),
-      readOptional<TestCreationPlan>(rootDir, sourceArtifacts.testCreationPlan),
+      readOptional<unknown>(rootDir, sourceArtifacts.testCreationPlan),
       readOptional<VisualHiveIssuesReport>(rootDir, ".visual-hive/issues.json"),
       readSuppressions(rootDir, options.suppressionPath ?? ".visual-hive/issue-suppressions.json")
     ]);
   const project = options.project ?? report?.project ?? readString(evidencePacket, "project") ?? "unknown";
   const generatedAt = (options.now ?? new Date()).toISOString();
+  const testCreationAutomation = testCreationAutomationView(testCreationPlan);
+  const publication = buildPublicationContext(mutationReport, testCreationAutomation, readiness);
   const current = [
     ...issuesFromReport(report, sourceArtifacts),
-    ...issuesFromMutation(mutationReport, sourceArtifacts),
+    ...issuesFromMutation(mutationReport, sourceArtifacts, publication),
     ...issuesFromTriage(triage, sourceArtifacts),
-    ...issuesFromCoverage(coverage, coverageRecommendations, sourceArtifacts),
-    ...issuesFromRepoMap(repoMap, sourceArtifacts),
+    ...issuesFromCoverage(coverage, coverageRecommendations, sourceArtifacts, publication),
+    ...issuesFromRepoMap(repoMap, sourceArtifacts, publication),
     ...issuesFromWorkflows(workflows, sourceArtifacts),
     ...issuesFromReadiness(readiness, sourceArtifacts),
     ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts),
-    ...issuesFromHandoff(handoff, sourceArtifacts),
-    ...issuesFromTestCreation(testCreationPlan, sourceArtifacts)
+    ...issuesFromHandoff(handoff, sourceArtifacts, publication),
+    ...issuesFromTestCreation(testCreationAutomation, repoMap, sourceArtifacts, publication)
   ];
 
   const previousByFingerprint = new Map((previousIssues?.issues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
@@ -121,12 +149,31 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
 
   for (const previous of previousIssues?.issues ?? []) {
     if (!keyed.has(previous.dedupeFingerprint) && previous.status !== "resolved_candidate" && previous.status !== "suppressed") {
+      if (previous.issueKind === "test_adequacy_gap" && !testCreationAutomation.canResolveTestAdequacy) {
+        const blocked = {
+          ...ensurePublicationMetadata(previous),
+          status: "blocked" as const,
+          labels: dedupe([...previous.labels, "visual-hive/blocked"]),
+          sourceArtifacts: dedupe([...previous.sourceArtifacts, sourceArtifacts.testCreationPlan ?? ".visual-hive/test-creation-plan.json"]),
+          guardrails: DEFAULT_GUARDRAILS,
+          validationCommand: previous.validationCommand || "visual-hive test-creation-plan && visual-hive issues --write"
+        };
+        keyed.set(previous.dedupeFingerprint, {
+          ...blocked,
+          body: renderIssueBody(
+            blocked,
+            `Resolution is blocked because the current test-creation plan cannot authoritatively omit this repository-specific finding: ${testCreationAutomation.resolutionBlockReason ?? "the plan is not eligible for automated resolution"}. A structurally valid visual-hive.test-creation-plan.v2 with grounded evidence, or a valid empty/no-relevant v2 plan, is required.`,
+            rootDir
+          )
+        });
+        continue;
+      }
       keyed.set(previous.dedupeFingerprint, {
-        ...previous,
+        ...ensurePublicationMetadata(previous),
         status: "resolved_candidate",
         labels: dedupe([...previous.labels, "visual-hive/resolved-candidate"]),
         body: renderIssueBody({
-          ...previous,
+          ...ensurePublicationMetadata(previous),
           status: "resolved_candidate",
           labels: dedupe([...previous.labels, "visual-hive/resolved-candidate"]),
           sourceArtifacts: dedupe([...previous.sourceArtifacts, sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json"]),
@@ -148,6 +195,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     project,
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: options.lifecycle ?? VISUAL_HIVE_STANDALONE_LIFECYCLE,
     sourceArtifacts: presentSourceArtifacts(rootDir, sourceArtifacts, {
       report,
       mutationReport,
@@ -319,30 +367,104 @@ function issuesFromReport(report: Report | undefined, sourceArtifacts: VisualHiv
   return issues;
 }
 
-function issuesFromMutation(report: MutationReport | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function issuesFromMutation(
+  report: MutationReport | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   if (!report) return [];
-  return (report.results ?? [])
-    .filter((result) => result.status === "survived")
-    .map((result) =>
-      baseIssue({
-        issueKind: "mutation_survivor",
-        severity: "high",
-        title: `[Visual Hive] Mutation survived: ${result.operator}`,
-        labels: ["mutation-survivor", "missing-coverage"],
-        owningAgentHint: "visual-hive/mutation",
-        sourceArtifacts: [sourceArtifacts.mutationReport ?? ".visual-hive/mutation-report.json", ...(result.artifacts ?? [])],
-        affected: (result.affectedSurfaces ?? result.affected ?? []).map((surface) => ({
-          contractId: surface.contractId,
-          targetId: surface.targetId,
-          route: surface.route,
-          component: surface.component,
-          viewport: surface.viewport
-        })),
-        reproductionCommand: result.validationCommand,
-        validationCommand: result.validationCommand ?? "visual-hive mutate --enforce-min-score",
-        bodySummary: result.failedAssertion ?? result.suggestedMissingTest ?? `${result.operator} survived; add or strengthen a contract so the mutation is killed.`
-      })
-    );
+  const structured = new Map<string, { root: MutationPublicationRoot; results: MutationReport["results"] }>();
+  const unstructured: MutationReport["results"] = [];
+  for (const result of (report.results ?? []).filter((candidate) => candidate.status === "survived")) {
+    const root = mutationRootForResult(result, publication);
+    if (!root) {
+      unstructured.push(result);
+      continue;
+    }
+    const group = structured.get(root.rootCauseKey) ?? { root, results: [] };
+    group.results.push(result);
+    structured.set(root.rootCauseKey, group);
+  }
+  const groups = [
+    ...[...structured.values()].sort((left, right) => stableCompare(left.root.rootCauseKey, right.root.rootCauseKey)),
+    ...unstructured
+      .sort((left, right) => stableCompare(mutationResultSortKey(left), mutationResultSortKey(right)))
+      .map((result) => ({ root: undefined, results: [result] }))
+  ];
+  return groups.map(({ root, results }) => mutationIssueForResults(results, sourceArtifacts, root));
+}
+
+function mutationIssueForResults(
+  results: MutationReport["results"],
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  root: MutationPublicationRoot | undefined
+): VisualHiveIssueCandidate {
+  const sortedResults = [...results].sort((left, right) => stableCompare(mutationResultSortKey(left), mutationResultSortKey(right)));
+  const operator = root?.operator ?? sortedResults[0]?.operator ?? "unknown";
+  const affected = uniqueMutationSurfaces(sortedResults.flatMap((result) => result.affectedSurfaces ?? result.affected ?? []));
+  const validationCommands = stableUnique(sortedResults.map((result) => result.validationCommand).filter((value): value is string => Boolean(value)));
+  const summaries = stableUnique(sortedResults.map((result) =>
+    result.failedAssertion
+      ?? result.suggestedMissingTest
+      ?? `${result.operator} survived; add or strengthen a contract so the mutation is killed.`
+  ));
+  const bodySummary = [
+    ...summaries,
+    ...(validationCommands.length > 1
+      ? ["Validation commands observed across this root cause:", ...validationCommands.map((command) => `- \`${command}\``)]
+      : [])
+  ].join("\n");
+  const primaryValidation = validationCommands[0] ?? "visual-hive mutate --enforce-min-score";
+  return baseIssue({
+    issueKind: "mutation_survivor",
+    severity: "high",
+    title: `[Visual Hive] Mutation survived: ${operator}`,
+    labels: ["mutation-survivor", "missing-coverage"],
+    owningAgentHint: "visual-hive/mutation",
+    sourceArtifacts: stableUnique([
+      sourceArtifacts.mutationReport ?? ".visual-hive/mutation-report.json",
+      ...sortedResults.flatMap((result) => result.artifacts ?? [])
+    ]),
+    affected,
+    reproductionCommand: primaryValidation,
+    validationCommand: primaryValidation,
+    bodySummary,
+    ...(root ? canonicalPublication(root.rootCauseKey) : {})
+  });
+}
+
+function uniqueMutationSurfaces(
+  surfaces: Array<NonNullable<MutationReport["results"][number]["affectedSurfaces"]>[number]>
+): VisualHiveIssueCandidate["affected"] {
+  const normalized = surfaces.map((surface) => ({
+    contractId: surface.contractId,
+    targetId: surface.targetId,
+    route: surface.route,
+    component: surface.component,
+    viewport: surface.viewport
+  }));
+  return uniqueBy(normalized, mutationSurfaceSortKey).sort((left, right) => stableCompare(mutationSurfaceSortKey(left), mutationSurfaceSortKey(right)));
+}
+
+function mutationSurfaceSortKey(surface: VisualHiveIssueCandidate["affected"][number]): string {
+  return JSON.stringify([
+    surface.contractId ?? "",
+    surface.targetId ?? "",
+    surface.route ?? "",
+    surface.component ?? "",
+    surface.viewport ?? ""
+  ]);
+}
+
+function mutationResultSortKey(result: MutationReport["results"][number]): string {
+  return JSON.stringify([
+    result.operator,
+    result.validationCommand ?? "",
+    result.failedAssertion ?? "",
+    result.suggestedMissingTest ?? "",
+    stableUnique(result.artifacts ?? []),
+    uniqueMutationSurfaces(result.affectedSurfaces ?? result.affected ?? []).map(mutationSurfaceSortKey)
+  ]);
 }
 
 function issuesFromTriage(report: TriageReport | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
@@ -364,11 +486,19 @@ function issuesFromTriage(report: TriageReport | undefined, sourceArtifacts: Vis
     );
 }
 
-function issuesFromCoverage(coverage: JsonObject | undefined, recommendations: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function issuesFromCoverage(
+  coverage: JsonObject | undefined,
+  recommendations: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   const rows = arrayOfObjects(recommendations?.recommendations);
   const maintenance = arrayOfObjects(recommendations?.maintenanceFindings);
-  const issues: VisualHiveIssueCandidate[] = rows.slice(0, 12).map((row) =>
-    baseIssue({
+  const maintenanceById = new Map(maintenance.map((finding) => [readString(finding, "id"), finding] as const).filter((entry): entry is [string, JsonObject] => Boolean(entry[0])));
+  const issues: VisualHiveIssueCandidate[] = rows.slice(0, 12).map((row) => {
+    const maintenanceFinding = readString(row, "maintenanceFindingId") ? maintenanceById.get(readString(row, "maintenanceFindingId")!) : undefined;
+    const root = mutationRootForCoverageRecord(row, maintenanceFinding, publication);
+    return baseIssue({
       issueKind: "missing_visual_coverage",
       severity: severityFromString(readString(row, "priority") ?? readString(row, "severity"), "medium"),
       title: `[Visual Hive] Add visual coverage: ${readString(row, "title") ?? readString(row, "id") ?? "coverage recommendation"}`,
@@ -377,10 +507,12 @@ function issuesFromCoverage(coverage: JsonObject | undefined, recommendations: J
       sourceArtifacts: [sourceArtifacts.coverageRecommendations ?? ".visual-hive/coverage-recommendations.json", sourceArtifacts.coverage ?? ".visual-hive/coverage.json"],
       affected: [{ contractId: readString(row, "contractId"), targetId: readString(row, "targetId") }],
       validationCommand: "visual-hive improve-coverage && visual-hive issues --write",
-      bodySummary: readString(row, "description") ?? readString(row, "rationale") ?? JSON.stringify(row).slice(0, 800)
-    })
-  );
+      bodySummary: readString(row, "description") ?? readString(row, "rationale") ?? JSON.stringify(row).slice(0, 800),
+      ...(root ? derivativePublication(root.rootCauseKey) : {})
+    });
+  });
   for (const finding of maintenance.slice(0, 12)) {
+    const root = mutationRootForCoverageRecord(finding, finding, publication);
     issues.push(
       baseIssue({
         issueKind: maintenanceKind(readString(finding, "kind")),
@@ -391,7 +523,8 @@ function issuesFromCoverage(coverage: JsonObject | undefined, recommendations: J
         sourceArtifacts: [sourceArtifacts.coverageRecommendations ?? ".visual-hive/coverage-recommendations.json"],
         affected: [{ contractId: readString(finding, "contractId"), route: readString(finding, "route"), viewport: readString(finding, "viewport") }],
         validationCommand: "visual-hive improve-coverage && visual-hive issues --write",
-        bodySummary: readString(finding, "description") ?? JSON.stringify(finding).slice(0, 800)
+        bodySummary: readString(finding, "description") ?? JSON.stringify(finding).slice(0, 800),
+        ...(root ? derivativePublication(root.rootCauseKey) : {})
       })
     );
   }
@@ -399,10 +532,20 @@ function issuesFromCoverage(coverage: JsonObject | undefined, recommendations: J
   return issues;
 }
 
-function issuesFromRepoMap(repoMap: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
-  const gaps = arrayOfObjects(repoMap?.coverageGaps).concat(arrayOfObjects(repoMap?.mapFindings));
-  return gaps.slice(0, 10).map((gap) =>
-    baseIssue({
+function issuesFromRepoMap(
+  repoMap: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
+  const gaps = arrayOfObjects(repoMap?.coverageGaps)
+    .filter((gap) => !readString(gap, "suggestedArtifact")?.startsWith("advisory-only:"))
+    .concat(arrayOfObjects(repoMap?.mapFindings));
+  return gaps.slice(0, 10).map((gap) => {
+    const layerId = readNumber(gap, "layer");
+    const testRoot = readString(gap, "id") === "unit-layer" && layerId !== undefined
+      ? publication.testAdequacyRoots.find((root) => root.layerId === layerId)
+      : undefined;
+    return baseIssue({
       issueKind: readString(gap, "kind")?.includes("map") ? "map_drift" : "missing_visual_coverage",
       severity: severityFromString(readString(gap, "severity"), "medium"),
       title: `[Visual Hive] Repo map finding: ${readString(gap, "title") ?? readString(gap, "kind") ?? "coverage gap"}`,
@@ -411,9 +554,10 @@ function issuesFromRepoMap(repoMap: JsonObject | undefined, sourceArtifacts: Vis
       sourceArtifacts: [sourceArtifacts.repoMap ?? ".visual-hive/repo-map.json"],
       affected: [{ route: readString(gap, "route"), component: readString(gap, "component"), selector: readString(gap, "selector") }],
       validationCommand: "visual-hive analyze --repo . && visual-hive issues --write",
-      bodySummary: readString(gap, "description") ?? JSON.stringify(gap).slice(0, 800)
-    })
-  );
+      bodySummary: readString(gap, "description") ?? JSON.stringify(gap).slice(0, 800),
+      ...(testRoot ? derivativePublication(testRoot.rootCauseKey) : {})
+    });
+  });
 }
 
 function issuesFromWorkflows(workflows: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
@@ -453,12 +597,13 @@ function issuesFromReadiness(readiness: JsonObject | undefined, sourceArtifacts:
 function issuesFromProviderEvidence(evidence: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
   const providers = arrayOfObjects(evidence?.providers);
   return providers
-    .filter((provider) => ["failed", "missing_credentials", "blocked"].includes(readString(provider, "status") ?? readString(objectValue(provider, "upload"), "status") ?? ""))
-    .map((provider) =>
+    .map((provider) => ({ provider, issueStatus: providerIssueStatus(provider) }))
+    .filter((entry): entry is { provider: JsonObject; issueStatus: "failed" | "missing_credentials" | "blocked" } => entry.issueStatus !== undefined)
+    .map(({ provider, issueStatus }) =>
       baseIssue({
         issueKind: "provider_governance",
-        severity: readString(provider, "status") === "failed" ? "high" : "medium",
-        title: `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${readString(provider, "status") ?? "needs review"}`,
+        severity: issueStatus === "failed" ? "high" : "medium",
+        title: `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${issueStatus}`,
         labels: ["visual-hive/blocked"],
         owningAgentHint: "hive/ci",
         sourceArtifacts: [sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json", ".visual-hive/provider-results.json"],
@@ -469,13 +614,32 @@ function issuesFromProviderEvidence(evidence: JsonObject | undefined, sourceArti
     );
 }
 
-function issuesFromHandoff(handoff: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function providerIssueStatus(provider: JsonObject): "failed" | "missing_credentials" | "blocked" | undefined {
+  const statuses = [readString(provider, "status"), readString(objectValue(provider, "upload"), "status")];
+  for (const status of ["failed", "missing_credentials", "blocked"] as const) {
+    if (statuses.includes(status)) return status;
+  }
+  return undefined;
+}
+
+function issuesFromHandoff(
+  handoff: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   const workItems = arrayOfObjects(handoff?.workItems);
   return workItems
     .filter((item) => readString(item, "priority") === "critical" || readString(item, "priority") === "high")
     .slice(0, 10)
     .map((item) => {
       const contractId = workItemContractId(item);
+      const workItemId = readString(item, "id");
+      const mutationRoot = mutationRootForWorkItem(workItemId, publication);
+      const publicationMetadata = mutationRoot
+        ? derivativePublication(mutationRoot.rootCauseKey)
+        : workItemId === "readiness.readiness_gate" && publication.readinessBlockedRootKeys?.length
+          ? aggregatePublication("aggregate/readiness/readiness_gate", publication.readinessBlockedRootKeys)
+          : {};
       return baseIssue({
         issueKind: readString(item, "kind") === "test_creation" ? "missing_visual_coverage" : "external_repo_onboarding",
         severity: severityFromString(readString(item, "priority"), "medium"),
@@ -485,19 +649,77 @@ function issuesFromHandoff(handoff: JsonObject | undefined, sourceArtifacts: Vis
         sourceArtifacts: [sourceArtifacts.handoff ?? ".visual-hive/handoff.json", ...readStringArray(item.artifacts)],
         affected: contractId ? [{ contractId }] : [],
         validationCommand: "visual-hive handoff-validate && visual-hive issues --write",
-        bodySummary: readString(item, "summary") ?? JSON.stringify(item).slice(0, 800)
+        bodySummary: readString(item, "summary") ?? JSON.stringify(item).slice(0, 800),
+        ...publicationMetadata
       });
     });
 }
 
-function issuesFromTestCreation(plan: TestCreationPlan | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
-  if (!plan) return [];
-  return plan.recommendations
-    .filter((recommendation) => recommendation.source === "testing_layer" && recommendation.kind === "unit_test")
-    .filter((recommendation) => recommendation.priority === "high" || recommendation.priority === "medium")
+function testCreationAutomationView(value: unknown): TestCreationAutomationView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "the test-creation plan is missing or unreadable"
+    };
+  }
+  if ((value as JsonObject).schemaVersion !== "visual-hive.test-creation-plan.v2") {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "legacy or unsupported test-creation plans cannot drive repository automation"
+    };
+  }
+  const parsed = TestCreationPlanV2Schema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "the v2 test-creation plan or its grounding is malformed"
+    };
+  }
+
+  const relevant = parsed.data.recommendations.filter(isTestAdequacyRecommendation);
+  const grounded = relevant.filter(isGroundedForAutomation);
+  const ineligible = relevant.filter((recommendation) => !isGroundedForAutomation(recommendation));
+  return {
+    recommendations: grounded,
+    canResolveTestAdequacy: ineligible.length === 0,
+    ...(ineligible.length
+      ? { resolutionBlockReason: "one or more relevant v2 recommendations are unresolved or lack automation-eligible grounding" }
+      : {})
+  };
+}
+
+function isTestAdequacyRecommendation(recommendation: TestCreationRecommendation): boolean {
+  return recommendation.source === "testing_layer"
+    && recommendation.kind === "unit_test"
+    && (recommendation.priority === "high" || recommendation.priority === "medium");
+}
+
+function isGroundedForAutomation(recommendation: TestCreationRecommendation): boolean {
+  return recommendation.grounding.status === "grounded"
+    && recommendation.grounding.evidence.length > 0
+    && recommendation.grounding.evidence.every((item) => Boolean(item.trim()))
+    && recommendation.grounding.unresolvedReasons.length === 0;
+}
+
+function issuesFromTestCreation(
+  automation: TestCreationAutomationView,
+  repoMap: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
+  return automation.recommendations
     .slice(0, 1)
-    .map((recommendation) =>
-      baseIssue({
+    .map((recommendation) => {
+      const structuredLayerId = recommendation.layer?.id;
+      const layerId = typeof structuredLayerId === "number" && Number.isInteger(structuredLayerId) && structuredLayerId > 0 ? structuredLayerId : 2;
+      const root = structuredLayerId === layerId
+        ? publication.testAdequacyRoots.find((candidate) => candidate.layerId === layerId)
+        : undefined;
+      const unitTestCommands = repositoryUnitTestCommands(repoMap);
+      return baseIssue({
         issueKind: "test_adequacy_gap",
         severity: "high",
         title: `[Visual Hive] Add repository test coverage: ${recommendation.title}`,
@@ -506,16 +728,77 @@ function issuesFromTestCreation(plan: TestCreationPlan | undefined, sourceArtifa
         sourceArtifacts: [sourceArtifacts.testCreationPlan ?? ".visual-hive/test-creation-plan.json", ...recommendation.artifacts],
         affected: [
           { route: recommendation.affected.route, component: recommendation.affected.component },
-          { contractId: `testing-layer:${recommendation.layer?.id ?? 2}` }
+          { contractId: `testing-layer:${layerId}` }
         ],
-        validationCommand: "node --test && visual-hive analyze --repo . && visual-hive test-creation-plan && visual-hive issues --write",
+        validationCommand: [
+          ...unitTestCommands,
+          "visual-hive analyze --repo .",
+          "visual-hive evidence",
+          "visual-hive test-creation-plan",
+          "visual-hive issues --write"
+        ].filter(Boolean).join(" && "),
         bodySummary: [
           ...recommendation.rationale,
           ...recommendation.suggestedTests,
           "Repair scope: add focused repository test files only; do not change source, package metadata, workflows, Visual Hive config, or baselines."
-        ].join("\n")
-      })
+        ].join("\n"),
+        ...(root ? canonicalPublication(root.rootCauseKey) : {})
+      });
+    });
+}
+
+function repositoryUnitTestCommands(repoMap: JsonObject | undefined): string[] {
+  const eligibleFileScopes = new Set(arrayOfObjects(repoMap?.testFiles)
+    .filter((file) => {
+      const kind = readString(file, "kind");
+      const runtime = readString(file, "runtime");
+      return file.runnerEligible === true && (kind === "unit" || (kind === "component" && runtime === "javascript"));
+    })
+    .map((file) => `${readString(file, "runtime") ?? ""}\0${readString(file, "scope") ?? ""}`));
+  const candidates = arrayOfObjects(repoMap?.testRunners)
+    .filter((runner) => readString(runner, "kind") === "unit")
+    .filter((runner) => !eligibleFileScopes.has(`${readString(runner, "runtime") ?? ""}\0${readString(runner, "scope") ?? ""}`))
+    .sort((left, right) =>
+      stableCompare(readString(left, "runtime") ?? "", readString(right, "runtime") ?? "")
+      || stableCompare(readString(left, "scope") ?? "", readString(right, "scope") ?? "")
+      || runnerEvidenceRank(right) - runnerEvidenceRank(left)
+      || stableCompare(readString(left, "tool") ?? "", readString(right, "tool") ?? "")
     );
+  const commands: string[] = [];
+  const handledScopes = new Set<string>();
+  for (const runner of candidates) {
+    const scopeIdentity = `${readString(runner, "runtime") ?? ""}\0${readString(runner, "scope") ?? ""}`;
+    if (handledScopes.has(scopeIdentity)) continue;
+    const rendered = renderSafeRunnerCommand(objectValue(runner, "command"));
+    if (!rendered) continue;
+    handledScopes.add(scopeIdentity);
+    if (!commands.includes(rendered)) commands.push(rendered);
+  }
+  return commands;
+}
+
+function runnerEvidenceRank(runner: JsonObject): number {
+  const evidence = readStringArray(runner.evidence);
+  if (evidence.some((item) => item.startsWith("script:"))) return 3;
+  if (evidence.some((item) => item.startsWith("manifest:") || item.startsWith("test-file:"))) return 2;
+  if (evidence.some((item) => item.startsWith("dependency:"))) return 1;
+  return 0;
+}
+
+function renderSafeRunnerCommand(command: JsonObject | undefined): string | undefined {
+  if (!command) return undefined;
+  const cwd = readString(command, "cwd");
+  const executable = readString(command, "executable");
+  const args = readStringArray(command.args);
+  if (!cwd || !executable || !["npm", "pnpm", "yarn", "node", "python", "go", "cargo", "mvn", "gradle", "ruby", "php"].includes(executable)) return undefined;
+  const safeToken = (value: string) => /^[A-Za-z0-9@%_+=:,./-]+$/u.test(value) && !value.split("/").includes("..");
+  if (cwd !== ".") {
+    if (cwd.startsWith("-") || cwd.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(cwd)) return undefined;
+    if (!safeToken(cwd) || cwd.split("/").some((segment) => segment.startsWith("-"))) return undefined;
+  }
+  if (!args.every(safeToken)) return undefined;
+  const invocation = [executable, ...args].join(" ");
+  return cwd === "." ? invocation : `cd ${cwd} && ${invocation}`;
 }
 
 function workItemContractId(item: JsonObject): string | undefined {
@@ -531,17 +814,232 @@ function workItemContractId(item: JsonObject): string | undefined {
   return undefined;
 }
 
-function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFingerprint" | "body" | "labels" | "guardrails" | "validationCommand"> & {
+function buildPublicationContext(
+  mutationReport: MutationReport | undefined,
+  testCreationAutomation: TestCreationAutomationView,
+  readiness: JsonObject | undefined
+): PublicationContext {
+  const mutationRoots = uniqueBy(
+    (mutationReport?.results ?? [])
+      .filter((result) => result.status === "survived")
+      .map(mutationPublicationRoot)
+      .filter((root): root is MutationPublicationRoot => Boolean(root)),
+    (root) => root.rootCauseKey
+  ).sort((left, right) => stableCompare(left.rootCauseKey, right.rootCauseKey));
+  const testAdequacyRoots = uniqueBy(
+    testCreationAutomation.recommendations
+      .slice(0, 1)
+      .map((recommendation) => recommendation.layer?.id)
+      .filter((layerId): layerId is number => typeof layerId === "number" && Number.isInteger(layerId) && layerId > 0)
+      .map((layerId) => ({ rootCauseKey: `test-adequacy/repository/testing-layer:${layerId}`, layerId })),
+    (root) => root.rootCauseKey
+  );
+  return {
+    mutationRoots,
+    testAdequacyRoots,
+    readinessBlockedRootKeys: readinessBlockedRootKeys(readiness, mutationRoots)
+  };
+}
+
+function mutationPublicationRoot(result: MutationReport["results"][number]): MutationPublicationRoot | undefined {
+  const operator = cleanPublicationIdentity(result.operator);
+  const affected = result.affectedSurfaces ?? result.affected ?? [];
+  const targetIds = stableUnique(affected.map((surface) => surface.targetId).filter((value): value is string => Boolean(value)));
+  const contractIds = stableUnique([
+    ...(result.contractIds ?? []),
+    ...affected.map((surface) => surface.contractId)
+  ]);
+  if (!operator || targetIds.length !== 1 || contractIds.length === 0) return undefined;
+  const targetId = targetIds[0]!;
+  const rootCauseKey = `mutation/${rootKeySegment(operator)}/${rootKeySegment(targetId)}/${contractIds.map(rootKeySegment).join(",")}`;
+  try {
+    cleanRootCauseKey(rootCauseKey);
+  } catch {
+    return undefined;
+  }
+  return {
+    rootCauseKey,
+    operator,
+    targetId,
+    contractIds
+  };
+}
+
+function mutationRootForResult(result: MutationReport["results"][number], publication: PublicationContext): MutationPublicationRoot | undefined {
+  const expected = mutationPublicationRoot(result);
+  return expected ? publication.mutationRoots.find((root) => root.rootCauseKey === expected.rootCauseKey) : undefined;
+}
+
+function mutationRootForCoverageRecord(
+  record: JsonObject,
+  maintenanceFinding: JsonObject | undefined,
+  publication: PublicationContext
+): MutationPublicationRoot | undefined {
+  const operator = readString(record, "mutationOperator")
+    ?? readString(maintenanceFinding, "mutationOperator")
+    ?? taggedEvidenceValue(maintenanceFinding, "operator");
+  if (!operator) return undefined;
+  const targetId = readString(record, "targetId") ?? readString(maintenanceFinding, "targetId");
+  const contractId = readString(record, "contractId") ?? readString(maintenanceFinding, "contractId");
+  return uniqueMutationRoot(publication.mutationRoots.filter((root) =>
+    root.operator === operator
+      && (!targetId || root.targetId === targetId)
+      && (!contractId || root.contractIds.includes(contractId))
+  ));
+}
+
+function mutationRootForWorkItem(workItemId: string | undefined, publication: PublicationContext): MutationPublicationRoot | undefined {
+  if (workItemId === "mutation.mutation_adequacy") return uniqueMutationRoot(publication.mutationRoots);
+  const prefix = "mutation.mutation_survivor.";
+  if (!workItemId?.startsWith(prefix)) return undefined;
+  const operator = workItemId.slice(prefix.length);
+  if (!operator) return undefined;
+  return uniqueMutationRoot(publication.mutationRoots.filter((root) => root.operator === operator));
+}
+
+function uniqueMutationRoot(roots: MutationPublicationRoot[]): MutationPublicationRoot | undefined {
+  return roots.length === 1 ? roots[0] : undefined;
+}
+
+function readinessBlockedRootKeys(
+  readiness: JsonObject | undefined,
+  mutationRoots: MutationPublicationRoot[]
+): string[] | undefined {
+  if (!readiness) return undefined;
+  const blockedGates = arrayOfObjects(readiness.gates).filter((gate) => readString(gate, "status") === "blocked");
+  if (blockedGates.length === 0) return undefined;
+  const roots: string[] = [];
+  for (const gate of blockedGates) {
+    if (readString(gate, "id") === "mutation:score" && readString(gate, "category") === "mutation" && mutationRoots.length > 0) {
+      roots.push(...mutationRoots.map((root) => root.rootCauseKey));
+      continue;
+    }
+    // Unknown blocked gates remain independent publications. Guessing a linkage could hide real work.
+    return undefined;
+  }
+  return stableUnique(roots);
+}
+
+function taggedEvidenceValue(record: JsonObject | undefined, key: string): string | undefined {
+  const prefix = `${key}=`;
+  const values = stableUnique(readStringArray(record?.evidence)
+    .filter((value) => value.startsWith(prefix))
+    .map((value) => value.slice(prefix.length))
+    .filter(Boolean));
+  return values.length === 1 ? values[0] : undefined;
+}
+
+function canonicalPublication(rootCauseKey: string): Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> {
+  return { publicationRole: "canonical", rootCauseKey, blockedByRootKeys: [] };
+}
+
+function derivativePublication(rootCauseKey: string): Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> {
+  return { publicationRole: "derivative", rootCauseKey, blockedByRootKeys: [] };
+}
+
+function aggregatePublication(
+  rootCauseKey: string,
+  blockedByRootKeys: string[]
+): Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> {
+  return { publicationRole: "aggregate", rootCauseKey, blockedByRootKeys: stableUnique(blockedByRootKeys) };
+}
+
+function ensurePublicationMetadata(issue: VisualHiveIssueCandidate): VisualHiveIssueCandidate {
+  const raw = issue as VisualHiveIssueCandidate & {
+    publicationRole?: unknown;
+    rootCauseKey?: unknown;
+    blockedByRootKeys?: unknown;
+  };
+  const values = [raw.publicationRole, raw.rootCauseKey, raw.blockedByRootKeys];
+  const present = values.filter((value) => value !== undefined).length;
+  const metadata = present === 0
+    ? canonicalPublication(defaultRootCauseKey(issue.issueKind, issue.title, issue.affected))
+    : present === 3
+      ? normalizePublicationMetadata({
+          publicationRole: raw.publicationRole as VisualHiveIssueCandidate["publicationRole"],
+          rootCauseKey: raw.rootCauseKey as string,
+          blockedByRootKeys: raw.blockedByRootKeys as string[]
+        })
+      : (() => { throw new Error(`Issue candidate ${issue.dedupeFingerprint} has partial publication metadata.`); })();
+  validatePublicationRoleForKind(issue.issueKind, metadata.publicationRole);
+  return { ...issue, ...metadata };
+}
+
+function normalizePublicationMetadata(
+  metadata: Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys">
+): Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> {
+  if (!(["canonical", "derivative", "aggregate"] as const).includes(metadata.publicationRole)) {
+    throw new Error(`Invalid issue publication role: ${String(metadata.publicationRole)}`);
+  }
+  const rootCauseKey = cleanRootCauseKey(metadata.rootCauseKey);
+  if (!Array.isArray(metadata.blockedByRootKeys)) throw new Error("Issue blockedByRootKeys must be an array.");
+  const blockedByRootKeys = stableUnique(metadata.blockedByRootKeys.map(cleanRootCauseKey));
+  if (metadata.publicationRole === "aggregate" && blockedByRootKeys.length === 0) {
+    throw new Error("Aggregate issue candidates require at least one blocked root key.");
+  }
+  if (metadata.publicationRole !== "aggregate" && blockedByRootKeys.length > 0) {
+    throw new Error("Only aggregate issue candidates may declare blocked root keys.");
+  }
+  if (blockedByRootKeys.includes(rootCauseKey)) throw new Error("An aggregate issue cannot block on its own root cause key.");
+  return { publicationRole: metadata.publicationRole, rootCauseKey, blockedByRootKeys };
+}
+
+function validatePublicationRoleForKind(issueKind: VisualHiveIssueCandidate["issueKind"], role: VisualHiveIssueCandidate["publicationRole"]): void {
+  if (role === "derivative" && !["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"].includes(issueKind)) {
+    throw new Error(`Issue kind ${issueKind} cannot be published as a derivative.`);
+  }
+  if (role === "aggregate" && issueKind !== "external_repo_onboarding") {
+    throw new Error(`Issue kind ${issueKind} cannot be published as an aggregate.`);
+  }
+}
+
+function defaultRootCauseKey(issueKind: VisualHiveIssueCandidate["issueKind"], title: string, affected: VisualHiveIssueCandidate["affected"]): string {
+  const stableAffected = affected
+    .map((surface) => Object.entries(surface).filter(([, value]) => value !== undefined).sort(([left], [right]) => stableCompare(left, right)))
+    .map((entries) => Object.fromEntries(entries))
+    .sort((left, right) => stableCompare(JSON.stringify(left), JSON.stringify(right)));
+  const digest = crypto.createHash("sha256").update(JSON.stringify({ issueKind, title: title.trim(), affected: stableAffected })).digest("hex");
+  return `finding/${issueKind}/${digest}`;
+}
+
+function cleanRootCauseKey(value: string): string {
+  if (typeof value !== "string") throw new Error("Issue rootCauseKey must be a string.");
+  const clean = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._~:/,%+-]{0,511}$/u.test(clean) || /%(?![0-9A-Fa-f]{2})/u.test(clean)) {
+    throw new Error("Issue rootCauseKey must be a 1-512 character URI-safe publication key.");
+  }
+  return clean;
+}
+
+function cleanPublicationIdentity(value: string | undefined): string | undefined {
+  const clean = value?.trim();
+  return clean && ![...clean].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ? clean : undefined;
+}
+
+function rootKeySegment(value: string): string {
+  return encodeURIComponent(value.trim()).replace(/[!'()*]/gu, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFingerprint" | "body" | "labels" | "guardrails" | "validationCommand" | "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> & {
   labels?: string[];
   validationCommand?: string;
   bodySummary: string;
+  publicationRole?: VisualHiveIssueCandidate["publicationRole"];
+  rootCauseKey?: string;
+  blockedByRootKeys?: string[];
 }): VisualHiveIssueCandidate {
   const labels = dedupe([...DEFAULT_LABELS, ...agentLabels(input.owningAgentHint), ...(input.labels ?? []), input.issueKind.replaceAll("_", "-")]);
+  const publication = normalizePublicationMetadata({
+    publicationRole: input.publicationRole ?? "canonical",
+    rootCauseKey: input.rootCauseKey ?? defaultRootCauseKey(input.issueKind, input.title, input.affected),
+    blockedByRootKeys: input.blockedByRootKeys ?? []
+  });
   const partial: VisualHiveIssueCandidate = {
     issueKind: input.issueKind,
     severity: input.severity,
     status: "open_candidate",
     dedupeFingerprint: legacyFingerprint(input.issueKind, input.title, input.affected),
+    ...publication,
     title: input.title,
     labels,
     body: "",
@@ -557,15 +1055,16 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
 }
 
 function normalizeIssue(issue: VisualHiveIssueCandidate, rootDir: string, project: string, links: Partial<Record<"evidencePacket" | "repoMap" | "visualGraph" | "visualImpact" | "mutationReport" | "handoff" | "hiveExport" | "knowledgeGraph" | "agentPacket", string>>): VisualHiveIssueCandidate {
-  const surface = issue.affected[0]?.contractId ?? issue.affected[0]?.route ?? issue.affected[0]?.component ?? issue.issueKind;
+  const publishedIssue = ensurePublicationMetadata(issue);
+  const surface = publishedIssue.affected[0]?.contractId ?? publishedIssue.affected[0]?.route ?? publishedIssue.affected[0]?.component ?? publishedIssue.issueKind;
   const normalized = {
-    ...issue,
-    dedupeFingerprint: fingerprint(project, issue.issueKind, surface, issue.title, issue.affected),
+    ...publishedIssue,
+    dedupeFingerprint: fingerprint(project, publishedIssue.issueKind, surface, publishedIssue.title, publishedIssue.affected),
     linkedEvidencePacket: links.evidencePacket ? sanitizeArtifactPathForIssue(rootDir, links.evidencePacket) : undefined,
     linkedRepoMap: links.repoMap ? sanitizeArtifactPathForIssue(rootDir, links.repoMap) : undefined,
     linkedVisualGraph: links.visualGraph ? sanitizeArtifactPathForIssue(rootDir, links.visualGraph) : undefined,
     linkedVisualImpact: links.visualImpact ? sanitizeArtifactPathForIssue(rootDir, links.visualImpact) : undefined,
-    linkedMutationReport: issue.issueKind === "mutation_survivor" && links.mutationReport ? sanitizeArtifactPathForIssue(rootDir, links.mutationReport) : issue.linkedMutationReport ? sanitizeArtifactPathForIssue(rootDir, issue.linkedMutationReport) : undefined,
+    linkedMutationReport: publishedIssue.issueKind === "mutation_survivor" && links.mutationReport ? sanitizeArtifactPathForIssue(rootDir, links.mutationReport) : publishedIssue.linkedMutationReport ? sanitizeArtifactPathForIssue(rootDir, publishedIssue.linkedMutationReport) : undefined,
     linkedHandoff: links.handoff ? sanitizeArtifactPathForIssue(rootDir, links.handoff) : undefined,
     linkedHiveExport: links.hiveExport ? sanitizeArtifactPathForIssue(rootDir, links.hiveExport) : undefined,
     linkedKnowledgeGraph: links.knowledgeGraph ? sanitizeArtifactPathForIssue(rootDir, links.knowledgeGraph) : undefined,
@@ -622,6 +1121,9 @@ function renderIssueBody(issue: VisualHiveIssueCandidate, bodySummary?: string, 
     `- Issue kind: ${issue.issueKind}`,
     `- Severity: ${issue.severity}`,
     `- Status: ${issue.status}`,
+    `- Publication role: ${issue.publicationRole}`,
+    `- Root cause key: ${issue.rootCauseKey}`,
+    ...(issue.blockedByRootKeys.length ? [`- Blocked by root keys: ${issue.blockedByRootKeys.join(", ")}`] : []),
     `- Owning agent hint: ${issue.owningAgentHint}`,
     `- Dedupe fingerprint: ${issue.dedupeFingerprint}`,
     issue.reproductionCommand ? `- Reproduction command: \`${issue.reproductionCommand}\`` : undefined,
@@ -857,7 +1359,7 @@ function safeFingerprintSegment(value: string): string {
 
 function compareIssues(left: VisualHiveIssueCandidate, right: VisualHiveIssueCandidate): number {
   const severity = { critical: 0, high: 1, medium: 2, low: 3 };
-  return severity[left.severity] - severity[right.severity] || left.issueKind.localeCompare(right.issueKind) || left.title.localeCompare(right.title);
+  return severity[left.severity] - severity[right.severity] || stableCompare(left.issueKind, right.issueKind) || stableCompare(left.title, right.title);
 }
 
 function arrayOfObjects(value: unknown): JsonObject[] {
@@ -876,12 +1378,36 @@ function readString(value: unknown, key: string): string | undefined {
   return typeof child === "string" && child.trim() ? sanitizeText(child) : undefined;
 }
 
+function readNumber(value: unknown, key: string): number | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const child = (value as JsonObject)[key];
+  return typeof child === "number" && Number.isFinite(child) ? child : undefined;
+}
+
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => sanitizeText(entry)) : [];
 }
 
 function dedupe(values: Array<string | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)).map((value) => sanitizeText(value.replaceAll("\\", "/"))))];
+}
+
+function stableUnique(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort(stableCompare);
+}
+
+function uniqueBy<T>(values: T[], key: (value: T) => string): T[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const identity = key(value);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+function stableCompare(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function resolve(rootDir: string, artifactPath: string): string {

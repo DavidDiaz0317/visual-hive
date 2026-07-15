@@ -30,6 +30,19 @@ The publisher dedupes by stable Visual Hive fingerprints and updates existing is
 - `suppressed`: keep the finding visible in `.visual-hive/issues.json`, but do not publish it unless policy explicitly says otherwise.
 - Reappearing findings reuse the same fingerprint and update the existing issue rather than creating duplicates.
 
+## Integrated Hive Ownership
+
+An integrated repository has one live lifecycle writer: Hive. Visual Hive continues to own deterministic verdicts and emits the same issue candidates, fingerprints, evidence, and resolution signals as standalone mode, but it performs zero live issue writes while `.hive/integrated.json` on the protected default branch declares `visual_hive: true`.
+
+- Trusted generated workflows read the protected-branch marker through the GitHub API before any issue create, update, or close call.
+- Local/manual publishing honors the durable checkout marker and fails closed if integrated ownership metadata cannot be validated.
+- A present marker is suppress-only. Neither `visual_hive: false` nor malformed branch content can re-enable standalone writes; the audited Hive uninstall must remove the protected marker.
+- `VISUAL_HIVE_LIFECYCLE_OWNER=hive` is an administrator-controlled fail-closed override.
+- A pull-request artifact or branch-local config can suppress a write, but cannot grant write authority.
+- Hive consumes Visual Hive candidates and evidence, then owns deduplication, live updates, repair PRs, merge policy, and closure after a fresh authoritative Visual Hive pass.
+
+Standalone publishing remains available when protected repository state does not enable Hive ownership. Setup and authorization-transfer flows must remove or restore every standalone writer together so a repository never has two active lifecycle writers.
+
 ## Workflow Audit Expectations
 
 `visual-hive workflows` flags these unsafe patterns:

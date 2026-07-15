@@ -39,6 +39,8 @@ The setup/test-creator agent should produce a plan from deterministic repository
 
 Playwright plus pixelmatch remains the required default. ODiff is registered as an optional local second implementation and must pass golden-image parity on every supported OS/architecture before enablement. Visual Regression Tracker is registered as an optional self-hosted review surface; it cannot override the verdict.
 
+`visual-hive adapters manage` now turns those rules into a deterministic repository-specific plan. It chooses install/update/use/skip/replace from screenshot coverage, npm package and lock integrity, supported runtime, PR-lane safety, and VRT credential-name readiness. `--apply` can make only the exact local ODiff dependency change and must pass executable health plus golden parity before reporting it ready; VRT provisioning and upload remain explicit trusted operations.
+
 For every optional tool, a setup-agent change must pin a version or container digest, record license and maintenance status, add compatibility and rollback tests, keep export portability, and start disabled. Update after the same fixtures pass. Replace or retire when security response, maintenance, API stability, data export, supported runtime, or deterministic parity falls below policy. Archived tools may inform UX patterns but are not new dependencies.
 
 ## Production gates

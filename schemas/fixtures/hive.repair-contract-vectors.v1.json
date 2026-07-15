@@ -1,0 +1,986 @@
+{
+  "schemaVersion": "hive.repair-contract-vectors.v1",
+  "digestAlgorithm": "hive.canonical-json.sha256.v1",
+  "vectors": [
+    {
+      "name": "validation-profile",
+      "projection": {
+        "profileId": "profile.repair",
+        "targetId": "target.app",
+        "requestKinds": [
+          "capture",
+          "patch_validation",
+          "reproduction"
+        ],
+        "contractIds": [
+          "contract.card",
+          "contract.secondary"
+        ],
+        "routes": [
+          "/",
+          "/settings"
+        ],
+        "scenarioIds": [
+          "default"
+        ],
+        "viewports": [
+          {
+            "viewportId": "desktop",
+            "width": 1280,
+            "height": 720,
+            "deviceScaleFactor": 1
+          }
+        ],
+        "validationCommandId": "command.playwright"
+      },
+      "canonical": "{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]}",
+      "sha256": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+    },
+    {
+      "name": "provider-identity",
+      "projection": {
+        "providerId": "provider.fixture",
+        "providerKind": "fixture",
+        "model": "fixture-model",
+        "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "canonical": "{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"}",
+      "sha256": "4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800"
+    },
+    {
+      "name": "source-context",
+      "projection": {
+        "files": [
+          {
+            "path": "src/App.tsx",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "size": 200,
+            "classification": "source"
+          }
+        ],
+        "omittedPaths": 0,
+        "truncated": false
+      },
+      "canonical": "{\"files\":[{\"classification\":\"source\",\"path\":\"src/App.tsx\",\"sha256\":\"8888888888888888888888888888888888888888888888888888888888888888\",\"size\":200}],\"omittedPaths\":0,\"truncated\":false}",
+      "sha256": "fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e"
+    },
+    {
+      "name": "repository-fingerprint",
+      "projection": {
+        "repository": "owner/repo",
+        "repositoryId": "42"
+      },
+      "canonical": "{\"repository\":\"owner/repo\",\"repositoryId\":\"42\"}",
+      "sha256": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+    },
+    {
+      "name": "repair-session-id",
+      "projection": {
+        "schemaVersion": "hive.repair-session-id.v1",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+        },
+        "finding": {
+          "repositoryFingerprint": "9999999999999999999999999999999999999999999999999999999999999999",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "task": {
+          "taskId": "task.card-layout",
+          "issueSource": "fixture",
+          "issueExternalId": "fixture-1",
+          "problemStatementDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "canonical": "{\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"finding\":{\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"9999999999999999999999999999999999999999999999999999999999999999\"},\"repository\":{\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"schemaVersion\":\"hive.repair-session-id.v1\",\"task\":{\"issueExternalId\":\"fixture-1\",\"issueSource\":\"fixture\",\"problemStatementDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"taskId\":\"task.card-layout\"}}",
+      "sha256": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650"
+    },
+    {
+      "name": "repair-attempt-id",
+      "projection": {
+        "schemaVersion": "hive.repair-attempt-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "ordinal": 0,
+        "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "canonical": "{\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"schemaVersion\":\"hive.repair-attempt-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7"
+    },
+    {
+      "name": "repair-turn-input",
+      "projection": {
+        "schemaVersion": "hive.repair-turn-input.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "ordinal": 0,
+        "providerInputDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "previousTurnOutputDigest": null,
+        "consumedToolOutcomeDigests": []
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"consumedToolOutcomeDigests\":[],\"ordinal\":0,\"previousTurnOutputDigest\":null,\"providerInputDigest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"schemaVersion\":\"hive.repair-turn-input.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92"
+    },
+    {
+      "name": "repair-turn-id",
+      "projection": {
+        "schemaVersion": "hive.repair-turn-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "ordinal": 0,
+        "inputDigest": "97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"inputDigest\":\"97871c64ed261537b2a33645ae33c0152cf058a017c65d2de98ee02b30a3db92\",\"ordinal\":0,\"schemaVersion\":\"hive.repair-turn-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d"
+    },
+    {
+      "name": "repair-tool-call-id",
+      "projection": {
+        "schemaVersion": "hive.repair-tool-call-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "turnId": "a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d",
+        "sequence": 0,
+        "toolName": "visual_hive_get_task_context",
+        "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "canonical": "{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"schemaVersion\":\"hive.repair-tool-call-id.v1\",\"sequence\":0,\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\",\"toolName\":\"visual_hive_get_task_context\",\"turnId\":\"a083fedb44dbbab98ebe4a8e41ee9212b8532180803896092eb2861527fa2b4d\"}",
+      "sha256": "c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9"
+    },
+    {
+      "name": "repair-tool-outcome",
+      "projection": {
+        "schemaVersion": "hive.repair-tool-outcome.v1",
+        "callId": "c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9",
+        "toolName": "visual_hive_get_task_context",
+        "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "resultDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "status": "passed",
+        "textBytes": 256,
+        "imageBytes": 128,
+        "errorCode": null
+      },
+      "canonical": "{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"callId\":\"c50c2b55bbd362b3564bb1bc76ff09c252648e055fc4fe7b8949dc80bf564ca9\",\"errorCode\":null,\"imageBytes\":128,\"resultDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"schemaVersion\":\"hive.repair-tool-outcome.v1\",\"status\":\"passed\",\"textBytes\":256,\"toolName\":\"visual_hive_get_task_context\"}",
+      "sha256": "50140c92bdfe2d8034cf50a0bb9918e3759143a4df00708c878b3d23359e5ba5"
+    },
+    {
+      "name": "execution-authorization",
+      "projection": {
+        "authorizationId": "authorization.fixture",
+        "issuedAt": "2026-07-14T10:55:00.000Z",
+        "expiresAt": "2026-07-14T13:00:00.000Z",
+        "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2",
+        "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "profile": {
+          "profileId": "profile.repair",
+          "targetId": "target.app",
+          "requestKinds": [
+            "capture",
+            "patch_validation",
+            "reproduction"
+          ],
+          "contractIds": [
+            "contract.card",
+            "contract.secondary"
+          ],
+          "routes": [
+            "/",
+            "/settings"
+          ],
+          "scenarioIds": [
+            "default"
+          ],
+          "viewports": [
+            {
+              "viewportId": "desktop",
+              "width": 1280,
+              "height": 720,
+              "deviceScaleFactor": 1
+            }
+          ],
+          "validationCommandId": "command.playwright",
+          "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+        },
+        "toolNames": [
+          "visual_hive_compare_assets",
+          "visual_hive_get_browser_evidence",
+          "visual_hive_get_issue_context",
+          "visual_hive_get_repair_validation",
+          "visual_hive_get_screenshot_set",
+          "visual_hive_get_task_context",
+          "visual_hive_get_visual_asset",
+          "visual_hive_search_surface"
+        ],
+        "assetIds": [
+          "asset.reference"
+        ],
+        "budgetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "configDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "toolRegistryDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "promptSchemaDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "visualHiveManifestSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "visualHiveEntrypointSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "canonical": "{\"assetIds\":[\"asset.reference\"],\"authorizationId\":\"authorization.fixture\",\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"budgetDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"configDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"expiresAt\":\"2026-07-14T13:00:00.000Z\",\"issuedAt\":\"2026-07-14T10:55:00.000Z\",\"profile\":{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]},\"promptSchemaDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"toolNames\":[\"visual_hive_compare_assets\",\"visual_hive_get_browser_evidence\",\"visual_hive_get_issue_context\",\"visual_hive_get_repair_validation\",\"visual_hive_get_screenshot_set\",\"visual_hive_get_task_context\",\"visual_hive_get_visual_asset\",\"visual_hive_search_surface\"],\"toolRegistryDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"visualHiveEntrypointSha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"visualHiveManifestSha256\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"}",
+      "sha256": "8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0"
+    },
+    {
+      "name": "validation-request-id",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request-id.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"schemaVersion\":\"hive.repair-validation-request-id.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "d1c425799de6c9faa704a12d07fd3d6353f9d3ab6e7808fc5cea8858193e02e2"
+    },
+    {
+      "name": "validation-request-idempotency",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request-identity.v1",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"schemaVersion\":\"hive.repair-validation-request-identity.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "084cf924590d246408f04c803770d114428c0b04901b903bf803021637be3cc6"
+    },
+    {
+      "name": "validation-request-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-validation-request.v1",
+        "requestId": "d1c425799de6c9faa704a12d07fd3d6353f9d3ab6e7808fc5cea8858193e02e2",
+        "idempotencyKey": "084cf924590d246408f04c803770d114428c0b04901b903bf803021637be3cc6",
+        "sessionId": "c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650",
+        "attemptId": "b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7",
+        "kind": "patch_validation",
+        "commitRole": "candidate",
+        "profileId": "profile.repair",
+        "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+        "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "authorizationDigest": "8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0"
+      },
+      "canonical": "{\"attemptId\":\"b2d14097f1d315250f8b98715e8d13831cba8ccb5fd7593a8de2d2238faa77b7\",\"authorizationDigest\":\"8ae3e5fdffe34498d7e37673439ccad0c5530d6617b5c5c7653b2bcce4a9fac0\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"084cf924590d246408f04c803770d114428c0b04901b903bf803021637be3cc6\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestId\":\"d1c425799de6c9faa704a12d07fd3d6353f9d3ab6e7808fc5cea8858193e02e2\",\"schemaVersion\":\"hive.repair-validation-request.v1\",\"sessionId\":\"c6bab5c2b4a9b2cbcf73772477217b8a595903d97c4937cfd5aa2c10363ab650\"}",
+      "sha256": "36e6e61257da24484ffcdbeea5982d2618682ea4cc16b2070568cd2ef0f664bd"
+    },
+    {
+      "name": "standard-session-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-session.v1",
+        "digestAlgorithm": "hive.canonical-json.sha256.v1",
+        "createdAt": "2026-07-14T11:00:00.000Z",
+        "updatedAt": "2026-07-14T12:00:00.000Z",
+        "deadlineAt": "2026-07-14T12:30:00.000Z",
+        "requestedMode": "off",
+        "effectiveMode": "standard",
+        "state": "awaiting_validation",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2",
+          "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "baseTreeSha": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "finding": {
+          "fingerprint": "visual-hive:fixture:card-layout",
+          "repositoryFingerprint": "f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40",
+          "publicationRole": "canonical",
+          "rootCauseKey": "finding/visual_regression/card",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "task": {
+          "taskId": "task.card-layout",
+          "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "issueSource": "fixture",
+          "issueExternalId": "fixture-1",
+          "problemStatementDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "imageAttachments": [
+            {
+              "position": 0,
+              "assetId": "asset.reference",
+              "role": "reference",
+              "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "mediaType": "image/png",
+              "size": 128
+            }
+          ]
+        },
+        "capability": {
+          "selectionReasons": [
+            "Visual Hive was disabled."
+          ]
+        },
+        "sourceContext": {
+          "digest": "fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e",
+          "maxBytes": 4096,
+          "totalBytes": 200,
+          "files": [
+            {
+              "path": "src/App.tsx",
+              "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "size": 200,
+              "classification": "source"
+            }
+          ],
+          "omittedPaths": 0,
+          "truncated": false
+        },
+        "validationProfiles": [
+          {
+            "profileId": "profile.repair",
+            "targetId": "target.app",
+            "requestKinds": [
+              "capture",
+              "patch_validation",
+              "reproduction"
+            ],
+            "contractIds": [
+              "contract.card",
+              "contract.secondary"
+            ],
+            "routes": [
+              "/",
+              "/settings"
+            ],
+            "scenarioIds": [
+              "default"
+            ],
+            "viewports": [
+              {
+                "viewportId": "desktop",
+                "width": 1280,
+                "height": 720,
+                "deviceScaleFactor": 1
+              }
+            ],
+            "validationCommandId": "command.playwright",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+          }
+        ],
+        "promptIdentities": {
+          "systemPromptDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "repairPromptDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "toolSchemaDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "taskSchemaDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "executionIdentities": {
+          "configDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "toolRegistryDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "promptSchemaDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        },
+        "provider": {
+          "providerId": "provider.fixture",
+          "providerKind": "fixture",
+          "model": "fixture-model",
+          "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "budgets": {
+          "limits": {
+            "maxTurns": 8,
+            "maxToolCalls": 8,
+            "maxInputBytes": 1000000,
+            "maxImageBytes": 1000000,
+            "maxModelInputTokens": 20000,
+            "maxModelOutputTokens": 10000,
+            "maxProviderCostUsdMicros": 5000000,
+            "maxWallSeconds": 1800,
+            "maxRepairAttempts": 2
+          },
+          "usage": {
+            "turnsConsumed": 1,
+            "toolCallsConsumed": 0,
+            "inputBytesConsumed": 512,
+            "imageBytesConsumed": 0,
+            "modelInputTokensConsumed": 1000,
+            "modelOutputTokensConsumed": 500,
+            "providerCostUsdMicrosConsumed": 100000,
+            "wallMillisecondsConsumed": 600000
+          }
+        },
+        "attempts": [
+          {
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "candidate",
+            "startedAt": "2026-07-14T11:05:00.000Z",
+            "completedAt": "2026-07-14T11:50:00.000Z",
+            "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "turnIds": [
+              "0625ee65c3d618dc8422d4218ac548cf51e8391db551f865f698d89bfe514692"
+            ],
+            "candidatePatchDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "candidateHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "candidateHeadTreeSha": "dddddddddddddddddddddddddddddddddddddddd",
+            "validationRequestIds": [
+              "0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43"
+            ]
+          }
+        ],
+        "turns": [
+          {
+            "turnId": "0625ee65c3d618dc8422d4218ac548cf51e8391db551f865f698d89bfe514692",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "completed",
+            "startedAt": "2026-07-14T11:30:00.000Z",
+            "completedAt": "2026-07-14T11:40:00.000Z",
+            "inputDigest": "15307eb7d5f111716062c021e937162df84fef89a9c762218c31469a5af1425a",
+            "providerInputDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "consumedToolOutcomeDigests": [],
+            "providerIdentityDigest": "4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800",
+            "usage": {
+              "inputBytes": 512,
+              "imageBytes": 0,
+              "modelInputTokens": 1000,
+              "modelOutputTokens": 500,
+              "providerCostUsdMicros": 100000,
+              "wallMilliseconds": 600000
+            },
+            "providerReceiptDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "outputKind": "final_result",
+            "outputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "toolReceipts": [],
+        "validationRequests": [
+          {
+            "requestId": "0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43",
+            "idempotencyKey": "a7696519506356465945321bb36392ded6f9fdfeeb958e037ebd124e93c29886",
+            "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "kind": "patch_validation",
+            "commitRole": "candidate",
+            "profileId": "profile.repair",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+            "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requestDigest": "c42ab70e195b5e5c6746ecba0a177e82bb6e9d8c7500f2c4ba40baccdf89a8c0",
+            "state": "requested",
+            "requestedAt": "2026-07-14T11:45:00.000Z"
+          }
+        ],
+        "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+        "transcriptDigest": "c9c0e89c736a75d2db9445177b08dc19fac1ea8510844284f24210fc505e9996"
+      },
+      "canonical": "{\"attempts\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"candidateHeadSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"candidateHeadTreeSha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"candidatePatchDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"completedAt\":\"2026-07-14T11:50:00.000Z\",\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"startedAt\":\"2026-07-14T11:05:00.000Z\",\"state\":\"candidate\",\"turnIds\":[\"0625ee65c3d618dc8422d4218ac548cf51e8391db551f865f698d89bfe514692\"],\"validationRequestIds\":[\"0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43\"]}],\"budgets\":{\"limits\":{\"maxImageBytes\":1000000,\"maxInputBytes\":1000000,\"maxModelInputTokens\":20000,\"maxModelOutputTokens\":10000,\"maxProviderCostUsdMicros\":5000000,\"maxRepairAttempts\":2,\"maxToolCalls\":8,\"maxTurns\":8,\"maxWallSeconds\":1800},\"usage\":{\"imageBytesConsumed\":0,\"inputBytesConsumed\":512,\"modelInputTokensConsumed\":1000,\"modelOutputTokensConsumed\":500,\"providerCostUsdMicrosConsumed\":100000,\"toolCallsConsumed\":0,\"turnsConsumed\":1,\"wallMillisecondsConsumed\":600000}},\"capability\":{\"selectionReasons\":[\"Visual Hive was disabled.\"]},\"createdAt\":\"2026-07-14T11:00:00.000Z\",\"deadlineAt\":\"2026-07-14T12:30:00.000Z\",\"digestAlgorithm\":\"hive.canonical-json.sha256.v1\",\"effectiveMode\":\"standard\",\"executionIdentities\":{\"configDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"promptSchemaDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"toolRegistryDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"finding\":{\"fingerprint\":\"visual-hive:fixture:card-layout\",\"publicationRole\":\"canonical\",\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40\",\"rootCauseKey\":\"finding/visual_regression/card\"},\"promptIdentities\":{\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"repairPromptDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"systemPromptDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"taskSchemaDigest\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"toolSchemaDigest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"},\"provider\":{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"},\"repository\":{\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"baseTreeSha\":\"cccccccccccccccccccccccccccccccccccccccc\",\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"requestedMode\":\"off\",\"schemaVersion\":\"hive.repair-session.v1\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"sourceContext\":{\"digest\":\"fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e\",\"files\":[{\"classification\":\"source\",\"path\":\"src/App.tsx\",\"sha256\":\"8888888888888888888888888888888888888888888888888888888888888888\",\"size\":200}],\"maxBytes\":4096,\"omittedPaths\":0,\"totalBytes\":200,\"truncated\":false},\"state\":\"awaiting_validation\",\"task\":{\"imageAttachments\":[{\"assetId\":\"asset.reference\",\"mediaType\":\"image/png\",\"position\":0,\"role\":\"reference\",\"sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"size\":128}],\"issueExternalId\":\"fixture-1\",\"issueSource\":\"fixture\",\"problemStatementDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"taskId\":\"task.card-layout\"},\"toolReceipts\":[],\"transcriptDigest\":\"c9c0e89c736a75d2db9445177b08dc19fac1ea8510844284f24210fc505e9996\",\"turns\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"completedAt\":\"2026-07-14T11:40:00.000Z\",\"consumedToolOutcomeDigests\":[],\"inputDigest\":\"15307eb7d5f111716062c021e937162df84fef89a9c762218c31469a5af1425a\",\"ordinal\":0,\"outputDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"outputKind\":\"final_result\",\"providerIdentityDigest\":\"4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800\",\"providerInputDigest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"providerReceiptDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"startedAt\":\"2026-07-14T11:30:00.000Z\",\"state\":\"completed\",\"turnId\":\"0625ee65c3d618dc8422d4218ac548cf51e8391db551f865f698d89bfe514692\",\"usage\":{\"imageBytes\":0,\"inputBytes\":512,\"modelInputTokens\":1000,\"modelOutputTokens\":500,\"providerCostUsdMicros\":100000,\"wallMilliseconds\":600000}}],\"updatedAt\":\"2026-07-14T12:00:00.000Z\",\"validationProfiles\":[{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]}],\"validationRequests\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"a7696519506356465945321bb36392ded6f9fdfeeb958e037ebd124e93c29886\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestDigest\":\"c42ab70e195b5e5c6746ecba0a177e82bb6e9d8c7500f2c4ba40baccdf89a8c0\",\"requestId\":\"0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43\",\"requestedAt\":\"2026-07-14T11:45:00.000Z\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"state\":\"requested\"}]}",
+      "sha256": "c9a10ffecf140481ea73f8593cf8ae05ac58d8f6972431b63dfe18a61407566b"
+    },
+    {
+      "name": "standard-result-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-result.v1",
+        "digestAlgorithm": "hive.canonical-json.sha256.v1",
+        "generatedAt": "2026-07-14T12:01:00.000Z",
+        "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+        "sessionDigest": "c9a10ffecf140481ea73f8593cf8ae05ac58d8f6972431b63dfe18a61407566b",
+        "transcriptDigest": "c9c0e89c736a75d2db9445177b08dc19fac1ea8510844284f24210fc505e9996",
+        "effectiveMode": "standard",
+        "taskId": "task.card-layout",
+        "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+        },
+        "finding": {
+          "fingerprint": "visual-hive:fixture:card-layout",
+          "repositoryFingerprint": "f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40",
+          "publicationRole": "canonical",
+          "rootCauseKey": "finding/visual_regression/card",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseTreeSha": "cccccccccccccccccccccccccccccccccccccccc",
+        "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "headTreeSha": "dddddddddddddddddddddddddddddddddddddddd",
+        "diff": {
+          "algorithm": "git.diff.binary.sha256.v1",
+          "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "changedFiles": [
+            {
+              "path": "src/App.tsx",
+              "status": "modified",
+              "beforeSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+              "afterSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+              "beforeMode": "100644",
+              "afterMode": "100644"
+            }
+          ]
+        },
+        "provider": {
+          "providerId": "provider.fixture",
+          "providerKind": "fixture",
+          "model": "fixture-model",
+          "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "attempts": [
+          {
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "candidate",
+            "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "startedAt": "2026-07-14T11:05:00.000Z",
+            "completedAt": "2026-07-14T11:50:00.000Z",
+            "turnCount": 1,
+            "toolCallCount": 0
+          }
+        ],
+        "toolReceipts": [],
+        "validationRequests": [
+          {
+            "requestId": "0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43",
+            "idempotencyKey": "a7696519506356465945321bb36392ded6f9fdfeeb958e037ebd124e93c29886",
+            "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "kind": "patch_validation",
+            "commitRole": "candidate",
+            "profileId": "profile.repair",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+            "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requestDigest": "c42ab70e195b5e5c6746ecba0a177e82bb6e9d8c7500f2c4ba40baccdf89a8c0"
+          }
+        ],
+        "claimedOutcome": {
+          "summary": "Updated the card layout without changing visual policy.",
+          "advisory": true
+        },
+        "status": "candidate"
+      },
+      "canonical": "{\"attempts\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"completedAt\":\"2026-07-14T11:50:00.000Z\",\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"startedAt\":\"2026-07-14T11:05:00.000Z\",\"state\":\"candidate\",\"toolCallCount\":0,\"turnCount\":1}],\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"baseTreeSha\":\"cccccccccccccccccccccccccccccccccccccccc\",\"claimedOutcome\":{\"advisory\":true,\"summary\":\"Updated the card layout without changing visual policy.\"},\"diff\":{\"algorithm\":\"git.diff.binary.sha256.v1\",\"changedFiles\":[{\"afterMode\":\"100644\",\"afterSha256\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"beforeMode\":\"100644\",\"beforeSha256\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"path\":\"src/App.tsx\",\"status\":\"modified\"}],\"sha256\":\"4444444444444444444444444444444444444444444444444444444444444444\"},\"digestAlgorithm\":\"hive.canonical-json.sha256.v1\",\"effectiveMode\":\"standard\",\"finding\":{\"fingerprint\":\"visual-hive:fixture:card-layout\",\"publicationRole\":\"canonical\",\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40\",\"rootCauseKey\":\"finding/visual_regression/card\"},\"generatedAt\":\"2026-07-14T12:01:00.000Z\",\"headSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"headTreeSha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"provider\":{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"},\"repository\":{\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"schemaVersion\":\"hive.repair-result.v1\",\"sessionDigest\":\"c9a10ffecf140481ea73f8593cf8ae05ac58d8f6972431b63dfe18a61407566b\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"status\":\"candidate\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"taskId\":\"task.card-layout\",\"toolReceipts\":[],\"transcriptDigest\":\"c9c0e89c736a75d2db9445177b08dc19fac1ea8510844284f24210fc505e9996\",\"validationRequests\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"a7696519506356465945321bb36392ded6f9fdfeeb958e037ebd124e93c29886\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestDigest\":\"c42ab70e195b5e5c6746ecba0a177e82bb6e9d8c7500f2c4ba40baccdf89a8c0\",\"requestId\":\"0d4c4ce0b28c901f7e1f5c61005e66c40321a8d35dfd43f8ff060eb296fa6e43\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\"}]}",
+      "sha256": "320c730e425c99fe26299f0126ac37d4b8c8177263b239f5dc579c7081e86009"
+    },
+    {
+      "name": "visual-hive-session-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-session.v1",
+        "digestAlgorithm": "hive.canonical-json.sha256.v1",
+        "createdAt": "2026-07-14T11:00:00.000Z",
+        "updatedAt": "2026-07-14T12:00:00.000Z",
+        "deadlineAt": "2026-07-14T12:30:00.000Z",
+        "requestedMode": "on",
+        "effectiveMode": "visual_hive",
+        "state": "awaiting_validation",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2",
+          "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "baseTreeSha": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "finding": {
+          "fingerprint": "visual-hive:fixture:card-layout",
+          "repositoryFingerprint": "f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40",
+          "publicationRole": "canonical",
+          "rootCauseKey": "finding/visual_regression/card",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "task": {
+          "taskId": "task.card-layout",
+          "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "issueSource": "fixture",
+          "issueExternalId": "fixture-1",
+          "problemStatementDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "imageAttachments": [
+            {
+              "position": 0,
+              "assetId": "asset.reference",
+              "role": "reference",
+              "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+              "mediaType": "image/png",
+              "size": 128
+            }
+          ]
+        },
+        "capability": {
+          "selectionReasons": [
+            "Task includes a reference image."
+          ],
+          "visualHiveVersion": "0.3.2",
+          "visualHiveCommit": "dddddddddddddddddddddddddddddddddddddddd",
+          "visualHiveManifestSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+          "visualHiveEntrypointSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "toolProtocolDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "validationToolRegistryDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "sourceContext": {
+          "digest": "fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e",
+          "maxBytes": 4096,
+          "totalBytes": 200,
+          "files": [
+            {
+              "path": "src/App.tsx",
+              "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "size": 200,
+              "classification": "source"
+            }
+          ],
+          "omittedPaths": 0,
+          "truncated": false
+        },
+        "validationProfiles": [
+          {
+            "profileId": "profile.repair",
+            "targetId": "target.app",
+            "requestKinds": [
+              "capture",
+              "patch_validation",
+              "reproduction"
+            ],
+            "contractIds": [
+              "contract.card",
+              "contract.secondary"
+            ],
+            "routes": [
+              "/",
+              "/settings"
+            ],
+            "scenarioIds": [
+              "default"
+            ],
+            "viewports": [
+              {
+                "viewportId": "desktop",
+                "width": 1280,
+                "height": 720,
+                "deviceScaleFactor": 1
+              }
+            ],
+            "validationCommandId": "command.playwright",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+          }
+        ],
+        "promptIdentities": {
+          "systemPromptDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "repairPromptDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "toolSchemaDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "taskSchemaDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "executionIdentities": {
+          "configDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "toolRegistryDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "promptSchemaDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        },
+        "provider": {
+          "providerId": "provider.fixture",
+          "providerKind": "fixture",
+          "model": "fixture-model",
+          "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "budgets": {
+          "limits": {
+            "maxTurns": 8,
+            "maxToolCalls": 8,
+            "maxInputBytes": 1000000,
+            "maxImageBytes": 1000000,
+            "maxModelInputTokens": 20000,
+            "maxModelOutputTokens": 10000,
+            "maxProviderCostUsdMicros": 5000000,
+            "maxWallSeconds": 1800,
+            "maxRepairAttempts": 2
+          },
+          "usage": {
+            "turnsConsumed": 2,
+            "toolCallsConsumed": 1,
+            "inputBytesConsumed": 1024,
+            "imageBytesConsumed": 128,
+            "modelInputTokensConsumed": 1000,
+            "modelOutputTokensConsumed": 500,
+            "providerCostUsdMicrosConsumed": 100000,
+            "wallMillisecondsConsumed": 720000
+          }
+        },
+        "attempts": [
+          {
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "candidate",
+            "startedAt": "2026-07-14T11:05:00.000Z",
+            "completedAt": "2026-07-14T11:50:00.000Z",
+            "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "turnIds": [
+              "88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d",
+              "2b6fcfb11a0ddacd042ff5d37b482b5d54be452113775d6e6578b15cdfb0ed6c"
+            ],
+            "candidatePatchDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "candidateHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "candidateHeadTreeSha": "dddddddddddddddddddddddddddddddddddddddd",
+            "validationRequestIds": [
+              "7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e"
+            ]
+          }
+        ],
+        "turns": [
+          {
+            "turnId": "88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "completed",
+            "startedAt": "2026-07-14T11:10:00.000Z",
+            "completedAt": "2026-07-14T11:11:00.000Z",
+            "inputDigest": "274ecd6d58b84c07153f96e85c6c8c7149e2988dae4acf95cf794db4378a7fca",
+            "providerInputDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+            "consumedToolOutcomeDigests": [],
+            "providerIdentityDigest": "4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800",
+            "usage": {
+              "inputBytes": 500,
+              "imageBytes": 0,
+              "modelInputTokens": 500,
+              "modelOutputTokens": 100,
+              "providerCostUsdMicros": 50000,
+              "wallMilliseconds": 60000
+            },
+            "providerReceiptDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "outputKind": "tool_request",
+            "outputDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "toolCallId": "6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952"
+          },
+          {
+            "turnId": "2b6fcfb11a0ddacd042ff5d37b482b5d54be452113775d6e6578b15cdfb0ed6c",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 1,
+            "state": "completed",
+            "startedAt": "2026-07-14T11:30:00.000Z",
+            "completedAt": "2026-07-14T11:40:00.000Z",
+            "inputDigest": "55795f7a09f15a23b49def75bc0df3d6a04922a93d188700240b4abfc5ec134c",
+            "providerInputDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "previousTurnOutputDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "consumedToolOutcomeDigests": [
+              "6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107"
+            ],
+            "providerIdentityDigest": "4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800",
+            "usage": {
+              "inputBytes": 524,
+              "imageBytes": 128,
+              "modelInputTokens": 500,
+              "modelOutputTokens": 400,
+              "providerCostUsdMicros": 50000,
+              "wallMilliseconds": 600000
+            },
+            "providerReceiptDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "outputKind": "final_result",
+            "outputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "toolReceipts": [
+          {
+            "turnId": "88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d",
+            "sequence": 0,
+            "toolName": "visual_hive_get_task_context",
+            "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "callId": "6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952",
+            "resultDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "status": "passed",
+            "startedAt": "2026-07-14T11:12:00.000Z",
+            "completedAt": "2026-07-14T11:13:00.000Z",
+            "textBytes": 256,
+            "imageBytes": 128,
+            "outcomeDigest": "6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107"
+          }
+        ],
+        "validationRequests": [
+          {
+            "requestId": "7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e",
+            "idempotencyKey": "c64e62b11ef9bce084b941f0536709ab27f0ce02562bcacfda4958f0ed5c0336",
+            "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "kind": "patch_validation",
+            "commitRole": "candidate",
+            "profileId": "profile.repair",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+            "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "authorizationDigest": "8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4",
+            "requestDigest": "5fe30cf2492f696f8e5b26a6f53ccb737c5403c5a58ef88667d92060c3eee84a",
+            "state": "requested",
+            "requestedAt": "2026-07-14T11:45:00.000Z"
+          }
+        ],
+        "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+        "authorization": {
+          "authorizationId": "authorization.fixture",
+          "issuedAt": "2026-07-14T10:55:00.000Z",
+          "expiresAt": "2026-07-14T13:00:00.000Z",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2",
+          "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "profile": {
+            "profileId": "profile.repair",
+            "targetId": "target.app",
+            "requestKinds": [
+              "capture",
+              "patch_validation",
+              "reproduction"
+            ],
+            "contractIds": [
+              "contract.card",
+              "contract.secondary"
+            ],
+            "routes": [
+              "/",
+              "/settings"
+            ],
+            "scenarioIds": [
+              "default"
+            ],
+            "viewports": [
+              {
+                "viewportId": "desktop",
+                "width": 1280,
+                "height": 720,
+                "deviceScaleFactor": 1
+              }
+            ],
+            "validationCommandId": "command.playwright",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576"
+          },
+          "toolNames": [
+            "visual_hive_compare_assets",
+            "visual_hive_get_browser_evidence",
+            "visual_hive_get_issue_context",
+            "visual_hive_get_repair_validation",
+            "visual_hive_get_screenshot_set",
+            "visual_hive_get_task_context",
+            "visual_hive_get_visual_asset",
+            "visual_hive_search_surface"
+          ],
+          "assetIds": [
+            "asset.reference"
+          ],
+          "budgetDigest": "3e34c833b924a1a67058f98d41658f43d9018f18d80a3fa99b74893f53e6decd",
+          "configDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "toolRegistryDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "promptSchemaDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "visualHiveManifestSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+          "visualHiveEntrypointSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "authorizationDigest": "8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4"
+        },
+        "transcriptDigest": "225369d76305ddbe5ea0e1c05e98ca1b9bb4499898494fc7bb6957675512442b"
+      },
+      "canonical": "{\"attempts\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"candidateHeadSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"candidateHeadTreeSha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"candidatePatchDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"completedAt\":\"2026-07-14T11:50:00.000Z\",\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"startedAt\":\"2026-07-14T11:05:00.000Z\",\"state\":\"candidate\",\"turnIds\":[\"88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d\",\"2b6fcfb11a0ddacd042ff5d37b482b5d54be452113775d6e6578b15cdfb0ed6c\"],\"validationRequestIds\":[\"7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e\"]}],\"authorization\":{\"assetIds\":[\"asset.reference\"],\"authorizationDigest\":\"8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4\",\"authorizationId\":\"authorization.fixture\",\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"budgetDigest\":\"3e34c833b924a1a67058f98d41658f43d9018f18d80a3fa99b74893f53e6decd\",\"configDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"expiresAt\":\"2026-07-14T13:00:00.000Z\",\"issuedAt\":\"2026-07-14T10:55:00.000Z\",\"profile\":{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]},\"promptSchemaDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"toolNames\":[\"visual_hive_compare_assets\",\"visual_hive_get_browser_evidence\",\"visual_hive_get_issue_context\",\"visual_hive_get_repair_validation\",\"visual_hive_get_screenshot_set\",\"visual_hive_get_task_context\",\"visual_hive_get_visual_asset\",\"visual_hive_search_surface\"],\"toolRegistryDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"visualHiveEntrypointSha256\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"visualHiveManifestSha256\":\"6666666666666666666666666666666666666666666666666666666666666666\"},\"budgets\":{\"limits\":{\"maxImageBytes\":1000000,\"maxInputBytes\":1000000,\"maxModelInputTokens\":20000,\"maxModelOutputTokens\":10000,\"maxProviderCostUsdMicros\":5000000,\"maxRepairAttempts\":2,\"maxToolCalls\":8,\"maxTurns\":8,\"maxWallSeconds\":1800},\"usage\":{\"imageBytesConsumed\":128,\"inputBytesConsumed\":1024,\"modelInputTokensConsumed\":1000,\"modelOutputTokensConsumed\":500,\"providerCostUsdMicrosConsumed\":100000,\"toolCallsConsumed\":1,\"turnsConsumed\":2,\"wallMillisecondsConsumed\":720000}},\"capability\":{\"selectionReasons\":[\"Task includes a reference image.\"],\"toolProtocolDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"validationToolRegistryDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"visualHiveCommit\":\"dddddddddddddddddddddddddddddddddddddddd\",\"visualHiveEntrypointSha256\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"visualHiveManifestSha256\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"visualHiveVersion\":\"0.3.2\"},\"createdAt\":\"2026-07-14T11:00:00.000Z\",\"deadlineAt\":\"2026-07-14T12:30:00.000Z\",\"digestAlgorithm\":\"hive.canonical-json.sha256.v1\",\"effectiveMode\":\"visual_hive\",\"executionIdentities\":{\"configDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"promptSchemaDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"toolRegistryDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"finding\":{\"fingerprint\":\"visual-hive:fixture:card-layout\",\"publicationRole\":\"canonical\",\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40\",\"rootCauseKey\":\"finding/visual_regression/card\"},\"promptIdentities\":{\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"repairPromptDigest\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"systemPromptDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"taskSchemaDigest\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"toolSchemaDigest\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"},\"provider\":{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"},\"repository\":{\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"baseTreeSha\":\"cccccccccccccccccccccccccccccccccccccccc\",\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"requestedMode\":\"on\",\"schemaVersion\":\"hive.repair-session.v1\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"sourceContext\":{\"digest\":\"fc9521b24ae633a8684657e36712fd02c89f937af9e625b34b7845bda295dd7e\",\"files\":[{\"classification\":\"source\",\"path\":\"src/App.tsx\",\"sha256\":\"8888888888888888888888888888888888888888888888888888888888888888\",\"size\":200}],\"maxBytes\":4096,\"omittedPaths\":0,\"totalBytes\":200,\"truncated\":false},\"state\":\"awaiting_validation\",\"task\":{\"imageAttachments\":[{\"assetId\":\"asset.reference\",\"mediaType\":\"image/png\",\"position\":0,\"role\":\"reference\",\"sha256\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"size\":128}],\"issueExternalId\":\"fixture-1\",\"issueSource\":\"fixture\",\"problemStatementDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"taskId\":\"task.card-layout\"},\"toolReceipts\":[{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"callId\":\"6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952\",\"completedAt\":\"2026-07-14T11:13:00.000Z\",\"imageBytes\":128,\"outcomeDigest\":\"6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107\",\"resultDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"startedAt\":\"2026-07-14T11:12:00.000Z\",\"status\":\"passed\",\"textBytes\":256,\"toolName\":\"visual_hive_get_task_context\",\"turnId\":\"88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d\"}],\"transcriptDigest\":\"225369d76305ddbe5ea0e1c05e98ca1b9bb4499898494fc7bb6957675512442b\",\"turns\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"completedAt\":\"2026-07-14T11:11:00.000Z\",\"consumedToolOutcomeDigests\":[],\"inputDigest\":\"274ecd6d58b84c07153f96e85c6c8c7149e2988dae4acf95cf794db4378a7fca\",\"ordinal\":0,\"outputDigest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"outputKind\":\"tool_request\",\"providerIdentityDigest\":\"4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800\",\"providerInputDigest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"providerReceiptDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"startedAt\":\"2026-07-14T11:10:00.000Z\",\"state\":\"completed\",\"toolCallId\":\"6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952\",\"turnId\":\"88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d\",\"usage\":{\"imageBytes\":0,\"inputBytes\":500,\"modelInputTokens\":500,\"modelOutputTokens\":100,\"providerCostUsdMicros\":50000,\"wallMilliseconds\":60000}},{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"completedAt\":\"2026-07-14T11:40:00.000Z\",\"consumedToolOutcomeDigests\":[\"6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107\"],\"inputDigest\":\"55795f7a09f15a23b49def75bc0df3d6a04922a93d188700240b4abfc5ec134c\",\"ordinal\":1,\"outputDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"outputKind\":\"final_result\",\"previousTurnOutputDigest\":\"9999999999999999999999999999999999999999999999999999999999999999\",\"providerIdentityDigest\":\"4031de9aef222dfc9f84b7da25f4cc055e785b62cb7a41d45332a3960df90800\",\"providerInputDigest\":\"7777777777777777777777777777777777777777777777777777777777777777\",\"providerReceiptDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"startedAt\":\"2026-07-14T11:30:00.000Z\",\"state\":\"completed\",\"turnId\":\"2b6fcfb11a0ddacd042ff5d37b482b5d54be452113775d6e6578b15cdfb0ed6c\",\"usage\":{\"imageBytes\":128,\"inputBytes\":524,\"modelInputTokens\":500,\"modelOutputTokens\":400,\"providerCostUsdMicros\":50000,\"wallMilliseconds\":600000}}],\"updatedAt\":\"2026-07-14T12:00:00.000Z\",\"validationProfiles\":[{\"contractIds\":[\"contract.card\",\"contract.secondary\"],\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestKinds\":[\"capture\",\"patch_validation\",\"reproduction\"],\"routes\":[\"/\",\"/settings\"],\"scenarioIds\":[\"default\"],\"targetId\":\"target.app\",\"validationCommandId\":\"command.playwright\",\"viewports\":[{\"deviceScaleFactor\":1,\"height\":720,\"viewportId\":\"desktop\",\"width\":1280}]}],\"validationRequests\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"authorizationDigest\":\"8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"c64e62b11ef9bce084b941f0536709ab27f0ce02562bcacfda4958f0ed5c0336\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestDigest\":\"5fe30cf2492f696f8e5b26a6f53ccb737c5403c5a58ef88667d92060c3eee84a\",\"requestId\":\"7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e\",\"requestedAt\":\"2026-07-14T11:45:00.000Z\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"state\":\"requested\"}]}",
+      "sha256": "c512d4adac8031444d58e886801b13b37dcbbc113bbc12a09bb1054dd6293fb2"
+    },
+    {
+      "name": "visual-hive-result-digest",
+      "projection": {
+        "schemaVersion": "hive.repair-result.v1",
+        "digestAlgorithm": "hive.canonical-json.sha256.v1",
+        "generatedAt": "2026-07-14T12:01:00.000Z",
+        "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+        "sessionDigest": "c512d4adac8031444d58e886801b13b37dcbbc113bbc12a09bb1054dd6293fb2",
+        "transcriptDigest": "225369d76305ddbe5ea0e1c05e98ca1b9bb4499898494fc7bb6957675512442b",
+        "effectiveMode": "visual_hive",
+        "taskId": "task.card-layout",
+        "taskContextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "repository": {
+          "name": "owner/repo",
+          "repositoryId": "42",
+          "repositoryFingerprint": "ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2"
+        },
+        "finding": {
+          "fingerprint": "visual-hive:fixture:card-layout",
+          "repositoryFingerprint": "f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40",
+          "publicationRole": "canonical",
+          "rootCauseKey": "finding/visual_regression/card",
+          "recurrenceKey": "recurrence/visual_regression/card"
+        },
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "baseTreeSha": "cccccccccccccccccccccccccccccccccccccccc",
+        "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "headTreeSha": "dddddddddddddddddddddddddddddddddddddddd",
+        "diff": {
+          "algorithm": "git.diff.binary.sha256.v1",
+          "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "changedFiles": [
+            {
+              "path": "src/App.tsx",
+              "status": "modified",
+              "beforeSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+              "afterSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+              "beforeMode": "100644",
+              "afterMode": "100644"
+            }
+          ]
+        },
+        "provider": {
+          "providerId": "provider.fixture",
+          "providerKind": "fixture",
+          "model": "fixture-model",
+          "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "capabilityDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "modelConfigurationDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "attempts": [
+          {
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "ordinal": 0,
+            "state": "candidate",
+            "promptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "startedAt": "2026-07-14T11:05:00.000Z",
+            "completedAt": "2026-07-14T11:50:00.000Z",
+            "turnCount": 2,
+            "toolCallCount": 1
+          }
+        ],
+        "toolReceipts": [
+          {
+            "turnId": "88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d",
+            "sequence": 0,
+            "toolName": "visual_hive_get_task_context",
+            "argumentsDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "callId": "6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952",
+            "resultDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "status": "passed",
+            "startedAt": "2026-07-14T11:12:00.000Z",
+            "completedAt": "2026-07-14T11:13:00.000Z",
+            "textBytes": 256,
+            "imageBytes": 128,
+            "outcomeDigest": "6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107"
+          }
+        ],
+        "authorizationDigest": "8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4",
+        "validationRequests": [
+          {
+            "requestId": "7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e",
+            "idempotencyKey": "c64e62b11ef9bce084b941f0536709ab27f0ce02562bcacfda4958f0ed5c0336",
+            "sessionId": "bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360",
+            "attemptId": "9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779",
+            "kind": "patch_validation",
+            "commitRole": "candidate",
+            "profileId": "profile.repair",
+            "profileDigest": "21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576",
+            "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "authorizationDigest": "8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4",
+            "requestDigest": "5fe30cf2492f696f8e5b26a6f53ccb737c5403c5a58ef88667d92060c3eee84a"
+          }
+        ],
+        "claimedOutcome": {
+          "summary": "Updated the card layout without changing visual policy.",
+          "advisory": true
+        },
+        "status": "candidate"
+      },
+      "canonical": "{\"attempts\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"completedAt\":\"2026-07-14T11:50:00.000Z\",\"ordinal\":0,\"promptDigest\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"startedAt\":\"2026-07-14T11:05:00.000Z\",\"state\":\"candidate\",\"toolCallCount\":1,\"turnCount\":2}],\"authorizationDigest\":\"8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4\",\"baseSha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"baseTreeSha\":\"cccccccccccccccccccccccccccccccccccccccc\",\"claimedOutcome\":{\"advisory\":true,\"summary\":\"Updated the card layout without changing visual policy.\"},\"diff\":{\"algorithm\":\"git.diff.binary.sha256.v1\",\"changedFiles\":[{\"afterMode\":\"100644\",\"afterSha256\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"beforeMode\":\"100644\",\"beforeSha256\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"path\":\"src/App.tsx\",\"status\":\"modified\"}],\"sha256\":\"4444444444444444444444444444444444444444444444444444444444444444\"},\"digestAlgorithm\":\"hive.canonical-json.sha256.v1\",\"effectiveMode\":\"visual_hive\",\"finding\":{\"fingerprint\":\"visual-hive:fixture:card-layout\",\"publicationRole\":\"canonical\",\"recurrenceKey\":\"recurrence/visual_regression/card\",\"repositoryFingerprint\":\"f9382e1673dee7a06569f5f4ad353b83f7e62e04d4051725fd1f832ebc3dba40\",\"rootCauseKey\":\"finding/visual_regression/card\"},\"generatedAt\":\"2026-07-14T12:01:00.000Z\",\"headSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"headTreeSha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"provider\":{\"capabilityDigest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"executableIdentityDigest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"model\":\"fixture-model\",\"modelConfigurationDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"providerId\":\"provider.fixture\",\"providerKind\":\"fixture\"},\"repository\":{\"name\":\"owner/repo\",\"repositoryFingerprint\":\"ab5c74b938193d259eb46af83caf11b5568dc6a0ec816d1f728e45a388716bb2\",\"repositoryId\":\"42\"},\"schemaVersion\":\"hive.repair-result.v1\",\"sessionDigest\":\"c512d4adac8031444d58e886801b13b37dcbbc113bbc12a09bb1054dd6293fb2\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\",\"status\":\"candidate\",\"taskContextDigest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"taskId\":\"task.card-layout\",\"toolReceipts\":[{\"argumentsDigest\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"callId\":\"6de9c6c20b27e847eddb6cc43e91cd1e4f68530bee913cadc03fe4921801d952\",\"completedAt\":\"2026-07-14T11:13:00.000Z\",\"imageBytes\":128,\"outcomeDigest\":\"6516b7a384b1b386f7a0abb8a5faebc0c102da14f526384f5fd3644fdd7f2107\",\"resultDigest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"startedAt\":\"2026-07-14T11:12:00.000Z\",\"status\":\"passed\",\"textBytes\":256,\"toolName\":\"visual_hive_get_task_context\",\"turnId\":\"88a8386fd35fbf778ad4b1833f5f8f7c538d3954a1b267580adba99017a01c8d\"}],\"transcriptDigest\":\"225369d76305ddbe5ea0e1c05e98ca1b9bb4499898494fc7bb6957675512442b\",\"validationRequests\":[{\"attemptId\":\"9e42cd5dd2333fe30be6a106bee24624b5cf0eda97726917167c28d6d4303779\",\"authorizationDigest\":\"8f395e3c9754b28f6481403e7a4b4d7b6ec476b6349afed3a8d24094b0345fc4\",\"commitRole\":\"candidate\",\"commitSha\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"idempotencyKey\":\"c64e62b11ef9bce084b941f0536709ab27f0ce02562bcacfda4958f0ed5c0336\",\"kind\":\"patch_validation\",\"profileDigest\":\"21075c298c44c4c596e0d7962f5d4c63b77692112fe88c9e0a2000814170e576\",\"profileId\":\"profile.repair\",\"requestDigest\":\"5fe30cf2492f696f8e5b26a6f53ccb737c5403c5a58ef88667d92060c3eee84a\",\"requestId\":\"7efb784c1960574859c5b8223e6c520daf2e02b3d2c4d7d43d3948ef3b4bf99e\",\"sessionId\":\"bfd5a22448b08b0cd36606179352ed9934bb37df62cabc67c71b1d20cc2b3360\"}]}",
+      "sha256": "784aa13619534aaf299cec33b9c466d0fc5f7890c751aa31d28d6c38aefbeb4b"
+    }
+  ]
+}

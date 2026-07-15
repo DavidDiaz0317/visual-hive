@@ -1,5 +1,6 @@
 import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -183,9 +184,17 @@ async function removeTempDir(dir: string): Promise<void> {
 }
 
 describe("CLI commands", () => {
-  it("lets Hive bind bundle authority explicitly instead of inheriting repository config", async () => {
+  it("requires release identity for hosted authority while preserving local v2 bundles", async () => {
     const previousEventName = process.env.GITHUB_EVENT_NAME;
+    const previousRunId = process.env.GITHUB_RUN_ID;
+    const previousRunAttempt = process.env.GITHUB_RUN_ATTEMPT;
+    const previousArtifactId = process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID;
+    const previousNpmPackageVersion = process.env.npm_package_version;
     process.env.GITHUB_EVENT_NAME = "workflow_dispatch";
+    process.env.GITHUB_RUN_ID = "1001";
+    process.env.GITHUB_RUN_ATTEMPT = "1";
+    process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID = "9001";
+    process.env.npm_package_version = "99.99.99-consumer";
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-cli-bundle-authority-"));
     tempDirs.push(tempRoot);
     await writeFile(
@@ -219,17 +228,60 @@ contracts:
     await writeJson(path.join(tempRoot, ".visual-hive", "issues.json"), { issues: [] });
     await writeJson(path.join(hiveDir, "hive-setup-pack.json"), { schemaVersion: "test" });
     await writeFile(path.join(hiveDir, "hive-setup-pack.md"), "# Setup pack\n", "utf8");
+    await writeJson(path.join(tempRoot, ".visual-hive", "capability-parity.json"), {
+      schemaVersion: "visual-hive.capability-parity.v1",
+      baselineVersion: "visual-hive.capability-baseline.v1",
+      generatedAt: "2026-07-09T12:00:00.000Z",
+      status: "passed",
+      runtimeStatus: "ready",
+      summary: { expected: 1, actual: 1, present: 1, blocked: 0, missing: 0, unexpected: 0, mismatched: 0 },
+      domains: ["cli", "schemas", "evidenceResources", "artifactSurfaces", "planModes", "workflowLanes", "mutationOperators", "deterministicPrimitives", "providers", "openSourceAdapters", "controlPlane"].map((domain) => ({
+        domain,
+        expected: domain === "cli" ? 1 : 0,
+        actual: domain === "cli" ? 1 : 0,
+        present: domain === "cli" ? 1 : 0,
+        blocked: 0,
+        missing: 0,
+        unexpected: 0,
+        mismatched: 0
+      })),
+      checks: [{ domain: "cli", key: "doctor", status: "present", parity: true, message: "CLI capability is present." }]
+    });
+    await runArtifactsCommand({ cwd: tempRoot, config: "visual-hive.config.yaml", complete: true });
 
     try {
-      const result = await runHiveBundleCommand({ cwd: tempRoot, acmmRequest: 4, trustedSource: true });
+      await expect(runHiveBundleCommand({ cwd: tempRoot, acmmRequest: 4, trustedSource: true }))
+        .rejects.toThrow("installed clean release identity");
 
-      expect(result.manifest.acmmRequest).toBe(4);
+      process.env.GITHUB_EVENT_NAME = "local";
+      delete process.env.GITHUB_RUN_ID;
+      delete process.env.GITHUB_RUN_ATTEMPT;
+      delete process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID;
+      const local = await runHiveBundleCommand({
+        cwd: tempRoot,
+        acmmRequest: 4,
+        trustedSource: true,
+        outputDir: ".visual-hive/local-bundles"
+      });
+      expect(local.manifest.schemaVersion).toBe("visual-hive.bundle.v2");
+      expect(local.manifest.source.trusted).toBe(true);
+      expect(local.manifest.artifactIndex).toBeUndefined();
+      expect(local.manifest.capabilityParity).toBeUndefined();
+      expect(local.manifest.producer.gitCommit).toMatch(/^[a-f0-9]{40}$|^unavailable$/);
     } finally {
       if (previousEventName === undefined) {
         delete process.env.GITHUB_EVENT_NAME;
       } else {
         process.env.GITHUB_EVENT_NAME = previousEventName;
       }
+      if (previousRunId === undefined) delete process.env.GITHUB_RUN_ID;
+      else process.env.GITHUB_RUN_ID = previousRunId;
+      if (previousRunAttempt === undefined) delete process.env.GITHUB_RUN_ATTEMPT;
+      else process.env.GITHUB_RUN_ATTEMPT = previousRunAttempt;
+      if (previousArtifactId === undefined) delete process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID;
+      else process.env.VISUAL_HIVE_WORKFLOW_ARTIFACT_ID = previousArtifactId;
+      if (previousNpmPackageVersion === undefined) delete process.env.npm_package_version;
+      else process.env.npm_package_version = previousNpmPackageVersion;
     }
   });
 
@@ -570,6 +622,8 @@ mutation:
       expect(demoAllOutput).toContain(command);
       expect(demoCiOutput).toContain(command);
     }
+    expect(demoAllOutput).toContain("demo:hive-bundle");
+    expect(demoCiOutput).not.toContain("demo:hive-bundle");
     for (const command of exhaustiveOnlyCommands) {
       expect(demoExhaustiveOutput).toContain(command);
     }
@@ -2674,10 +2728,21 @@ targets:
   local:
     kind: url
     url: "http://127.0.0.1:4173"
+viewports:
+  desktop:
+    width: 1280
+    height: 720
 contracts:
   - id: dashboard
     description: Dashboard
     target: local
+    selectors:
+      mustExist:
+        - ".mapped-dashboard"
+    screenshots:
+      - name: dashboard
+        route: "/mapped-dashboard"
+        viewport: desktop
 `,
       "utf8"
     );
@@ -2744,9 +2809,9 @@ contracts:
         }
       ]
     });
-
     await runEvidenceCommand({ cwd: tempRoot });
     await runHandoffCommand({ cwd: tempRoot });
+    await runAnalyzeCommand({ repo: tempRoot });
     const testCreation = await runTestCreationPlanCommand({ cwd: tempRoot });
     const testCreationSummary = formatTestCreationPlan(testCreation);
     const agent = await runAgentPacketCommand({ cwd: tempRoot, profile: "test_creator" });
@@ -2754,21 +2819,32 @@ contracts:
     const plan = await readJson<typeof testCreation.plan>(testCreation.planPath);
     const packet = await readJson<typeof agent.packet>(agent.packetPath);
 
-    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v2");
     expect(plan.governance.writePolicy).toBe("no_config_or_test_files_written");
     expect(plan.summary.total).toBeGreaterThan(0);
     expect(plan.summary.fromCoverageRecommendations).toBe(1);
+    expect(plan.recommendations.find((recommendation) => recommendation.coverageRecommendationId === "selectors:dashboard")).toMatchObject({
+      grounding: { status: "grounded" },
+      suggestedContract: { route: "/mapped-dashboard", selectors: [".mapped-dashboard"] }
+    });
     expect(plan.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
     expect(plan.sourceArtifacts.handoffPacket).toBe(".visual-hive/handoff.json");
     expect(testCreationSummary).toContain("Test Creation Plan: cli-test-creation");
     expect(packet.profile).toBe("test_creator");
     expect(packet.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
     expect(packet.evidenceSummary.testCreationRecommendations.length).toBeGreaterThan(0);
+    expect(packet.evidenceSummary.testCreationRecommendations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ grounding: expect.objectContaining({ status: "grounded" }) })])
+    );
     expect(agentSummary).toContain("Test creation plan: .visual-hive/test-creation-plan.json");
     expect(JSON.stringify({ plan, packet })).not.toContain("secret-value");
     expect(JSON.stringify({ plan, packet })).not.toContain("coverage-secret");
     await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.md"))).resolves.toBeUndefined();
+
+    const wrongRootMap = await readJson<Record<string, unknown>>(path.join(tempRoot, ".visual-hive", "repo-map.json"));
+    await writeJson(path.join(tempRoot, ".visual-hive", "repo-map.json"), { ...wrongRootMap, repoRoot: ".." });
+    await expect(runTestCreationPlanCommand({ cwd: tempRoot })).rejects.toThrow("does not belong to the loaded repository root");
   });
 
   it("writes Tool Registry and Tool Cards artifacts", async () => {
@@ -4264,6 +4340,11 @@ selection:
     const toolRegistry = await readJson<{ policy: { exposeThirdPartyMcp: boolean; externalUploadsFromPr: boolean } }>(
       path.join(tempRoot, ".visual-hive", "tools", "tool-registry.json")
     );
+    const artifactIndex = await readJson<{
+      complete: boolean;
+      artifacts: Array<{ path: string; bytes: number; sha256: string }>;
+    }>(path.join(tempRoot, ".visual-hive", "artifacts-index.json"));
+    const pipelineBytes = await readFile(path.join(tempRoot, ".visual-hive", "pipeline.json"));
 
     expect(result.exitCode).toBe(0);
     expect(pipeline.status).toBe("passed");
@@ -4299,12 +4380,15 @@ selection:
         "context",
         "schemas",
         "snapshot",
+        "capabilities",
         "artifacts-final"
       ])
     );
-    expect(pipeline.steps.find((step) => step.id === "schemas")?.status).toBe("skipped");
+    expect(pipeline.steps.find((step) => step.id === "schemas")?.status).toBe("passed");
     expect(pipeline.steps.find((step) => step.id === "snapshot")?.status).toBe("passed");
+    expect(pipeline.steps.find((step) => step.id === "capabilities")?.status).toBe("passed");
     expect(pipeline.artifacts).toContain(catalogPath("pipeline-status"));
+    expect(pipeline.artifacts).toContain(catalogPath("capability-parity"));
     expect(pipeline.artifacts).toEqual(
       expect.arrayContaining([
         ".visual-hive/repo-map.json",
@@ -4357,6 +4441,13 @@ selection:
     expect(handoffAgentPacket.budgets.maxExternalCostUsd).toBe(0);
     expect(toolRegistry.policy.exposeThirdPartyMcp).toBe(false);
     expect(toolRegistry.policy.externalUploadsFromPr).toBe(false);
+    expect(artifactIndex.complete).toBe(true);
+    const indexedPipeline = artifactIndex.artifacts.find((artifact) => artifact.path === ".visual-hive/pipeline.json");
+    expect(indexedPipeline).toMatchObject({
+      path: ".visual-hive/pipeline.json",
+      bytes: pipelineBytes.byteLength,
+      sha256: createHash("sha256").update(pipelineBytes).digest("hex")
+    });
     await expect(access(path.join(tempRoot, ".visual-hive", "repo-context.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "evidence-summary.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "verdict.md"))).resolves.toBeUndefined();
@@ -4464,6 +4555,8 @@ contracts:
     expect(failureWorkflow).toContain("client_secret");
     expect(failureWorkflow).toContain("visual-hive-dedupe");
     expect(failureWorkflow).not.toContain("context.payload.workflow_run.id + \" -->\"");
+    expect(failureWorkflow).toContain('path: ".hive/integrated.json"');
+    expect(failureWorkflow).toContain("protected default-branch installation state assigns lifecycle writes to Hive");
     expect(hiveHandoffWorkflow).toContain("hive-bead-request.json");
     expect(hiveHandoffWorkflow).toContain("hive-handoff-validation.json");
     expect(hiveHandoffWorkflow).toContain("hive/hive-export.json");
@@ -4473,6 +4566,8 @@ contracts:
     expect(hiveHandoffWorkflow).toContain("Repair request envelope");
     expect(hiveHandoffWorkflow).toContain("preview_only_no_execution");
     expect(hiveHandoffWorkflow).toContain("trusted_workflow_request_only");
+    expect(hiveHandoffWorkflow).toContain('path: ".hive/integrated.json"');
+    expect(hiveHandoffWorkflow).toContain("protected default-branch installation state assigns lifecycle writes to Hive");
     expect(hiveHandoffWorkflow).toContain("not_executed_by_visual_hive");
     expect(hiveHandoffWorkflow).toContain("canOpenTrustedRepairRequest");
     expect(hiveHandoffWorkflow).toContain("decide_visual_hive_verdict");

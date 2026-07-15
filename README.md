@@ -153,6 +153,15 @@ This scans the repo, plans checks, runs deterministic visual contracts, runs mut
 
 CI never bootstraps expected screenshots. Create missing baselines only in an explicit local review session, commit the approved images in a tracked repository directory, and keep `failOnMissingBaselineInCI: true`.
 
+Plan optional open-source adapters for the repository without making network calls, then explicitly apply the exact local ODiff dependency when useful:
+
+```bash
+visual-hive adapters manage --config visual-hive.config.yaml
+visual-hive adapters manage --config visual-hive.config.yaml --apply
+```
+
+The manager keeps Playwright as the primary evidence adapter and Visual Hive as verdict authority. It verifies ODiff's exact package-lock integrity, executable version, and golden-image parity before use; it never auto-provisions VRT or uploads screenshots.
+
 ## Production Direction
 
 The production direction is:
@@ -176,6 +185,7 @@ Common `.visual-hive` artifacts include:
 - `evidence-packet.json`
 - `verdict.json`
 - `mutation-report.json`
+- `adapters/lifecycle-plan.json`
 - `visual-graph.json`
 - `visual-impact.json`
 - `issues.json`

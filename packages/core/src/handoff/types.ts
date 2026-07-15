@@ -1,4 +1,4 @@
-import type { EvidenceContribution, EvidencePacket, VisualHiveVerdict } from "../evidence/types.js";
+import { evidenceContributionKey, type EvidenceContribution, type EvidencePacket, type VisualHiveVerdict } from "../evidence/types.js";
 
 export type HandoffMode = "dry_run" | "github_issue" | "bead_api";
 export type HandoffStatus = "ready" | "blocked";
@@ -139,6 +139,5 @@ export interface HandoffArtifacts {
 }
 
 export function contributionKey(contribution: EvidenceContribution): string {
-  const id = contribution.contractId ?? contribution.operator ?? contribution.providerId;
-  return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
+  return evidenceContributionKey(contribution);
 }

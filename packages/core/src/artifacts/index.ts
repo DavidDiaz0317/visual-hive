@@ -1,4 +1,6 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants, type BigIntStats } from "node:fs";
+import { lstat, open, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { VISUAL_HIVE_EVIDENCE_RESOURCES, type EvidenceResourceDefinition } from "../tools/evidenceResources.js";
 import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
@@ -10,13 +12,17 @@ export interface ArtifactIndexReport {
   project: string;
   generatedAt: string;
   root: string;
+  contentAddressed: true;
+  complete: boolean;
   summary: ArtifactIndexSummary;
   artifacts: ArtifactIndexEntry[];
   warnings: string[];
 }
 
 export interface ArtifactIndexSummary {
+  discoveredArtifactCount: number;
   artifactCount: number;
+  omittedArtifactCount: number;
   totalBytes: number;
   json: number;
   markdown: number;
@@ -36,6 +42,7 @@ export interface ArtifactIndexEntry {
   kind: ArtifactKind;
   contentType: string;
   bytes: number;
+  sha256: string;
   safeToRender: boolean;
   evidenceResourceId?: string;
   evidenceResourceUri?: string;
@@ -57,55 +64,76 @@ export interface IndexArtifactsOptions {
   now?: Date;
   maxArtifacts?: number;
   maxPreviewBytes?: number;
+  complete?: boolean;
 }
 
 const DEFAULT_MAX_ARTIFACTS = 500;
+const COMPLETE_MAX_ARTIFACTS = 5000;
 const DEFAULT_MAX_PREVIEW_BYTES = 8192;
 const GENERATED_ARTIFACT_INDEX = ".visual-hive/artifacts-index.json";
 const SCHEMA_ID_BASE = "https://visual-hive.dev/schemas/";
 
 export async function indexArtifacts(options: IndexArtifactsOptions): Promise<ArtifactIndexReport> {
-  const repoRoot = path.resolve(options.repoRoot);
-  const hiveRoot = path.resolve(options.hiveRoot ?? path.join(repoRoot, ".visual-hive"));
-  if (!isInsideOrEqual(repoRoot, hiveRoot)) {
+  const requestedRepoRoot = path.resolve(options.repoRoot);
+  const requestedHiveRoot = path.resolve(options.hiveRoot ?? path.join(requestedRepoRoot, ".visual-hive"));
+  if (!isInsideOrEqual(requestedRepoRoot, requestedHiveRoot)) {
     throw new Error(`Refusing to index artifacts outside repository root: ${options.hiveRoot}`);
   }
-  const maxArtifacts = options.maxArtifacts ?? DEFAULT_MAX_ARTIFACTS;
+  const repoRoot = await realpath(requestedRepoRoot);
+  const hiveRoot = path.resolve(repoRoot, path.relative(requestedRepoRoot, requestedHiveRoot));
+  const maxArtifacts = options.maxArtifacts ?? (options.complete ? COMPLETE_MAX_ARTIFACTS : DEFAULT_MAX_ARTIFACTS);
   const maxPreviewBytes = options.maxPreviewBytes ?? DEFAULT_MAX_PREVIEW_BYTES;
   const warnings: string[] = [];
   const artifacts: ArtifactIndexEntry[] = [];
   let skippedHistoryDirectories = 0;
+  let discoveredArtifactCount = 0;
+  let unreadableArtifactCount = 0;
 
   await walk(
     hiveRoot,
     async (filePath) => {
       const repoRelativePath = toRepoRelativePath(repoRoot, filePath);
       if (isGeneratedArtifactIndex(repoRelativePath)) return;
-      const fileStat = await stat(filePath);
-      if (!fileStat.isFile()) return;
-      artifacts.push(await artifactEntry({ repoRoot, hiveRoot, filePath, bytes: fileStat.size, maxPreviewBytes }));
+      discoveredArtifactCount += 1;
+      let data: Buffer;
+      try {
+        data = await readStableArtifactFile(repoRoot, filePath);
+      } catch (error) {
+        if (options.complete) throw error;
+        unreadableArtifactCount += 1;
+        return;
+      }
+      artifacts.push(artifactEntry({ repoRoot, hiveRoot, filePath, data, maxPreviewBytes }));
     },
     (dirPath) => {
       if (isBundlePayloadDirectory(hiveRoot, dirPath)) return true;
-      if (!isRunHistoryDirectory(hiveRoot, dirPath)) return false;
+      if (options.complete || !isRunHistoryDirectory(hiveRoot, dirPath)) return false;
       skippedHistoryDirectories += 1;
       return true;
-    }
+    },
+    Boolean(options.complete),
+    hiveRoot,
+    repoRoot
   );
 
   const sorted = artifacts.sort(compareArtifactEntries).slice(0, maxArtifacts);
   if (skippedHistoryDirectories > 0) {
     warnings.push(`Skipped ${skippedHistoryDirectories} run history director${skippedHistoryDirectories === 1 ? "y" : "ies"}; use history.json for summarized run history.`);
   }
-  if (artifacts.length > maxArtifacts) {
+  if (discoveredArtifactCount > maxArtifacts) {
     warnings.push(`Artifact listing reached maxArtifacts=${maxArtifacts}; some files may be omitted.`);
+  }
+  if (unreadableArtifactCount > 0) {
+    warnings.push(`Skipped ${unreadableArtifactCount} artifact${unreadableArtifactCount === 1 ? "" : "s"} that could not be read from a stable file snapshot.`);
   }
   return {
     schemaVersion: 1,
     project: options.project ?? "unknown",
     generatedAt: (options.now ?? new Date()).toISOString(),
     root: toRepoRelativePath(repoRoot, hiveRoot),
-    summary: summarize(sorted),
+    contentAddressed: true,
+    complete: skippedHistoryDirectories === 0 && unreadableArtifactCount === 0 && discoveredArtifactCount <= maxArtifacts,
+    summary: summarize(sorted, discoveredArtifactCount),
     artifacts: sorted,
     warnings
   };
@@ -147,10 +175,12 @@ export function artifactContentType(kind: ArtifactKind, filePath: string): strin
   return "application/octet-stream";
 }
 
-function summarize(artifacts: ArtifactIndexEntry[]): ArtifactIndexSummary {
+function summarize(artifacts: ArtifactIndexEntry[], discoveredArtifactCount: number): ArtifactIndexSummary {
   const count = (kind: ArtifactKind) => artifacts.filter((artifact) => artifact.kind === kind).length;
   return {
+    discoveredArtifactCount,
     artifactCount: artifacts.length,
+    omittedArtifactCount: Math.max(0, discoveredArtifactCount - artifacts.length),
     totalBytes: artifacts.reduce((sum, artifact) => sum + artifact.bytes, 0),
     json: count("json"),
     markdown: count("markdown"),
@@ -166,26 +196,28 @@ function summarize(artifacts: ArtifactIndexEntry[]): ArtifactIndexSummary {
   };
 }
 
-async function artifactEntry(input: {
+function artifactEntry(input: {
   repoRoot: string;
   hiveRoot: string;
   filePath: string;
-  bytes: number;
+  data: Buffer;
   maxPreviewBytes: number;
-}): Promise<ArtifactIndexEntry> {
+}): ArtifactIndexEntry {
   const kind = artifactKind(input.filePath);
   const contentType = artifactContentType(kind, input.filePath);
   const repoRelativePath = toRepoRelativePath(input.repoRoot, input.filePath);
   const evidenceResource = evidenceResourceFor(repoRelativePath);
-  const preview = await previewFor(input.repoRoot, input.filePath, kind, input.maxPreviewBytes);
-  const labels = labelsFor(input.filePath, kind);
+  const preview = previewFor(input.repoRoot, input.data, kind, input.maxPreviewBytes);
+  const sha256 = createHash("sha256").update(input.data).digest("hex");
+  const labels = artifactLabelsForPath(input.filePath, kind);
   if (evidenceResource) labels.push(evidenceResource.id, "evidence-resource");
   const schemaPath = schemaPathFor(input.filePath, kind);
   const entry: ArtifactIndexEntry = {
     path: repoRelativePath,
     kind,
     contentType,
-    bytes: input.bytes,
+    bytes: input.data.byteLength,
+    sha256,
     safeToRender: kind !== "other",
     previewTruncated: Boolean(preview?.truncated),
     previewRedacted: Boolean(preview?.redacted),
@@ -214,14 +246,13 @@ function evidenceResourceFor(repoRelativePath: string): EvidenceResourceDefiniti
   });
 }
 
-async function previewFor(
+function previewFor(
   repoRoot: string,
-  filePath: string,
+  raw: Buffer,
   kind: ArtifactKind,
   maxPreviewBytes: number
-): Promise<{ text: string; truncated: boolean; redacted: boolean } | undefined> {
+): { text: string; truncated: boolean; redacted: boolean } | undefined {
   if (kind === "image" || kind === "other") return undefined;
-  const raw = await readFile(filePath);
   const slice = raw.subarray(0, maxPreviewBytes);
   const before = slice.toString("utf8");
   const text = sanitizeArtifactPathsForMarkdown(repoRoot, sanitizeText(before));
@@ -232,7 +263,7 @@ async function previewFor(
   };
 }
 
-function labelsFor(filePath: string, kind: ArtifactKind): string[] {
+export function artifactLabelsForPath(filePath: string, kind: ArtifactKind = artifactKind(filePath)): string[] {
   const normalized = filePath.replaceAll("\\", "/").toLowerCase();
   const labels = new Set<string>();
   labels.add(kind);
@@ -273,6 +304,10 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("costs.json")) labels.add("cost-audit");
   if (normalized.endsWith("control-plane-actions.json")) labels.add("control-plane-actions");
   if (normalized.endsWith("control-plane-snapshot.json")) labels.add("control-plane-snapshot");
+  if (normalized.endsWith("config-edits.json")) labels.add("config-edits");
+  if (normalized.endsWith("setup-doc-edits.json")) labels.add("setup-doc-edits");
+  if (normalized.endsWith("workflow-edits.json")) labels.add("workflow-edits");
+  if (normalized.endsWith("setup-bundle-edits.json")) labels.add("setup-bundle-edits");
   if (normalized.endsWith("report.json")) labels.add("report");
   if (normalized.endsWith("mutation-report.json")) labels.add("mutation");
   if (normalized.endsWith("flows.json")) labels.add("flow-audit");
@@ -283,6 +318,7 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("/provider-upload/argos/manifest.json")) labels.add("provider-upload");
   if (normalized.endsWith("llm-decisions.json")) labels.add("llm-decisions");
   if (normalized.endsWith("connections-portfolio.json")) labels.add("connections-portfolio");
+  if (normalized.endsWith("connections.json")) labels.add("connections");
   if (normalized.endsWith("repo-map.json")) labels.add("repo-map");
   if (normalized.endsWith("repo-context.md")) labels.add("repo-context");
   if (normalized.endsWith("visual-graph.json")) labels.add("visual-graph");
@@ -305,12 +341,17 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.endsWith("/agents/agent-run.json") || normalized.endsWith("/agent-run.json")) labels.add("agent-issue-run");
   if (normalized.endsWith("tool-registry.json")) labels.add("tool-registry");
   if (normalized.endsWith("tool-cards.md")) labels.add("tool-cards");
+  if (normalized.endsWith("/adapters/lifecycle-plan.json")) labels.add("adapter-lifecycle-plan");
+  if (normalized.endsWith("/adapters/odiff-result.json")) labels.add("adapter-odiff-result");
+  if (normalized.endsWith("/adapters/vrt-result.json")) labels.add("adapter-vrt-result");
   if (normalized.endsWith("mcp-manifest.json")) labels.add("mcp-manifest");
   if (normalized.endsWith("context-ledger.json")) labels.add("context-ledger");
   if (normalized.endsWith("pipeline.json")) labels.add("pipeline-status");
+  if (normalized.endsWith("capability-parity.json")) labels.add("capability-parity");
   if (normalized.endsWith("schema-catalog.json")) labels.add("schema-catalog");
   if (normalized.endsWith("/handoff.json")) labels.add("handoff-packet");
   if (normalized.endsWith("hive-issue.md")) labels.add("hive-issue");
+  if (normalized.endsWith("hive-issue-dry-run.json")) labels.add("hive-issue-dry-run");
   if (normalized.endsWith("hive-bead-request.json")) labels.add("hive-bead-request");
   if (normalized.endsWith("hive-handoff-result.json")) labels.add("hive-handoff-result");
   if (normalized.endsWith("hive-handoff-validation.json")) labels.add("hive-handoff-validation");
@@ -344,6 +385,11 @@ function labelsFor(filePath: string, kind: ArtifactKind): string[] {
   if (normalized.includes("/hive/wiki/")) labels.add("hive-wiki");
   if (normalized.endsWith("/recommendations.json")) labels.add("setup-recommendations");
   if (normalized.endsWith("coverage-recommendations.json")) labels.add("coverage-recommendations");
+  if (normalized.endsWith("github-app-webhook-result.json")) labels.add("github-app-webhook-result");
+  if (normalized.endsWith("github-app-setup-issue-preview.md")) labels.add("github-app-setup-issue-preview");
+  if (normalized.endsWith("github-app-issue-preview.md")) labels.add("github-app-issue-preview");
+  if (normalized.endsWith("github-app-live-publish-result.json")) labels.add("github-app-live-publish-result");
+  if (normalized.endsWith("github-app-live-smoke-result.json")) labels.add("github-app-live-smoke-result");
   return [...labels].sort();
 }
 
@@ -402,6 +448,9 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
     "provider-agent-packet.json": "visual-hive.agent-packet.schema.json",
     "agent-run.json": "visual-hive.agent-issue-run.schema.json",
     "tool-registry.json": "visual-hive.tool-registry.schema.json",
+    "lifecycle-plan.json": "visual-hive.adapter-lifecycle-plan.schema.json",
+    "odiff-result.json": "visual-hive.odiff-result.schema.json",
+    "vrt-result.json": "visual-hive.vrt-result.schema.json",
     "mcp-manifest.json": "visual-hive.mcp.schema.json",
     "context-ledger.json": "visual-hive.context-ledger.schema.json",
     "pipeline.json": "visual-hive.pipeline.schema.json",
@@ -443,22 +492,140 @@ function schemaPathFor(filePath: string, kind: ArtifactKind): string | undefined
   return schemaFile ? `schemas/${schemaFile}` : undefined;
 }
 
-async function walk(dir: string, visit: (filePath: string) => Promise<void>, shouldSkipDirectory?: (dirPath: string) => boolean): Promise<void> {
+async function readStableArtifactFile(repoRoot: string, filePath: string): Promise<Buffer> {
+  const absolute = path.resolve(filePath);
+  if (!isInsideOrEqual(repoRoot, absolute)) {
+    throw new Error(`Refusing to index artifact outside repository root: ${filePath}`);
+  }
+  await assertNoLinkedPathComponents(repoRoot, absolute);
+  const before = await lstat(absolute, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink()) {
+    throw new Error(`Complete artifact indexing refuses non-regular entry: ${toRepoRelativePath(repoRoot, absolute)}.`);
+  }
+  const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
+  const handle = await open(absolute, constants.O_RDONLY | noFollow);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || !sameFileIdentity(before, opened)) {
+      throw new Error(`Artifact changed while complete indexing opened it: ${toRepoRelativePath(repoRoot, absolute)}.`);
+    }
+    const data = await handle.readFile();
+    const afterRead = await handle.stat({ bigint: true });
+    if (!sameFileIdentity(opened, afterRead) || BigInt(data.byteLength) !== afterRead.size) {
+      throw new Error(`Artifact changed while complete indexing read it: ${toRepoRelativePath(repoRoot, absolute)}.`);
+    }
+    await assertNoLinkedPathComponents(repoRoot, absolute);
+    const afterPath = await lstat(absolute, { bigint: true });
+    if (!sameFileIdentity(afterRead, afterPath)) {
+      throw new Error(`Artifact path changed while complete indexing read it: ${toRepoRelativePath(repoRoot, absolute)}.`);
+    }
+    return data;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function assertNoLinkedPathComponents(repoRoot: string, target: string): Promise<void> {
+  if (!isInsideOrEqual(repoRoot, target)) {
+    throw new Error(`Complete artifact indexing path escapes repository root: ${target}.`);
+  }
+  let current = repoRoot;
+  for (const segment of path.relative(repoRoot, target).split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    const currentStat = await lstat(current);
+    if (currentStat.isSymbolicLink()) {
+      throw new Error(`Complete artifact indexing refuses symbolic link or reparse point: ${toRepoRelativePath(repoRoot, current)}.`);
+    }
+  }
+  const canonical = await realpath(target);
+  if (!isInsideOrEqual(repoRoot, canonical)) {
+    throw new Error(`Complete artifact indexing path resolves outside repository root: ${toRepoRelativePath(repoRoot, target)}.`);
+  }
+}
+
+function sameFileIdentity(left: BigIntStats, right: BigIntStats): boolean {
+  return sameDevice(left.dev, right.dev)
+    && left.ino === right.ino
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function sameDirectorySnapshot(left: BigIntStats, right: BigIntStats): boolean {
+  return sameDevice(left.dev, right.dev)
+    && left.ino === right.ino
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function sameDevice(left: bigint, right: bigint): boolean {
+  // Windows path stats report dev=0 while FileHandle.stat() reports the volume ID.
+  return left === right || (process.platform === "win32" && (left === 0n || right === 0n));
+}
+
+async function walk(
+  dir: string,
+  visit: (filePath: string) => Promise<void>,
+  shouldSkipDirectory?: (dirPath: string) => boolean,
+  strict = false,
+  traversalRoot = dir,
+  boundaryRoot = traversalRoot
+): Promise<void> {
+  let directoryIdentity: BigIntStats | undefined;
+  if (strict) {
+    let directoryStat: BigIntStats;
+    try {
+      directoryStat = await lstat(dir, { bigint: true });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
+      throw new Error(`Complete artifact indexing could not enumerate ${artifactTraversalPath(traversalRoot, dir)} (${code}).`);
+    }
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+      throw new Error(`Complete artifact indexing refuses non-regular entry: ${artifactTraversalPath(traversalRoot, dir)}.`);
+    }
+    await assertNoLinkedPathComponents(boundaryRoot, dir);
+    directoryIdentity = directoryStat;
+  }
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    if (strict) {
+      const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
+      throw new Error(`Complete artifact indexing could not enumerate ${artifactTraversalPath(traversalRoot, dir)} (${code}).`);
+    }
     return;
   }
   for (const entry of entries) {
     const child = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (shouldSkipDirectory?.(child)) continue;
-      await walk(child, visit, shouldSkipDirectory);
+      await walk(child, visit, shouldSkipDirectory, strict, traversalRoot, boundaryRoot);
     } else if (entry.isFile()) {
       await visit(child);
+    } else if (strict) {
+      throw new Error(`Complete artifact indexing refuses non-regular entry: ${artifactTraversalPath(traversalRoot, child)}.`);
     }
   }
+  if (strict && directoryIdentity) {
+    let after: BigIntStats;
+    try {
+      after = await lstat(dir, { bigint: true });
+    } catch {
+      throw new Error(`Complete artifact indexing directory changed during traversal: ${artifactTraversalPath(traversalRoot, dir)}.`);
+    }
+    if (!after.isDirectory() || after.isSymbolicLink() || !sameDirectorySnapshot(directoryIdentity, after)) {
+      throw new Error(`Complete artifact indexing directory changed during traversal: ${artifactTraversalPath(traversalRoot, dir)}.`);
+    }
+  }
+}
+
+function artifactTraversalPath(traversalRoot: string, targetPath: string): string {
+  const relative = path.relative(traversalRoot, targetPath).replaceAll("\\", "/");
+  return relative ? `.visual-hive/${relative}` : ".visual-hive";
 }
 
 function toRepoRelativePath(repoRoot: string, filePath: string): string {

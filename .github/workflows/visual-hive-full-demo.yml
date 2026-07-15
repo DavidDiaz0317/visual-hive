@@ -18,11 +18,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
       - run: npm run lint
-      - run: npx playwright install --with-deps chromium
       - run: npm run demo:full-run
       - run: npm run demo:baselines
         if: always()

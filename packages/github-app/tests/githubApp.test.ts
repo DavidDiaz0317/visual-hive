@@ -219,6 +219,9 @@ describe("Visual Hive GitHub App prototype", () => {
       if (String(url).endsWith("/access_tokens")) {
         return jsonResponse({ token: "installation-token-secret" });
       }
+      if (String(url).endsWith("/contents/.hive/integrated.json")) {
+        return jsonResponse({}, 404);
+      }
       if (String(url).includes("/issues?")) {
         return jsonResponse([]);
       }
@@ -244,14 +247,151 @@ describe("Visual Hive GitHub App prototype", () => {
     });
 
     expect(publish.mode).toBe("live");
-    expect(publish.externalCallsMade).toBe(3);
-    expect(publish.networkCallsMade).toBe(3);
+    expect(publish.externalCallsMade).toBe(4);
+    expect(publish.networkCallsMade).toBe(4);
     expect(publish.results[0]).toMatchObject({ status: "created", issueNumber: 6 });
     expect(JSON.stringify(publish)).not.toContain("installation-token-secret");
     expect(calls.map((call) => call.url)).toEqual([
       "https://api.github.com/app/installations/67890/access_tokens",
+      "https://api.github.com/repos/DavidDiaz0317/visual-hive-demo-site/contents/.hive/integrated.json",
       "https://api.github.com/repos/DavidDiaz0317/visual-hive-demo-site/issues?state=all&labels=visual-hive&per_page=100",
       "https://api.github.com/repos/DavidDiaz0317/visual-hive-demo-site/issues"
+    ]);
+  });
+
+  it("trusts protected default-branch state over a standalone artifact before any live issue write", async () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        workflow_run: { conclusion: "failure" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+    const calls: string[] = [];
+    const fetchImpl = async (url: string | URL | Request): Promise<Response> => {
+      calls.push(String(url));
+      if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+      if (String(url).endsWith("/contents/.hive/integrated.json")) {
+        return jsonResponse({
+          type: "file",
+          encoding: "base64",
+          content: Buffer.from(JSON.stringify({
+            repository: "DavidDiaz0317/visual-hive-demo-site",
+            visual_hive: true
+          }), "utf8").toString("base64")
+        });
+      }
+      throw new Error(`Issue API must not be called for a Hive-managed repository: ${String(url)}`);
+    };
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl
+    });
+
+    expect(publish.networkCallsMade).toBe(2);
+    expect(publish.results).toEqual([
+      expect.objectContaining({ status: "skipped", message: expect.stringContaining("managed_by_hive") })
+    ]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("fails closed before live issue APIs when protected Hive ownership has the wrong repository identity", async () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+    let issueApiCalled = false;
+    const fetchImpl = async (url: string | URL | Request): Promise<Response> => {
+      if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+      if (String(url).endsWith("/contents/.hive/integrated.json")) {
+        return jsonResponse({
+          type: "file",
+          encoding: "base64",
+          content: Buffer.from(JSON.stringify({ repository: "example/other", visual_hive: true }), "utf8").toString("base64")
+        });
+      }
+      issueApiCalled = true;
+      throw new Error(`Unexpected issue API call: ${String(url)}`);
+    };
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl
+    });
+
+    expect(issueApiCalled).toBe(false);
+    expect(publish.networkCallsMade).toBe(2);
+    expect(publish.results).toEqual([
+      expect.objectContaining({ status: "blocked", message: expect.stringContaining("identity does not match") })
+    ]);
+  });
+
+  it("treats a present false-valued protected marker as suppress-only", async () => {
+    const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const result = handleVisualHiveGitHubAppWebhook({
+      eventName: "workflow_run",
+      payload: {
+        repository: { full_name: "DavidDiaz0317/visual-hive-demo-site" },
+        visual_hive_artifact_summary: { issueCandidate }
+      }
+    });
+    let issueApiCalled = false;
+    const fetchImpl = async (url: string | URL | Request): Promise<Response> => {
+      if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+      if (String(url).endsWith("/contents/.hive/integrated.json")) {
+        return jsonResponse({
+          type: "file",
+          encoding: "base64",
+          content: Buffer.from(JSON.stringify({
+            repository: "DavidDiaz0317/visual-hive-demo-site",
+            visual_hive: false
+          }), "utf8").toString("base64")
+        });
+      }
+      issueApiCalled = true;
+      throw new Error(`Unexpected issue API call: ${String(url)}`);
+    };
+
+    const publish = await publishGitHubAppIssuesFromWebhookResult(result, {
+      env: {
+        VISUAL_HIVE_GITHUB_APP_LIVE: "true",
+        VISUAL_HIVE_GITHUB_APP_LIVE_ISSUE_WRITE: "true",
+        GITHUB_APP_ID: "12345",
+        GITHUB_APP_PRIVATE_KEY: privateKeyPem,
+        GITHUB_APP_INSTALLATION_ID: "67890",
+        GITHUB_WEBHOOK_SECRET: "webhook-secret"
+      },
+      fetchImpl
+    });
+
+    expect(issueApiCalled).toBe(false);
+    expect(publish.networkCallsMade).toBe(2);
+    expect(publish.results).toEqual([
+      expect.objectContaining({ status: "blocked", message: expect.stringContaining("cannot grant standalone") })
     ]);
   });
 
@@ -296,6 +436,7 @@ describe("Visual Hive GitHub App prototype", () => {
     });
     const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
       if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+      if (String(url).endsWith("/contents/.hive/integrated.json")) return jsonResponse({}, 404);
       if (String(url).includes("/issues?")) {
         return jsonResponse([{ number: 6, body: `existing ${issueCandidate.dedupeFingerprint}`, html_url: "https://example.test/6" }]);
       }
@@ -351,6 +492,7 @@ describe("Visual Hive GitHub App prototype", () => {
     try {
       const fetchImpl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
         if (String(url).endsWith("/access_tokens")) return jsonResponse({ token: "installation-token-secret" });
+        if (String(url).endsWith("/contents/.hive/integrated.json")) return jsonResponse({}, 404);
         if (String(url).includes("/issues?")) {
           return jsonResponse([{
             number: 9,
@@ -385,7 +527,7 @@ describe("Visual Hive GitHub App prototype", () => {
       expect(result.status).toBe("passed");
       expect(result.realGithubIssuesCreated).toBe(0);
       expect(result.realGithubIssuesUpdated).toBe(1);
-      expect(result.networkCallsMade).toBe(3);
+      expect(result.networkCallsMade).toBe(4);
       expect(JSON.stringify(result)).not.toContain("installation-token-secret");
     } finally {
       await rm(outputDir, { recursive: true, force: true });
@@ -508,6 +650,36 @@ describe("Visual Hive GitHub App prototype", () => {
       expect(payload.body).not.toContain("C:/Users/david");
       expect(payload.body).not.toContain("/home/david/private");
       expect(payload.body).not.toContain("artifact-secret");
+    } finally {
+      await rm(artifactRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses the GitHub App issue writer when Hive owns the lifecycle", async () => {
+    const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-github-app-hive-managed-"));
+    try {
+      await writeMinimalVisualHiveArtifacts(artifactRoot, {
+        issues: [issueCandidate],
+        lifecycle: {
+          owner: "hive",
+          standaloneIssueWrites: "suppressed",
+          reason: "Hive owns issue and repair lifecycle writes for this repository."
+        }
+      });
+      const summary = await buildVisualHiveArtifactSummaryFromDirectory({ artifactRoot });
+      const result = handleVisualHiveGitHubAppWebhook({
+        eventName: "workflow_run",
+        payload: {
+          repository: { full_name: "example/hive-managed" },
+          workflow_run: { conclusion: "failure" },
+          visual_hive_artifact_summary: summary
+        }
+      });
+
+      expect(summary.lifecycle.owner).toBe("hive");
+      expect(result.actions).toEqual([
+        expect.objectContaining({ action: "ignore", reason: expect.stringContaining("managed_by_hive") })
+      ]);
     } finally {
       await rm(artifactRoot, { recursive: true, force: true });
     }
@@ -681,10 +853,13 @@ function jsonResponse(value: unknown, status = 200): Response {
   });
 }
 
-async function writeMinimalVisualHiveArtifacts(root: string, options: { issues: unknown[] }): Promise<void> {
+async function writeMinimalVisualHiveArtifacts(root: string, options: {
+  issues: unknown[];
+  lifecycle?: { owner: "visual_hive" | "hive"; standaloneIssueWrites: "allowed" | "suppressed"; reason: string };
+}): Promise<void> {
   await mkdir(root, { recursive: true });
   const files: Record<string, unknown> = {
-    "issues.json": { schemaVersion: "visual-hive.issues.v1", issues: options.issues },
+    "issues.json": { schemaVersion: "visual-hive.issues.v1", lifecycle: options.lifecycle, issues: options.issues },
     "issue-queue.json": { schemaVersion: "visual-hive.issue-queue.v1", queues: {} },
     "evidence-packet.json": { schemaVersion: "visual-hive.evidence-packet.v1", verdict: "failed" },
     "handoff.json": { schemaVersion: "visual-hive.handoff.v1", externalCallsMade: 0 },

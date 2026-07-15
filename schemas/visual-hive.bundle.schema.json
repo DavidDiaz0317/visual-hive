@@ -6,7 +6,8 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "scan", "observations", "files", "overallDigest", "replayProtection", "provenance", "safety"],
   "properties": {
-    "schemaVersion": { "const": "visual-hive.bundle.v2" },
+    "schemaVersion": { "enum": ["visual-hive.bundle.v2", "visual-hive.bundle.v3"] },
+    "digestAlgorithm": { "enum": ["visual-hive.bundle.publication-digest.v1", "visual-hive.bundle.content-addressed-digest.v1"] },
     "bundleId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "generatedAt": { "type": "string", "format": "date-time" },
     "expiresAt": { "type": "string", "format": "date-time" },
@@ -71,8 +72,33 @@
         "properties": {
           "fingerprint": { "type": "string", "minLength": 1 },
           "repositoryFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "publicationRole": { "enum": ["canonical", "derivative", "aggregate"] },
+          "rootCauseKey": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" },
+          "blockedByRootKeys": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._~:/,+-]|%[0-9A-Fa-f]{2})*$" }
+          },
           "state": { "enum": ["present", "absent"] },
-          "issueKind": { "type": "string", "minLength": 1 },
+          "issueKind": {
+            "enum": [
+              "setup_needed",
+              "map_drift",
+              "missing_visual_coverage",
+              "test_adequacy_gap",
+              "weak_visual_test",
+              "stale_baseline",
+              "baseline_churn",
+              "visual_regression",
+              "selector_contract_failure",
+              "screenshot_diff",
+              "mutation_survivor",
+              "workflow_safety",
+              "provider_governance",
+              "protected_target_blocked",
+              "external_repo_onboarding"
+            ]
+          },
           "severity": { "enum": ["low", "medium", "high", "critical"] },
           "owningAgentHint": { "type": "string", "minLength": 1 },
           "title": { "type": "string", "minLength": 1, "maxLength": 512 },
@@ -84,7 +110,31 @@
           "observedAt": { "type": "string", "format": "date-time" },
           "firstSeenAt": { "type": "string", "format": "date-time" },
           "sourceArtifact": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" }
-        }
+        },
+        "dependentRequired": {
+          "publicationRole": ["rootCauseKey", "blockedByRootKeys"],
+          "rootCauseKey": ["publicationRole", "blockedByRootKeys"],
+          "blockedByRootKeys": ["publicationRole", "rootCauseKey"]
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "publicationRole": { "const": "aggregate" } }, "required": ["publicationRole"] },
+            "then": {
+              "properties": {
+                "issueKind": { "const": "external_repo_onboarding" },
+                "blockedByRootKeys": { "minItems": 1 }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "publicationRole": { "enum": ["canonical", "derivative"] } }, "required": ["publicationRole"] },
+            "then": { "properties": { "blockedByRootKeys": { "maxItems": 0 } } }
+          },
+          {
+            "if": { "properties": { "publicationRole": { "const": "derivative" } }, "required": ["publicationRole"] },
+            "then": { "properties": { "issueKind": { "enum": ["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"] } } }
+          }
+        ]
       }
     },
     "files": {
@@ -101,6 +151,49 @@
           "size": { "type": "integer", "minimum": 0 },
           "mediaType": { "enum": ["application/json", "text/markdown", "text/plain", "application/octet-stream"] },
           "schemaVersion": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "artifactIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sourcePath", "sha256", "schemaVersion", "contentAddressed", "complete", "artifactCount", "totalBytes"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^files/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sourcePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "schemaVersion": { "const": 1 },
+        "contentAddressed": { "const": true },
+        "complete": { "const": true },
+        "artifactCount": { "type": "integer", "minimum": 0 },
+        "totalBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "capabilityParity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sourcePath", "sha256", "schemaVersion", "baselineVersion", "status", "runtimeStatus", "summary"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^files/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sourcePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "schemaVersion": { "const": "visual-hive.capability-parity.v1" },
+        "baselineVersion": { "const": "visual-hive.capability-baseline.v1" },
+        "status": { "const": "passed" },
+        "runtimeStatus": { "enum": ["ready", "blocked"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected", "actual", "present", "blocked", "missing", "unexpected", "mismatched"],
+          "properties": {
+            "expected": { "type": "integer", "minimum": 0 },
+            "actual": { "type": "integer", "minimum": 0 },
+            "present": { "type": "integer", "minimum": 0 },
+            "blocked": { "type": "integer", "minimum": 0 },
+            "missing": { "const": 0 },
+            "unexpected": { "const": 0 },
+            "mismatched": { "const": 0 }
+          }
         }
       }
     },
@@ -137,5 +230,86 @@
         "absenceRequiresAuthoritativeScan": { "const": true }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v3" } },
+        "required": ["schemaVersion"]
+      },
+      "then": {
+        "required": ["digestAlgorithm", "artifactIndex", "capabilityParity"],
+        "properties": {
+          "digestAlgorithm": { "const": "visual-hive.bundle.content-addressed-digest.v1" },
+          "source": { "required": ["workflowRunId", "workflowRunAttempt", "workflowArtifactId"] },
+          "observations": {
+            "items": { "required": ["publicationRole", "rootCauseKey", "blockedByRootKeys"] }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v2" } },
+        "required": ["schemaVersion"]
+      },
+      "then": {
+        "properties": {
+          "digestAlgorithm": { "const": "visual-hive.bundle.publication-digest.v1" }
+        },
+        "not": {
+          "anyOf": [
+            { "required": ["artifactIndex"] },
+            { "required": ["capabilityParity"] }
+          ]
+        },
+        "allOf": [
+          {
+            "if": { "required": ["digestAlgorithm"] },
+            "then": {
+              "properties": {
+                "observations": {
+                  "items": { "required": ["publicationRole", "rootCauseKey", "blockedByRootKeys"] }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "observations": {
+                  "items": {
+                    "not": {
+                      "anyOf": [
+                        { "required": ["publicationRole"] },
+                        { "required": ["rootCauseKey"] },
+                        { "required": ["blockedByRootKeys"] }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v3" } },
+        "required": ["schemaVersion", "capabilityParity"]
+      },
+      "then": {
+        "properties": {
+          "capabilityParity": {
+            "allOf": [
+              {
+                "if": { "properties": { "runtimeStatus": { "const": "ready" } }, "required": ["runtimeStatus"] },
+                "then": { "properties": { "summary": { "properties": { "blocked": { "const": 0 } } } } },
+                "else": { "properties": { "summary": { "properties": { "blocked": { "minimum": 1 } } } } }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

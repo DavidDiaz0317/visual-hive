@@ -2,6 +2,8 @@
 
 Command-line interface for Visual Hive.
 
+`visual-hive capabilities` writes the machine-verifiable public-surface receipt documented in [Capability parity](https://github.com/DavidDiaz0317/visual-hive/blob/main/docs/capability-parity.md). The end-to-end pipeline runs this gate before its final complete artifact-index refresh.
+
 Local development:
 
 ```bash

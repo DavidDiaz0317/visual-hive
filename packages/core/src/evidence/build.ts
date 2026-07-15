@@ -3,18 +3,21 @@ import { access } from "node:fs/promises";
 import type { MutationReport, ProviderResult, Report, TriageReport } from "../reports/types.js";
 import type { Plan } from "../planner/types.js";
 import type { RepoMapReport } from "../repo/types.js";
+import { incompleteUnitTestScopeMessages, isUnitLayerTestFile, unitTestScopes } from "../repo/testEvidence.js";
 import type { VisualHiveConfig } from "../config/schema.js";
 import { normalizeHiveExportConfig } from "../hive/build.js";
+import { API_500_MUTATION_MARKER } from "../mutations/operators.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeArtifactPathsForMarkdown, sanitizeText } from "../utils/sanitize.js";
-import type {
-  EvidenceContribution,
-  EvidencePacket,
-  EvidencePacketHiveMode,
-  EvidencePacketHiveModeReadiness,
-  EvidencePacketTestingLayer,
-  VerdictSummary,
-  VisualHiveVerdict
+import {
+  evidenceContributionKey,
+  type EvidenceContribution,
+  type EvidencePacket,
+  type EvidencePacketHiveMode,
+  type EvidencePacketHiveModeReadiness,
+  type EvidencePacketTestingLayer,
+  type VerdictSummary,
+  type VisualHiveVerdict
 } from "./types.js";
 
 type EvidenceContributionInput = Omit<EvidenceContribution, "key" | "authority">;
@@ -125,6 +128,9 @@ export async function buildEvidencePacket(options: BuildEvidencePacketOptions): 
           project: repoMap.project,
           sourceSummary: repoMap.sourceSummary,
           testTools: repoMap.testTools,
+          testFiles: repoMap.testFiles ?? [],
+          testRunners: repoMap.testRunners ?? [],
+          runtimeScopes: repoMap.runtimeScopes ?? [],
           targetHints: repoMap.targetHints,
           riskSignals: repoMap.riskSignals,
           coverageGaps: repoMap.coverageGaps,
@@ -528,13 +534,16 @@ function contributionsFromMutation(mutationReport?: MutationReport): EvidenceCon
   }
   for (const result of mutationReport.results) {
     if (result.status === "survived") {
+      const scope = primaryMutationRepairScope(result);
+      const repairGuidance = safeMutationRepairGuidance(result.operator, scope.contractId);
       contributions.push({
         source: "mutation",
         kind: "mutation_survivor",
         status: "failed",
         gating: true,
         operator: result.operator,
-        reason: result.failedAssertion ?? `${result.operator} survived selected contracts.`,
+        ...(repairGuidance ? scope : {}),
+        reason: [result.failedAssertion ?? `${result.operator} survived selected contracts.`, repairGuidance].filter(Boolean).join(" "),
         artifacts: result.artifacts ?? []
       });
     } else if (result.status === "not_applicable") {
@@ -550,6 +559,33 @@ function contributionsFromMutation(mutationReport?: MutationReport): EvidenceCon
     }
   }
   return contributions;
+}
+
+function primaryMutationRepairScope(result: MutationReport["results"][number]): { contractId?: string; targetId?: string } {
+  const affected = result.affectedSurfaces ?? result.affected ?? [];
+  const contractIds = [...new Set([...(result.contractIds ?? []), ...affected.map((surface) => surface.contractId)].map((value) => value.trim()).filter(Boolean))]
+    .sort(stableStringCompare);
+  const contractId = contractIds[0];
+  if (!contractId) return {};
+  const targetIds = [...new Set(
+    affected
+      .filter((surface) => surface.contractId.trim() === contractId)
+      .map((surface) => surface.targetId?.trim())
+      .filter((value): value is string => Boolean(value))
+  )].sort(stableStringCompare);
+  return {
+    contractId,
+    ...(targetIds.length === 1 ? { targetId: targetIds[0] } : {})
+  };
+}
+
+function safeMutationRepairGuidance(operator: string, contractId?: string): string | undefined {
+  if (operator !== "api-500" || !contractId) return undefined;
+  return `Safe repository-scoped repair: update contract ${JSON.stringify(contractId)} in visual-hive.config.yaml so selectors.textMustNotExist includes the exact first-party marker ${JSON.stringify(API_500_MUTATION_MARKER)}; do not invent or replace this marker.`;
+}
+
+function stableStringCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function contributionsFromProviders(providers: ProviderResult[], mode?: string): EvidenceContributionInput[] {
@@ -672,11 +708,11 @@ function contributionsFromTriage(triage?: TriageReport): EvidenceContributionInp
 }
 
 export function aggregateVerdict(contributions: EvidenceContribution[]): VerdictSummary {
-  const failedBecause = contributions.filter((item) => item.gating && item.status === "failed").map(contributionKey);
-  const blockedBecause = contributions.filter((item) => item.gating && item.status === "blocked").map(contributionKey);
-  const warningBecause = contributions.filter((item) => item.status === "warning").map(contributionKey);
-  const inconclusiveBecause = contributions.filter((item) => item.gating && item.status === "inconclusive").map(contributionKey);
-  const advisoryOnly = contributions.filter((item) => !item.gating).map(contributionKey);
+  const failedBecause = contributions.filter((item) => item.gating && item.status === "failed").map(evidenceContributionKey);
+  const blockedBecause = contributions.filter((item) => item.gating && item.status === "blocked").map(evidenceContributionKey);
+  const warningBecause = contributions.filter((item) => item.status === "warning").map(evidenceContributionKey);
+  const inconclusiveBecause = contributions.filter((item) => item.gating && item.status === "inconclusive").map(evidenceContributionKey);
+  const advisoryOnly = contributions.filter((item) => !item.gating).map(evidenceContributionKey);
   let visualHiveVerdict: VisualHiveVerdict = "passed";
   if (failedBecause.length > 0) visualHiveVerdict = "failed";
   else if (blockedBecause.length > 0) visualHiveVerdict = "blocked";
@@ -700,7 +736,25 @@ function buildTestingLayers(input: {
   triageReport?: TriageReport;
   repoMap?: RepoMapReport;
 }): EvidencePacketTestingLayer[] {
-  const unitTools = input.repoMap?.testTools.filter((tool) => ["vitest", "jest", "node-test"].includes(tool)) ?? [];
+  const unitFiles = (input.repoMap?.testFiles ?? []).filter((file) => isUnitLayerTestFile(file) && file.runnerEligible);
+  const unitScopes = unitTestScopes(input.repoMap?.testRunners ?? [], input.repoMap?.testFiles ?? [], input.repoMap?.runtimeScopes ?? []);
+  const incompleteScopes = incompleteUnitTestScopeMessages(unitScopes);
+  const actionableUnitGap = input.repoMap?.coverageGaps.find((gap) => gap.id === "unit-layer" && !gap.suggestedArtifact.startsWith("advisory-only:"));
+  const classifiedIncompleteScopes = incompleteScopes.map((message) => actionableUnitGap?.message.includes(message) ? message : `Advisory-only: ${message}`);
+  const unitStatus: EvidencePacketTestingLayer["status"] = !input.repoMap
+    ? "unknown"
+    : unitScopes.length > 0 && incompleteScopes.length === 0
+      ? "covered"
+      : unitScopes.length > 0
+        ? "partial"
+        : "missing";
+  const unitGap = unitStatus === "covered"
+    ? []
+    : unitStatus === "unknown"
+      ? ["Run visual-hive analyze to discover repository unit-test evidence."]
+      : classifiedIncompleteScopes.length > 0
+        ? classifiedIncompleteScopes
+        : ["No deterministic repository unit-test runner or executable unit test file was detected."];
   return [
     layer(
       0,
@@ -713,9 +767,9 @@ function buildTestingLayers(input: {
     layer(
       2,
       "Unit",
-      unitTools.length ? "covered" : "unknown",
-      unitTools.length ? [".visual-hive/repo-map.json"] : [],
-      unitTools.length ? [] : ["No repository unit test runner or test file was detected."]
+      unitStatus,
+      input.repoMap ? [".visual-hive/repo-map.json", ...unitFiles.map((file) => file.path).slice(0, 20)] : [],
+      unitGap
     ),
     layer(3, "Component/accessibility", "unknown", [], ["Accessibility evidence is not yet normalized."]),
     layer(4, "API/contract", "partial", input.report ? [".visual-hive/report.json"] : [], input.report ? [] : ["No deterministic report found."]),
@@ -853,14 +907,9 @@ function hiveModeEmits(mode: EvidencePacketHiveMode): EvidencePacketHiveModeRead
 function normalizeEvidenceContributions(contributions: EvidenceContributionInput[]): EvidenceContribution[] {
   return contributions.map((contribution) => ({
     ...contribution,
-    key: contributionKey(contribution),
+    key: evidenceContributionKey(contribution),
     authority: contribution.gating ? "gating" : "advisory"
   }));
-}
-
-function contributionKey(contribution: Pick<EvidenceContribution, "source" | "kind" | "contractId" | "operator" | "providerId">): string {
-  const id = contribution.contractId ?? contribution.operator ?? contribution.providerId;
-  return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
 }
 
 function sanitizeValue(rootDir: string, value: unknown): unknown {

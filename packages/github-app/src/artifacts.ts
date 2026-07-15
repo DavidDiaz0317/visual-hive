@@ -1,6 +1,12 @@
 import path from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { sanitizeArtifactPathForIssue, sanitizeText, type VisualHiveIssueCandidate } from "@visual-hive/core";
+import {
+  sanitizeArtifactPathForIssue,
+  sanitizeText,
+  VISUAL_HIVE_STANDALONE_LIFECYCLE,
+  type VisualHiveIssueCandidate,
+  type VisualHiveLifecyclePolicy
+} from "@visual-hive/core";
 
 const REQUIRED_VISUAL_HIVE_ARTIFACTS = [
   "issues.json",
@@ -18,6 +24,7 @@ export interface VisualHiveGitHubAppArtifactSummary {
   artifactRoot: string;
   discoveredArtifacts: string[];
   missingArtifacts: string[];
+  lifecycle: VisualHiveLifecyclePolicy;
   externalCallsMade: 0;
   networkCallsMade: 0;
   checkoutPerformed: false;
@@ -38,10 +45,11 @@ export async function buildVisualHiveArtifactSummaryFromDirectory(options: Build
     .filter((name) => byBaseName.has(name))
     .map((name) => sanitizeArtifactPathForIssue(repoRoot, byBaseName.get(name)));
   const missingArtifacts = REQUIRED_VISUAL_HIVE_ARTIFACTS.filter((name) => !byBaseName.has(name));
-  const issueCandidate = await readBestIssueCandidate(byBaseName.get("issues.json"), repoRoot, discoveredArtifacts);
+  const issueArtifact = await readIssueArtifact(byBaseName.get("issues.json"), repoRoot, discoveredArtifacts);
 
   return {
-    issueCandidate,
+    issueCandidate: issueArtifact.issueCandidate,
+    lifecycle: issueArtifact.lifecycle,
     artifactRoot: sanitizeArtifactPathForIssue(repoRoot, artifactRoot),
     discoveredArtifacts,
     missingArtifacts,
@@ -71,18 +79,35 @@ async function walk(dir: string): Promise<string[]> {
   return files;
 }
 
-async function readBestIssueCandidate(issuesPath: string | undefined, repoRoot: string, discoveredArtifacts: string[]): Promise<VisualHiveIssueCandidate | undefined> {
-  if (!issuesPath) return undefined;
+async function readIssueArtifact(
+  issuesPath: string | undefined,
+  repoRoot: string,
+  discoveredArtifacts: string[]
+): Promise<{ issueCandidate?: VisualHiveIssueCandidate; lifecycle: VisualHiveLifecyclePolicy }> {
+  if (!issuesPath) return { lifecycle: VISUAL_HIVE_STANDALONE_LIFECYCLE };
   const raw = await readFile(issuesPath, "utf8");
   const parsed = JSON.parse(raw) as unknown;
-  const issues = objectValue(parsed)?.issues;
-  if (!Array.isArray(issues)) return undefined;
+  const report = objectValue(parsed);
+  const lifecycle = normalizeLifecycle(objectValue(report?.lifecycle));
+  const issues = report?.issues;
+  if (!Array.isArray(issues)) return { lifecycle };
   const candidates = issues.filter((issue): issue is Record<string, unknown> => Boolean(objectValue(issue)));
   const selected = candidates.find((issue) => issue.status === "open_candidate" || issue.status === "update_candidate")
     ?? candidates.find((issue) => issue.status === "resolved_candidate")
     ?? candidates[0];
-  if (!selected) return undefined;
-  return normalizeIssueCandidate(selected, repoRoot, discoveredArtifacts);
+  if (!selected) return { lifecycle };
+  return { issueCandidate: normalizeIssueCandidate(selected, repoRoot, discoveredArtifacts), lifecycle };
+}
+
+function normalizeLifecycle(value: Record<string, unknown> | undefined): VisualHiveLifecyclePolicy {
+  if (value?.owner === "hive" || value?.standaloneIssueWrites === "suppressed") {
+    return {
+      owner: "hive",
+      standaloneIssueWrites: "suppressed",
+      reason: sanitizeText(stringValue(value.reason) ?? "Hive is the configured lifecycle owner.")
+    };
+  }
+  return VISUAL_HIVE_STANDALONE_LIFECYCLE;
 }
 
 function normalizeIssueCandidate(candidate: Record<string, unknown>, repoRoot: string, discoveredArtifacts: string[]): VisualHiveIssueCandidate {

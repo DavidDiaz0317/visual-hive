@@ -52,6 +52,7 @@ export interface SetupRecommendationOutputResource {
 export interface SetupRecommendationProject {
   name: string;
   repoRoot: string;
+  packagePath: string;
   type: VisualHiveConfig["project"]["type"];
   packageManager: "npm" | "pnpm" | "yarn" | "unknown";
   detectedFrameworks: string[];
@@ -221,6 +222,7 @@ interface PackageJsonShape {
 
 interface RepoInventory {
   packageJson?: PackageJsonShape;
+  packagePath: string;
   packageManager: SetupRecommendationProject["packageManager"];
   detectedFrameworks: string[];
   sourceFiles: string[];
@@ -237,6 +239,7 @@ const MAX_SOURCE_FILES = 250;
 const MAX_RECOMMENDED_STORYBOOK_CONTRACTS = 3;
 const MAX_RECOMMENDED_ROUTE_CONTRACTS = 3;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
+const STABLE_ROOT_ID_PATTERN = /\bid\s*=\s*["'`](root|app|main)["'`]/g;
 const ROUTE_HINT_PATTERN = /\b(?:to|href|path)\s*=\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]|(?:route|path)\s*:\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]/g;
 const STORY_TITLE_PATTERN = /title\s*:\s*["'`]([^"'`]+)["'`]/;
 const STORY_EXPORT_PATTERN = /export\s+(?:const|function)\s+([A-Z_a-z]\w*)/g;
@@ -260,9 +263,9 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
   const scripts = inventory.packageJson?.scripts ?? {};
   const projectName = sanitizeText(inventory.packageJson?.name ?? path.basename(repoRoot) ?? "visual-hive-target");
   const projectType = inferProjectType(inventory);
-  const install = installCommand(inventory.packageManager);
-  const build = scripts.build ? `${scriptRunner(inventory.packageManager)} build` : undefined;
-  const serve = serveCommand(inventory.packageManager, scripts, projectType);
+  const install = installCommand(inventory.packageManager, inventory.packagePath);
+  const build = scripts.build ? `${scriptRunner(inventory.packageManager, inventory.packagePath)} build` : undefined;
+  const serve = serveCommand(inventory.packageManager, scripts, projectType, inventory.packagePath);
   const setupProfile = options.setupProfile ?? inferSetupProfile(inventory, scripts);
   const target = buildTarget({ install, build, serve, inventory, projectType, setupProfile });
   const selector = preferredSelector(inventory.selectors);
@@ -273,7 +276,8 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     setupProfile,
     targetId: target.id,
     target: target.config,
-    contracts: contracts.map((contract) => contract.config)
+    contracts: contracts.map((contract) => contract.config),
+    packagePath: inventory.packagePath
   });
   const recommendedConfig = VisualHiveConfigSchema.parse(recommendationInput);
   const recommendedConfigYaml = stringify(recommendationInput, { sortMapEntries: false });
@@ -320,6 +324,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     project: {
       name: projectName,
       repoRoot: normalizeSlashes(repoRoot),
+      packagePath: inventory.packagePath,
       type: projectType,
       packageManager: inventory.packageManager,
       detectedFrameworks: inventory.detectedFrameworks,
@@ -389,24 +394,71 @@ function buildWorkflowPreviews(): SetupWorkflowPreview[] {
 }
 
 async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
-  const packageJson = await readPackageJson(repoRoot);
-  const packageManager = await detectPackageManager(repoRoot);
+  const selectedPackage = await selectPackageJson(repoRoot);
+  const packageJson = selectedPackage?.packageJson;
+  const packagePath = selectedPackage?.packagePath ?? ".";
+  const packageRoot = path.resolve(repoRoot, packagePath);
+  const packageManager = await detectPackageManager(packageRoot);
   const detectedFrameworks = detectFrameworks(packageJson);
   const sourceFiles = await collectSourceFiles(repoRoot);
   const selectors = await collectSelectors(repoRoot, sourceFiles);
   const routes = await collectRoutes(repoRoot, sourceFiles);
   const stories = await collectStories(repoRoot, sourceFiles);
   const workflows = await collectWorkflowHints(repoRoot);
-  const playwright = await detectPlaywrightPresence(repoRoot, packageJson);
-  return { packageJson, packageManager, detectedFrameworks, sourceFiles, selectors, routes, stories, workflows, playwright };
+  const playwright = await detectPlaywrightPresence(repoRoot, packageRoot, packageJson);
+  return { packageJson, packagePath, packageManager, detectedFrameworks, sourceFiles, selectors, routes, stories, workflows, playwright };
 }
 
-async function readPackageJson(repoRoot: string): Promise<PackageJsonShape | undefined> {
+async function readPackageJson(packageRoot: string): Promise<PackageJsonShape | undefined> {
   try {
-    const raw = await readFile(path.join(repoRoot, "package.json"), "utf8");
+    const raw = await readFile(path.join(packageRoot, "package.json"), "utf8");
     return JSON.parse(stripBom(raw)) as PackageJsonShape;
   } catch {
     return undefined;
+  }
+}
+
+async function selectPackageJson(repoRoot: string): Promise<{ packageJson: PackageJsonShape; packagePath: string } | undefined> {
+  const packagePaths: string[] = [];
+  await collectPackageJsonPaths(repoRoot, packagePaths);
+  const candidates: Array<{ packageJson: PackageJsonShape; packagePath: string; score: number }> = [];
+  for (const packageFile of packagePaths) {
+    const packageRoot = path.dirname(packageFile);
+    const packageJson = await readPackageJson(packageRoot);
+    if (!packageJson) continue;
+    const packagePath = normalizeSlashes(path.relative(repoRoot, packageRoot) || ".");
+    const deps = { ...(packageJson.dependencies ?? {}), ...(packageJson.devDependencies ?? {}) };
+    const scripts = packageJson.scripts ?? {};
+    let score = packagePath === "." ? 1 : 0;
+    if (["react", "vite", "next", "vue", "svelte", "@angular/core"].some((name) => name in deps)) score += 20;
+    if ("@playwright/test" in deps || "playwright" in deps) score += 12;
+    if (scripts.preview || scripts.dev || scripts.start) score += 10;
+    if (scripts.build) score += 5;
+    if (Object.values(scripts).some((command) => /\bplaywright\b/i.test(command))) score += 5;
+    if (await hasPlaywrightConfig(packageRoot)) score += 8;
+    candidates.push({ packageJson, packagePath, score });
+  }
+  candidates.sort((left, right) => right.score - left.score || left.packagePath.localeCompare(right.packagePath));
+  return candidates[0];
+}
+
+async function collectPackageJsonPaths(dir: string, results: string[]): Promise<void> {
+  if (results.length >= 100) return;
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (results.length >= 100) return;
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIPPED_DIRS.has(entry.name)) continue;
+      await collectPackageJsonPaths(fullPath, results);
+    } else if (entry.isFile() && entry.name === "package.json") {
+      results.push(fullPath);
+    }
   }
 }
 
@@ -443,25 +495,26 @@ function inferProjectType(inventory: RepoInventory): VisualHiveConfig["project"]
   return "custom";
 }
 
-function installCommand(packageManager: SetupRecommendationProject["packageManager"]): string | undefined {
-  if (packageManager === "npm") return "npm ci";
-  if (packageManager === "pnpm") return "pnpm install --frozen-lockfile";
-  if (packageManager === "yarn") return "yarn install --immutable";
+function installCommand(packageManager: SetupRecommendationProject["packageManager"], packagePath = "."): string | undefined {
+  if (packageManager === "npm") return packagePath === "." ? "npm ci" : `npm --prefix ${packagePath} ci`;
+  if (packageManager === "pnpm") return packagePath === "." ? "pnpm install --frozen-lockfile" : `pnpm --dir ${packagePath} install --frozen-lockfile`;
+  if (packageManager === "yarn") return packagePath === "." ? "yarn install --immutable" : `yarn --cwd ${packagePath} install --immutable`;
   return undefined;
 }
 
-function scriptRunner(packageManager: SetupRecommendationProject["packageManager"]): string {
-  if (packageManager === "pnpm") return "pnpm";
-  if (packageManager === "yarn") return "yarn";
-  return "npm run";
+function scriptRunner(packageManager: SetupRecommendationProject["packageManager"], packagePath = "."): string {
+  if (packageManager === "pnpm") return packagePath === "." ? "pnpm" : `pnpm --dir ${packagePath}`;
+  if (packageManager === "yarn") return packagePath === "." ? "yarn" : `yarn --cwd ${packagePath}`;
+  return packagePath === "." ? "npm run" : `npm --prefix ${packagePath} run`;
 }
 
 function serveCommand(
   packageManager: SetupRecommendationProject["packageManager"],
   scripts: Record<string, string>,
-  projectType: VisualHiveConfig["project"]["type"]
+  projectType: VisualHiveConfig["project"]["type"],
+  packagePath = "."
 ): string | undefined {
-  const runner = scriptRunner(packageManager);
+  const runner = scriptRunner(packageManager, packagePath);
   if (scripts.preview) return `${runner} preview -- --port ${DEFAULT_PORT} --strictPort`;
   if (scripts.dev) return `${runner} dev -- --host 127.0.0.1 --port ${DEFAULT_PORT}`;
   if (projectType === "nextjs" && scripts.start) return `${runner} start -- -p ${DEFAULT_PORT}`;
@@ -490,8 +543,8 @@ function buildTarget(input: {
         build: storybook.build,
         serve: storybook.serve,
         url: `http://127.0.0.1:${STORYBOOK_PORT}`,
-        stories: ["src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
-        components: ["src/components/**"],
+        stories: [inventoryPath(input.inventory, "src/**/*.stories.@(js|jsx|ts|tsx|mdx)")],
+        components: [inventoryPath(input.inventory, "src/components/**")],
         prSafe: true,
         cost: "cheap"
       },
@@ -541,7 +594,7 @@ function commandGroupTarget(
 ): { id: string; config: TargetConfig; confidence: SetupRecommendedTarget["confidence"]; reasons: string[] } | undefined {
   if (setupProfile !== "complex-app") return undefined;
   const scripts = inventory.packageJson?.scripts ?? {};
-  const runner = scriptRunner(inventory.packageManager);
+  const runner = scriptRunner(inventory.packageManager, inventory.packagePath);
   const frontend = findScript(scripts, [
     "dev:web",
     "web:dev",
@@ -660,7 +713,7 @@ function extractPort(command: string): number | undefined {
 
 function storybookCommands(inventory: RepoInventory): { serve?: string; build?: string } {
   const scripts = inventory.packageJson?.scripts ?? {};
-  const runner = scriptRunner(inventory.packageManager);
+  const runner = scriptRunner(inventory.packageManager, inventory.packagePath);
   const serveScript = scripts.storybook
     ? "storybook"
     : scripts["storybook:dev"]
@@ -681,7 +734,10 @@ function preferredSelector(selectors: SetupDetectedSelector[]): string {
     const found = selectors.find((selector) => selector.selector === `[data-testid='${id}']`);
     if (found) return found.selector;
   }
-  return selectors[0]?.selector ?? "body";
+  for (const selector of ["#root", "#app", "#main"]) {
+    if (selectors.some((candidate) => candidate.selector === selector)) return selector;
+  }
+  return "body";
 }
 
 function buildContracts(
@@ -724,7 +780,7 @@ function buildAppContracts(
     },
     reasons: [
       selector === "body"
-        ? "No data-testid selectors were detected, so the starter contract uses body until project-owned selectors are added."
+        ? "No known stable app-shell data-testid was detected, so the starter contract uses body until a project-owned shell selector is added."
         : `Detected stable project-owned selector ${selector}.`,
       "Desktop and mobile screenshots give the first PR-safe visual regression lane."
     ]
@@ -732,8 +788,23 @@ function buildAppContracts(
   const routeContracts = uniqueRoutes(inventory.routes)
     .filter((route) => route.route !== "/" && route.route !== "#/")
     .slice(0, MAX_RECOMMENDED_ROUTE_CONTRACTS)
-    .map((route) => buildRouteContract(selector, targetId, route));
+    .map((route) => buildRouteContract(preferredRouteSelector(route, inventory.selectors), targetId, route));
   return [primaryContract, ...routeContracts];
+}
+
+function preferredRouteSelector(route: SetupDetectedRoute, selectors: SetupDetectedSelector[]): string {
+  const slug = routeContractSlug(route.route);
+  const candidates = [
+    `[data-testid='${slug}-page']`,
+    `[data-testid='${slug}-view']`,
+    `[data-testid='${slug}-screen']`,
+    `[data-testid='${slug}-root']`,
+    `[data-testid='${slug}']`
+  ];
+  for (const candidate of candidates) {
+    if (selectors.some((selector) => selector.selector === candidate)) return candidate;
+  }
+  return "body";
 }
 
 function buildRouteContract(
@@ -762,6 +833,9 @@ function buildRouteContract(
     },
     reasons: [
       `Detected route hint ${route.route} in ${route.sourceFile}.`,
+      assertionSelector === "body"
+        ? "No route-specific stable data-testid was detected, so the starter route contract uses body instead of inventing or reusing a page-specific selector."
+        : `Detected route-specific project-owned selector ${assertionSelector}.`,
       "Route-specific screenshots make initial coverage broader than a single home page without requiring protected targets."
     ]
   };
@@ -822,7 +896,7 @@ function buildStorybookContracts(
           ? `Detected Storybook story ${story.title} in ${story.storyFile}; starter screenshots target ${story.route}.`
           : "Storybook was detected, but no story files were found; starter screenshots use the Storybook iframe route and should be refined after adding stories.",
         selector === "body"
-          ? "No data-testid selectors were detected, so the starter Storybook contract uses body until component-owned selectors are added."
+          ? "No known stable component data-testid was detected, so the starter Storybook contract uses body until a component-owned selector is added."
           : `Detected component selector ${selector}.`,
         "Desktop and mobile Storybook screenshots give a PR-safe component visual lane without requiring Chromatic."
       ]
@@ -1108,6 +1182,7 @@ function configInput(input: {
   targetId: string;
   target: TargetConfig;
   contracts: ContractConfig[];
+  packagePath: string;
 }): unknown {
   return {
     project: {
@@ -1133,7 +1208,7 @@ function configInput(input: {
       artifactDir: ".visual-hive/artifacts"
     },
     selection: {
-      changedFiles: selectionRulesFor(input.target, input.contracts)
+      changedFiles: selectionRulesFor(input.target, input.contracts, input.packagePath)
     },
     mutation: {
       enabled: true,
@@ -1176,22 +1251,27 @@ function configInput(input: {
   };
 }
 
-function selectionRulesFor(target: TargetConfig, contracts: ContractConfig[]): Array<{ pattern: string; contracts: string[]; risk: "medium" | "low" }> {
+function selectionRulesFor(
+  target: TargetConfig,
+  contracts: ContractConfig[],
+  packagePath = "."
+): Array<{ pattern: string; contracts: string[]; risk: "medium" | "low" }> {
   const contractIds = contracts.map((contract) => contract.id);
+  const inPackage = (pattern: string) => packagePath === "." ? pattern : `${packagePath}/${pattern}`;
   if (target.kind === "storybook") {
     return [
       {
-        pattern: "src/**/*.stories.*",
+        pattern: inPackage("src/**/*.stories.*"),
         contracts: contractIds,
         risk: "medium"
       },
       {
-        pattern: "src/components/**",
+        pattern: inPackage("src/components/**"),
         contracts: contractIds,
         risk: "medium"
       },
       {
-        pattern: "src/**",
+        pattern: inPackage("src/**"),
         contracts: contractIds,
         risk: "low"
       }
@@ -1201,27 +1281,27 @@ function selectionRulesFor(target: TargetConfig, contracts: ContractConfig[]): A
   if (routeContractIds.length) {
     return [
       {
-        pattern: "src/routes/**",
+        pattern: inPackage("src/routes/**"),
         contracts: routeContractIds,
         risk: "medium"
       },
       {
-        pattern: "src/pages/**",
+        pattern: inPackage("src/pages/**"),
         contracts: routeContractIds,
         risk: "medium"
       },
       {
-        pattern: "app/**",
+        pattern: inPackage("app/**"),
         contracts: routeContractIds,
         risk: "medium"
       },
       {
-        pattern: "pages/**",
+        pattern: inPackage("pages/**"),
         contracts: routeContractIds,
         risk: "medium"
       },
       {
-        pattern: "src/**",
+        pattern: inPackage("src/**"),
         contracts: contractIds,
         risk: "medium"
       }
@@ -1229,7 +1309,7 @@ function selectionRulesFor(target: TargetConfig, contracts: ContractConfig[]): A
   }
   return [
     {
-      pattern: "src/**",
+      pattern: inPackage("src/**"),
       contracts: contractIds,
       risk: "medium"
     }
@@ -1400,9 +1480,9 @@ function buildFindings(
 
 function buildWarnings(inventory: RepoInventory, serve: string | undefined, selector: string): string[] {
   const warnings: string[] = [];
-  if (!inventory.packageJson) warnings.push("No package.json was found at the repository root.");
+  if (!inventory.packageJson) warnings.push("No package.json was found in the repository.");
   if (!serve) warnings.push("No preview/dev/start script was detected for a command target.");
-  if (selector === "body") warnings.push("Starter contract uses body because no data-testid selectors were detected.");
+  if (selector === "body") warnings.push("Starter contract uses body because no known stable app-shell data-testid was detected.");
   if (inventory.playwright.status === "missing") warnings.push("No Playwright setup was detected in the target repo.");
   if (inventory.workflows.some((workflow) => workflow.usesPullRequestTarget)) {
     warnings.push("One or more existing workflows use pull_request_target; keep Visual Hive PR checks on pull_request.");
@@ -1451,6 +1531,16 @@ async function collectSelectors(repoRoot: string, sourceFiles: string[]): Promis
       const testId = sanitizeText(match[1] ?? "").trim();
       if (!testId) continue;
       const selector = `[data-testid='${testId}']`;
+      const existing = counts.get(selector);
+      if (existing) {
+        existing.occurrences += 1;
+      } else {
+        counts.set(selector, { selector, sourceFile: normalizeSlashes(sourceFile), occurrences: 1 });
+      }
+    }
+    STABLE_ROOT_ID_PATTERN.lastIndex = 0;
+    for (const match of raw.matchAll(STABLE_ROOT_ID_PATTERN)) {
+      const selector = `#${match[1]}`;
       const existing = counts.get(selector);
       if (existing) {
         existing.occurrences += 1;
@@ -1547,7 +1637,27 @@ async function collectWorkflowHints(repoRoot: string): Promise<SetupDetectedWork
   return workflows.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function detectPlaywrightPresence(repoRoot: string, packageJson?: PackageJsonShape): Promise<SetupPlaywrightPresence> {
+const PLAYWRIGHT_CONFIG_CANDIDATES = [
+  "playwright.config.ts",
+  "playwright.config.mts",
+  "playwright.config.cts",
+  "playwright.config.js",
+  "playwright.config.mjs",
+  "playwright.config.cjs"
+];
+
+async function hasPlaywrightConfig(packageRoot: string): Promise<boolean> {
+  for (const candidate of PLAYWRIGHT_CONFIG_CANDIDATES) {
+    if (await exists(path.join(packageRoot, candidate))) return true;
+  }
+  return false;
+}
+
+function inventoryPath(inventory: RepoInventory, relativePath: string): string {
+  return inventory.packagePath === "." ? relativePath : `${inventory.packagePath}/${relativePath}`;
+}
+
+async function detectPlaywrightPresence(repoRoot: string, packageRoot: string, packageJson?: PackageJsonShape): Promise<SetupPlaywrightPresence> {
   const deps = { ...(packageJson?.dependencies ?? {}), ...(packageJson?.devDependencies ?? {}) };
   const dependencies = Object.keys(deps)
     .filter((name) => name === "@playwright/test" || name === "playwright" || name.startsWith("@playwright/"))
@@ -1556,17 +1666,11 @@ async function detectPlaywrightPresence(repoRoot: string, packageJson?: PackageJ
     .filter(([, command]) => /\bplaywright\b/i.test(command))
     .map(([name, command]) => `${name}: ${command}`)
     .sort();
-  const configCandidates = [
-    "playwright.config.ts",
-    "playwright.config.mts",
-    "playwright.config.cts",
-    "playwright.config.js",
-    "playwright.config.mjs",
-    "playwright.config.cjs"
-  ];
   const configFiles: string[] = [];
-  for (const candidate of configCandidates) {
-    if (await exists(path.join(repoRoot, candidate))) configFiles.push(candidate);
+  for (const candidate of PLAYWRIGHT_CONFIG_CANDIDATES) {
+    if (await exists(path.join(packageRoot, candidate))) {
+      configFiles.push(normalizeSlashes(path.relative(repoRoot, path.join(packageRoot, candidate))));
+    }
   }
   const evidenceCount = dependencies.length + scripts.length + configFiles.length;
   const status: SetupPlaywrightPresence["status"] = dependencies.length && (scripts.length || configFiles.length) ? "present" : evidenceCount > 0 ? "partial" : "missing";

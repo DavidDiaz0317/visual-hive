@@ -12,6 +12,7 @@ import {
   type WriteVisualHiveBundleResult
 } from "@visual-hive/core";
 import type { HiveImportManifest, HiveValidationSummary } from "./hive.js";
+import { resolveVisualHiveReleaseIdentity } from "../releaseIdentity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -50,6 +51,7 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
   }
 
   const source = await sourceContext(rootDir, options.trustedSource ?? false);
+  const producer = await resolveVisualHiveReleaseIdentity({ requireRelease: requiresReleaseIdentity(source) });
   const artifacts = [
     hiveExportPath,
     importManifestPath,
@@ -77,8 +79,8 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     },
     issues: issues.issues,
     issuesArtifact: issuesPath,
-    producerVersion: process.env.VISUAL_HIVE_VERSION ?? process.env.npm_package_version ?? "0.2.2-dev",
-    producerGitCommit: process.env.VISUAL_HIVE_GIT_COMMIT ?? process.env.VISUAL_HIVE_BUILD_SHA ?? "unavailable",
+    producerVersion: producer.version,
+    producerGitCommit: producer.gitCommit,
     externalCallsMade: hiveExport.externalCallsMade,
     expiresInHours: options.expiresInHours,
     outputDir: options.outputDir
@@ -137,4 +139,9 @@ function parseRepository(remote: string): string {
 
 function normalize(value: string): string {
   return value.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function requiresReleaseIdentity(source: VisualHiveBundleSource): boolean {
+  return source.event !== "local"
+    || Boolean(source.workflowRunId || source.workflowRunAttempt || source.workflowArtifactId);
 }

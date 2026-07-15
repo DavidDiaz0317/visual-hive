@@ -1,12 +1,13 @@
-import { access } from "node:fs/promises";
 import path from "node:path";
 import {
   getEvidenceResourceById,
   loadConfig,
   readJson,
   sanitizeText,
+  VISUAL_HIVE_CAPABILITY_BASELINE,
   writeJson,
   writeText,
+  type CliCapability,
   type EvidenceResourceId,
   type PlanMode,
   type Report
@@ -52,6 +53,7 @@ import { runContextCommand } from "./context.js";
 import { runEvidenceCommand } from "./evidence.js";
 import { runSchemasVerifyCommand } from "./schemas.js";
 import { runSnapshotCommand } from "./snapshot.js";
+import { runCapabilitiesCommand } from "./capabilities.js";
 
 export interface PipelineCommandOptions {
   config?: string;
@@ -66,6 +68,7 @@ export interface PipelineCommandOptions {
   githubStepSummary?: boolean;
   skipInstall?: boolean;
   skipBuild?: boolean;
+  capabilityCli?: CliCapability[];
 }
 
 export type PipelineStepStatus = "passed" | "failed" | "skipped";
@@ -418,27 +421,58 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
     await runContextCommand({ config: options.config, cwd });
     return { artifacts: [catalogArtifact("context-ledger")] };
   });
-  if (await pathExists(path.join(cwd, "schemas"))) {
-    await runStep(context, "schemas", "Schema Catalog Verification", async () => {
-      const output = path.relative(cwd, path.join(context.rootDir, catalogArtifact("schema-catalog")));
-      const result = await runSchemasVerifyCommand({ cwd, output });
-      return { exitCode: result.report.status === "passed" ? 0 : 1, artifacts: [catalogArtifact("schema-catalog")] };
-    });
-  } else {
-    context.steps.push(skippedStep("schemas", "Schema Catalog Verification", "Skipped because no schemas directory was found in the pipeline working directory."));
-  }
+  await runStep(context, "schemas", "Schema Catalog Verification", async () => {
+    const output = path.relative(cwd, path.join(context.rootDir, catalogArtifact("schema-catalog")));
+    const result = await runSchemasVerifyCommand({ cwd, output });
+    return { exitCode: result.report.status === "passed" ? 0 : 1, artifacts: [catalogArtifact("schema-catalog")] };
+  });
   await runStep(context, "snapshot", "Control Plane Snapshot", async () => {
     await runSnapshotCommand({ config: options.config, cwd, readOnly: true });
     return { artifacts: [catalogArtifact("control-plane-snapshot")] };
   });
-  await runStep(context, "artifacts-final", "Artifact Index Refresh", async () => {
-    await runArtifactsCommand({ config: options.config, cwd });
-    return { artifacts: [catalogArtifact("artifacts-index")] };
+  await runStep(context, "capabilities", "Capability Parity", async () => {
+    const result = await runCapabilitiesCommand({
+      config: options.config,
+      cwd,
+      cli: options.capabilityCli,
+      baseline: VISUAL_HIVE_CAPABILITY_BASELINE
+    });
+    return {
+      exitCode: result.report.status === "passed" ? 0 : 1,
+      artifacts: [catalogArtifact("capability-parity")]
+    };
   });
-
-  const report = buildPipelineReport(context);
   const reportPath = path.join(context.rootDir, catalogArtifact("pipeline-status"));
+  const sealedAt = new Date().toISOString();
+  const artifactSealStep: PipelineStepResult = {
+    id: "artifacts-final",
+    label: "Artifact Index Refresh",
+    status: "passed",
+    startedAt: sealedAt,
+    completedAt: sealedAt,
+    durationMs: 0,
+    exitCode: 0,
+    artifacts: [catalogArtifact("artifacts-index")]
+  };
+  context.steps.push(artifactSealStep);
+
+  // pipeline.json must exist with its final successful bytes before the complete
+  // content-addressed index is sealed. On success neither the report nor the
+  // indexed file is mutated again, avoiding a self-stale artifact index.
+  let report = buildPipelineReport(context);
   await writeJson(reportPath, report);
+  try {
+    await runArtifactsCommand({ config: options.config, cwd, complete: true });
+  } catch (error) {
+    artifactSealStep.status = "failed";
+    artifactSealStep.exitCode = 1;
+    artifactSealStep.completedAt = new Date().toISOString();
+    artifactSealStep.durationMs = Math.max(0, Date.parse(artifactSealStep.completedAt) - Date.parse(artifactSealStep.startedAt));
+    artifactSealStep.artifacts = [];
+    artifactSealStep.message = sanitizeText(error instanceof Error ? error.message : String(error));
+    report = buildPipelineReport(context);
+    await writeJson(reportPath, report);
+  }
   return { report, reportPath, exitCode: report.exitCode };
 }
 
@@ -501,9 +535,13 @@ async function runStep(
 function buildPipelineReport(context: PipelineContext): PipelineReport {
   const failedStep = context.steps.find((step) => step.status === "failed" && !(context.intentionalNoContracts && step.id === "readiness"));
   const readinessStep = context.steps.find((step) => step.id === "readiness");
+  const integrityFailure = context.steps.find((step) =>
+    step.status === "failed" && ["schemas", "capabilities", "artifacts-final"].includes(step.id)
+  );
   const advisoryFailureExitCode = failedStep && !context.options.continueOnError ? 1 : 0;
   const readinessExitCode = context.readinessBlocked && !context.intentionalNoContracts ? 1 : 0;
-  const exitCode = context.deterministicExitCode || context.mutationExitCode || readinessExitCode || advisoryFailureExitCode;
+  const integrityExitCode = integrityFailure ? 1 : 0;
+  const exitCode = context.deterministicExitCode || context.mutationExitCode || readinessExitCode || integrityExitCode || advisoryFailureExitCode;
   const rootCause =
     exitCode === 0
       ? undefined
@@ -513,7 +551,9 @@ function buildPipelineReport(context: PipelineContext): PipelineReport {
           ? "mutation_enforcement_failed"
           : readinessExitCode > 0
             ? "readiness_blocked"
-            : failedStep
+            : integrityFailure
+              ? `${integrityFailure.id}_failed`
+              : failedStep
               ? `${failedStep.id}_failed`
               : undefined;
   return {
@@ -536,15 +576,6 @@ function catalogArtifact(resourceId: EvidenceResourceId): string {
     throw new Error(`Pipeline artifact resource ${resourceId} is not registered in the shared evidence-resource catalog.`);
   }
   return resource.relativePath;
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function updateNoContractIntent(context: PipelineContext): Promise<void> {

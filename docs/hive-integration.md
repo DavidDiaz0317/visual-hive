@@ -23,6 +23,7 @@ Visual Hive inputs for Hive export:
 - `.visual-hive/issues.json`
 - `.visual-hive/issue-queue.json`
 - `.visual-hive/handoff.json`
+- `.visual-hive/capability-parity.json`
 - `.visual-hive/artifacts-index.json`
 - `.visual-hive/agent-packet.json` when available
 - `.visual-hive/path-leak-scan.json` when available
@@ -53,7 +54,11 @@ visual-hive hive bundle --config visual-hive.config.yaml
 
 `integration-smoke` runs export, bead projection, validation, and setup-pack generation locally with `externalCallsMade: 0`.
 
-`hive bundle` is the trust boundary. It refuses blocked validation, copies every import artifact into a temporary directory, records per-file and aggregate SHA-256 digests, then atomically renames the completed bundle. Trusted GitHub workflows pass `--trusted-source`; local proofs omit it and Hive must explicitly opt into `--allow-local`.
+`hive bundle` is the trust boundary. The writer emits `visual-hive.bundle.v3` and retains verification support for existing v2 manifests. Before creating a temporary bundle, it requires a passing `.visual-hive/capability-parity.json` receipt and a complete content-addressed `.visual-hive/artifacts-index.json`. It strictly enumerates the indexed evidence root, rejects unlisted or non-regular entries and linked path components, reads each accepted file once from a stable handle, and writes those exact bytes into a private directory before atomic publication. Every compact import file must match an index entry; the receipt and index are always copied into the bundle and bound into its aggregate digest.
+
+The v3 manifest also requires immutable hosted source-artifact identity. Canonical generation and expiry timestamps, repository, commit, workflow name, workflow run ID, workflow run attempt, workflow artifact ID, event, conclusion, and the producer trust claim are bound into the digest; the run attempt is also part of replay identity. Expiry must be later than generation. Hive can therefore download the complete source artifact named by that identity and verify its exact path, byte-size, and SHA-256 set against the bundled index without copying every large evidence file into the compact handoff bundle. Standalone local `hive bundle` remains available and emits a verifiable v2 bundle when no hosted identity is present. `--trusted-source` may retain a local operator trust claim on that v2 manifest, but the claim remains advisory and does not invent hosted provenance. Any hosted event or partial hosted identity fails closed unless the complete v3 identity is available.
+
+Bundle producer version and commit come from the installed Visual Hive package identity or the adjacent immutable release manifest. Consumer npm metadata and working-directory package versions cannot replace that producer identity. Hosted v3 publication also requires that identity to carry explicit `release: true` and `clean: true` markers created from an exact 40-character clean HEAD; missing, legacy, unavailable, or developer-build identity remains usable for local v2 but cannot confer hosted authority. Package and release-bundle construction reject staged, unstaged, relevant untracked, or environment-SHA-mismatched source state before emitting those markers. Likewise, automatic schema discovery validates and prefers the catalog shipped beside the installed CLI; an unrelated repository-level `schemas/` directory cannot shadow it.
 
 ## ACMM Compatibility
 

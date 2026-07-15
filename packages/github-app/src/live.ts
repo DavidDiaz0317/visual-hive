@@ -44,6 +44,18 @@ interface GitHubIssueResponse {
   title?: string;
 }
 
+interface GitHubContentResponse {
+  type?: string;
+  content?: string;
+  encoding?: string;
+}
+
+interface ProtectedLifecycleCheck {
+  owner: "visual-hive" | "hive" | "blocked";
+  networkCallsMade: number;
+  message: string;
+}
+
 export async function publishGitHubAppIssuesFromWebhookResult(
   webhookResult: VisualHiveGitHubAppWebhookResult,
   options: GitHubAppLivePublishOptions = {}
@@ -116,6 +128,23 @@ export async function publishGitHubAppIssuesFromWebhookResult(
     const payload = action.issuePayload;
     const repository = action.repository;
     if (!payload || !repository) continue;
+    const lifecycle = await verifyProtectedLifecycleOwner({
+      fetchImpl,
+      apiBaseUrl,
+      token: tokenBody.token,
+      repository
+    });
+    networkCallsMade += lifecycle.networkCallsMade;
+    if (lifecycle.owner !== "visual-hive") {
+      results.push({
+        repository,
+        title: payload.title,
+        status: lifecycle.owner === "hive" ? "skipped" : "blocked",
+        dedupeFingerprint: payload.dedupeFingerprint,
+        message: lifecycle.message
+      });
+      continue;
+    }
     const publish = await createOrUpdateIssue({
       fetchImpl,
       apiBaseUrl,
@@ -137,6 +166,102 @@ export async function publishGitHubAppIssuesFromWebhookResult(
     repoCodeExecuted: false,
     missingForLive: [],
     results
+  };
+}
+
+async function verifyProtectedLifecycleOwner(input: {
+  fetchImpl: typeof fetch;
+  apiBaseUrl: string;
+  token: string;
+  repository: string;
+}): Promise<ProtectedLifecycleCheck> {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${input.token}`,
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+  let response: Response;
+  try {
+    response = await input.fetchImpl(
+      `${input.apiBaseUrl}/repos/${input.repository}/contents/.hive/integrated.json`,
+      { headers }
+    );
+  } catch {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because protected Hive lifecycle ownership could not be verified."
+    };
+  }
+  if (response.status === 404) {
+    return {
+      owner: "visual-hive",
+      networkCallsMade: 1,
+      message: "No protected Hive installation marker exists; standalone Visual Hive lifecycle ownership remains active."
+    };
+  }
+  if (!response.ok) {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: `Refusing GitHub App issue publication because protected Hive lifecycle ownership returned HTTP ${response.status}.`
+    };
+  }
+
+  let file: GitHubContentResponse;
+  try {
+    file = await response.json() as GitHubContentResponse;
+  } catch {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because protected Hive lifecycle ownership was not valid JSON."
+    };
+  }
+  if (file.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because .hive/integrated.json is not a protected regular file."
+    };
+  }
+
+  let marker: unknown;
+  try {
+    marker = JSON.parse(Buffer.from(file.content.replace(/\s/g, ""), "base64").toString("utf8")) as unknown;
+  } catch {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because protected .hive/integrated.json is invalid."
+    };
+  }
+  if (!marker || typeof marker !== "object" || Array.isArray(marker)) {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because protected .hive/integrated.json is malformed."
+    };
+  }
+  const record = marker as Record<string, unknown>;
+  if (record.visual_hive !== true) {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because a protected Hive marker cannot grant standalone lifecycle ownership. Remove it through the audited Hive uninstall path."
+    };
+  }
+  if (typeof record.repository !== "string" || record.repository.toLowerCase() !== input.repository.toLowerCase()) {
+    return {
+      owner: "blocked",
+      networkCallsMade: 1,
+      message: "Refusing GitHub App issue publication because protected Hive repository identity does not match this repository."
+    };
+  }
+  return {
+    owner: "hive",
+    networkCallsMade: 1,
+    message: "managed_by_hive: protected default-branch installation state assigns lifecycle writes to Hive."
   };
 }
 

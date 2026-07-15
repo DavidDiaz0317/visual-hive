@@ -17,6 +17,7 @@ export type VisualHiveIssueKind =
 
 export type VisualHiveIssueSeverity = "low" | "medium" | "high" | "critical";
 export type VisualHiveIssueStatus = "open_candidate" | "update_candidate" | "resolved_candidate" | "suppressed" | "blocked";
+export type VisualHivePublicationRole = "canonical" | "derivative" | "aggregate";
 export type VisualHiveOwningAgentHint =
   | "visual-hive/setup"
   | "visual-hive/map"
@@ -41,6 +42,9 @@ export interface VisualHiveIssueCandidate {
   severity: VisualHiveIssueSeverity;
   status: VisualHiveIssueStatus;
   dedupeFingerprint: string;
+  publicationRole: VisualHivePublicationRole;
+  rootCauseKey: string;
+  blockedByRootKeys: string[];
   title: string;
   labels: string[];
   body: string;
@@ -69,12 +73,19 @@ export interface VisualHiveIssueSuppression {
   expiresAt?: string;
 }
 
+export interface VisualHiveLifecyclePolicy {
+  owner: "visual-hive" | "hive";
+  standaloneIssueWrites: "allowed" | "suppressed";
+  reason: string;
+}
+
 export interface VisualHiveIssuesReport {
   schemaVersion: "visual-hive.issues.v1";
   generatedAt: string;
   project: string;
   externalCallsMade: 0;
   networkCallsMade: 0;
+  lifecycle?: VisualHiveLifecyclePolicy;
   sourceArtifacts: {
     report?: string;
     mutationReport?: string;
@@ -145,7 +156,7 @@ export interface VisualHiveSetupIssue {
 }
 
 export type VisualHiveIssuePublishMode = "dry_run" | "live";
-export type VisualHiveIssuePublishStatus = "ready" | "blocked" | "dry_run_written" | "published" | "failed";
+export type VisualHiveIssuePublishStatus = "ready" | "blocked" | "managed_by_hive" | "dry_run_written" | "published" | "failed";
 export type VisualHiveIssuePublishAction = "create" | "update" | "skip" | "blocked";
 
 export interface VisualHivePublishedIssueRef {
@@ -180,6 +191,7 @@ export interface VisualHiveIssuePublishPlan {
   status: "ready" | "blocked";
   externalCallsMade: 0;
   networkCallsMade: 0;
+  lifecycle?: VisualHiveLifecyclePolicy;
   sourceArtifacts: {
     issues: string;
     handoffValidation?: string;
@@ -204,6 +216,7 @@ export interface VisualHiveIssuePublishDryRun {
   status: "ready" | "blocked";
   externalCallsMade: 0;
   networkCallsMade: 0;
+  lifecycle?: VisualHiveLifecyclePolicy;
   wouldCreateIssues: number;
   wouldUpdateIssues: number;
   wouldSkipIssues: number;
@@ -219,6 +232,7 @@ export interface VisualHiveIssuePublishResult {
   status: VisualHiveIssuePublishStatus;
   externalCallsMade: number;
   networkCallsMade: number;
+  lifecycle?: VisualHiveLifecyclePolicy;
   realGithubIssuesCreated: number;
   realGithubIssuesUpdated: number;
   blockedReasons: string[];

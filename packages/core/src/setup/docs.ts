@@ -15,6 +15,7 @@ export function buildSetupDocsMarkdown(report: SetupRecommendationReport): strin
     `- Detected type: ${safe(report.project.type)}`,
     `- Setup profile: ${safe(report.setupProfile)}`,
     `- Package manager: ${safe(report.project.packageManager)}`,
+    `- Selected package path: ${safe(report.project.packagePath ?? ".")}`,
     `- Frameworks: ${listInline(report.project.detectedFrameworks)}`,
     `- Config path: ${safe(report.configPath)}`,
     `- Playwright setup: ${safe(report.playwright.status)}`,

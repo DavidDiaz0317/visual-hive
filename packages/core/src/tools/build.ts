@@ -24,6 +24,7 @@ const ROLE_TOOL_PRIORITY: Record<ToolRole, string[]> = {
     "visual_hive_recommend_setup",
     "visual_hive_read_setup_recommendations",
     "visual_hive_read_setup_pr_plan",
+    "visual_hive_manage_adapters",
     "visual_hive_plan",
     "visual_hive_read_control_plane_snapshot",
     "visual_hive_agent_packet"
@@ -426,7 +427,16 @@ function allTools(): ToolRegistryEntry[] {
     evidenceCli("tool-registry", ["review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     evidenceCli("context-ledger", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], { writes: [] }),
     evidenceCli("artifacts-index", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], { writes: [] }),
+    evidenceCli("adapter-lifecycle-plan", ["setup_agent", "review_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("adapter-odiff-result", ["test_creator", "review_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("adapter-vrt-result", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "schedule", "manual", "trusted"], { writes: [] }),
+    evidenceCli("capability-parity", ["setup_agent", "review_agent", "handoff_agent"], ["local", "pr", "schedule", "manual", "trusted"], { writes: [] }),
     cli("visual_hive_agent_packet", "Generate Agent Packet", "Write a bounded role-specific packet for an agent.", "read_only", "local", ["setup_agent", "repair_agent", "test_creator", "review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual"], "visual-hive agent-packet", [".visual-hive/agent-packet.json"]),
+    cli("visual_hive_manage_adapters", "Manage open-source adapters", "Plan repository-specific install, update, use, skip, and replacement decisions; apply only an explicitly requested exact local ODiff pin.", "local_execution", "local", ["setup_agent", "review_agent", "provider_specialist"], ["local", "manual", "trusted"], "visual-hive adapters manage", [".visual-hive/adapters/lifecycle-plan.json"], {
+      forbiddenInPullRequest: true,
+      writeRestrictions: ["Default plan mode writes generated evidence only.", "Do not pass --apply without reviewed dependency-write authority.", "Never provision VRT, upload screenshots, approve baselines, or change verdict policy."],
+      notes: ["Playwright remains primary evidence and Visual Hive remains verdict authority."]
+    }),
     evidenceCli("provider-results", ["review_agent", "handoff_agent", "provider_specialist"], ["local", "pr", "schedule", "manual", "trusted"], {
       writes: []
     }),
@@ -453,7 +463,7 @@ function allTools(): ToolRegistryEntry[] {
     entry({
       id: "odiff_local_compare",
       label: "ODiff local image comparison",
-      description: "Optional Apache-2.0 local image-diff engine for a second deterministic comparison implementation.",
+      description: "Optional MIT-licensed local image-diff engine for a second deterministic comparison implementation.",
       kind: "local_cli",
       enabled: false,
       defaultAccess: "local_execution",

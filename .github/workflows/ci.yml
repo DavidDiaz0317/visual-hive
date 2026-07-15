@@ -17,12 +17,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run smoke:release
       - run: npm run typecheck
       - run: npm test
       - run: npm run lint
-      - run: npx playwright install --with-deps chromium
       - run: npm run demo:e2e
       - run: npm run demo:ci
       - run: npm run smoke:ui:browser

@@ -71,15 +71,32 @@ Visual Hive remains the verdict authority. Tools may gather evidence, repair cod
 
 `odiff_local_compare` and `visual_regression_tracker_review` carry machine-readable `adapterLifecycle` metadata: exact version, license, capabilities, install method, health check, output schema, platforms, maturity, maintenance status, update policy, replacement criteria, and rollback. Both start disabled.
 
+Turn that registry metadata into a repository-specific, no-network decision artifact with:
+
+```bash
+visual-hive adapters manage --config visual-hive.config.yaml
+```
+
+This writes `.visual-hive/adapters/lifecycle-plan.json`. The plan counts configured screenshot contracts, checks the repository package manager and exact ODiff package/lock state, checks platform support, and reports only VRT credential *names* that are present or missing. Its decision for each adapter is one of `install`, `update`, `use`, `skip`, or `replace`; it also carries the registry update, replacement, and rollback policy that an agent must follow.
+
+After reviewing the dependency change, apply the local ODiff decision with:
+
+```bash
+visual-hive adapters manage --config visual-hive.config.yaml --apply
+```
+
+Apply mode is deliberately narrow: it can install or update `odiff-bin` to the reviewed exact npm pin, then verifies the package-lock integrity, direct executable version, and identical/different golden-image parity fixtures. It fails closed and keeps Playwright/pixelmatch active when any check fails. It never installs VRT infrastructure, uploads screenshots, stores credentials, approves a baseline, or changes the Visual Hive verdict.
+
 Use ODiff 4.3.8 as supplemental local evidence after the setup agent installs an exact pin and the repository's golden-image parity fixtures pass:
 
 ```bash
 visual-hive adapters odiff compare \
   --baseline visual-hive.baselines/app.png \
   --actual .visual-hive/artifacts/screenshots/app.png \
-  --diff .visual-hive/artifacts/diffs/app-odiff.png \
-  --command ./node_modules/.bin/odiff
+  --diff .visual-hive/artifacts/diffs/app-odiff.png
 ```
+
+The compare command resolves the manager-installed package binary directly (including the Windows executable, where npm's generated `.cmd` shim is not usable). `--command` remains available only for a separately reviewed executable override.
 
 Use the VRT 5.1.1 REST adapter only in a trusted non-PR lane. Supply `VRT_APIURL`, `VRT_APIKEY`, `VRT_PROJECT`, and `VRT_BRANCH`; never put the key in config or command history:
 
@@ -92,4 +109,4 @@ visual-hive adapters vrt upload \
 
 The VRT adapter creates a build, uploads one screenshot under the v5 SDK contract, closes the build, and writes only sanitized supplemental metadata. Its review result cannot turn a failed Visual Hive verdict green or approve a baseline.
 
-For an update, the setup agent must open a dedicated dependency/tooling PR, retain the old pin for rollback, verify license and platform inventory, run health and compatibility tests, run all golden-image fixtures, and validate the JSON output schema. Replace or retire an adapter when any registry replacement criterion is met. Never silently substitute an adapter during a production run.
+For an update, the setup agent must open a dedicated dependency/tooling PR, retain the old pin for rollback, verify license and platform inventory, run health and compatibility tests, run all golden-image fixtures, and validate the JSON output schema. Replace or retire an adapter when any registry replacement criterion is met. The manager reports replacement decisions but does not silently uninstall or substitute an adapter during a production run.

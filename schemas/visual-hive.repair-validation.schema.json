@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.repair-validation.schema.json",
+  "title": "Visual Hive Repair Validation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "dependentRequired": {
+    "sessionId": ["sessionDigest", "authorizationDigest"],
+    "sessionDigest": ["sessionId", "authorizationDigest"],
+    "authorizationDigest": ["sessionId", "sessionDigest"]
+  },
+  "required": ["schemaVersion", "generatedAt", "validationId", "taskId", "taskContextDigest", "findingFingerprint", "hiveRepairResultDigest", "repository", "baseSha", "headSha", "beforeBundleDigest", "afterBundleDigest", "beforeReportDigest", "afterReportDigest", "beforeRunContextDigest", "afterRunContextDigest", "before", "after", "comparability", "obligations", "screenshotTriplets", "lanes", "remainingFailures", "newFailures", "findingBeforeStatus", "findingStatus", "authoritativeForResolution", "policyChanges", "verdict", "closureRecommendation", "digestAlgorithm", "receiptDigest"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.repair-validation.v1" },
+    "generatedAt": { "$ref": "#/$defs/timestamp" },
+    "validationId": { "$ref": "#/$defs/boundedId" },
+    "sessionId": { "$ref": "#/$defs/sha256" },
+    "sessionDigest": { "$ref": "#/$defs/sha256" },
+    "authorizationDigest": { "$ref": "#/$defs/sha256" },
+    "taskId": { "$ref": "#/$defs/boundedId" },
+    "taskContextDigest": { "$ref": "#/$defs/sha256" },
+    "findingFingerprint": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "hiveRepairResultDigest": { "$ref": "#/$defs/sha256" },
+    "repository": { "$ref": "#/$defs/repository" },
+    "baseSha": { "$ref": "#/$defs/gitCommit" },
+    "headSha": { "$ref": "#/$defs/gitCommit" },
+    "beforeBundleDigest": { "$ref": "#/$defs/sha256" },
+    "afterBundleDigest": { "$ref": "#/$defs/sha256" },
+    "beforeReportDigest": { "$ref": "#/$defs/sha256" },
+    "afterReportDigest": { "$ref": "#/$defs/sha256" },
+    "beforeRunContextDigest": { "$ref": "#/$defs/sha256" },
+    "afterRunContextDigest": { "$ref": "#/$defs/sha256" },
+    "before": { "$ref": "#/$defs/executionContext" },
+    "after": { "$ref": "#/$defs/executionContext" },
+    "comparability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "comparedFields", "differences"],
+      "properties": {
+        "status": { "enum": ["comparable", "non_comparable"] },
+        "comparedFields": { "type": "array", "minItems": 12, "maxItems": 12, "items": { "$ref": "#/$defs/comparabilityField" } },
+        "differences": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "beforeDigest", "afterDigest"],
+            "properties": {
+              "field": { "$ref": "#/$defs/comparabilityField" },
+              "beforeDigest": { "$ref": "#/$defs/sha256" },
+              "afterDigest": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["obligationId", "deterministic", "status", "contractIds", "evidenceAssetIds"],
+        "properties": {
+          "obligationId": { "$ref": "#/$defs/boundedId" },
+          "deterministic": { "type": "boolean" },
+          "status": { "enum": ["passed", "failed", "blocked", "not_evaluated"] },
+          "contractIds": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/boundedId" } },
+          "evidenceAssetIds": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/boundedId" } },
+          "reason": { "$ref": "#/$defs/shortText" }
+        }
+      }
+    },
+    "screenshotTriplets": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["obligationId", "beforeAssetId", "afterAssetId", "diffPixels", "totalPixels", "diffRatio"],
+        "properties": {
+          "obligationId": { "$ref": "#/$defs/boundedId" },
+          "beforeAssetId": { "$ref": "#/$defs/boundedId" },
+          "afterAssetId": { "$ref": "#/$defs/boundedId" },
+          "diffAssetId": { "$ref": "#/$defs/boundedId" },
+          "diffPixels": { "type": "integer", "minimum": 0 },
+          "totalPixels": { "type": "integer", "minimum": 1 },
+          "diffRatio": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targeted", "regression", "mutation"],
+      "properties": {
+        "targeted": { "$ref": "#/$defs/validationLane" },
+        "regression": { "$ref": "#/$defs/validationLane" },
+        "mutation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "killed", "survived", "operatorIds"],
+          "properties": {
+            "status": { "enum": ["passed", "failed", "blocked", "not_required"] },
+            "killed": { "type": "integer", "minimum": 0 },
+            "survived": { "type": "integer", "minimum": 0 },
+            "operatorIds": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/boundedId" } }
+          }
+        }
+      }
+    },
+    "remainingFailures": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/failure" } },
+    "newFailures": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/failure" } },
+    "findingBeforeStatus": { "enum": ["present", "absent", "not_evaluated"] },
+    "findingStatus": { "enum": ["present", "absent", "not_evaluated"] },
+    "authoritativeForResolution": { "type": "boolean" },
+    "policyChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configChanged", "validationPolicyChanged", "thresholdWeakened", "baselineChanged"],
+      "properties": {
+        "configChanged": { "type": "boolean" },
+        "validationPolicyChanged": { "type": "boolean" },
+        "thresholdWeakened": { "type": "boolean" },
+        "baselineChanged": { "type": "boolean" }
+      }
+    },
+    "claimedOutcome": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "\\S" },
+    "verdict": { "enum": ["pass", "fail", "blocked"] },
+    "closureRecommendation": { "enum": ["keep_open", "resolved_candidate"] },
+    "digestAlgorithm": { "const": "visual-hive.canonical-json.sha256.v1" },
+    "receiptDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "boundedId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$" },
+    "repository": { "type": "string", "minLength": 3, "maxLength": 512, "pattern": "^(?!\\.\\.?/)(?![^/]+/\\.\\.?$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "shortText": { "type": "string", "minLength": 1, "maxLength": 2048, "pattern": "\\S" },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewportId", "width", "height", "deviceScaleFactor"],
+      "properties": {
+        "viewportId": { "$ref": "#/$defs/boundedId" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "deviceScaleFactor": { "type": "number", "exclusiveMinimum": 0, "maximum": 8, "default": 1 }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "channel": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture", "nodeVersion", "playwrightVersion", "fontManifestDigest", "locale", "timezone"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "architecture": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "nodeVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "playwrightVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fontManifestDigest": { "$ref": "#/$defs/sha256" },
+        "locale": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "timezone": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "executionContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitSha", "profileId", "profileDigest", "configDigest", "validationPolicyDigest", "contractInventoryDigest", "planDigest", "testPlanDigest", "toolRegistryDigest", "baselineIdentityDigest", "executionMatrixDigest", "browser", "environment", "cases"],
+      "properties": {
+        "commitSha": { "$ref": "#/$defs/gitCommit" },
+        "profileId": { "$ref": "#/$defs/boundedId" },
+        "profileDigest": { "$ref": "#/$defs/sha256" },
+        "configDigest": { "$ref": "#/$defs/sha256" },
+        "validationPolicyDigest": { "$ref": "#/$defs/sha256" },
+        "contractInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "planDigest": { "$ref": "#/$defs/sha256" },
+        "testPlanDigest": { "$ref": "#/$defs/sha256" },
+        "toolRegistryDigest": { "$ref": "#/$defs/sha256" },
+        "baselineIdentityDigest": { "$ref": "#/$defs/sha256" },
+        "executionMatrixDigest": { "$ref": "#/$defs/sha256" },
+        "browser": { "$ref": "#/$defs/browser" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "cases": { "type": "array", "minItems": 1, "maxItems": 512, "items": { "$ref": "#/$defs/executionCase" } }
+      }
+    },
+    "executionCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "targetId", "route", "state", "viewport", "contractIds"],
+      "properties": {
+        "caseId": { "$ref": "#/$defs/boundedId" },
+        "targetId": { "$ref": "#/$defs/boundedId" },
+        "route": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "state": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "contractIds": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/boundedId" } }
+      }
+    },
+    "comparabilityField": { "enum": ["profileId", "profileDigest", "validationPolicyDigest", "contractInventoryDigest", "planDigest", "testPlanDigest", "toolRegistryDigest", "baselineIdentityDigest", "executionMatrixDigest", "browser", "environment", "cases"] },
+    "validationLane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileId", "status", "evaluatedContractIds", "failures"],
+      "properties": {
+        "profileId": { "$ref": "#/$defs/boundedId" },
+        "status": { "enum": ["passed", "failed", "blocked", "skipped"] },
+        "evaluatedContractIds": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/boundedId" } },
+        "failures": { "type": "array", "maxItems": 512, "items": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "\\S" } }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "message"],
+      "properties": {
+        "id": { "$ref": "#/$defs/boundedId" },
+        "severity": { "enum": ["critical", "high", "medium", "low"] },
+        "message": { "$ref": "#/$defs/shortText" }
+      }
+    }
+  }
+}

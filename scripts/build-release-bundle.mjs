@@ -1,15 +1,20 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { cp, chmod, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, chmod, lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { resolveReleaseSourceIdentity } from "./release-source-identity.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+const verifyTreeOnly = valueAfter("--verify-tree-only");
+if (verifyTreeOnly) {
+  console.log(JSON.stringify(await listFiles(path.resolve(verifyTreeOnly))));
+  process.exit(0);
+}
 const outputDir = path.resolve(repoRoot, valueAfter("--output") ?? path.join("dist", `visual-hive-${packageJson.version}`));
-const gitCommit = process.env.VISUAL_HIVE_GIT_COMMIT?.trim() || (await readGitCommit());
+const sourceIdentity = resolveReleaseSourceIdentity({ repoRoot, requireClean: true });
 
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
@@ -28,7 +33,7 @@ await build({
   }
 });
 
-for (const dependency of ["@playwright/test", "playwright", "playwright-core"]) {
+for (const dependency of ["@playwright/test", "playwright", "playwright-core", "pixelmatch", "pngjs"]) {
   const source = path.join(repoRoot, "node_modules", ...dependency.split("/"));
   const destination = path.join(outputDir, "node_modules", ...dependency.split("/"));
   await cp(source, destination, { recursive: true });
@@ -66,6 +71,10 @@ for (const relativePath of files) {
 const playwrightPackage = JSON.parse(
   await readFile(path.join(repoRoot, "node_modules", "@playwright", "test", "package.json"), "utf8")
 );
+const finalSourceIdentity = resolveReleaseSourceIdentity({ repoRoot, requireClean: true });
+if (finalSourceIdentity.gitCommit !== sourceIdentity.gitCommit) {
+  throw new Error("Visual Hive release HEAD changed while building the release bundle.");
+}
 await writeFile(
   path.join(outputDir, "release-manifest.json"),
   `${JSON.stringify(
@@ -73,7 +82,9 @@ await writeFile(
       schemaVersion: "visual-hive.release.v1",
       name: "visual-hive",
       version: packageJson.version,
-      gitCommit,
+      gitCommit: sourceIdentity.gitCommit,
+      release: true,
+      clean: sourceIdentity.clean,
       node: ">=22",
       entrypoint: "visual-hive.mjs",
       playwrightVersion: playwrightPackage.version,
@@ -95,24 +106,21 @@ function valueAfter(flag) {
   return value;
 }
 
-async function readGitCommit() {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8", windowsHide: true }).trim();
-  } catch {
-    return "unknown";
-  }
-}
-
 async function listFiles(root) {
+  const rootInfo = await lstat(root);
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
+    throw new Error("release bundle root must be a real directory");
+  }
   const result = [];
   async function visit(current, prefix = "") {
     for (const name of (await readdir(current)).sort()) {
       const absolute = path.join(current, name);
       const relative = path.join(prefix, name);
-      const info = await stat(absolute);
+      const info = await lstat(absolute);
       if (info.isSymbolicLink()) throw new Error(`release bundle cannot contain symlinks: ${relative}`);
       if (info.isDirectory()) await visit(absolute, relative);
       else if (info.isFile()) result.push(relative);
+      else throw new Error(`release bundle cannot contain non-regular entries: ${relative}`);
     }
   }
   await visit(root);

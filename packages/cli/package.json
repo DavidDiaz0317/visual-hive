@@ -1,6 +1,6 @@
 {
   "name": "@visual-hive/cli",
-  "version": "0.2.2",
+  "version": "0.3.2",
   "description": "Visual Hive command-line interface.",
   "type": "module",
   "license": "MIT",
@@ -29,7 +29,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/copy-cli-schemas.mjs",
+    "prepack": "node ../../scripts/build-cli-release-package.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -40,7 +41,8 @@
     "@visual-hive/github-adapter": "*",
     "@visual-hive/llm-adapter": "*",
     "@visual-hive/playwright-adapter": "*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

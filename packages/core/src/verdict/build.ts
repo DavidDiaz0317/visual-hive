@@ -1,7 +1,7 @@
 import path from "node:path";
 import { access } from "node:fs/promises";
 import { aggregateVerdict, buildEvidencePacket } from "../evidence/build.js";
-import type { EvidenceContribution, EvidencePacket } from "../evidence/types.js";
+import { evidenceContributionKey, type EvidenceContribution, type EvidencePacket } from "../evidence/types.js";
 import { readJson, writeJson, writeText } from "../utils/files.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import type { VerdictContribution, VerdictReport } from "./types.js";
@@ -122,7 +122,7 @@ export function renderVerdictMarkdown(report: VerdictReport): string {
 function contributionRows(contributions: EvidenceContribution[]): VerdictContribution[] {
   return contributions.map((contribution) => ({
     ...contribution,
-    key: contribution.key ?? contributionKey(contribution),
+    key: contribution.key ?? evidenceContributionKey(contribution),
     authority: contribution.authority ?? (contribution.gating ? "gating" : "advisory")
   }));
 }
@@ -130,14 +130,9 @@ function contributionRows(contributions: EvidenceContribution[]): VerdictContrib
 function normalizeEvidenceContributions(contributions: EvidenceContribution[]): EvidenceContribution[] {
   return contributions.map((contribution) => ({
     ...contribution,
-    key: contribution.key ?? contributionKey(contribution),
+    key: contribution.key ?? evidenceContributionKey(contribution),
     authority: contribution.authority ?? (contribution.gating ? "gating" : "advisory")
   }));
-}
-
-function contributionKey(contribution: Pick<EvidenceContribution, "source" | "kind" | "contractId" | "operator" | "providerId">): string {
-  const id = contribution.contractId ?? contribution.operator ?? contribution.providerId;
-  return [contribution.source, contribution.kind, id].filter(Boolean).join(".");
 }
 
 function countStatus(contributions: VerdictContribution[], status: VerdictContribution["status"]): number {

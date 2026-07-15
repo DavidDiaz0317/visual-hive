@@ -2,6 +2,8 @@
 
 This protocol defines the first research study shape for Visual Hive. It is intended for a systems/software-engineering paper, not a marketing report.
 
+The preregistered Hive-versus-Hive-with-Visual-Hive experiment is specified separately in [`swebench-multimodal-protocol.md`](./swebench-multimodal-protocol.md). Its repository-grouped task split, thresholds, and private-test boundary are frozen and must not be inferred from this broader product-study protocol.
+
 ## Study Design
 
 Use three evaluation tracks:

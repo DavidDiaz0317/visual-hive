@@ -9,6 +9,10 @@ export interface MutationOperatorMetadata {
   defaultHeuristic: string;
 }
 
+// This exact value is emitted by the first-party Playwright mutation hook. Keep
+// trusted repair and coverage guidance bound to that runtime marker.
+export const API_500_MUTATION_MARKER = "visual-hive api-500 mutation";
+
 export const MUTATION_OPERATOR_METADATA: Record<MutationOperator, MutationOperatorMetadata> = {
   "hide-critical-button": {
     id: "hide-critical-button",
