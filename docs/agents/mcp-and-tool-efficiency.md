@@ -123,7 +123,9 @@ The initial MCP server exposes read-only artifact resources:
 
 These resources are sanitized before being returned. Missing artifacts are reported as missing evidence, not as pass/fail decisions.
 
-## Default Tools
+## Cataloged Read-only Tools
+
+The MCP schema catalogs read-only tools from both server scopes in one canonical order. The general artifact server exposes the general tools; the repair-session-only subset is identified immediately after the list.
 
 - `visual_hive_compare_assets`
 - `visual_hive_doctor`
@@ -224,6 +226,10 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_validate_handoff`
 - `visual_hive_validate_hive_export`
 
+### Repair-session-only subset
+
+The separate `visual-hive repair mcp` server exposes `visual_hive_get_task_context`, `visual_hive_get_issue_context`, `visual_hive_search_surface`, `visual_hive_get_visual_asset`, `visual_hive_get_screenshot_set`, `visual_hive_get_browser_evidence`, `visual_hive_compare_assets`, and `visual_hive_get_repair_validation` only for an exact authorized Hive repair session. These tools are not registered by the general artifact MCP server.
+
 ## Disabled By Default
 
 Execution-capable tools are intentionally not registered in the default MCP server:
@@ -255,7 +261,7 @@ Agents should prefer compact resources and tools before loading broad files:
 9. Read `visual-hive://testing-layers` when the task is about missing coverage, test creation, mutation survivor follow-up, or whether a layer is only partially measured.
 10. Read `visual-hive://coverage-recommendations` when the task is to review deterministic missing-coverage or config-improvement suggestions before creating tests.
 11. Read `visual-hive://test-creation-plan` when the task is to draft missing tests or config changes from existing no-write recommendations.
-12. Use `visual_hive_list_issues`, `visual_hive_get_issue_context`, `visual_hive_read_issue_queue`, `visual_hive_query_visual_graph`, `visual_hive_get_visual_impact`, `visual_hive_get_validation_command`, `visual_hive_get_agent_prompt`, and `visual_hive_get_handoff_context` as the preferred issue-agent path.
+12. Use `visual_hive_list_issues`, `visual_hive_read_issue_queue`, `visual_hive_query_visual_graph`, `visual_hive_get_visual_impact`, `visual_hive_get_validation_command`, `visual_hive_get_agent_prompt`, and `visual_hive_get_handoff_context` as the preferred general issue-agent path. Use `visual_hive_get_issue_context` only through an exact Hive-authorized repair MCP session.
 13. Use `visual_hive_explain_failure` for a compact failure summary.
 14. Use `visual_hive_list_reproduction_commands` before asking for shell access.
 15. Use `visual_hive_plan` for a no-write PR planning summary before reading the full plan artifact.

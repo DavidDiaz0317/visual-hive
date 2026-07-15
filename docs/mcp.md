@@ -58,7 +58,6 @@ Compatibility resources such as `visual-hive://latest-evidence`, `visual-hive://
 Use these read-only tools for issue agents:
 
 - `visual_hive_list_issues`
-- `visual_hive_get_issue_context`
 - `visual_hive_read_issue_queue`
 - `visual_hive_query_visual_graph`
 - `visual_hive_get_visual_impact`
@@ -75,12 +74,12 @@ Use these read-only tools for issue agents:
 The intended flow is:
 
 1. Start from an issue candidate or GitHub issue.
-2. Read `visual_hive_get_issue_context`.
-3. Follow the issue queue, Visual Graph, impact, Evidence Packet, mutation report, and artifact index.
+2. Read `visual_hive_list_issues` and `visual_hive_read_issue_queue`.
+3. Follow the Visual Graph, impact, Evidence Packet, mutation report, and artifact index.
 4. Use `visual_hive_get_validation_command` before proposing any write-preview change.
 5. Use `visual_hive_get_handoff_context` only when the issue routes to trusted GitHub or Hive handoff.
 
-`visual_hive_get_issue_context` now requires the exact task identity, task-context digest, repository, and issue fingerprint. It never selects the first active issue. Legacy zero-argument callers receive an identity-required response.
+The general artifact MCP server does not expose `visual_hive_get_issue_context`. Exact issue context requires the task identity, task-context digest, repository, issue fingerprint, and an authorized Hive repair session, so that tool is available only from the separate repair MCP server below. Zero-argument general-MCP access is intentionally unsupported.
 
 ## Multimodal Repair Tools
 
