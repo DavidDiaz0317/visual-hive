@@ -622,6 +622,8 @@ mutation:
       expect(demoAllOutput).toContain(command);
       expect(demoCiOutput).toContain(command);
     }
+    expect(demoAllOutput).toContain("demo:hive-bundle");
+    expect(demoCiOutput).not.toContain("demo:hive-bundle");
     for (const command of exhaustiveOnlyCommands) {
       expect(demoExhaustiveOutput).toContain(command);
     }

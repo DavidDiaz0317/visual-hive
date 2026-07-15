@@ -151,7 +151,11 @@ const acceptanceSteps = [
   script("demo:ui")
 ];
 
-const ciSteps = acceptanceSteps;
+// Hosted source-checkout CI cannot publish a trusted Hive bundle: that path
+// requires the immutable identity exercised by smoke:release/smoke:consumer.
+// Keep the local advisory bundle proof in demo:all without weakening the
+// hosted release-identity gate.
+const ciSteps = acceptanceSteps.filter((step) => step.label !== "demo:hive-bundle");
 
 const e2eCleanSteps = [
   script("demo:build"),
