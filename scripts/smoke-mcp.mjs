@@ -13,6 +13,7 @@ import {
   readMcpResourceText,
   runMcpCommand
 } from "../packages/cli/dist/commands/mcp.js";
+import { VISUAL_REPAIR_MCP_TOOL_DEFINITIONS } from "../packages/cli/dist/commands/repairMcpTools.js";
 import { loadConfig } from "../packages/core/dist/index.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -60,7 +61,6 @@ const requiredReadTools = [
   "visual_hive_validate_config",
   "visual_hive_plan",
   "visual_hive_list_issues",
-  "visual_hive_get_issue_context",
   "visual_hive_read_issue_queue",
   "visual_hive_query_visual_graph",
   "visual_hive_get_visual_impact",
@@ -91,6 +91,10 @@ for (const tool of MCP_DISABLED_EXECUTION_TOOLS.map((entry) => entry.name)) {
   if (!disabledToolNames.has(tool)) errors.push(`Execution tool is not marked disabled: ${tool}`);
   if (readToolNames.has(tool)) errors.push(`Execution tool is callable by default: ${tool}`);
 }
+const exposedRepairSessionTools = VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.filter((tool) => readToolNames.has(tool.name));
+for (const tool of exposedRepairSessionTools) {
+  errors.push(`Hive-authorized repair tool is callable from the general MCP server: ${tool.name}`);
+}
 
 const resourceReads = [];
 for (const id of ["issue-candidates", "issue-queue", "visual-graph", "visual-impact", "evidence-packet", "mutation-report", "artifacts-index", "agent-packet", "handoff", "triage"]) {
@@ -102,8 +106,8 @@ for (const id of ["issue-candidates", "issue-queue", "visual-graph", "visual-imp
 
 const toolCalls = [];
 for (const tool of [
+  "visual_hive_validate_config",
   "visual_hive_list_issues",
-  "visual_hive_get_issue_context",
   "visual_hive_query_visual_graph",
   "visual_hive_get_visual_impact",
   "visual_hive_read_evidence_packet",
@@ -138,6 +142,7 @@ const summary = {
   resourcesListed: manifest.resources.length,
   toolsListed: manifest.tools.length,
   disabledExecutionTools: manifest.disabledExecutionTools.map((tool) => tool.name),
+  repairSessionOnlyTools: VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.map((tool) => tool.name),
   resourceReads,
   toolCalls,
   stdioSmoke,
@@ -149,7 +154,8 @@ const summary = {
     createsIssues: false,
     createsBranches: false,
     opensPullRequests: false,
-    approvesBaselines: false
+    approvesBaselines: false,
+    repairSessionToolsCallableFromGeneralMcp: exposedRepairSessionTools.length > 0
   },
   status: errors.length ? "failed" : "passed",
   errors
@@ -185,13 +191,15 @@ async function runStdioMcpSmoke() {
     const issues = await withTimeout(client.readResource({ uri: "visual-hive://issues" }), 10_000, "MCP stdio read issues");
     const issueTool = await withTimeout(client.callTool({ name: "visual_hive_list_issues", arguments: {} }), 10_000, "MCP stdio call visual_hive_list_issues");
     const executionToolExposed = tools.tools.some((tool) => tool.name === "visual_hive_run" || tool.name === "visual_hive_open_pr");
+    const repairToolExposed = tools.tools.some((tool) => VISUAL_REPAIR_MCP_TOOL_DEFINITIONS.some((repairTool) => repairTool.name === tool.name));
     return {
-      status: executionToolExposed ? "failed" : "passed",
+      status: executionToolExposed || repairToolExposed ? "failed" : "passed",
       resourcesListed: resources.resources.length,
       toolsListed: tools.tools.length,
       issueResourceBytes: JSON.stringify(issues.contents).length,
       issueToolBytes: JSON.stringify(issueTool.content ?? issueTool).length,
       executionToolsCallable: executionToolExposed,
+      repairSessionToolsCallable: repairToolExposed,
       externalCallsMade: 0,
       networkCallsMade: 0,
       stderrExcerpt: sanitizeExcerpt(stderrChunks.join(""))

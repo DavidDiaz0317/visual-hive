@@ -3731,8 +3731,8 @@ contracts:
       };
     };
 
-    const defaultResourcesSection = markdownSection(docs, "## Default Resources", "## Default Tools");
-    const defaultToolsSection = markdownSection(docs, "## Default Tools", "## Disabled By Default");
+    const defaultResourcesSection = markdownSection(docs, "## Default Resources", "## Cataloged Read-only Tools");
+    const defaultToolsSection = markdownSection(docs, "## Cataloged Read-only Tools", "## Disabled By Default");
     const documentedResourceUris = markdownCodeBullets(defaultResourcesSection, "visual-hive://");
     const documentedToolNames = markdownCodeBullets(defaultToolsSection, "visual_hive_");
     const schemaToolNames = schema.$defs?.readOnlyTool?.properties?.name?.enum ?? [];

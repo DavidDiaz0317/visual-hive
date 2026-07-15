@@ -14,7 +14,7 @@ Agent prompts are generated artifacts. They include structured blocks for issue,
 
 Visual Hive exposes graph, issue, impact, evidence, MCP, tool registry, and context-ledger resources. Agents should read structured artifacts instead of scraping terminal logs.
 
-For issue work, prefer the MCP issue path: `visual_hive_get_issue_context`, `visual_hive_read_issue_queue`, `visual_hive_query_visual_graph`, `visual_hive_get_visual_impact`, `visual_hive_read_evidence_packet`, `visual_hive_read_mutation_report`, `visual_hive_get_validation_command`, `visual_hive_get_agent_prompt`, and `visual_hive_get_handoff_context`. These tools are read-only context adapters over existing artifacts.
+For general issue work, prefer the MCP issue path: `visual_hive_list_issues`, `visual_hive_read_issue_queue`, `visual_hive_query_visual_graph`, `visual_hive_get_visual_impact`, `visual_hive_read_evidence_packet`, `visual_hive_read_mutation_report`, `visual_hive_get_validation_command`, `visual_hive_get_agent_prompt`, and `visual_hive_get_handoff_context`. These tools are read-only context adapters over existing artifacts. The exact `visual_hive_get_issue_context` tool is available only through a Hive-authorized repair MCP session.
 
 ## 4. Unify Execution State And Business State
 
