@@ -72,6 +72,13 @@ function actionsForEvent(eventName: VisualHiveGitHubAppEventName, payload: Recor
     if (!repository || !artifactIssue) {
       return [{ action: "ignore", reason: "workflow_run event did not include a repository and Visual Hive issue artifact summary." }];
     }
+    if (artifactLifecycleOwner(payload) === "hive") {
+      return [{
+        action: "ignore",
+        repository: repository.fullName,
+        reason: "managed_by_hive: Hive is the configured lifecycle owner; the Visual Hive GitHub App must not publish concurrently."
+      }];
+    }
     return [
       {
         action: "create_or_update_visual_hive_issue",
@@ -124,6 +131,11 @@ function firstIssueCandidate(payload: Record<string, unknown>): VisualHiveIssueC
   const artifactSummary = objectValue(payload.visual_hive_artifact_summary) ?? objectValue(payload.artifactSummary);
   const candidate = objectValue(artifactSummary?.issueCandidate) ?? objectValue(artifactSummary?.candidate);
   return candidate as VisualHiveIssueCandidate | undefined;
+}
+
+function artifactLifecycleOwner(payload: Record<string, unknown>): string | undefined {
+  const artifactSummary = objectValue(payload.visual_hive_artifact_summary) ?? objectValue(payload.artifactSummary);
+  return stringValue(objectValue(artifactSummary?.lifecycle)?.owner);
 }
 
 function readNestedString(value: unknown, path: string[]): string | undefined {

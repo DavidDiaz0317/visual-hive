@@ -8,3 +8,4 @@ export * from "./providerDecisions.js";
 export * from "./llmDecisions.js";
 export * from "./commandExecutor.js";
 export * from "./server.js";
+export * from "./capabilitySurfaces.js";

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.capability-parity.schema.json",
+  "title": "Visual Hive Capability Parity Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "baselineVersion",
+    "generatedAt",
+    "status",
+    "runtimeStatus",
+    "summary",
+    "domains",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "visual-hive.capability-parity.v1"
+    },
+    "baselineVersion": {
+      "const": "visual-hive.capability-baseline.v1"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": ["passed", "failed"]
+    },
+    "runtimeStatus": {
+      "enum": ["ready", "blocked"]
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/domainSummary"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    }
+  },
+  "$defs": {
+    "domain": {
+      "enum": [
+        "cli",
+        "schemas",
+        "evidenceResources",
+        "artifactSurfaces",
+        "planModes",
+        "workflowLanes",
+        "mutationOperators",
+        "deterministicPrimitives",
+        "providers",
+        "openSourceAdapters",
+        "controlPlane"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected", "actual", "present", "blocked", "missing", "unexpected", "mismatched"],
+      "properties": {
+        "expected": { "type": "integer", "minimum": 0 },
+        "actual": { "type": "integer", "minimum": 0 },
+        "present": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "unexpected": { "type": "integer", "minimum": 0 },
+        "mismatched": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "domainSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "expected", "actual", "present", "blocked", "missing", "unexpected", "mismatched"],
+      "properties": {
+        "domain": { "$ref": "#/$defs/domain" },
+        "expected": { "type": "integer", "minimum": 0 },
+        "actual": { "type": "integer", "minimum": 0 },
+        "present": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "unexpected": { "type": "integer", "minimum": 0 },
+        "mismatched": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "key", "status", "parity", "message"],
+      "properties": {
+        "domain": { "$ref": "#/$defs/domain" },
+        "key": { "type": "string", "minLength": 1 },
+        "status": {
+          "enum": ["present", "blocked", "missing", "unexpected", "mismatched"]
+        },
+        "parity": { "type": "boolean" },
+        "message": { "type": "string", "minLength": 1 },
+        "expected": { "type": "object" },
+        "actual": { "type": "object" }
+      }
+    }
+  }
+}

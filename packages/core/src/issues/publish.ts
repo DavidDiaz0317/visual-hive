@@ -12,8 +12,10 @@ import type {
   VisualHiveIssuePublishResult,
   VisualHiveIssueSeverity,
   VisualHiveIssuesReport,
+  VisualHiveLifecyclePolicy,
   VisualHivePublishedIssueRef
 } from "./types.js";
+import { lifecycleWriteBlock, resolveVisualHiveLifecyclePolicy } from "./lifecycle.js";
 
 export interface BuildIssuePublishPlanOptions {
   rootDir: string;
@@ -27,6 +29,7 @@ export interface BuildIssuePublishPlanOptions {
   issueKind?: VisualHiveIssueKind;
   minSeverity?: VisualHiveIssueSeverity;
   limit?: number;
+  lifecycle?: VisualHiveLifecyclePolicy;
 }
 
 export interface WriteIssuePublishArtifactsOptions extends BuildIssuePublishPlanOptions {
@@ -112,6 +115,7 @@ export async function buildIssuePublishPlan(options: BuildIssuePublishPlanOption
     status: blockedReasons.length ? "blocked" : "ready",
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: resolveVisualHiveLifecyclePolicy(options.lifecycle, issues.lifecycle),
     sourceArtifacts: {
       issues: issuesPath,
       ...(handoffValidation ? { handoffValidation: handoffValidationPath } : {})
@@ -144,11 +148,19 @@ function filterPublishIssues(issues: VisualHiveIssueCandidate[], options: BuildI
 
 export async function writeIssuePublishArtifacts(options: WriteIssuePublishArtifactsOptions): Promise<IssuePublishArtifacts> {
   const rootDir = path.resolve(options.rootDir);
-  const liveContext = await prepareLiveContext(rootDir, options);
+  const issuesPath = normalizeArtifactPath(rootDir, options.issuesPath ?? DEFAULT_PATHS.issues);
+  const issues = await readJson<VisualHiveIssuesReport>(resolveArtifact(rootDir, issuesPath));
+  const lifecycle = resolveVisualHiveLifecyclePolicy(options.lifecycle, issues.lifecycle);
+  const managedByHive = lifecycleWriteBlock(lifecycle)
+    ?? options.blockedReasons?.find((reason) => reason.startsWith("managed_by_hive:"));
+  const liveContext = managedByHive
+    ? { blockedReasons: [managedByHive], existingIssues: options.existingIssues, externalCallsMade: 0, networkCallsMade: 0 }
+    : await prepareLiveContext(rootDir, options);
   const plan = await buildIssuePublishPlan({
     ...options,
+    lifecycle,
     existingIssues: liveContext.existingIssues ?? options.existingIssues,
-    blockedReasons: liveContext.blockedReasons
+    blockedReasons: [...(options.blockedReasons ?? []), ...liveContext.blockedReasons]
   });
   const dryRun = buildDryRun(plan, options.now);
   const result = plan.mode === "live" ? await buildLiveResult(plan, liveContext, options) : buildDryRunResult(plan, options.now);
@@ -183,6 +195,7 @@ export async function writeSetupIssuePublishArtifacts(options: WriteSetupIssuePu
     project,
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: resolveVisualHiveLifecyclePolicy(options.lifecycle, existingIssues?.lifecycle),
     sourceArtifacts: {
       ...(existingIssues?.sourceArtifacts ?? {}),
       setupIssue: normalizeArtifactPath(rootDir, setupIssuePath)
@@ -270,9 +283,10 @@ async function buildLiveResult(
       generatedAt,
       project: plan.project,
       mode: "live",
-      status: "blocked",
+      status: lifecycleWriteBlock(plan.lifecycle) ? "managed_by_hive" : "blocked",
       externalCallsMade: context.externalCallsMade,
       networkCallsMade: context.networkCallsMade,
+      lifecycle: plan.lifecycle,
       realGithubIssuesCreated: 0,
       realGithubIssuesUpdated: 0,
       blockedReasons: plan.blockedReasons,
@@ -344,6 +358,7 @@ async function buildLiveResult(
     status: blockedReasons.length ? "failed" : "published",
     externalCallsMade,
     networkCallsMade,
+    lifecycle: plan.lifecycle,
     realGithubIssuesCreated: createdIssues.length,
     realGithubIssuesUpdated: updatedIssues.length,
     blockedReasons,
@@ -467,6 +482,7 @@ function buildDryRun(plan: VisualHiveIssuePublishPlan, now?: Date): VisualHiveIs
     status: plan.status,
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: plan.lifecycle,
     wouldCreateIssues: plan.summary.create,
     wouldUpdateIssues: plan.summary.update,
     wouldSkipIssues: plan.summary.skip,
@@ -481,9 +497,10 @@ function buildDryRunResult(plan: VisualHiveIssuePublishPlan, now?: Date): Visual
     generatedAt: (now ?? new Date()).toISOString(),
     project: plan.project,
     mode: "dry_run",
-    status: plan.status === "blocked" ? "blocked" : "dry_run_written",
+    status: lifecycleWriteBlock(plan.lifecycle) ? "managed_by_hive" : plan.status === "blocked" ? "blocked" : "dry_run_written",
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: plan.lifecycle,
     realGithubIssuesCreated: 0,
     realGithubIssuesUpdated: 0,
     blockedReasons: plan.blockedReasons,

@@ -11,6 +11,16 @@
     "status": { "enum": ["ready", "blocked"] },
     "externalCallsMade": { "const": 0 },
     "networkCallsMade": { "const": 0 },
+    "lifecycle": {
+      "type": "object",
+      "required": ["owner", "standaloneIssueWrites", "reason"],
+      "properties": {
+        "owner": { "enum": ["visual-hive", "hive"] },
+        "standaloneIssueWrites": { "enum": ["allowed", "suppressed"] },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "wouldCreateIssues": { "type": "number" },
     "wouldUpdateIssues": { "type": "number" },
     "wouldSkipIssues": { "type": "number" },

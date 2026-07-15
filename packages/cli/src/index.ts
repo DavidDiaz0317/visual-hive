@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 import { Command } from "commander";
-import { sanitizeText } from "@visual-hive/core";
+import { sanitizeText, VISUAL_HIVE_CAPABILITY_BASELINE } from "@visual-hive/core";
 import { runDoctor, formatDiagnostics } from "./commands/doctor.js";
 import { runInit } from "./commands/init.js";
 import { formatPlanSummary, runPlanCommand } from "./commands/plan.js";
@@ -128,8 +129,10 @@ import {
   runConnectionsRemoveCommand
 } from "./commands/connections.js";
 import { visualHiveVersion } from "./version.js";
+import { collectCliCapabilitySurface } from "./capabilitySurface.js";
+import { formatCapabilitiesResult, runCapabilitiesCommand } from "./commands/capabilities.js";
 
-const program = new Command();
+export const program = new Command();
 
 program.name("visual-hive").description("Deterministic-first visual QA orchestration").version(visualHiveVersion);
 
@@ -220,7 +223,8 @@ program
           skipBuild: options.skipBuild,
           enforceMutation: options.enforceMutation,
         continueOnError: options.continueOnError,
-        githubStepSummary: options.githubStepSummary
+        githubStepSummary: options.githubStepSummary,
+        capabilityCli: collectCliCapabilitySurface(program)
       });
       console.log(formatPipelineSummary(result, options.format));
       process.exitCode = result.exitCode;
@@ -769,7 +773,7 @@ hiveCommand
   .option("--validation-summary <path>", "Hive validation summary path", ".visual-hive/hive/hive-validation-summary.json")
   .option("--issues <path>", "Visual Hive lifecycle observation source", ".visual-hive/issues.json")
   .option("--output-dir <path>", "atomic bundle directory", ".visual-hive/bundles")
-  .option("--trusted-source", "mark a non-PR trusted workflow/local operator source")
+  .option("--trusted-source", "retain a local operator trust claim; hosted sources still require complete v3 identity")
   .option("--acmm-request <level>", "requested Hive ACMM authority for this evidence bundle", parseIntegerOption)
   .option("--scan-scope <scope>", "full, partial, changed-files, or targeted", "partial")
   .option("--authoritative-for-resolution", "allow absent observations to resolve findings; requires a full scan")
@@ -1368,7 +1372,7 @@ const schemas = program.command("schemas").description("Verify checked-in Visual
 schemas
   .command("verify")
   .description("Check schema IDs and evidence-resource enum parity")
-  .option("--schemas-dir <path>", "schemas directory", "schemas")
+  .option("--schemas-dir <path>", "schemas directory; auto-detected for source, npm, and release-bundle installs")
   .option("--output <path>", "optional JSON report path")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
@@ -1382,6 +1386,29 @@ schemas
       if (result.report.status !== "passed") {
         process.exitCode = 1;
       }
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+program
+  .command("capabilities")
+  .description("Verify every public Visual Hive capability against the frozen parity baseline")
+  .option("--config <path>", "config path; controls the report output root")
+  .option("--schemas-dir <path>", "Visual Hive schemas directory; auto-detected for source and release bundles")
+  .option("--output <path>", "capability parity report path", ".visual-hive/capability-parity.json")
+  .option("--format <format>", "markdown or json", "markdown")
+  .action(async (options) => {
+    try {
+      const result = await runCapabilitiesCommand({
+        config: options.config,
+        schemasDir: options.schemasDir,
+        output: options.output,
+        cli: collectCliCapabilitySurface(program),
+        baseline: VISUAL_HIVE_CAPABILITY_BASELINE
+      });
+      console.log(formatCapabilitiesResult(result, options.format));
+      if (result.report.status === "failed") process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1612,6 +1639,7 @@ program
   .option("--project <name>", "project name to use with --repo; defaults to the repository directory name")
   .option("--max-artifacts <count>", "maximum artifact entries to index", (value) => Number.parseInt(value, 10))
   .option("--max-preview-bytes <count>", "maximum bytes to preview for text-like artifacts", (value) => Number.parseInt(value, 10))
+  .option("--complete", "fail if the artifact index must omit entries")
   .option("--format <format>", "markdown or json", "markdown")
   .action(async (options) => {
     try {
@@ -1621,6 +1649,7 @@ program
         project: options.project,
         maxArtifacts: options.maxArtifacts,
         maxPreviewBytes: options.maxPreviewBytes,
+        complete: options.complete,
         format: options.format
       });
       console.log(formatArtifactsIndex(result.index, result.indexPath, options.format));
@@ -2273,7 +2302,9 @@ program
     }
   });
 
-program.parseAsync(process.argv);
+if (isMainModule()) {
+  void program.parseAsync(process.argv);
+}
 
 function fail(error: unknown): void {
   console.error(sanitizeText(error instanceof Error ? error.message : String(error)));
@@ -2319,4 +2350,9 @@ async function waitForShutdown(close: () => Promise<void>): Promise<void> {
     process.on("SIGTERM", shutdown);
   });
   await close();
+}
+
+function isMainModule(): boolean {
+  const entrypoint = process.argv[1];
+  return Boolean(entrypoint) && import.meta.url === pathToFileURL(entrypoint).href;
 }

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { verifySchemaCatalog, writeJson, type SchemaCatalogReport } from "@visual-hive/core";
+import { resolveVisualHiveSchemasDir } from "../schemaLocation.js";
 
 export interface SchemasVerifyCommandOptions {
   cwd?: string;
@@ -15,9 +16,10 @@ export interface SchemasVerifyCommandResult {
 
 export async function runSchemasVerifyCommand(options: SchemasVerifyCommandOptions = {}): Promise<SchemasVerifyCommandResult> {
   const cwd = options.cwd ?? process.cwd();
+  const schemasDir = await resolveVisualHiveSchemasDir(cwd, options.schemasDir);
   const report = await verifySchemaCatalog({
     rootDir: cwd,
-    schemasDir: options.schemasDir
+    schemasDir
   });
   const outputPath = options.output ? path.resolve(cwd, options.output) : undefined;
   if (outputPath) {

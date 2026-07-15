@@ -9,9 +9,19 @@
     "generatedAt": { "type": "string" },
     "project": { "type": "string" },
     "mode": { "enum": ["dry_run", "live"] },
-    "status": { "enum": ["ready", "blocked", "dry_run_written", "published", "failed"] },
+    "status": { "enum": ["ready", "blocked", "managed_by_hive", "dry_run_written", "published", "failed"] },
     "externalCallsMade": { "type": "number" },
     "networkCallsMade": { "type": "number" },
+    "lifecycle": {
+      "type": "object",
+      "required": ["owner", "standaloneIssueWrites", "reason"],
+      "properties": {
+        "owner": { "enum": ["visual-hive", "hive"] },
+        "standaloneIssueWrites": { "enum": ["allowed", "suppressed"] },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "realGithubIssuesCreated": { "type": "number" },
     "realGithubIssuesUpdated": { "type": "number" },
     "blockedReasons": { "type": "array", "items": { "type": "string" } },

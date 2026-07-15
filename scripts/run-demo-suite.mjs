@@ -83,7 +83,8 @@ const agentSteps = [
   script("demo:agent-packet:handoff"),
   script("demo:agent-packet:provider"),
   script("demo:tools"),
-  script("demo:mcp")
+  script("demo:mcp"),
+  script("demo:hive-bundle")
 ];
 
 const portfolioSteps = [
@@ -93,6 +94,7 @@ const portfolioSteps = [
   script("demo:schemas"),
   script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:hive-bundle"),
   script("demo:evidence-resources"),
   script("demo:ui")
 ];
@@ -144,6 +146,7 @@ const acceptanceSteps = [
   script("demo:schemas"),
   script("demo:snapshot"),
   script("demo:artifacts"),
+  script("demo:hive-bundle"),
   script("demo:evidence-resources"),
   script("demo:ui")
 ];

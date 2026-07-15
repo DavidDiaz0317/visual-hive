@@ -29,7 +29,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/copy-cli-schemas.mjs",
+    "prepack": "node ../../scripts/build-cli-release-package.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

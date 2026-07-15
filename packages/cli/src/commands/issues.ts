@@ -1,6 +1,9 @@
 import path from "node:path";
+import { lstat, readFile } from "node:fs/promises";
 import {
   loadConfig,
+  lifecycleWriteBlock,
+  visualHiveLifecyclePolicy,
   writeIssuePublishArtifacts,
   writeIssuesArtifacts,
   writeSetupIssuePublishArtifacts,
@@ -72,7 +75,14 @@ const ISSUE_KINDS = new Set<VisualHiveIssueKind>([
 
 export async function runIssuesCommand(options: IssuesCommandOptions = {}): Promise<IssuesCommandResult> {
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
-  const result = await writeIssuesArtifacts({ rootDir: loaded.rootDir, project: loaded.config.project.name });
+  const lifecycle = visualHiveLifecyclePolicy(
+    loaded.config.integrations.hive.enabled || await hasHiveInstallationMarker(loaded.rootDir)
+  );
+  const result = await writeIssuesArtifacts({
+    rootDir: loaded.rootDir,
+    project: loaded.config.project.name,
+    lifecycle
+  });
   const filteredIssues = filterIssues(result.report.issues, options);
   if (filteredIssues.length !== result.report.issues.length) {
     result.report = {
@@ -112,6 +122,10 @@ export function formatIssuesResult(result: IssuesCommandResult, format: "markdow
 
 export async function runIssuePublishCommand(options: IssuePublishCommandOptions = {}): Promise<IssuePublishArtifacts> {
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
+  const lifecycle = visualHiveLifecyclePolicy(
+    loaded.config.integrations.hive.enabled || await hasHiveInstallationMarker(loaded.rootDir)
+  );
+  const lifecycleBlock = lifecycleWriteBlock(lifecycle);
   return writeIssuePublishArtifacts({
     rootDir: loaded.rootDir,
     mode: options.live || options.mode === "live" ? "live" : options.dryRun ? "dry_run" : options.mode ?? "dry_run",
@@ -123,12 +137,18 @@ export async function runIssuePublishCommand(options: IssuePublishCommandOptions
     dedupeFingerprint: options.dedupe,
     issueKind: parseIssueKindOption(options.kind),
     minSeverity: options.minSeverity,
-    limit: options.limit
+    limit: options.limit,
+    lifecycle,
+    blockedReasons: lifecycleBlock ? [lifecycleBlock] : []
   });
 }
 
 export async function runSetupIssuePublishCommand(options: SetupIssuePublishCommandOptions = {}): Promise<IssuePublishArtifacts & { candidatePath: string }> {
   const loaded = await loadConfig(options.config, options.cwd ?? process.cwd());
+  const lifecycle = visualHiveLifecyclePolicy(
+    loaded.config.integrations.hive.enabled || await hasHiveInstallationMarker(loaded.rootDir)
+  );
+  const lifecycleBlock = lifecycleWriteBlock(lifecycle);
   return writeSetupIssuePublishArtifacts({
     rootDir: loaded.rootDir,
     mode: options.live || options.mode === "live" ? "live" : options.dryRun ? "dry_run" : options.mode ?? "dry_run",
@@ -136,8 +156,29 @@ export async function runSetupIssuePublishCommand(options: SetupIssuePublishComm
     handoffValidationPath: options.handoffValidation,
     githubRepository: options.repository,
     tokenEnv: options.tokenEnv,
-    liveGuardEnv: options.liveGuardEnv
+    liveGuardEnv: options.liveGuardEnv,
+    lifecycle,
+    blockedReasons: lifecycleBlock ? [lifecycleBlock] : []
   });
+}
+
+async function hasHiveInstallationMarker(rootDir: string): Promise<boolean> {
+  const markerPath = path.join(rootDir, ".hive", "integrated.json");
+  try {
+    const markerStat = await lstat(markerPath);
+    if (!markerStat.isFile() || markerStat.isSymbolicLink()) return true;
+    const marker = JSON.parse(await readFile(markerPath, "utf8")) as unknown;
+    if (!marker || typeof marker !== "object" || Array.isArray(marker)) return true;
+    // The marker is suppress-only. Removing it through Hive's audited uninstall
+    // path is the only checkout-level transition back to standalone ownership;
+    // a present branch-controlled value can never grant write authority.
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    // A present but unreadable/invalid Hive installation marker fails closed for
+    // external lifecycle writes while evidence generation remains available.
+    return true;
+  }
 }
 
 export function formatIssuePublishResult(result: IssuePublishArtifacts, format: "markdown" | "json" = "markdown"): string {

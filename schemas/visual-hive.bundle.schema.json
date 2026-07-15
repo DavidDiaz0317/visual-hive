@@ -6,8 +6,8 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "bundleId", "generatedAt", "expiresAt", "producer", "source", "project", "mode", "verdict", "acmmRequest", "externalCallsMade", "scan", "observations", "files", "overallDigest", "replayProtection", "provenance", "safety"],
   "properties": {
-    "schemaVersion": { "const": "visual-hive.bundle.v2" },
-    "digestAlgorithm": { "enum": ["visual-hive.bundle.publication-digest.v1"] },
+    "schemaVersion": { "enum": ["visual-hive.bundle.v2", "visual-hive.bundle.v3"] },
+    "digestAlgorithm": { "enum": ["visual-hive.bundle.publication-digest.v1", "visual-hive.bundle.content-addressed-digest.v1"] },
     "bundleId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "generatedAt": { "type": "string", "format": "date-time" },
     "expiresAt": { "type": "string", "format": "date-time" },
@@ -154,6 +154,49 @@
         }
       }
     },
+    "artifactIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sourcePath", "sha256", "schemaVersion", "contentAddressed", "complete", "artifactCount", "totalBytes"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^files/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sourcePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "schemaVersion": { "const": 1 },
+        "contentAddressed": { "const": true },
+        "complete": { "const": true },
+        "artifactCount": { "type": "integer", "minimum": 0 },
+        "totalBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "capabilityParity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sourcePath", "sha256", "schemaVersion", "baselineVersion", "status", "runtimeStatus", "summary"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^files/(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sourcePath": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "schemaVersion": { "const": "visual-hive.capability-parity.v1" },
+        "baselineVersion": { "const": "visual-hive.capability-baseline.v1" },
+        "status": { "const": "passed" },
+        "runtimeStatus": { "enum": ["ready", "blocked"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected", "actual", "present", "blocked", "missing", "unexpected", "mismatched"],
+          "properties": {
+            "expected": { "type": "integer", "minimum": 0 },
+            "actual": { "type": "integer", "minimum": 0 },
+            "present": { "type": "integer", "minimum": 0 },
+            "blocked": { "type": "integer", "minimum": 0 },
+            "missing": { "const": 0 },
+            "unexpected": { "const": 0 },
+            "mismatched": { "const": 0 }
+          }
+        }
+      }
+    },
     "overallDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "replayProtection": {
       "type": "object",
@@ -190,26 +233,80 @@
   },
   "allOf": [
     {
-      "if": { "required": ["digestAlgorithm"] },
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v3" } },
+        "required": ["schemaVersion"]
+      },
       "then": {
+        "required": ["digestAlgorithm", "artifactIndex", "capabilityParity"],
         "properties": {
+          "digestAlgorithm": { "const": "visual-hive.bundle.content-addressed-digest.v1" },
+          "source": { "required": ["workflowRunId", "workflowRunAttempt", "workflowArtifactId"] },
           "observations": {
             "items": { "required": ["publicationRole", "rootCauseKey", "blockedByRootKeys"] }
           }
         }
+      }
+    },
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v2" } },
+        "required": ["schemaVersion"]
       },
-      "else": {
+      "then": {
         "properties": {
-          "observations": {
-            "items": {
-              "not": {
-                "anyOf": [
-                  { "required": ["publicationRole"] },
-                  { "required": ["rootCauseKey"] },
-                  { "required": ["blockedByRootKeys"] }
-                ]
+          "digestAlgorithm": { "const": "visual-hive.bundle.publication-digest.v1" }
+        },
+        "not": {
+          "anyOf": [
+            { "required": ["artifactIndex"] },
+            { "required": ["capabilityParity"] }
+          ]
+        },
+        "allOf": [
+          {
+            "if": { "required": ["digestAlgorithm"] },
+            "then": {
+              "properties": {
+                "observations": {
+                  "items": { "required": ["publicationRole", "rootCauseKey", "blockedByRootKeys"] }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "observations": {
+                  "items": {
+                    "not": {
+                      "anyOf": [
+                        { "required": ["publicationRole"] },
+                        { "required": ["rootCauseKey"] },
+                        { "required": ["blockedByRootKeys"] }
+                      ]
+                    }
+                  }
+                }
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": "visual-hive.bundle.v3" } },
+        "required": ["schemaVersion", "capabilityParity"]
+      },
+      "then": {
+        "properties": {
+          "capabilityParity": {
+            "allOf": [
+              {
+                "if": { "properties": { "runtimeStatus": { "const": "ready" } }, "required": ["runtimeStatus"] },
+                "then": { "properties": { "summary": { "properties": { "blocked": { "const": 0 } } } } },
+                "else": { "properties": { "summary": { "properties": { "blocked": { "minimum": 1 } } } } }
+              }
+            ]
           }
         }
       }

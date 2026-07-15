@@ -1,5 +1,6 @@
 import type { PlanMode } from "../planner/types.js";
 import type { EvidenceContribution, VerdictSummary } from "../evidence/types.js";
+import type { FlowStepAction, SelectorAssertionPrimitive } from "../config/schema.js";
 
 export type ContractStatus = "passed" | "failed" | "created" | "skipped";
 export type MutationStatus = "killed" | "survived" | "not_applicable" | "error";
@@ -27,14 +28,14 @@ export type TriageClassification =
   | "external_upload_blocked";
 
 export interface SelectorAssertionResult {
-  kind: "mustExist" | "mustNotExist" | "textMustExist" | "textMustNotExist" | "waitFor";
+  kind: SelectorAssertionPrimitive;
   value: string;
   status: "passed" | "failed";
   message?: string;
 }
 
 export interface FlowStepResult {
-  action: "goto" | "click" | "fill" | "press" | "waitFor" | "assertVisible" | "assertHidden" | "assertText" | "assertUrl";
+  action: FlowStepAction;
   description?: string;
   selector?: string;
   route?: string;

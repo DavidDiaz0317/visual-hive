@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it } from "vitest";
+import { indexArtifacts } from "../src/artifacts/index.js";
 import { verifyVisualHiveBundleDigest, writeVisualHiveBundle } from "../src/hive/bundle.js";
 import { buildIssuesReport } from "../src/issues/build.js";
 
@@ -151,6 +152,7 @@ describe("root-cause publication metadata", () => {
     expect(canonical[0]?.body).toContain("Add API failure coverage for route /b.");
     expect(canonical[0]?.body).toContain("npm test -- route-a");
     expect(canonical[0]?.body).toContain("npm test -- route-b");
+    await prepareBundleEvidence(rootDir, "coalesced-mutation");
 
     const bundle = await writeVisualHiveBundle({
       rootDir,
@@ -165,6 +167,9 @@ describe("root-cause publication metadata", () => {
         ref: "refs/heads/main",
         commitSha: "abc123",
         event: "workflow_dispatch",
+        workflowRunId: "1001",
+        workflowRunAttempt: "1",
+        workflowArtifactId: "9001",
         conclusion: "success",
         trusted: true
       },
@@ -278,6 +283,34 @@ async function writeArtifact(root: string, relative: string, value: unknown): Pr
   const target = path.join(root, relative);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function prepareBundleEvidence(root: string, project: string): Promise<void> {
+  await writeArtifact(root, ".visual-hive/capability-parity.json", {
+    schemaVersion: "visual-hive.capability-parity.v1",
+    baselineVersion: "visual-hive.capability-baseline.v1",
+    generatedAt: "2026-07-09T12:00:00.000Z",
+    status: "passed",
+    runtimeStatus: "ready",
+    summary: { expected: 1, actual: 1, present: 1, blocked: 0, missing: 0, unexpected: 0, mismatched: 0 },
+    domains: capabilityDomains(),
+    checks: [{ domain: "cli", key: "doctor", status: "present", parity: true, message: "CLI capability is present." }]
+  });
+  const artifactIndex = await indexArtifacts({ repoRoot: root, project, complete: true, now: new Date("2026-07-09T12:00:00.000Z") });
+  await writeArtifact(root, ".visual-hive/artifacts-index.json", artifactIndex);
+}
+
+function capabilityDomains() {
+  return ["cli", "schemas", "evidenceResources", "artifactSurfaces", "planModes", "workflowLanes", "mutationOperators", "deterministicPrimitives", "providers", "openSourceAdapters", "controlPlane"].map((domain) => ({
+    domain,
+    expected: domain === "cli" ? 1 : 0,
+    actual: domain === "cli" ? 1 : 0,
+    present: domain === "cli" ? 1 : 0,
+    blocked: 0,
+    missing: 0,
+    unexpected: 0,
+    mismatched: 0
+  }));
 }
 
 async function writeDummyNineArtifacts(root: string): Promise<void> {

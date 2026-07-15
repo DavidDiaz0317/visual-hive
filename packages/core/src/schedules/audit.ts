@@ -28,8 +28,11 @@ export interface ScheduleAuditSummary {
   highSeverityGaps: number;
 }
 
+export const SCHEDULE_EXECUTION_LANE_IDS = ["pull_request", "scheduled", "protected", "mutation", "trusted_issue"] as const;
+export type ScheduleExecutionLaneId = (typeof SCHEDULE_EXECUTION_LANE_IDS)[number];
+
 export interface ScheduleLane {
-  id: "pull_request" | "scheduled" | "protected" | "mutation" | "trusted_issue";
+  id: ScheduleExecutionLaneId;
   label: string;
   trigger: string;
   command: string;

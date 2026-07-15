@@ -955,6 +955,70 @@ export const VISUAL_HIVE_EVIDENCE_RESOURCES = [
     )
   ),
   resource(
+    "adapter-lifecycle-plan",
+    "visual-hive://adapters/lifecycle-plan",
+    "adapter-lifecycle-plan",
+    "Adapter Lifecycle Plan",
+    "Deterministic install, use, update, rollback, and replacement plan for managed open-source visual-testing adapters.",
+    ".visual-hive/adapters/lifecycle-plan.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_adapter_lifecycle_plan",
+      "Read Adapter Lifecycle Plan",
+      "Read the reviewed adapter lifecycle plan without installing, updating, replacing, or executing an adapter.",
+      "visual-hive adapters manage",
+      ["Read adapter lifecycle evidence only. Do not install, update, replace, roll back, upload, or execute adapters from the default evidence surface."]
+    )
+  ),
+  resource(
+    "adapter-odiff-result",
+    "visual-hive://adapters/odiff-result",
+    "adapter-odiff-result",
+    "ODiff Adapter Result",
+    "Normalized deterministic comparison result produced by the managed open-source ODiff adapter.",
+    ".visual-hive/adapters/odiff-result.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_adapter_odiff_result",
+      "Read ODiff Adapter Result",
+      "Read the latest normalized ODiff comparison result without executing ODiff or changing adapter state.",
+      "visual-hive mcp/read adapter-odiff-result",
+      ["Read ODiff evidence only. Visual Hive remains the deterministic verdict authority; do not execute adapters or reinterpret their result as a standalone verdict."]
+    )
+  ),
+  resource(
+    "adapter-vrt-result",
+    "visual-hive://adapters/vrt-result",
+    "adapter-vrt-result",
+    "VRT Adapter Result",
+    "Normalized trusted-upload result produced by the managed open-source self-hosted VRT adapter.",
+    ".visual-hive/adapters/vrt-result.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_adapter_vrt_result",
+      "Read VRT Adapter Result",
+      "Read the latest normalized VRT result without uploading artifacts, using credentials, or changing adapter state.",
+      "visual-hive mcp/read adapter-vrt-result",
+      ["Read VRT evidence only. Do not upload artifacts, use credentials, change provider policy, or override the Visual Hive verdict."]
+    )
+  ),
+  resource(
+    "capability-parity",
+    "visual-hive://capabilities/parity",
+    "capability-parity",
+    "Capability Parity Receipt",
+    "Machine-verifiable receipt proving the public CLI, schemas, evidence resources, lanes, adapters, providers, and Control Plane surfaces remain present or explicitly blocked.",
+    ".visual-hive/capability-parity.json",
+    "application/json",
+    readTool(
+      "visual_hive_read_capability_parity",
+      "Read Capability Parity Receipt",
+      "Read the latest capability and runtime-support receipt without changing repository or lifecycle state.",
+      "visual-hive capabilities",
+      ["Read capability evidence only. It cannot authorize writes, override the Visual Hive verdict, or reinterpret an explicitly blocked runtime lane as supported."]
+    )
+  ),
+  resource(
     "artifacts-index",
     "visual-hive://artifacts/index",
     "artifacts-index",

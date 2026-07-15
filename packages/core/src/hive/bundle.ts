@@ -1,9 +1,30 @@
 import { createHash, randomUUID } from "node:crypto";
-import { cp, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { constants, type BigIntStats } from "node:fs";
+import { lstat, mkdir, open, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { ArtifactIndexEntry, ArtifactIndexReport } from "../artifacts/index.js";
+import type { CapabilityParityReport } from "../capabilities/types.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssueKind, VisualHiveIssueSeverity, VisualHivePublicationRole } from "../issues/types.js";
 
 export const VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM = "visual-hive.bundle.publication-digest.v1" as const;
+export const VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM = "visual-hive.bundle.content-addressed-digest.v1" as const;
+
+const DEFAULT_ARTIFACT_INDEX_PATH = ".visual-hive/artifacts-index.json";
+const DEFAULT_CAPABILITY_PARITY_PATH = ".visual-hive/capability-parity.json";
+const ARTIFACT_INDEX_SEAL_LOCK_PATH = ".visual-hive-artifacts-index.lock";
+const CAPABILITY_PARITY_DOMAINS = [
+  "cli",
+  "schemas",
+  "evidenceResources",
+  "artifactSurfaces",
+  "planModes",
+  "workflowLanes",
+  "mutationOperators",
+  "deterministicPrimitives",
+  "providers",
+  "openSourceAdapters",
+  "controlPlane"
+] as const;
 
 export interface VisualHiveBundleSource {
   repository: string;
@@ -61,10 +82,32 @@ export interface VisualHiveBundleFile {
   schemaVersion?: string;
 }
 
+export interface VisualHiveBundleArtifactIndexBinding {
+  path: string;
+  sourcePath: string;
+  sha256: string;
+  schemaVersion: 1;
+  contentAddressed: true;
+  complete: true;
+  artifactCount: number;
+  totalBytes: number;
+}
+
+export interface VisualHiveBundleCapabilityParityBinding {
+  path: string;
+  sourcePath: string;
+  sha256: string;
+  schemaVersion: "visual-hive.capability-parity.v1";
+  baselineVersion: "visual-hive.capability-baseline.v1";
+  status: "passed";
+  runtimeStatus: "ready" | "blocked";
+  summary: CapabilityParityReport["summary"];
+}
+
 export interface VisualHiveBundleManifest {
-  schemaVersion: "visual-hive.bundle.v2";
+  schemaVersion: "visual-hive.bundle.v2" | "visual-hive.bundle.v3";
   /** Absent only on legacy v2 manifests whose observations have no publication metadata. */
-  digestAlgorithm?: typeof VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM;
+  digestAlgorithm?: typeof VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM | typeof VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM;
   bundleId: string;
   generatedAt: string;
   expiresAt: string;
@@ -82,6 +125,8 @@ export interface VisualHiveBundleManifest {
   scan: VisualHiveBundleScan;
   observations: VisualHiveBundleObservation[];
   files: VisualHiveBundleFile[];
+  artifactIndex?: VisualHiveBundleArtifactIndexBinding;
+  capabilityParity?: VisualHiveBundleCapabilityParityBinding;
   overallDigest: string;
   replayProtection: {
     nonce: string;
@@ -109,6 +154,8 @@ export interface WriteVisualHiveBundleOptions {
   verdict: string;
   acmmRequest: number;
   artifacts: string[];
+  artifactIndex?: string;
+  capabilityParity?: string;
   source: VisualHiveBundleSource;
   scan?: Partial<VisualHiveBundleScan>;
   observations?: VisualHiveBundleObservation[];
@@ -130,27 +177,68 @@ export interface WriteVisualHiveBundleResult {
 }
 
 export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOptions): Promise<WriteVisualHiveBundleResult> {
-  const rootDir = path.resolve(options.rootDir);
+  const rootDir = await canonicalRepositoryRoot(options.rootDir);
   const bundlesRoot = resolveInsideRoot(rootDir, options.outputDir ?? path.join(".visual-hive", "bundles"));
   const bundleId = safeBundleId(options.bundleId ?? randomUUID());
   const finalDir = path.join(bundlesRoot, bundleId);
   const temporaryDir = path.join(bundlesRoot, `.tmp-${bundleId}-${randomUUID()}`);
   const generatedAt = (options.now ?? new Date()).toISOString();
   const expiresAt = new Date(Date.parse(generatedAt) + (options.expiresInHours ?? 168) * 60 * 60 * 1000).toISOString();
+  if (!isValidV3TimestampWindow(generatedAt, expiresAt)) {
+    throw new Error("Visual Hive bundle expiry must be a canonical UTC-millisecond timestamp after generation.");
+  }
+  const source = sanitizeSource(options.source);
+  const bundleVersion = selectBundleVersion(source);
+  const requestedArtifacts = uniqueSorted(options.artifacts);
+  const artifactIndexPath = bundleVersion === "v3"
+    ? normalizeRelativeArtifactPath(options.artifactIndex ?? DEFAULT_ARTIFACT_INDEX_PATH)
+    : undefined;
+  const capabilityParityPath = bundleVersion === "v3"
+    ? normalizeRelativeArtifactPath(options.capabilityParity ?? DEFAULT_CAPABILITY_PARITY_PATH)
+    : undefined;
+  const bundleEvidence = bundleVersion === "v3"
+    ? await validateBundleEvidence({
+        rootDir,
+        project: options.project,
+        artifactIndexPath: artifactIndexPath!,
+        capabilityParityPath: capabilityParityPath!,
+        requestedArtifacts
+      })
+    : undefined;
+  const artifacts = bundleVersion === "v3"
+    ? uniqueSorted([...requestedArtifacts, artifactIndexPath!, capabilityParityPath!])
+    : requestedArtifacts;
 
-  await mkdir(temporaryDir, { recursive: true });
+  await ensureSecureDirectory(rootDir, bundlesRoot);
+  await mkdir(temporaryDir);
+  let temporaryDirectoryIdentity: StableDirectoryIdentity | undefined;
   try {
+    temporaryDirectoryIdentity = await captureStableDirectoryIdentity(rootDir, temporaryDir);
     const files: VisualHiveBundleFile[] = [];
-    for (const artifact of uniqueSorted(options.artifacts)) {
+    const expectedArtifacts: Array<{ path: string; data: Buffer }> = [];
+    for (const artifact of artifacts) {
       const sourcePath = normalizeRelativeArtifactPath(artifact);
-      const absoluteSource = resolveInsideRoot(rootDir, sourcePath);
-      const sourceStat = await lstat(absoluteSource);
-      if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) throw new Error(`Visual Hive bundle artifact is not a regular file: ${sourcePath}`);
+      const data = bundleEvidence?.artifactData.get(sourcePath)
+        ?? await readStableRegularFile(rootDir, sourcePath, "artifact");
       const bundledPath = normalizeRelativeArtifactPath(path.join("files", sourcePath));
       const destination = path.join(temporaryDir, ...bundledPath.split("/"));
-      await mkdir(path.dirname(destination), { recursive: true });
-      await cp(absoluteSource, destination, { force: false, errorOnExist: true });
-      const data = await readFile(destination);
+      await ensureSecureDirectory(rootDir, path.dirname(destination));
+      await writeFile(destination, data, { flag: "wx" });
+      await assertExactFileReadback(
+        rootDir,
+        normalizeRelativeArtifactPath(path.relative(rootDir, destination)),
+        data,
+        `written artifact ${sourcePath}`
+      );
+      expectedArtifacts.push({ path: bundledPath, data });
+      if (bundleEvidence) {
+        const expected = sourcePath === artifactIndexPath
+          ? { sha256: bundleEvidence.artifactIndexSha256, bytes: bundleEvidence.artifactIndexBytes }
+          : bundleEvidence.indexedArtifacts.get(sourcePath);
+        if (!expected || expected.sha256 !== sha256(data) || expected.bytes !== data.byteLength) {
+          throw new Error(`Visual Hive bundle artifact changed after content-addressed index validation: ${sourcePath}`);
+        }
+      }
       files.push({
         path: bundledPath,
         sourcePath,
@@ -161,7 +249,6 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       });
     }
 
-    const source = sanitizeSource(options.source);
     const scan = sanitizeScan(options.scan);
     const observations = sanitizeObservations(
       options.observations ?? observationsFromIssues(options.issues ?? [], source.repository, generatedAt, options.issuesArtifact),
@@ -172,15 +259,14 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     }
     const replayProtection = {
       nonce: bundleId,
-      key: sha256([
-        source.repository,
-        source.commitSha,
-        source.workflowRunId ?? "local",
-        bundleId
-      ].join("\0"))
+      key: bundleVersion === "v3"
+        ? v3ReplayKey(source, bundleId)
+        : v2ReplayKey(source, bundleId)
     };
     const acmmRequest = sanitizeACMMRequest(options.acmmRequest);
     const metadata = {
+      generatedAt,
+      expiresAt,
       project: options.project,
       mode: options.mode,
       verdict: options.verdict,
@@ -190,10 +276,20 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       producerVersion: options.producerVersion,
       producerGitCommit: options.producerGitCommit
     };
-    const digestAlgorithm = VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM;
-    const overallDigest = digestPublicationBundleContent(files, scan, observations, source, replayProtection.key, metadata);
+    const artifactIndex = bundleEvidence
+      ? bindArtifactIndex(files, artifactIndexPath!, bundleEvidence.artifactIndex, bundleEvidence.artifactIndexSha256)
+      : undefined;
+    const capabilityParity = bundleEvidence
+      ? bindCapabilityParity(files, capabilityParityPath!, bundleEvidence.capabilityParity, bundleEvidence.capabilityParitySha256)
+      : undefined;
+    const digestAlgorithm = bundleVersion === "v3"
+      ? VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM
+      : VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM;
+    const overallDigest = bundleVersion === "v3"
+      ? digestV3BundleContent(files, scan, observations, source, replayProtection.key, metadata, artifactIndex!, capabilityParity!)
+      : digestPublicationBundleContent(files, scan, observations, source, replayProtection.key, metadata);
     const manifest: VisualHiveBundleManifest = {
-      schemaVersion: "visual-hive.bundle.v2",
+      schemaVersion: bundleVersion === "v3" ? "visual-hive.bundle.v3" : "visual-hive.bundle.v2",
       digestAlgorithm,
       bundleId,
       generatedAt,
@@ -208,6 +304,8 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       scan,
       observations,
       files,
+      ...(artifactIndex ? { artifactIndex } : {}),
+      ...(capabilityParity ? { capabilityParity } : {}),
       overallDigest,
       replayProtection,
       provenance: {
@@ -224,21 +322,44 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
         absenceRequiresAuthoritativeScan: true
       }
     };
-    await writeFile(path.join(temporaryDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-    await mkdir(bundlesRoot, { recursive: true });
+    const manifestData = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    const temporaryManifest = path.join(temporaryDir, "manifest.json");
+    await writeFile(temporaryManifest, manifestData, { flag: "wx" });
+    await assertExactFileReadback(
+      rootDir,
+      normalizeRelativeArtifactPath(path.relative(rootDir, temporaryManifest)),
+      manifestData,
+      "written manifest"
+    );
+    await assertSecureDirectory(rootDir, bundlesRoot);
+    await assertSecureDirectory(rootDir, temporaryDir);
+    await assertStableDirectoryIdentity(rootDir, temporaryDir, temporaryDirectoryIdentity);
+    await assertPathDoesNotExist(rootDir, finalDir);
+    const bundlesRootIdentities = await captureStablePathIdentities(rootDir, bundlesRoot);
+    if (bundleVersion === "v3") await assertArtifactIndexSealUnlocked(rootDir);
     await rename(temporaryDir, finalDir);
+    await assertStablePathNodeIdentities(rootDir, bundlesRootIdentities);
+    await assertStableDirectoryIdentity(rootDir, finalDir, temporaryDirectoryIdentity, true);
+    if (bundleVersion === "v3") await assertArtifactIndexSealUnlocked(rootDir);
+    await assertExactBundleReadback(rootDir, finalDir, [
+      ...expectedArtifacts,
+      { path: "manifest.json", data: manifestData }
+    ]);
     return {
       manifest,
       manifestPath: normalizeRelativeArtifactPath(path.relative(rootDir, path.join(finalDir, "manifest.json"))),
       bundleDir: normalizeRelativeArtifactPath(path.relative(rootDir, finalDir))
     };
   } catch (error) {
-    await rm(temporaryDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    await removePrivateDirectory(rootDir, bundlesRoot, temporaryDir, temporaryDirectoryIdentity);
+    await removePrivateDirectory(rootDir, bundlesRoot, finalDir, temporaryDirectoryIdentity);
     throw error;
   }
 }
 
 export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest): boolean {
+  if (manifest.schemaVersion === "visual-hive.bundle.v3") return verifyV3BundleDigest(manifest);
+  if (manifest.schemaVersion !== "visual-hive.bundle.v2") return false;
   const publicationMode = publicationMetadataMode(manifest.observations);
   if (publicationMode === "invalid") return false;
   const digestAlgorithm = (manifest as VisualHiveBundleManifest & { digestAlgorithm?: unknown }).digestAlgorithm;
@@ -265,6 +386,40 @@ export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest)
       producerGitCommit: manifest.producer.gitCommit
     }
   );
+}
+
+function verifyV3BundleDigest(manifest: VisualHiveBundleManifest): boolean {
+  if (manifest.digestAlgorithm !== VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM) return false;
+  if (publicationMetadataMode(manifest.observations) === "legacy" || publicationMetadataMode(manifest.observations) === "invalid") return false;
+  if (!manifest.artifactIndex || !manifest.capabilityParity) return false;
+  if (!isValidV3TimestampWindow(manifest.generatedAt, manifest.expiresAt)) return false;
+  if (!hasV3SourceIdentity(manifest.source)) return false;
+  if (manifest.replayProtection.nonce !== manifest.bundleId) return false;
+  if (manifest.replayProtection.key !== v3ReplayKey(manifest.source, manifest.bundleId)) return false;
+  if (!validArtifactIndexBinding(manifest.artifactIndex, manifest.files)) return false;
+  if (!validCapabilityParityBinding(manifest.capabilityParity, manifest.files)) return false;
+  const digest = digestV3BundleContent(
+    manifest.files,
+    manifest.scan,
+    manifest.observations,
+    manifest.source,
+    manifest.replayProtection.key,
+    {
+      project: manifest.project,
+      mode: manifest.mode,
+      verdict: manifest.verdict,
+      acmmRequest: manifest.acmmRequest,
+      externalCallsMade: manifest.externalCallsMade,
+      generatedAt: manifest.generatedAt,
+      expiresAt: manifest.expiresAt,
+      producerName: manifest.producer.name,
+      producerVersion: manifest.producer.version,
+      producerGitCommit: manifest.producer.gitCommit
+    },
+    manifest.artifactIndex,
+    manifest.capabilityParity
+  );
+  return manifest.overallDigest === digest && manifest.provenance.subjectDigest === digest;
 }
 
 function publicationMetadataMode(observations: VisualHiveBundleObservation[]): "empty" | "legacy" | "publication" | "invalid" {
@@ -296,11 +451,368 @@ interface BundleDigestMetadata {
   producerGitCommit: string;
 }
 
+interface V3BundleDigestMetadata extends BundleDigestMetadata {
+  generatedAt: string;
+  expiresAt: string;
+}
+
+function isCanonicalV3Timestamp(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString() === value;
+}
+
+function isValidV3TimestampWindow(generatedAt: string, expiresAt: string): boolean {
+  return isCanonicalV3Timestamp(generatedAt)
+    && isCanonicalV3Timestamp(expiresAt)
+    && Date.parse(expiresAt) > Date.parse(generatedAt);
+}
+
 function resolveInsideRoot(rootDir: string, candidate: string): string {
   const resolved = path.resolve(rootDir, candidate);
   const relative = path.relative(rootDir, resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`Artifact path escapes repository root: ${candidate}`);
   return resolved;
+}
+
+async function canonicalRepositoryRoot(candidate: string): Promise<string> {
+  const absolute = path.resolve(candidate);
+  const sourceStat = await lstat(absolute, { bigint: true });
+  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
+    throw new Error(`Visual Hive bundle repository root is not a regular directory: ${absolute}`);
+  }
+  requireStableNodeIdentity(sourceStat, absolute);
+  const canonical = await realpath(absolute);
+  const canonicalStat = await lstat(canonical, { bigint: true });
+  if (!canonicalStat.isDirectory() || canonicalStat.isSymbolicLink()) {
+    throw new Error(`Visual Hive bundle repository root is not a regular directory: ${absolute}`);
+  }
+  const afterCanonicalization = await lstat(absolute, { bigint: true });
+  if (!sameDirectorySnapshot(sourceStat, canonicalStat) || !sameDirectorySnapshot(sourceStat, afterCanonicalization)) {
+    throw new Error(`Visual Hive bundle repository root changed during canonicalization: ${absolute}`);
+  }
+  return canonical;
+}
+
+interface StableDirectoryIdentity {
+  absolutePath: string;
+  canonicalPath: string;
+  stat: BigIntStats;
+}
+
+async function captureStableDirectoryIdentity(rootDir: string, target: string): Promise<StableDirectoryIdentity> {
+  const absolutePath = resolveInsideRoot(rootDir, target);
+  const before = await lstat(absolutePath, { bigint: true });
+  if (before.isSymbolicLink()) {
+    throw new Error(`Visual Hive bundle path contains a symbolic link or reparse point: ${normalizeDisplayPath(rootDir, absolutePath)}`);
+  }
+  if (!before.isDirectory()) {
+    throw new Error(`Visual Hive bundle path is not a regular directory: ${normalizeDisplayPath(rootDir, absolutePath)}`);
+  }
+  requireStableNodeIdentity(before, absolutePath);
+  const canonicalPath = await realpath(absolutePath);
+  if (!isInsideOrEqualPath(rootDir, canonicalPath)) {
+    throw new Error(`Visual Hive bundle path resolves outside the repository root: ${normalizeDisplayPath(rootDir, absolutePath)}`);
+  }
+  const after = await lstat(absolutePath, { bigint: true });
+  if (!after.isDirectory() || after.isSymbolicLink() || !sameDirectorySnapshot(before, after)) {
+    throw new Error(`Visual Hive bundle directory identity changed during traversal: ${normalizeDisplayPath(rootDir, absolutePath)}`);
+  }
+  return { absolutePath, canonicalPath, stat: after };
+}
+
+async function captureStablePathIdentities(rootDir: string, targetDirectory: string): Promise<StableDirectoryIdentity[]> {
+  const resolved = resolveInsideRoot(rootDir, targetDirectory);
+  const relative = path.relative(rootDir, resolved);
+  const identities: StableDirectoryIdentity[] = [];
+  let current = rootDir;
+  identities.push(await captureStableDirectoryIdentity(rootDir, current));
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    identities.push(await captureStableDirectoryIdentity(rootDir, current));
+  }
+  await assertStablePathIdentities(rootDir, identities);
+  return identities;
+}
+
+async function assertStablePathIdentities(rootDir: string, identities: StableDirectoryIdentity[]): Promise<void> {
+  for (const expected of identities) {
+    await assertStableDirectoryIdentity(rootDir, expected.absolutePath, expected, false, true);
+  }
+}
+
+async function assertStablePathNodeIdentities(rootDir: string, identities: StableDirectoryIdentity[]): Promise<void> {
+  for (const expected of identities) {
+    await assertStableDirectoryIdentity(rootDir, expected.absolutePath, expected);
+  }
+}
+
+async function assertStableDirectoryIdentity(
+  rootDir: string,
+  target: string,
+  expected: StableDirectoryIdentity,
+  allowCanonicalPathChange = false,
+  requireUnchangedSnapshot = false
+): Promise<void> {
+  const actual = await captureStableDirectoryIdentity(rootDir, target);
+  const identityMatches = requireUnchangedSnapshot
+    ? sameDirectorySnapshot(expected.stat, actual.stat)
+    : sameDirectoryIdentity(expected.stat, actual.stat);
+  if (!identityMatches
+    || (!allowCanonicalPathChange && expected.canonicalPath !== actual.canonicalPath)) {
+    throw new Error(`Visual Hive bundle directory identity changed during traversal: ${normalizeDisplayPath(rootDir, actual.absolutePath)}`);
+  }
+}
+
+async function assertSecureDirectory(rootDir: string, target: string): Promise<void> {
+  const resolved = resolveInsideRoot(rootDir, target);
+  await captureStablePathIdentities(rootDir, resolved);
+}
+
+async function ensureSecureDirectory(rootDir: string, target: string): Promise<void> {
+  const resolved = resolveInsideRoot(rootDir, target);
+  const relative = path.relative(rootDir, resolved);
+  let current = rootDir;
+  const identities = [await captureStableDirectoryIdentity(rootDir, current)];
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    await assertStablePathNodeIdentities(rootDir, identities);
+    current = path.join(current, segment);
+    try {
+      await mkdir(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+    const currentStat = await lstat(current);
+    if (!currentStat.isDirectory() || currentStat.isSymbolicLink()) {
+      throw new Error(`Visual Hive bundle output path contains a non-directory or symbolic link: ${normalizeDisplayPath(rootDir, current)}`);
+    }
+    const canonical = await realpath(current);
+    if (!isInsideOrEqualPath(rootDir, canonical)) {
+      throw new Error(`Visual Hive bundle output path resolves outside the repository root: ${normalizeDisplayPath(rootDir, current)}`);
+    }
+    identities.push(await captureStableDirectoryIdentity(rootDir, current));
+  }
+  await assertStablePathNodeIdentities(rootDir, identities);
+}
+
+async function assertPathDoesNotExist(rootDir: string, target: string): Promise<void> {
+  const resolved = resolveInsideRoot(rootDir, target);
+  const parentIdentities = await captureStablePathIdentities(rootDir, path.dirname(resolved));
+  try {
+    await lstat(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      await assertStablePathIdentities(rootDir, parentIdentities);
+      return;
+    }
+    throw error;
+  }
+  await assertStablePathIdentities(rootDir, parentIdentities);
+  throw new Error(`Visual Hive bundle destination already exists: ${normalizeDisplayPath(rootDir, resolved)}`);
+}
+
+async function assertArtifactIndexSealUnlocked(rootDir: string): Promise<void> {
+  const rootIdentities = await captureStablePathIdentities(rootDir, rootDir);
+  const lockPath = path.join(rootDir, ARTIFACT_INDEX_SEAL_LOCK_PATH);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await lstat(lockPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      await assertStablePathIdentities(rootDir, rootIdentities);
+      continue;
+    }
+    throw new Error(`Visual Hive bundle publication refuses an artifact index seal lock: ${ARTIFACT_INDEX_SEAL_LOCK_PATH}`);
+  }
+}
+
+async function removePrivateDirectory(
+  rootDir: string,
+  bundlesRoot: string,
+  privateDir: string,
+  expectedIdentity?: StableDirectoryIdentity
+): Promise<void> {
+  try {
+    if (!expectedIdentity) return;
+    await assertSecureDirectory(rootDir, bundlesRoot);
+    const actualIdentity = await captureStableDirectoryIdentity(rootDir, privateDir);
+    if (!sameDirectoryIdentity(expectedIdentity.stat, actualIdentity.stat)) return;
+    await rm(privateDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      // Preserve the publication error and leave an untrusted path untouched for inspection.
+    }
+  }
+}
+
+async function readStableRegularFile(rootDir: string, relativePath: string, label: string): Promise<Buffer> {
+  const normalized = normalizeRelativeArtifactPath(relativePath);
+  const absolute = resolveInsideRoot(rootDir, normalized);
+  const parentIdentities = await captureStablePathIdentities(rootDir, path.dirname(absolute));
+  const before = await lstat(absolute, { bigint: true });
+  if (before.isSymbolicLink()) {
+    throw new Error(`Visual Hive bundle path contains a symbolic link or reparse point: ${normalized}`);
+  }
+  if (!before.isFile()) {
+    throw new Error(`Visual Hive bundle ${label} is not a regular file: ${normalized}`);
+  }
+  requireStableNodeIdentity(before, absolute);
+  const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
+  const handle = await open(absolute, constants.O_RDONLY | noFollow);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || !sameFileIdentity(before, opened)) {
+      throw new Error(`Visual Hive bundle ${label} changed while it was opened: ${normalized}`);
+    }
+    const data = await handle.readFile();
+    const afterRead = await handle.stat({ bigint: true });
+    if (!sameFileIdentity(opened, afterRead) || BigInt(data.byteLength) !== afterRead.size) {
+      throw new Error(`Visual Hive bundle ${label} changed while it was read: ${normalized}`);
+    }
+    const afterPath = await lstat(absolute, { bigint: true });
+    if (!sameFileIdentity(afterRead, afterPath)) {
+      throw new Error(`Visual Hive bundle ${label} path changed while it was read: ${normalized}`);
+    }
+    await assertStablePathIdentities(rootDir, parentIdentities);
+    return data;
+  } finally {
+    await handle.close();
+  }
+}
+
+function requireStableNodeIdentity(stat: BigIntStats, target: string): void {
+  if (stat.ino === 0n) {
+    throw new Error(`Visual Hive bundle cannot establish a stable filesystem identity for: ${target}`);
+  }
+}
+
+function sameNodeIdentity(left: BigIntStats, right: BigIntStats): boolean {
+  const deviceMatches = left.dev === right.dev || left.dev === 0n || right.dev === 0n;
+  return left.ino !== 0n && right.ino !== 0n && deviceMatches && left.ino === right.ino;
+}
+
+function sameDirectoryIdentity(left: BigIntStats, right: BigIntStats): boolean {
+  return sameNodeIdentity(left, right) && left.isDirectory() && right.isDirectory();
+}
+
+function sameDirectorySnapshot(left: BigIntStats, right: BigIntStats): boolean {
+  return sameDirectoryIdentity(left, right)
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function sameFileIdentity(left: BigIntStats, right: BigIntStats): boolean {
+  return sameNodeIdentity(left, right)
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+async function assertExactFileReadback(rootDir: string, relativePath: string, expected: Buffer, label: string): Promise<void> {
+  const actual = await readStableRegularFile(rootDir, relativePath, label);
+  if (!actual.equals(expected)) {
+    throw new Error(`Visual Hive bundle ${label} failed exact readback: ${relativePath}`);
+  }
+}
+
+async function assertExactBundleReadback(
+  rootDir: string,
+  bundleDir: string,
+  expectedFiles: Array<{ path: string; data: Buffer }>
+): Promise<void> {
+  const directoryIdentities = new Map<string, StableDirectoryIdentity>();
+  for (const expected of expectedFiles) {
+    const target = resolveInsideRoot(bundleDir, expected.path);
+    const identities = await captureStablePathIdentities(rootDir, path.dirname(target));
+    for (const identity of identities) {
+      const existing = directoryIdentities.get(identity.absolutePath);
+      if (existing && !sameDirectorySnapshot(existing.stat, identity.stat)) {
+        throw new Error(`Visual Hive bundle directory identity changed during readback: ${normalizeDisplayPath(rootDir, identity.absolutePath)}`);
+      }
+      directoryIdentities.set(identity.absolutePath, identity);
+    }
+  }
+  const stableDirectories = [...directoryIdentities.values()];
+  await assertStablePathIdentities(rootDir, stableDirectories);
+  for (const expected of [...expectedFiles].sort((left, right) => stableCompare(left.path, right.path))) {
+    const relativePath = normalizeRelativeArtifactPath(path.relative(rootDir, resolveInsideRoot(bundleDir, expected.path)));
+    await assertExactFileReadback(rootDir, relativePath, expected.data, `published file ${expected.path}`);
+  }
+  await assertStablePathIdentities(rootDir, stableDirectories);
+}
+
+async function requireExactArtifactSet(
+  rootDir: string,
+  indexedRoot: string,
+  artifactIndexPath: string,
+  indexedArtifacts: Map<string, ArtifactIndexEntry>
+): Promise<void> {
+  const actual = await enumerateArtifactFiles(rootDir, indexedRoot);
+  actual.delete(artifactIndexPath);
+  for (const artifactPath of actual) {
+    if (!indexedArtifacts.has(artifactPath)) {
+      throw new Error(`Complete content-addressed artifact index omits on-disk artifact: ${artifactPath}`);
+    }
+  }
+  for (const artifactPath of indexedArtifacts.keys()) {
+    if (!actual.has(artifactPath)) {
+      throw new Error(`Complete content-addressed artifact index names a missing artifact: ${artifactPath}`);
+    }
+  }
+}
+
+async function enumerateArtifactFiles(rootDir: string, indexedRoot: string): Promise<Set<string>> {
+  const absoluteRoot = resolveInsideRoot(rootDir, indexedRoot);
+  await assertSecureDirectory(rootDir, absoluteRoot);
+  const files = new Set<string>();
+  const walk = async (directory: string): Promise<void> => {
+    const directoryIdentities = await captureStablePathIdentities(rootDir, directory);
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((left, right) => stableCompare(left.name, right.name));
+    for (const entry of entries) {
+      const child = path.join(directory, entry.name);
+      const childStat = await lstat(child);
+      const relative = normalizeRelativeArtifactPath(path.relative(rootDir, child));
+      if (childStat.isSymbolicLink()) {
+        throw new Error(`Complete content-addressed artifact index refuses symbolic link or reparse point: ${relative}`);
+      }
+      if (childStat.isDirectory()) {
+        if (!isBundlePayloadDirectory(rootDir, child)) await walk(child);
+        continue;
+      }
+      if (!childStat.isFile()) {
+        throw new Error(`Complete content-addressed artifact index refuses non-regular entry: ${relative}`);
+      }
+      files.add(relative);
+    }
+    await assertStablePathIdentities(rootDir, directoryIdentities);
+  };
+  await walk(absoluteRoot);
+  return files;
+}
+
+function isBundlePayloadDirectory(rootDir: string, directory: string): boolean {
+  const relative = path.relative(rootDir, directory).replaceAll("\\", "/");
+  return /^\.visual-hive\/bundles\/[^/]+\/files$/.test(relative);
+}
+
+function parseJsonBuffer(data: Buffer, label: string): unknown {
+  try {
+    return JSON.parse(data.toString("utf8")) as unknown;
+  } catch {
+    throw new Error(`Visual Hive bundle ${label} is not valid JSON.`);
+  }
+}
+
+function isInsideOrEqualPath(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function normalizeDisplayPath(rootDir: string, target: string): string {
+  return path.relative(rootDir, target).replaceAll("\\", "/") || ".";
 }
 
 function normalizeRelativeArtifactPath(value: string): string {
@@ -317,6 +829,301 @@ function safeBundleId(value: string): string {
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.map(normalizeRelativeArtifactPath))].sort(stableCompare);
+}
+
+interface ValidatedBundleEvidence {
+  artifactIndex: ArtifactIndexReport;
+  artifactIndexSha256: string;
+  artifactIndexBytes: number;
+  capabilityParity: CapabilityParityReport;
+  capabilityParitySha256: string;
+  indexedArtifacts: Map<string, ArtifactIndexEntry>;
+  artifactData: Map<string, Buffer>;
+}
+
+async function validateBundleEvidence(input: {
+  rootDir: string;
+  project: string;
+  artifactIndexPath: string;
+  capabilityParityPath: string;
+  requestedArtifacts: string[];
+}): Promise<ValidatedBundleEvidence> {
+  await assertArtifactIndexSealUnlocked(input.rootDir);
+  if (input.artifactIndexPath === input.capabilityParityPath) {
+    throw new Error("Visual Hive bundle artifact index and capability parity receipt must be different files.");
+  }
+  const artifactIndexFile = await readRegularJsonFile(input.rootDir, input.artifactIndexPath, "artifact index");
+  const artifactIndex = validateArtifactIndexReport(artifactIndexFile.value, input.project, input.artifactIndexPath);
+  const indexedArtifacts = new Map<string, ArtifactIndexEntry>();
+  const artifactData = new Map<string, Buffer>([[input.artifactIndexPath, artifactIndexFile.data]]);
+  const normalizedRoot = normalizeRelativeArtifactPath(artifactIndex.root);
+  if (input.artifactIndexPath !== normalizedRoot && !input.artifactIndexPath.startsWith(`${normalizedRoot}/`)) {
+    throw new Error(`Visual Hive artifact index must be stored inside its indexed root ${normalizedRoot}.`);
+  }
+
+  for (const entry of artifactIndex.artifacts) {
+    const artifactPath = normalizeRelativeArtifactPath(entry.path);
+    if (artifactPath !== normalizedRoot && !artifactPath.startsWith(`${normalizedRoot}/`)) {
+      throw new Error(`Content-addressed artifact is outside the indexed root ${normalizedRoot}: ${artifactPath}`);
+    }
+    if (artifactPath === input.artifactIndexPath) {
+      throw new Error("A content-addressed artifact index must exclude itself to avoid a recursive digest.");
+    }
+    if (indexedArtifacts.has(artifactPath)) throw new Error(`Duplicate content-addressed artifact path: ${artifactPath}`);
+    indexedArtifacts.set(artifactPath, entry);
+
+    const data = await readStableRegularFile(input.rootDir, artifactPath, "content-addressed artifact");
+    if (data.byteLength !== entry.bytes || sha256(data) !== entry.sha256) {
+      throw new Error(`Content-addressed artifact index is stale for ${artifactPath}.`);
+    }
+    artifactData.set(artifactPath, data);
+  }
+
+  await requireExactArtifactSet(input.rootDir, normalizedRoot, input.artifactIndexPath, indexedArtifacts);
+
+  const capabilityData = artifactData.get(input.capabilityParityPath);
+  if (!capabilityData) {
+    throw new Error(`Capability parity receipt is missing from the complete artifact index: ${input.capabilityParityPath}`);
+  }
+  const capabilityParity = validateCapabilityParityReport(parseJsonBuffer(capabilityData, "capability parity receipt"));
+
+  const capabilityEntry = indexedArtifacts.get(input.capabilityParityPath);
+  if (!capabilityEntry || capabilityEntry.bytes !== capabilityData.byteLength || capabilityEntry.sha256 !== sha256(capabilityData)) {
+    throw new Error("Capability parity receipt does not match its content-addressed artifact index entry.");
+  }
+  for (const artifactPath of input.requestedArtifacts) {
+    if (artifactPath === input.artifactIndexPath) continue;
+    if (!indexedArtifacts.has(artifactPath)) {
+      throw new Error(`Compact bundle artifact is missing from the complete content-addressed index: ${artifactPath}`);
+    }
+  }
+
+  return {
+    artifactIndex,
+    artifactIndexSha256: sha256(artifactIndexFile.data),
+    artifactIndexBytes: artifactIndexFile.data.byteLength,
+    capabilityParity,
+    capabilityParitySha256: sha256(capabilityData),
+    indexedArtifacts,
+    artifactData
+  };
+}
+
+async function readRegularJsonFile(rootDir: string, relativePath: string, label: string): Promise<{ data: Buffer; value: unknown }> {
+  const data = await readStableRegularFile(rootDir, relativePath, label);
+  return { data, value: parseJsonBuffer(data, `${label}: ${relativePath}`) };
+}
+
+function validateArtifactIndexReport(value: unknown, project: string, sourcePath: string): ArtifactIndexReport {
+  if (!isRecord(value)) throw new Error(`Visual Hive artifact index must be a JSON object: ${sourcePath}`);
+  if (value.schemaVersion !== 1 || value.contentAddressed !== true || value.complete !== true) {
+    throw new Error("Visual Hive bundle v3 requires a complete content-addressed artifact index with schemaVersion=1.");
+  }
+  if (value.project !== project) throw new Error(`Visual Hive artifact index project does not match bundle project ${project}.`);
+  if (typeof value.root !== "string" || !value.root.trim()) throw new Error("Visual Hive artifact index requires a repository-relative root.");
+  if (!Array.isArray(value.artifacts) || !Array.isArray(value.warnings) || value.warnings.some((warning) => typeof warning !== "string")) {
+    throw new Error("Visual Hive artifact index artifacts and warnings must be arrays.");
+  }
+  if (!isRecord(value.summary)) throw new Error("Visual Hive artifact index requires a summary object.");
+  const summary = value.summary;
+  const artifactCount = nonNegativeInteger(summary.artifactCount, "artifactIndex.summary.artifactCount");
+  const discoveredArtifactCount = nonNegativeInteger(summary.discoveredArtifactCount, "artifactIndex.summary.discoveredArtifactCount");
+  const omittedArtifactCount = nonNegativeInteger(summary.omittedArtifactCount, "artifactIndex.summary.omittedArtifactCount");
+  const totalBytes = nonNegativeInteger(summary.totalBytes, "artifactIndex.summary.totalBytes");
+  if (artifactCount !== value.artifacts.length || discoveredArtifactCount !== artifactCount || omittedArtifactCount !== 0) {
+    throw new Error("Visual Hive bundle v3 requires an artifact index with no omitted entries and internally consistent counts.");
+  }
+  let indexedBytes = 0;
+  for (const candidate of value.artifacts) {
+    if (!isRecord(candidate) || typeof candidate.path !== "string") throw new Error("Artifact index entries require a relative path.");
+    const bytes = nonNegativeInteger(candidate.bytes, `artifactIndex.artifacts[${candidate.path}].bytes`);
+    if (typeof candidate.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(candidate.sha256)) {
+      throw new Error(`Artifact index entry has an invalid SHA-256 digest: ${candidate.path}`);
+    }
+    indexedBytes += bytes;
+  }
+  if (indexedBytes !== totalBytes) throw new Error("Visual Hive artifact index totalBytes does not match its entries.");
+  return value as unknown as ArtifactIndexReport;
+}
+
+function validateCapabilityParityReport(value: unknown): CapabilityParityReport {
+  if (!isRecord(value)) throw new Error("Visual Hive capability parity receipt must be a JSON object.");
+  if (value.schemaVersion !== "visual-hive.capability-parity.v1" || value.baselineVersion !== "visual-hive.capability-baseline.v1") {
+    throw new Error("Visual Hive bundle v3 requires capability parity schema v1 and frozen baseline v1.");
+  }
+  if (typeof value.generatedAt !== "string" || !Number.isFinite(Date.parse(value.generatedAt))) {
+    throw new Error("Visual Hive capability parity receipt requires a valid generatedAt timestamp.");
+  }
+  if (!isRecord(value.summary) || !Array.isArray(value.domains) || !Array.isArray(value.checks)) {
+    throw new Error("Visual Hive capability parity receipt requires summary, domains, and checks.");
+  }
+  const rawSummary = value.summary;
+  const counterNames = ["expected", "actual", "present", "blocked", "missing", "unexpected", "mismatched"] as const;
+  const summary = Object.fromEntries(counterNames.map((name) => [name, nonNegativeInteger(rawSummary[name], `capabilityParity.summary.${name}`)])) as unknown as CapabilityParityReport["summary"];
+  const domainTotals = Object.fromEntries(counterNames.map((name) => [name, 0])) as Record<(typeof counterNames)[number], number>;
+  const domains = new Set<string>();
+  for (const candidate of value.domains) {
+    if (!isRecord(candidate)
+      || typeof candidate.domain !== "string"
+      || !(CAPABILITY_PARITY_DOMAINS as readonly string[]).includes(candidate.domain)
+      || domains.has(candidate.domain)) {
+      throw new Error("Visual Hive capability parity receipt has an invalid or duplicate domain summary.");
+    }
+    domains.add(candidate.domain);
+    for (const name of counterNames) domainTotals[name] += nonNegativeInteger(candidate[name], `capabilityParity.domains.${candidate.domain}.${name}`);
+  }
+  if (domains.size !== CAPABILITY_PARITY_DOMAINS.length) {
+    throw new Error("Visual Hive capability parity receipt must summarize every frozen capability domain.");
+  }
+  for (const name of counterNames) {
+    if (domainTotals[name] !== summary[name]) throw new Error(`Capability parity ${name} summary does not match domain totals.`);
+  }
+  const checkCounts = { present: 0, blocked: 0, missing: 0, unexpected: 0, mismatched: 0 };
+  for (const candidate of value.checks) {
+    if (!isRecord(candidate) || typeof candidate.domain !== "string" || !domains.has(candidate.domain) || typeof candidate.key !== "string" || typeof candidate.message !== "string") {
+      throw new Error("Visual Hive capability parity receipt contains a malformed check.");
+    }
+    if (!(candidate.status === "present" || candidate.status === "blocked" || candidate.status === "missing" || candidate.status === "unexpected" || candidate.status === "mismatched")) {
+      throw new Error(`Visual Hive capability parity receipt contains an invalid check status: ${String(candidate.status)}`);
+    }
+    const expectedParity = candidate.status === "present" || candidate.status === "blocked";
+    if (candidate.parity !== expectedParity) throw new Error(`Capability parity boolean disagrees with check status for ${candidate.domain}:${candidate.key}.`);
+    checkCounts[candidate.status] += 1;
+  }
+  for (const name of ["present", "blocked", "missing", "unexpected", "mismatched"] as const) {
+    if (checkCounts[name] !== summary[name]) throw new Error(`Capability parity ${name} summary does not match checks.`);
+  }
+  const failedChecks = summary.missing + summary.unexpected + summary.mismatched;
+  if (value.status !== (failedChecks === 0 ? "passed" : "failed")) throw new Error("Capability parity status does not match its summary.");
+  if (value.runtimeStatus !== (summary.blocked === 0 ? "ready" : "blocked")) throw new Error("Capability parity runtimeStatus does not match its blocked checks.");
+  if (value.status !== "passed") throw new Error("Refusing to create a Visual Hive bundle when capability parity failed.");
+  return value as unknown as CapabilityParityReport;
+}
+
+function nonNegativeInteger(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`${field} must be a non-negative safe integer.`);
+  return Number(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function bindArtifactIndex(
+  files: VisualHiveBundleFile[],
+  sourcePath: string,
+  report: ArtifactIndexReport,
+  digest: string
+): VisualHiveBundleArtifactIndexBinding {
+  const file = requiredBundleFile(files, sourcePath, digest);
+  return {
+    path: file.path,
+    sourcePath,
+    sha256: digest,
+    schemaVersion: 1,
+    contentAddressed: true,
+    complete: true,
+    artifactCount: report.summary.artifactCount,
+    totalBytes: report.summary.totalBytes
+  };
+}
+
+function bindCapabilityParity(
+  files: VisualHiveBundleFile[],
+  sourcePath: string,
+  report: CapabilityParityReport,
+  digest: string
+): VisualHiveBundleCapabilityParityBinding {
+  const file = requiredBundleFile(files, sourcePath, digest);
+  return {
+    path: file.path,
+    sourcePath,
+    sha256: digest,
+    schemaVersion: report.schemaVersion,
+    baselineVersion: report.baselineVersion,
+    status: "passed",
+    runtimeStatus: report.runtimeStatus,
+    summary: { ...report.summary }
+  };
+}
+
+function requiredBundleFile(files: VisualHiveBundleFile[], sourcePath: string, digest: string): VisualHiveBundleFile {
+  const file = files.find((candidate) => candidate.sourcePath === sourcePath);
+  if (!file || file.sha256 !== digest) throw new Error(`Required bundle evidence was not copied with its validated digest: ${sourcePath}`);
+  return file;
+}
+
+function validArtifactIndexBinding(binding: VisualHiveBundleArtifactIndexBinding, files: VisualHiveBundleFile[]): boolean {
+  return binding.schemaVersion === 1
+    && binding.contentAddressed === true
+    && binding.complete === true
+    && Number.isSafeInteger(binding.artifactCount)
+    && binding.artifactCount >= 0
+    && Number.isSafeInteger(binding.totalBytes)
+    && binding.totalBytes >= 0
+    && validBoundFile(binding, files);
+}
+
+function validCapabilityParityBinding(binding: VisualHiveBundleCapabilityParityBinding, files: VisualHiveBundleFile[]): boolean {
+  const summary = binding.summary;
+  if (binding.schemaVersion !== "visual-hive.capability-parity.v1"
+    || binding.baselineVersion !== "visual-hive.capability-baseline.v1"
+    || binding.status !== "passed"
+    || !summary) return false;
+  const values = [summary.expected, summary.actual, summary.present, summary.blocked, summary.missing, summary.unexpected, summary.mismatched];
+  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)) return false;
+  if (summary.missing !== 0 || summary.unexpected !== 0 || summary.mismatched !== 0) return false;
+  if (binding.runtimeStatus !== (summary.blocked === 0 ? "ready" : "blocked")) return false;
+  return validBoundFile(binding, files);
+}
+
+function validBoundFile(
+  binding: Pick<VisualHiveBundleArtifactIndexBinding, "path" | "sourcePath" | "sha256">,
+  files: VisualHiveBundleFile[]
+): boolean {
+  if (!/^[a-f0-9]{64}$/.test(binding.sha256)) return false;
+  try {
+    if (binding.path !== `files/${normalizeRelativeArtifactPath(binding.sourcePath)}`) return false;
+  } catch {
+    return false;
+  }
+  return files.some((file) => file.path === binding.path && file.sourcePath === binding.sourcePath && file.sha256 === binding.sha256);
+}
+
+function selectBundleVersion(source: VisualHiveBundleSource): "v2" | "v3" {
+  if (hasV3SourceIdentity(source)) return "v3";
+  const hasPartialHostedIdentity = Boolean(source.workflowRunId || source.workflowRunAttempt || source.workflowArtifactId);
+  if (source.event !== "local" || hasPartialHostedIdentity) {
+    throw new Error("Hosted Visual Hive bundle publication requires repository, commit, workflow run ID, workflow run attempt, and immutable workflow artifact ID source identity.");
+  }
+  return "v2";
+}
+
+function hasV3SourceIdentity(source: VisualHiveBundleSource): boolean {
+  const required = [source.repository, source.commitSha, source.workflowRunId, source.workflowRunAttempt, source.workflowArtifactId];
+  return required.every((value) => typeof value === "string" && Boolean(value.trim()) && value !== "unknown" && !value.includes("\0"));
+}
+
+function v3ReplayKey(source: VisualHiveBundleSource, bundleId: string): string {
+  return sha256([
+    "visual-hive.bundle.replay.v3",
+    source.repository,
+    source.repositoryId ?? "",
+    source.commitSha,
+    source.workflowRunId ?? "",
+    source.workflowRunAttempt ?? "",
+    source.workflowArtifactId ?? "",
+    bundleId
+  ].join("\0"));
+}
+
+function v2ReplayKey(source: VisualHiveBundleSource, bundleId: string): string {
+  return sha256([
+    source.repository,
+    source.commitSha,
+    source.workflowRunId ?? "local",
+    bundleId
+  ].join("\0"));
 }
 
 function sha256(value: Buffer | string): string {
@@ -450,6 +1257,113 @@ function digestPublicationBundleContent(
       scalar("producerName", metadata.producerName),
       scalar("producerVersion", metadata.producerVersion),
       scalar("producerGitCommit", metadata.producerGitCommit)
+    ]),
+    encodeDigestRecord("replay", [scalar("key", replayKey)])
+  ];
+  return sha256(Buffer.concat(chunks));
+}
+
+function digestV3BundleContent(
+  files: VisualHiveBundleFile[],
+  scan: VisualHiveBundleScan,
+  observations: VisualHiveBundleObservation[],
+  source: VisualHiveBundleSource,
+  replayKey: string,
+  metadata: V3BundleDigestMetadata,
+  artifactIndex: VisualHiveBundleArtifactIndexBinding,
+  capabilityParity: VisualHiveBundleCapabilityParityBinding
+): string {
+  const fileRecords = files.map((file) => encodeDigestRecord("file", [
+    scalar("path", file.path),
+    scalar("sourcePath", file.sourcePath),
+    scalar("sha256", file.sha256),
+    scalar("size", String(file.size)),
+    scalar("mediaType", file.mediaType),
+    scalar("schemaVersion", file.schemaVersion ?? "")
+  ])).sort(Buffer.compare);
+  const observationRecords = observations.map((observation) => encodeDigestRecord("observation", [
+    scalar("repositoryFingerprint", observation.repositoryFingerprint),
+    scalar("fingerprint", observation.fingerprint),
+    scalar("publicationRole", observation.publicationRole),
+    scalar("rootCauseKey", observation.rootCauseKey),
+    array("blockedByRootKeys", observation.blockedByRootKeys),
+    scalar("state", observation.state),
+    scalar("issueKind", observation.issueKind),
+    scalar("severity", observation.severity),
+    scalar("owningAgentHint", observation.owningAgentHint),
+    scalar("title", observation.title),
+    scalar("body", observation.body),
+    array("labels", observation.labels),
+    array("sourceArtifacts", observation.sourceArtifacts),
+    array("affectedContracts", observation.affectedContracts),
+    scalar("validationCommand", observation.validationCommand),
+    scalar("observedAt", observation.observedAt),
+    scalar("firstSeenAt", observation.firstSeenAt),
+    scalar("sourceArtifact", observation.sourceArtifact)
+  ])).sort(Buffer.compare);
+  const summary = capabilityParity.summary;
+  const chunks = [
+    Buffer.from(VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM, "utf8"),
+    encodeDigestCollection("files", fileRecords),
+    encodeDigestCollection("observations", observationRecords),
+    encodeDigestRecord("scan", [
+      scalar("scope", scan.scope),
+      scalar("authoritativeForResolution", String(scan.authoritativeForResolution)),
+      array("evaluatedContracts", scan.evaluatedContracts),
+      array("evaluatedFiles", scan.evaluatedFiles),
+      scalar("testPlanVersion", scan.testPlanVersion),
+      scalar("toolRegistryVersion", scan.toolRegistryVersion)
+    ]),
+    encodeDigestRecord("source", [
+      scalar("repository", source.repository),
+      scalar("repositoryId", source.repositoryId ?? ""),
+      scalar("ref", source.ref),
+      scalar("commitSha", source.commitSha),
+      scalar("event", source.event),
+      scalar("workflowName", source.workflowName ?? ""),
+      scalar("workflowRunId", source.workflowRunId ?? ""),
+      scalar("workflowRunAttempt", source.workflowRunAttempt ?? ""),
+      scalar("workflowArtifactId", source.workflowArtifactId ?? ""),
+      scalar("conclusion", source.conclusion),
+      scalar("trusted", String(source.trusted))
+    ]),
+    encodeDigestRecord("metadata", [
+      scalar("generatedAt", metadata.generatedAt),
+      scalar("expiresAt", metadata.expiresAt),
+      scalar("project", metadata.project),
+      scalar("mode", metadata.mode),
+      scalar("verdict", metadata.verdict),
+      scalar("acmmRequest", String(metadata.acmmRequest)),
+      scalar("externalCallsMade", String(metadata.externalCallsMade)),
+      scalar("producerName", metadata.producerName),
+      scalar("producerVersion", metadata.producerVersion),
+      scalar("producerGitCommit", metadata.producerGitCommit)
+    ]),
+    encodeDigestRecord("artifactIndex", [
+      scalar("path", artifactIndex.path),
+      scalar("sourcePath", artifactIndex.sourcePath),
+      scalar("sha256", artifactIndex.sha256),
+      scalar("schemaVersion", String(artifactIndex.schemaVersion)),
+      scalar("contentAddressed", String(artifactIndex.contentAddressed)),
+      scalar("complete", String(artifactIndex.complete)),
+      scalar("artifactCount", String(artifactIndex.artifactCount)),
+      scalar("totalBytes", String(artifactIndex.totalBytes))
+    ]),
+    encodeDigestRecord("capabilityParity", [
+      scalar("path", capabilityParity.path),
+      scalar("sourcePath", capabilityParity.sourcePath),
+      scalar("sha256", capabilityParity.sha256),
+      scalar("schemaVersion", capabilityParity.schemaVersion),
+      scalar("baselineVersion", capabilityParity.baselineVersion),
+      scalar("status", capabilityParity.status),
+      scalar("runtimeStatus", capabilityParity.runtimeStatus),
+      scalar("expected", String(summary.expected)),
+      scalar("actual", String(summary.actual)),
+      scalar("present", String(summary.present)),
+      scalar("blocked", String(summary.blocked)),
+      scalar("missing", String(summary.missing)),
+      scalar("unexpected", String(summary.unexpected)),
+      scalar("mismatched", String(summary.mismatched))
     ]),
     encodeDigestRecord("replay", [scalar("key", replayKey)])
   ];

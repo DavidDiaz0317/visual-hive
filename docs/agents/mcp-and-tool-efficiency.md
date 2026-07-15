@@ -105,6 +105,10 @@ The initial MCP server exposes read-only artifact resources:
 - `visual-hive://provider-handoff`
 - `visual-hive://provider-results`
 - `visual-hive://provider-upload/argos/manifest`
+- `visual-hive://adapters/lifecycle-plan`
+- `visual-hive://adapters/odiff-result`
+- `visual-hive://adapters/vrt-result`
+- `visual-hive://capabilities/parity`
 - `visual-hive://artifacts/index`
 - `visual-hive://artifact-index`
 - `visual-hive://agent-packet`
@@ -140,12 +144,16 @@ These resources are sanitized before being returned. Missing artifacts are repor
 - `visual_hive_list_reproduction_commands`
 - `visual_hive_plan`
 - `visual_hive_query_visual_graph`
+- `visual_hive_read_adapter_lifecycle_plan`
+- `visual_hive_read_adapter_odiff_result`
+- `visual_hive_read_adapter_vrt_result`
 - `visual_hive_read_agent_packet`
 - `visual_hive_read_agent_validation`
 - `visual_hive_read_artifacts_index`
 - `visual_hive_read_baseline_approvals`
 - `visual_hive_read_baseline_rejections`
 - `visual_hive_read_baseline_review`
+- `visual_hive_read_capability_parity`
 - `visual_hive_read_context_ledger`
 - `visual_hive_read_control_plane_snapshot`
 - `visual_hive_read_coverage_recommendations`

@@ -21,6 +21,29 @@ export const MutationOperatorSchema = z.enum([
   "stale-loading-state"
 ]);
 
+export const SELECTOR_ASSERTION_PRIMITIVES = [
+  "mustExist",
+  "mustNotExist",
+  "textMustExist",
+  "textMustNotExist",
+  "waitFor"
+] as const;
+
+export const FLOW_STEP_ACTIONS = [
+  "goto",
+  "click",
+  "fill",
+  "press",
+  "waitFor",
+  "assertVisible",
+  "assertHidden",
+  "assertText",
+  "assertUrl"
+] as const;
+
+export type SelectorAssertionPrimitive = (typeof SELECTOR_ASSERTION_PRIMITIVES)[number];
+export type FlowStepAction = (typeof FLOW_STEP_ACTIONS)[number];
+
 export const VisualConfigSchema = z
   .object({
     maxDiffPixelRatio: z.number().min(0).max(1).default(0.01),
@@ -376,7 +399,7 @@ export const WaitForSchema = z.object({
 
 export const FlowStepSchema = z
   .object({
-    action: z.enum(["goto", "click", "fill", "press", "waitFor", "assertVisible", "assertHidden", "assertText", "assertUrl"]),
+    action: z.enum(FLOW_STEP_ACTIONS),
     description: z.string().optional(),
     selector: z.string().optional(),
     route: z.string().optional(),

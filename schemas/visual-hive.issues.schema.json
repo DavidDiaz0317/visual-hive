@@ -11,6 +11,7 @@
     "project": { "type": "string" },
     "externalCallsMade": { "const": 0 },
     "networkCallsMade": { "const": 0 },
+    "lifecycle": { "$ref": "#/$defs/lifecycle" },
     "sourceArtifacts": { "type": "object", "additionalProperties": { "type": "string" } },
     "summary": {
       "type": "object",
@@ -33,6 +34,16 @@
     }
   },
   "$defs": {
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "standaloneIssueWrites", "reason"],
+      "properties": {
+        "owner": { "enum": ["visual-hive", "hive"] },
+        "standaloneIssueWrites": { "enum": ["allowed", "suppressed"] },
+        "reason": { "type": "string" }
+      }
+    },
     "issue": {
       "type": "object",
       "required": [

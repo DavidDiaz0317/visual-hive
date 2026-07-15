@@ -3371,6 +3371,21 @@ jobs:
     expect(failureIssueTemplate).toContain("Refusing trusted issue publication because issues.json reports prior external/network calls.");
     expect(failureIssueTemplate).toContain("falls back to issue.md only when older artifacts are uploaded");
     expect(failureIssueTemplate).not.toContain("context.payload.workflow_run.id + \" -->\"");
+    expect(failureIssueTemplate).toContain("managed_by_hive: Hive is the configured lifecycle owner");
+    expect(failureIssueTemplate).toContain('lifecycle?.standaloneIssueWrites === "suppressed"');
+    expect(failureIssueTemplate).toContain('path: ".hive/integrated.json"');
+    expect(failureIssueTemplate).toContain("github.rest.repos.getContent");
+    expect(failureIssueTemplate).toContain("context.payload.repository?.default_branch");
+    expect(failureIssueTemplate).toContain("protected Hive lifecycle ownership could not be verified");
+    expect(failureIssueTemplate.indexOf("const protectedOwner = await protectedLifecycleOwner()"))
+      .toBeLessThan(failureIssueTemplate.indexOf("github.rest.issues.listForRepo"));
+    const failureWorkflow = parseYaml(failureIssueTemplate) as {
+      jobs: { "create-issue": { steps: Array<{ with?: { script?: string } }> } };
+    };
+    const failureScript = failureWorkflow.jobs["create-issue"].steps.find((step) => step.with?.script)?.with?.script;
+    expect(failureScript).toBeTypeOf("string");
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (...args: string[]) => (...values: unknown[]) => Promise<unknown>;
+    expect(() => new AsyncFunction("github", "context", "core", "process", "Buffer", "require", failureScript!)).not.toThrow();
     expect(hiveHandoffTemplate).toContain("workflow_run:");
     expect(hiveHandoffTemplate).toContain("hive-bead-request.json");
     expect(hiveHandoffTemplate).toContain("hive-handoff-validation.json");
@@ -3391,6 +3406,16 @@ jobs:
     expect(hiveHandoffTemplate).toContain("hive-issue.md");
     expect(hiveHandoffTemplate).toContain("externalCallsMade");
     expect(hiveHandoffTemplate).toContain("visual-hive-hive-handoff-dedupe");
+    expect(hiveHandoffTemplate).toContain('path: ".hive/integrated.json"');
+    expect(hiveHandoffTemplate).toContain("protected default-branch installation state assigns lifecycle writes to Hive");
+    expect(hiveHandoffTemplate.indexOf("const protectedOwner = await protectedLifecycleOwner()"))
+      .toBeLessThan(hiveHandoffTemplate.indexOf("github.rest.issues.listForRepo"));
+    const handoffWorkflow = parseYaml(hiveHandoffTemplate) as {
+      jobs: { "trusted-handoff": { steps: Array<{ with?: { script?: string } }> } };
+    };
+    const handoffScript = handoffWorkflow.jobs["trusted-handoff"].steps.find((step) => step.with?.script)?.with?.script;
+    expect(handoffScript).toBeTypeOf("string");
+    expect(() => new AsyncFunction("github", "context", "core", "process", "Buffer", "require", handoffScript!)).not.toThrow();
     expect(hiveHandoffTemplate).toContain("github.rest.issues.create");
     expect(hiveHandoffTemplate).toContain("Future trusted Hive Bead API adapter");
     expect(hiveHandoffTemplate).not.toContain("actions/checkout");

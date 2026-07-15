@@ -6,7 +6,8 @@ import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
 import type { TestCreationPlan } from "../testCreation/types.js";
-import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveSetupIssue } from "./types.js";
+import { VISUAL_HIVE_STANDALONE_LIFECYCLE } from "./lifecycle.js";
+import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveLifecyclePolicy, VisualHiveSetupIssue } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -66,6 +67,7 @@ export interface BuildIssuesOptions {
   now?: Date;
   sourcePaths?: Partial<VisualHiveIssuesReport["sourceArtifacts"]>;
   suppressionPath?: string;
+  lifecycle?: VisualHiveLifecyclePolicy;
 }
 
 export interface WriteIssuesOptions extends BuildIssuesOptions {
@@ -167,6 +169,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     project,
     externalCallsMade: 0,
     networkCallsMade: 0,
+    lifecycle: options.lifecycle ?? VISUAL_HIVE_STANDALONE_LIFECYCLE,
     sourceArtifacts: presentSourceArtifacts(rootDir, sourceArtifacts, {
       report,
       mutationReport,

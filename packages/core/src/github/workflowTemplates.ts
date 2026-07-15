@@ -7,6 +7,45 @@ export interface GitHubWorkflowTemplate {
   content: string;
 }
 
+const protectedLifecycleOwnerScript = `async function protectedLifecycleOwner() {
+  if (String(process.env.VISUAL_HIVE_LIFECYCLE_OWNER || "").toLowerCase() === "hive") return "hive";
+  const defaultBranch = context.payload.repository?.default_branch;
+  if (!defaultBranch) throw new Error("Refusing issue publication because the protected default branch is unavailable.");
+  let response;
+  try {
+    response = await github.rest.repos.getContent({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      path: ".hive/integrated.json",
+      ref: defaultBranch
+    });
+  } catch (error) {
+    if (error?.status === 404) return "visual-hive";
+    throw new Error("Refusing issue publication because protected Hive lifecycle ownership could not be verified: " + String(error?.message || error));
+  }
+  const file = response?.data;
+  if (!file || Array.isArray(file) || file.type !== "file" || typeof file.content !== "string") {
+    throw new Error("Refusing issue publication because .hive/integrated.json is not a protected regular file.");
+  }
+  let integrated;
+  try {
+    integrated = JSON.parse(Buffer.from(file.content, file.encoding || "base64").toString("utf8"));
+  } catch {
+    throw new Error("Refusing issue publication because protected .hive/integrated.json is invalid JSON.");
+  }
+  const repository = context.repo.owner + "/" + context.repo.repo;
+  if (integrated?.visual_hive === true) {
+    if (String(integrated.repository || "").toLowerCase() !== repository.toLowerCase()) {
+      throw new Error("Refusing issue publication because protected Hive repository identity does not match this repository.");
+    }
+    if (integrated.repository_id != null && String(integrated.repository_id) !== String(context.payload.repository?.id || "")) {
+      throw new Error("Refusing issue publication because protected Hive repository ID does not match this repository.");
+    }
+    return "hive";
+  }
+  throw new Error("Refusing issue publication because a protected Hive marker cannot grant standalone lifecycle ownership. Remove it through the audited Hive uninstall path.");
+}`.split("\n").map((line) => `            ${line}`).join("\n");
+
 export const prWorkflowTemplate = `name: Visual Hive PR
 
 on:
@@ -74,6 +113,8 @@ jobs:
           run-id: \${{ github.event.workflow_run.id }}
           github-token: \${{ github.token }}
       - uses: actions/github-script@v7
+        env:
+          VISUAL_HIVE_LIFECYCLE_OWNER: \${{ vars.VISUAL_HIVE_LIFECYCLE_OWNER }}
         with:
           script: |
             const fs = require("fs");
@@ -125,9 +166,22 @@ jobs:
               }
             }
 
+${protectedLifecycleOwnerScript}
+
+            const protectedOwner = await protectedLifecycleOwner();
+            if (protectedOwner === "hive") {
+              core.notice("managed_by_hive: protected default-branch installation state assigns lifecycle writes to Hive.");
+              return;
+            }
+
             const issuePath = findIssueBody();
             const issuesReportPath = findIssuesReport();
             const issuesReport = issuesReportPath ? readJsonArtifact("issues.json") : undefined;
+            const lifecycle = issuesReport?.lifecycle;
+            if (lifecycle?.owner === "hive" || lifecycle?.standaloneIssueWrites === "suppressed") {
+              core.notice("managed_by_hive: Hive is the configured lifecycle owner; Visual Hive issue candidates remain in artifacts for Hive to consume.");
+              return;
+            }
             const issueCandidates = Array.isArray(issuesReport?.issues)
               ? issuesReport.issues
                   .filter((issue) => issue.status === "open_candidate" || issue.status === "update_candidate" || issue.status === "resolved_candidate")
@@ -256,6 +310,8 @@ jobs:
           run-id: \${{ github.event.workflow_run.id }}
           github-token: \${{ github.token }}
       - uses: actions/github-script@v7
+        env:
+          VISUAL_HIVE_LIFECYCLE_OWNER: \${{ vars.VISUAL_HIVE_LIFECYCLE_OWNER }}
         with:
           script: |
             const fs = require("fs");
@@ -310,6 +366,14 @@ jobs:
                 .map((value) => redactSecretValues(value).trim())
                 .filter(Boolean))]
                 .slice(0, 10);
+            }
+
+${protectedLifecycleOwnerScript}
+
+            const protectedOwner = await protectedLifecycleOwner();
+            if (protectedOwner === "hive") {
+              core.notice("managed_by_hive: protected default-branch installation state assigns lifecycle writes to Hive.");
+              return;
             }
 
             const evidence = readJsonArtifact("evidence-packet.json");
