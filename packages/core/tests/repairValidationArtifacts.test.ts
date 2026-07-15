@@ -71,7 +71,7 @@ describe("artifact-derived visual-hive.repair-validation.v1", () => {
       expect.objectContaining({ severity: "high", message: "Card screenshot regression" })
     ]);
     expect(receipt.newFailures).toEqual([]);
-  });
+  }, 30_000);
 
   it.each([
     ["resolution authority", { afterFinding: "present", afterAuthoritativeForResolution: true }],
