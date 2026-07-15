@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-hive.dev/schemas/visual-hive.run-context.schema.json",
+  "title": "Visual Hive Run Context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "digestAlgorithm", "generatedAt", "runId", "phase", "taskId", "taskContextDigest", "findingFingerprint", "repository", "execution", "producer", "command", "report", "evidenceAssets", "thresholds", "capture", "runContextDigest"],
+  "properties": {
+    "schemaVersion": { "const": "visual-hive.run-context.v1" },
+    "digestAlgorithm": { "const": "visual-hive.canonical-json.sha256.v1" },
+    "generatedAt": { "$ref": "#/$defs/timestamp" },
+    "runId": { "$ref": "#/$defs/boundedId" },
+    "phase": { "enum": ["before", "after"] },
+    "taskId": { "$ref": "#/$defs/boundedId" },
+    "taskContextDigest": { "$ref": "#/$defs/sha256" },
+    "findingFingerprint": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "repositoryFingerprint", "commitSha"],
+      "properties": {
+        "name": { "$ref": "#/$defs/repository" },
+        "repositoryId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "repositoryFingerprint": { "$ref": "#/$defs/sha256" },
+        "commitSha": { "$ref": "#/$defs/gitCommit" }
+      }
+    },
+    "brokerRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "requestDigest"],
+      "properties": {
+        "requestId": { "$ref": "#/$defs/boundedId" },
+        "requestDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "execution": { "$ref": "#/$defs/executionContext" },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visualHiveVersion", "visualHiveCommit", "playwrightVersion"],
+      "dependentRequired": {
+        "manifestSha256": ["entrypointSha256"],
+        "entrypointSha256": ["manifestSha256"]
+      },
+      "properties": {
+        "visualHiveVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "visualHiveCommit": { "$ref": "#/$defs/gitCommit" },
+        "manifestSha256": { "$ref": "#/$defs/sha256" },
+        "entrypointSha256": { "$ref": "#/$defs/sha256" },
+        "playwrightVersion": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validationCommandId", "startedAt", "completedAt", "exitCode"],
+      "properties": {
+        "validationCommandId": { "$ref": "#/$defs/boundedId" },
+        "startedAt": { "$ref": "#/$defs/timestamp" },
+        "completedAt": { "$ref": "#/$defs/timestamp" },
+        "exitCode": { "type": "integer" },
+        "executionBinding": { "$ref": "#/$defs/executionBinding" }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "mutationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "evidenceAssets": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+          "required": ["assetId", "role", "path", "mediaType", "sha256", "size", "width", "height", "assertion", "obligationIds"],
+        "properties": {
+          "assetId": { "$ref": "#/$defs/boundedId" },
+          "role": { "enum": ["baseline", "actual", "diff", "reference", "frame"] },
+          "path": { "$ref": "#/$defs/relativePath" },
+          "mediaType": { "enum": ["image/png", "image/jpeg", "image/webp", "image/gif"] },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "size": { "type": "integer", "minimum": 1, "maximum": 33554432 },
+          "width": { "type": "integer", "minimum": 1, "maximum": 32768 },
+          "height": { "type": "integer", "minimum": 1, "maximum": 32768 },
+          "assertion": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contractId", "screenshotName", "route", "state", "viewportId"],
+            "properties": {
+              "contractId": { "$ref": "#/$defs/boundedId" },
+              "screenshotName": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "route": { "type": "string", "minLength": 1, "maxLength": 2048 },
+              "state": { "type": "string", "minLength": 1, "maxLength": 1024 },
+              "viewportId": { "$ref": "#/$defs/boundedId" }
+            }
+          },
+          "obligationIds": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/boundedId" } }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contractId", "maxDiffPixelRatio", "missingBaseline"],
+        "properties": {
+          "contractId": { "$ref": "#/$defs/boundedId" },
+          "maxDiffPixelRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+          "maxDiffPixels": { "type": "integer", "minimum": 0 },
+          "missingBaseline": { "enum": ["fail", "create"] }
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "failures"],
+      "properties": {
+        "status": { "enum": ["passed", "failed", "blocked"] },
+        "failures": { "type": "array", "maxItems": 512, "items": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "\\S" } }
+      }
+    },
+    "runContextDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "boundedId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+~-]*$" },
+    "repository": { "type": "string", "minLength": 3, "maxLength": 512, "pattern": "^(?!\\.\\.?/)(?![^/]+/\\.\\.?$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "relativePath": { "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*[:\\\\\\u0000-\\u001f\\u007f])(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*[. ](?:/|$))(?!(?:.*\/)?(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|/|$)).+$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "executionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nonceSha256", "generatedSpecSha256", "generatedConfigSha256", "payloadSha256", "bindingMacSha256"],
+      "properties": {
+        "nonceSha256": { "$ref": "#/$defs/sha256" },
+        "generatedSpecSha256": { "$ref": "#/$defs/sha256" },
+        "generatedConfigSha256": { "$ref": "#/$defs/sha256" },
+        "payloadSha256": { "$ref": "#/$defs/sha256" },
+        "bindingMacSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewportId", "width", "height", "deviceScaleFactor"],
+      "properties": {
+        "viewportId": { "$ref": "#/$defs/boundedId" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "deviceScaleFactor": { "type": "number", "exclusiveMinimum": 0, "maximum": 8 }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "channel": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture", "nodeVersion", "playwrightVersion", "fontManifestDigest", "locale", "timezone"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "architecture": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "nodeVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "playwrightVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fontManifestDigest": { "$ref": "#/$defs/sha256" },
+        "locale": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "timezone": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "executionContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitSha", "profileId", "profileDigest", "configDigest", "validationPolicyDigest", "contractInventoryDigest", "planDigest", "testPlanDigest", "toolRegistryDigest", "baselineIdentityDigest", "executionMatrixDigest", "browser", "environment", "cases"],
+      "properties": {
+        "commitSha": { "$ref": "#/$defs/gitCommit" },
+        "profileId": { "$ref": "#/$defs/boundedId" },
+        "profileDigest": { "$ref": "#/$defs/sha256" },
+        "configDigest": { "$ref": "#/$defs/sha256" },
+        "validationPolicyDigest": { "$ref": "#/$defs/sha256" },
+        "contractInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "planDigest": { "$ref": "#/$defs/sha256" },
+        "testPlanDigest": { "$ref": "#/$defs/sha256" },
+        "toolRegistryDigest": { "$ref": "#/$defs/sha256" },
+        "baselineIdentityDigest": { "$ref": "#/$defs/sha256" },
+        "executionMatrixDigest": { "$ref": "#/$defs/sha256" },
+        "browser": { "$ref": "#/$defs/browser" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "cases": { "type": "array", "minItems": 1, "maxItems": 512, "items": { "$ref": "#/$defs/executionCase" } }
+      }
+    },
+    "executionCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "targetId", "route", "state", "viewport", "contractIds"],
+      "properties": {
+        "caseId": { "$ref": "#/$defs/boundedId" },
+        "targetId": { "$ref": "#/$defs/boundedId" },
+        "route": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "state": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "contractIds": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/boundedId" } }
+      }
+    }
+  }
+}

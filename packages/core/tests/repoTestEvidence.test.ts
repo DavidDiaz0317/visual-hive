@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 describe("repository unit-test evidence", () => {
-  it("keeps runner-only Vitest partial until a real unit file resolves the canonical issue", async () => {
+  it("keeps runner-only Vitest partial as unresolved guidance until a real unit file clears the gap", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-unit-evidence-"));
     temporaryRoots.push(rootDir);
     await Promise.all([
@@ -96,15 +96,20 @@ describe("repository unit-test evidence", () => {
 
     const firstPlan = await writeTestCreationPlan({ rootDir, project: "runner-only-fixture", now: new Date("2026-07-12T01:02:00.000Z") });
     expect(firstPlan.plan.recommendations.filter((recommendation) => recommendation.kind === "unit_test")).toHaveLength(1);
-    expect(firstPlan.plan.recommendations.find((recommendation) => recommendation.kind === "unit_test")).toMatchObject({ priority: "medium" });
-    const firstIssues = await writeIssuesArtifacts({ rootDir, project: "runner-only-fixture", now: new Date("2026-07-12T01:03:00.000Z") });
-    const activeIssue = firstIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap");
-    expect(activeIssue).toMatchObject({
-      status: "open_candidate",
-      publicationRole: "canonical",
-      rootCauseKey: "test-adequacy/repository/testing-layer:2"
+    expect(firstPlan.plan.recommendations.find((recommendation) => recommendation.kind === "unit_test")).toMatchObject({
+      priority: "medium",
+      affected: {},
+      grounding: { status: "unresolved", evidence: [], unresolvedReasons: expect.any(Array) },
+      suggestedContract: {
+        selectors: [],
+        mustNotExistSelectors: [],
+        textMustExist: [],
+        textMustNotExist: [],
+        maskSelectors: []
+      }
     });
-    expect(activeIssue?.validationCommand).toBe("npm test && visual-hive analyze --repo . && visual-hive evidence && visual-hive test-creation-plan && visual-hive issues --write");
+    const firstIssues = await writeIssuesArtifacts({ rootDir, project: "runner-only-fixture", now: new Date("2026-07-12T01:03:00.000Z") });
+    expect(firstIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toBeUndefined();
 
     await writeFile(
       path.join(rootDir, "src", "metrics.test.ts"),
@@ -131,14 +136,10 @@ describe("repository unit-test evidence", () => {
     const secondPlan = await writeTestCreationPlan({ rootDir, project: "runner-only-fixture", now: new Date("2026-07-12T01:06:00.000Z") });
     expect(secondPlan.plan.recommendations.some((recommendation) => recommendation.kind === "unit_test")).toBe(false);
     const secondIssues = await writeIssuesArtifacts({ rootDir, project: "runner-only-fixture", now: new Date("2026-07-12T01:07:00.000Z") });
-    expect(secondIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toMatchObject({
-      status: "resolved_candidate",
-      publicationRole: "canonical",
-      rootCauseKey: "test-adequacy/repository/testing-layer:2"
-    });
+    expect(secondIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toBeUndefined();
   });
 
-  it("does not cross-satisfy workspace scopes and renders only safe nearest-manager commands", async () => {
+  it("does not cross-satisfy workspace scopes or automate unresolved repository guidance", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-workspace-evidence-"));
     temporaryRoots.push(rootDir);
     const scopeA = path.join(rootDir, "packages", "a");
@@ -204,12 +205,16 @@ describe("repository unit-test evidence", () => {
     expect(repo.report.coverageGaps.find((gap) => gap.id === "unit-layer-advisory")?.message).toContain("javascript scope packages/d");
 
     await writeEvidencePacket({ rootDir, project: "workspace-root", now: new Date("2026-07-12T02:01:00.000Z") });
-    await writeTestCreationPlan({ rootDir, project: "workspace-root", now: new Date("2026-07-12T02:02:00.000Z") });
+    const plan = await writeTestCreationPlan({ rootDir, project: "workspace-root", now: new Date("2026-07-12T02:02:00.000Z") });
+    expect(plan.plan.recommendations.find((recommendation) => recommendation.kind === "unit_test")?.grounding).toMatchObject({
+      status: "unresolved",
+      evidence: [],
+      unresolvedReasons: expect.any(Array)
+    });
     const issues = await writeIssuesArtifacts({ rootDir, project: "workspace-root", now: new Date("2026-07-12T02:03:00.000Z") });
     const issue = issues.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap");
-    expect(issue?.validationCommand).toContain("cd packages/a && pnpm test");
-    expect(issue?.validationCommand).toContain("cd packages/e && npm test");
-    expect(issue?.validationCommand).not.toContain("injected");
+    expect(issue).toBeUndefined();
+    expect(JSON.stringify(issues.report)).not.toContain("Repair scope: add focused repository test files only");
     await expectRepoMapSchema(repo.report);
   });
 
@@ -466,8 +471,9 @@ dependencies = [
     await writeEvidencePacket({ rootDir, project: "mixed", now: new Date("2026-07-12T03:40:10.000Z") });
     const firstPlan = await writeTestCreationPlan({ rootDir, project: "mixed", now: new Date("2026-07-12T03:40:20.000Z") });
     expect(firstPlan.plan.recommendations.some((recommendation) => recommendation.kind === "unit_test")).toBe(true);
+    expect(firstPlan.plan.recommendations.find((recommendation) => recommendation.kind === "unit_test")?.grounding.status).toBe("unresolved");
     const firstIssues = await writeIssuesArtifacts({ rootDir, project: "mixed", now: new Date("2026-07-12T03:40:30.000Z") });
-    expect(firstIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toMatchObject({ status: "open_candidate" });
+    expect(firstIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toBeUndefined();
 
     await writeFile(path.join(rootDir, "src", "value.test.ts"), "import { it } from 'vitest'; it('runs', () => {});\n", "utf8");
     const second = await writeRepoMap({ repoRoot: rootDir, now: new Date("2026-07-12T03:41:00.000Z") });
@@ -477,7 +483,7 @@ dependencies = [
     const secondPlan = await writeTestCreationPlan({ rootDir, project: "mixed", now: new Date("2026-07-12T03:41:20.000Z") });
     expect(secondPlan.plan.recommendations.some((recommendation) => recommendation.kind === "unit_test")).toBe(false);
     const secondIssues = await writeIssuesArtifacts({ rootDir, project: "mixed", now: new Date("2026-07-12T03:41:30.000Z") });
-    expect(secondIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toMatchObject({ status: "resolved_candidate" });
+    expect(secondIssues.report.issues.find((issue) => issue.issueKind === "test_adequacy_gap")).toBeUndefined();
 
     const orphanRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-orphan-runner-"));
     temporaryRoots.push(orphanRoot);
@@ -884,7 +890,7 @@ module.exports = defineConfig({
     await expectRepoMapSchema(repo.report);
   });
 
-  it("rejects absolute and option-like cwd values from stale runner evidence", async () => {
+  it("does not automate legacy test-creation scope from stale unsafe runner evidence", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-unsafe-cwd-"));
     temporaryRoots.push(rootDir);
     await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
@@ -914,10 +920,8 @@ module.exports = defineConfig({
       }]
     }, null, 2)}\n`, "utf8");
     const issues = await writeIssuesArtifacts({ rootDir, project: "unsafe-cwd", now: new Date("2026-07-12T06:00:00.000Z") });
-    const validation = issues.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap")?.validationCommand ?? "";
-    expect(validation).not.toContain("/tmp");
-    expect(validation).not.toContain("cd -P");
-    expect(validation).toBe("visual-hive analyze --repo . && visual-hive evidence && visual-hive test-creation-plan && visual-hive issues --write");
+    expect(issues.report.issues.find((candidate) => candidate.issueKind === "test_adequacy_gap")).toBeUndefined();
+    expect(JSON.stringify(issues.report)).not.toContain("Repair scope: add focused repository test files only");
   });
 });
 

@@ -375,14 +375,14 @@ Path: `.visual-hive/test-creation-plan.json`
 
 Schema: `schemas/visual-hive.test-creation-plan.schema.json`
 
-The test-creation plan is written by `visual-hive test-creation-plan` after an Evidence Packet exists. It can also consume `.visual-hive/coverage-recommendations.json` and `.visual-hive/handoff.json`. It translates missing or partial testing layers, mutation survivors, coverage recommendations, and handoff `test_creation` work items into advisory no-write test recommendations.
+The test-creation plan is written by `visual-hive test-creation-plan` after an Evidence Packet exists. It can also consume `.visual-hive/coverage-recommendations.json` and `.visual-hive/handoff.json`. Schema `visual-hive.test-creation-plan.v2` translates missing or partial testing layers, mutation survivors, coverage recommendations, and handoff `test_creation` work items into advisory no-write test recommendations without fabricating repository facts.
 
 Key fields:
 
 - `outputResource`: catalog-backed identity for this artifact, including `.visual-hive/test-creation-plan.json`, `visual-hive://test-creation-plan`, and `visual_hive_read_test_creation_plan`.
 - `governance`: declares Visual Hive as verdict authority, agents as advisory test-generation helpers, and `writePolicy: no_config_or_test_files_written`.
 - `summary`: counts recommendations by priority and source.
-- `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`. Each recommendation also carries `gapId`, `affected` route/component/viewport/state context, `currentEvidence`, a bounded `suggestedContract`, `suggestedMutation`, `validationCommand`, and suggested `hiveOwner` so Hive Quality/Tester/CI-maintainer agents can consume the artifact without scraping Markdown.
+- `recommendations`: bounded recommendations with source, kind, priority, rationale, suggested tests, optional config snippets, artifacts, trusted-only flags, and `applyMode: advisory_no_write`. Each recommendation also carries `gapId`, `affected` route/component/viewport/state context, `currentEvidence`, `grounding`, a bounded `suggestedContract`, `suggestedMutation`, `validationCommand`, and suggested `hiveOwner`. Grounding is explicitly `grounded` or `unresolved` with evidence and unresolved reasons. The contract keeps `selectors`, `mustNotExistSelectors`, `textMustExist`, `textMustNotExist`, and `maskSelectors` separate; `route` is optional, and unresolved guidance emits all five arrays empty with no guessed route or mutation. Only structurally valid grounded v2 recommendations may drive repository-specific issue or repair scope. Unresolved v2 and legacy v1 artifacts remain advisory evidence and cannot resolve an earlier test-adequacy finding by omission.
 
 The companion `.visual-hive/test-creation-plan.md` is a sanitized summary for human review. Neither artifact edits config, writes tests, approves baselines, enables providers, or changes the Visual Hive verdict.
 

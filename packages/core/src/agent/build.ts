@@ -68,7 +68,13 @@ export function buildAgentPacket(options: BuildAgentPacketOptions): AgentPacket 
       providerEvidence: providerEvidenceFor(options.evidencePacket),
       runHistory: runHistoryFor(options),
       testingLayers: options.evidencePacket.testingLayers,
-      testCreationRecommendations: (options.testCreationRecommendations ?? []).slice(0, 12)
+      testCreationRecommendations: (options.testCreationRecommendations ?? [])
+        .filter((recommendation) =>
+          recommendation.grounding?.status === "grounded"
+          && recommendation.grounding.evidence.length > 0
+          && recommendation.grounding.unresolvedReasons.length === 0
+        )
+        .slice(0, 12)
     },
     allowedTools: allowedToolsFor(profile),
     forbiddenActions: forbiddenActionsFor(profile),
@@ -297,7 +303,12 @@ function instructionsFor(profile: AgentPacketProfile): string[] {
     "Prefer focused artifact reads over broad repository context loading."
   ];
   if (profile === "repair_agent") return [...common, "Repair the app or contract only when deterministic evidence supports the change.", "Rerun focused Visual Hive checks after changes."];
-  if (profile === "test_creator") return [...common, "Use mutation survivors and coverage gaps as concrete missing-test signals.", "Do not weaken thresholds to make failures disappear."];
+  if (profile === "test_creator") return [
+    ...common,
+    "Use mutation survivors and coverage gaps as concrete missing-test signals.",
+    "Author tests or configuration only from recommendations whose grounding status is grounded; unresolved recommendations are mapping/review context only.",
+    "Do not weaken thresholds to make failures disappear."
+  ];
   if (profile === "handoff_agent") return [...common, "Create external work items only from trusted sanitized artifacts.", "Do not execute PR code."];
   if (profile === "provider_specialist") return [...common, "Treat provider output as advisory unless normalized trusted gating is explicitly configured.", "Do not upload externally or enable paid providers from this packet."];
   return [...common, "Assess whether evidence, schemas, docs, and tests moved together.", "Report residual risk clearly."];

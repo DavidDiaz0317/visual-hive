@@ -132,6 +132,31 @@ export const VISUAL_HIVE_ARTIFACT_SURFACE_PATHS = [
   ".visual-hive/provider-upload/argos/screenshots/**",
   ".visual-hive/readiness.json",
   ".visual-hive/recommendations.json",
+  ".visual-hive/repair",
+  ".visual-hive/repair/sessions",
+  ".visual-hive/repair/sessions/*",
+  ".visual-hive/repair/sessions/*/task-assets",
+  ".visual-hive/repair/sessions/*/task-assets/**",
+  ".visual-hive/repair/sessions/*/task-context.json",
+  ".visual-hive/repair/sessions/*/runs",
+  ".visual-hive/repair/sessions/*/runs/exec.*",
+  ".visual-hive/repair/sessions/*/runs/exec.*/**",
+  ".visual-hive/repair/sessions/*/runs/run.*",
+  ".visual-hive/repair/sessions/*/runs/run.*/bundle",
+  ".visual-hive/repair/sessions/*/runs/run.*/bundle/*/files/**",
+  ".visual-hive/repair/sessions/*/runs/run.*/bundle/*/manifest.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/capture-failure.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/capture-input.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/capture-metadata.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/capture-result.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/report.json",
+  ".visual-hive/repair/sessions/*/runs/run.*/run-context.json",
+  ".visual-hive/repair/sessions/*/runs/run.*.failed.*",
+  ".visual-hive/repair/sessions/*/runs/run.*.failed.*/**",
+  ".visual-hive/repair/sessions/*/runs/run.*.interrupted.*",
+  ".visual-hive/repair/sessions/*/runs/run.*.interrupted.*/**",
+  ".visual-hive/repair/sessions/*/validations",
+  ".visual-hive/repair/sessions/*/validations/*.json",
   ".visual-hive/repair-prompt.md",
   ".visual-hive/repo-context.md",
   ".visual-hive/repo-map.json",
@@ -183,6 +208,8 @@ const DIRECTORY_SURFACES = new Set<string>([
   ".visual-hive/hive/modes",
   ".visual-hive/hive/wiki",
   ".visual-hive/provider-upload/argos",
+  ".visual-hive/repair",
+  ".visual-hive/repair/sessions",
   ".visual-hive/snapshots"
 ]);
 
@@ -227,6 +254,7 @@ function dynamicRoles(artifactPath: string): string[] {
   if (artifactPath.startsWith(".visual-hive/artifacts/diffs/")) return ["visual-diff"];
   if (artifactPath.startsWith(".visual-hive/snapshots/")) return ["baseline"];
   if (artifactPath.startsWith(".visual-hive/provider-upload/argos/screenshots/")) return ["provider-upload", "screenshot"];
+  if (artifactPath.startsWith(".visual-hive/repair/sessions/")) return ["repair-session", "hive-scoped"];
   return [];
 }
 
@@ -239,6 +267,7 @@ function producerContractFor(artifactPath: string): string {
   if (artifactPath.startsWith(".visual-hive/artifacts/screenshots/") || artifactPath.startsWith(".visual-hive/artifacts/diffs/")) return "deterministic-runner";
   if (artifactPath.startsWith(".visual-hive/snapshots/")) return "playwright-baseline-store";
   if (artifactPath.startsWith(".visual-hive/provider-upload/argos/screenshots/")) return "guarded-argos-upload";
+  if (artifactPath.startsWith(".visual-hive/repair/sessions/")) return "hive-scoped-repair-session";
   if (artifactPath.startsWith(".visual-hive/github-app-")) return "github-app-diagnostics";
   if (artifactPath.startsWith(".visual-hive/control-plane-") || artifactPath.endsWith("-edits.json")) return "control-plane-audit";
   return "declared-fixed-output";

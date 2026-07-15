@@ -2726,10 +2726,21 @@ targets:
   local:
     kind: url
     url: "http://127.0.0.1:4173"
+viewports:
+  desktop:
+    width: 1280
+    height: 720
 contracts:
   - id: dashboard
     description: Dashboard
     target: local
+    selectors:
+      mustExist:
+        - ".mapped-dashboard"
+    screenshots:
+      - name: dashboard
+        route: "/mapped-dashboard"
+        viewport: desktop
 `,
       "utf8"
     );
@@ -2796,9 +2807,9 @@ contracts:
         }
       ]
     });
-
     await runEvidenceCommand({ cwd: tempRoot });
     await runHandoffCommand({ cwd: tempRoot });
+    await runAnalyzeCommand({ repo: tempRoot });
     const testCreation = await runTestCreationPlanCommand({ cwd: tempRoot });
     const testCreationSummary = formatTestCreationPlan(testCreation);
     const agent = await runAgentPacketCommand({ cwd: tempRoot, profile: "test_creator" });
@@ -2806,21 +2817,32 @@ contracts:
     const plan = await readJson<typeof testCreation.plan>(testCreation.planPath);
     const packet = await readJson<typeof agent.packet>(agent.packetPath);
 
-    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v1");
+    expect(plan.schemaVersion).toBe("visual-hive.test-creation-plan.v2");
     expect(plan.governance.writePolicy).toBe("no_config_or_test_files_written");
     expect(plan.summary.total).toBeGreaterThan(0);
     expect(plan.summary.fromCoverageRecommendations).toBe(1);
+    expect(plan.recommendations.find((recommendation) => recommendation.coverageRecommendationId === "selectors:dashboard")).toMatchObject({
+      grounding: { status: "grounded" },
+      suggestedContract: { route: "/mapped-dashboard", selectors: [".mapped-dashboard"] }
+    });
     expect(plan.sourceArtifacts.evidencePacket).toBe(".visual-hive/evidence-packet.json");
     expect(plan.sourceArtifacts.handoffPacket).toBe(".visual-hive/handoff.json");
     expect(testCreationSummary).toContain("Test Creation Plan: cli-test-creation");
     expect(packet.profile).toBe("test_creator");
     expect(packet.sourceArtifacts.testCreationPlan).toBe(".visual-hive/test-creation-plan.json");
     expect(packet.evidenceSummary.testCreationRecommendations.length).toBeGreaterThan(0);
+    expect(packet.evidenceSummary.testCreationRecommendations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ grounding: expect.objectContaining({ status: "grounded" }) })])
+    );
     expect(agentSummary).toContain("Test creation plan: .visual-hive/test-creation-plan.json");
     expect(JSON.stringify({ plan, packet })).not.toContain("secret-value");
     expect(JSON.stringify({ plan, packet })).not.toContain("coverage-secret");
     await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.json"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "test-creation-plan.md"))).resolves.toBeUndefined();
+
+    const wrongRootMap = await readJson<Record<string, unknown>>(path.join(tempRoot, ".visual-hive", "repo-map.json"));
+    await writeJson(path.join(tempRoot, ".visual-hive", "repo-map.json"), { ...wrongRootMap, repoRoot: ".." });
+    await expect(runTestCreationPlanCommand({ cwd: tempRoot })).rejects.toThrow("does not belong to the loaded repository root");
   });
 
   it("writes Tool Registry and Tool Cards artifacts", async () => {

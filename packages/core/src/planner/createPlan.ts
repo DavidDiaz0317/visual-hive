@@ -139,7 +139,7 @@ export function createPlan(config: VisualHiveConfig, options: CreatePlanOptions)
           url: resolveTargetUrl(target, options.env).url ?? "",
           prSafe: target.prSafe,
           cost: target.cost,
-          requiresSecrets: target.kind === "protected" ? target.requiresSecrets : undefined
+          ...(target.kind === "protected" ? { requiresSecrets: target.requiresSecrets } : {})
         };
       }),
     items,

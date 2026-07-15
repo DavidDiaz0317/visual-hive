@@ -272,6 +272,7 @@ function mutationFixture(): MutationReport {
 
 function withoutHiveProjection<T extends { hiveReadiness: unknown }>(packet: T): Omit<T, "hiveReadiness"> {
   const { hiveReadiness: _hiveReadiness, ...shared } = packet;
+  void _hiveReadiness;
   return shared;
 }
 

@@ -168,6 +168,12 @@ export interface WriteVisualHiveBundleOptions {
   outputDir?: string;
   now?: Date;
   bundleId?: string;
+  purpose?: "hive-handoff" | "repair-validation";
+  artifactLimits?: {
+    maxFiles: number;
+    maxFileBytes: number;
+    maxTotalBytes: number;
+  };
 }
 
 export interface WriteVisualHiveBundleResult {
@@ -188,7 +194,8 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     throw new Error("Visual Hive bundle expiry must be a canonical UTC-millisecond timestamp after generation.");
   }
   const source = sanitizeSource(options.source);
-  const bundleVersion = selectBundleVersion(source);
+  const purpose = options.purpose ?? "hive-handoff";
+  const bundleVersion = selectBundleVersion(source, purpose);
   const requestedArtifacts = uniqueSorted(options.artifacts);
   const artifactIndexPath = bundleVersion === "v3"
     ? normalizeRelativeArtifactPath(options.artifactIndex ?? DEFAULT_ARTIFACT_INDEX_PATH)
@@ -216,10 +223,25 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     temporaryDirectoryIdentity = await captureStableDirectoryIdentity(rootDir, temporaryDir);
     const files: VisualHiveBundleFile[] = [];
     const expectedArtifacts: Array<{ path: string; data: Buffer }> = [];
+    const limits = sanitizeArtifactLimits(options.artifactLimits);
+    if (requestedArtifacts.length > limits.maxFiles) {
+      throw new Error(`Visual Hive bundle exceeds its ${limits.maxFiles}-file limit.`);
+    }
+    const callerSuppliedArtifacts = new Set(requestedArtifacts);
+    let callerSuppliedBytes = 0;
     for (const artifact of artifacts) {
       const sourcePath = normalizeRelativeArtifactPath(artifact);
       const data = bundleEvidence?.artifactData.get(sourcePath)
         ?? await readStableRegularFile(rootDir, sourcePath, "artifact");
+      if (callerSuppliedArtifacts.has(sourcePath)) {
+        if (data.byteLength <= 0 || data.byteLength > limits.maxFileBytes) {
+          throw new Error(`Visual Hive bundle artifact exceeds its bounded file size: ${sourcePath}`);
+        }
+        callerSuppliedBytes += data.byteLength;
+        if (callerSuppliedBytes > limits.maxTotalBytes) {
+          throw new Error(`Visual Hive bundle exceeds its ${limits.maxTotalBytes}-byte aggregate limit.`);
+        }
+      }
       const bundledPath = normalizeRelativeArtifactPath(path.join("files", sourcePath));
       const destination = path.join(temporaryDir, ...bundledPath.split("/"));
       await ensureSecureDirectory(rootDir, path.dirname(destination));
@@ -256,6 +278,10 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     );
     if (!scan.authoritativeForResolution && observations.some((observation) => observation.state === "absent")) {
       throw new Error("Absent lifecycle observations require an authoritative Visual Hive scan.");
+    }
+    if (purpose === "repair-validation"
+      && (scan.authoritativeForResolution || observations.some((observation) => observation.state === "absent"))) {
+      throw new Error("Repair-validation bundles are advisory evidence and cannot claim resolution authority or lifecycle absence.");
     }
     const replayProtection = {
       nonce: bundleId,
@@ -355,6 +381,14 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
     await removePrivateDirectory(rootDir, bundlesRoot, finalDir, temporaryDirectoryIdentity);
     throw error;
   }
+}
+
+function sanitizeArtifactLimits(value: WriteVisualHiveBundleOptions["artifactLimits"]): { maxFiles: number; maxFileBytes: number; maxTotalBytes: number } {
+  const limits = value ?? { maxFiles: 4096, maxFileBytes: 64 * 1024 * 1024, maxTotalBytes: 512 * 1024 * 1024 };
+  if (!Number.isSafeInteger(limits.maxFiles) || limits.maxFiles <= 0 || limits.maxFiles > 100_000) throw new Error("Visual Hive bundle file-count limit is invalid.");
+  if (!Number.isSafeInteger(limits.maxFileBytes) || limits.maxFileBytes <= 0 || limits.maxFileBytes > 1024 * 1024 * 1024) throw new Error("Visual Hive bundle per-file limit is invalid.");
+  if (!Number.isSafeInteger(limits.maxTotalBytes) || limits.maxTotalBytes < limits.maxFileBytes || limits.maxTotalBytes > 4 * 1024 * 1024 * 1024) throw new Error("Visual Hive bundle aggregate limit is invalid.");
+  return limits;
 }
 
 export function verifyVisualHiveBundleDigest(manifest: VisualHiveBundleManifest): boolean {
@@ -1090,7 +1124,11 @@ function validBoundFile(
   return files.some((file) => file.path === binding.path && file.sourcePath === binding.sourcePath && file.sha256 === binding.sha256);
 }
 
-function selectBundleVersion(source: VisualHiveBundleSource): "v2" | "v3" {
+function selectBundleVersion(
+  source: VisualHiveBundleSource,
+  purpose: NonNullable<WriteVisualHiveBundleOptions["purpose"]>
+): "v2" | "v3" {
+  if (purpose === "repair-validation") return "v2";
   if (hasV3SourceIdentity(source)) return "v3";
   const hasPartialHostedIdentity = Boolean(source.workflowRunId || source.workflowRunAttempt || source.workflowArtifactId);
   if (source.event !== "local" || hasPartialHostedIdentity) {
@@ -1483,7 +1521,7 @@ function observationsFromIssues(
     const publication = publicationMetadataForIssue(issue);
     return [{
       fingerprint: issue.dedupeFingerprint,
-      repositoryFingerprint: observationRepositoryFingerprint(repository, issue.dedupeFingerprint, publication.publicationRole, publication.rootCauseKey),
+      repositoryFingerprint: visualHiveObservationRepositoryFingerprint(repository, issue.dedupeFingerprint, publication.publicationRole, publication.rootCauseKey),
       ...publication,
       state,
       issueKind: issue.issueKind,
@@ -1528,7 +1566,7 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
     if (digestFields.some((value) => value.includes("\0"))) throw new Error("Lifecycle observations cannot contain NUL delimiters.");
     if (observation.state !== "present" && observation.state !== "absent") throw new Error(`Invalid lifecycle observation state: ${observation.state}`);
     validatePublicationRoleForIssueKind(observation.issueKind, publication.publicationRole);
-    const expectedRepositoryFingerprint = observationRepositoryFingerprint(
+    const expectedRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(
       repository,
       observation.fingerprint.trim(),
       publication.publicationRole,
@@ -1628,7 +1666,7 @@ function validatePublicationRoleForIssueKind(issueKind: VisualHiveIssueKind, pub
   }
 }
 
-function observationRepositoryFingerprint(
+export function visualHiveObservationRepositoryFingerprint(
   repository: string,
   fingerprint: string,
   publicationRole: VisualHivePublicationRole,

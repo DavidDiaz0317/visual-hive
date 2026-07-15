@@ -89,6 +89,9 @@
     "generatedSpecPath": {
       "type": "string"
     },
+    "executionBinding": {
+      "$ref": "#/$defs/executionBinding"
+    },
     "results": {
       "type": "array",
       "items": {
@@ -142,6 +145,24 @@
     }
   },
   "$defs": {
+    "executionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nonceSha256",
+        "generatedSpecSha256",
+        "generatedConfigSha256",
+        "payloadSha256",
+        "bindingMacSha256"
+      ],
+      "properties": {
+        "nonceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "generatedSpecSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "generatedConfigSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "payloadSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "bindingMacSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
     "outputResource": {
       "type": "object",
       "additionalProperties": true,

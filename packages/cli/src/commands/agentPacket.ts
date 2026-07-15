@@ -4,6 +4,7 @@ import {
   readEvidencePacket,
   readHandoffPacket,
   readJson,
+  TestCreationPlanV2Schema,
   writeAgentPacket,
   type AgentPacket,
   type AgentPacketProfile,
@@ -63,8 +64,9 @@ export async function runAgentPacketCommand(options: AgentPacketCommandOptions =
   let testCreationPlan: TestCreationPlan | undefined;
   let resolvedTestCreationPlanPath: string | undefined;
   try {
-    testCreationPlan = await readJson<TestCreationPlan>(testCreationPlanPath);
-    if (testCreationPlan.schemaVersion === "visual-hive.test-creation-plan.v1") {
+    const parsed = TestCreationPlanV2Schema.safeParse(await readJson<unknown>(testCreationPlanPath));
+    if (parsed.success) {
+      testCreationPlan = parsed.data;
       resolvedTestCreationPlanPath = path.relative(loaded.rootDir, testCreationPlanPath).replaceAll(path.sep, "/");
     }
   } catch {

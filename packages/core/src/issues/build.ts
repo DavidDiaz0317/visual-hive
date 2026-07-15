@@ -5,7 +5,7 @@ import { sanitizeArtifactPathForIssue, sanitizeArtifactPathsForMarkdown, sanitiz
 import type { MutationReport, Report, TriageReport } from "../reports/types.js";
 import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
-import type { TestCreationPlan } from "../testCreation/types.js";
+import { TestCreationPlanV2Schema, type TestCreationRecommendation } from "../testCreation/types.js";
 import { VISUAL_HIVE_STANDALONE_LIFECYCLE } from "./lifecycle.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveLifecyclePolicy, VisualHiveSetupIssue } from "./types.js";
 
@@ -27,6 +27,12 @@ interface PublicationContext {
   mutationRoots: MutationPublicationRoot[];
   testAdequacyRoots: TestAdequacyPublicationRoot[];
   readinessBlockedRootKeys?: string[];
+}
+
+interface TestCreationAutomationView {
+  recommendations: TestCreationRecommendation[];
+  canResolveTestAdequacy: boolean;
+  resolutionBlockReason?: string;
 }
 
 const DEFAULT_GUARDRAILS = [
@@ -97,13 +103,14 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
       readOptional<JsonObject>(rootDir, sourceArtifacts.hiveExport),
       readOptional<JsonObject>(rootDir, sourceArtifacts.knowledgeGraph),
       readOptional<JsonObject>(rootDir, sourceArtifacts.agentPacket),
-      readOptional<TestCreationPlan>(rootDir, sourceArtifacts.testCreationPlan),
+      readOptional<unknown>(rootDir, sourceArtifacts.testCreationPlan),
       readOptional<VisualHiveIssuesReport>(rootDir, ".visual-hive/issues.json"),
       readSuppressions(rootDir, options.suppressionPath ?? ".visual-hive/issue-suppressions.json")
     ]);
   const project = options.project ?? report?.project ?? readString(evidencePacket, "project") ?? "unknown";
   const generatedAt = (options.now ?? new Date()).toISOString();
-  const publication = buildPublicationContext(mutationReport, testCreationPlan, readiness);
+  const testCreationAutomation = testCreationAutomationView(testCreationPlan);
+  const publication = buildPublicationContext(mutationReport, testCreationAutomation, readiness);
   const current = [
     ...issuesFromReport(report, sourceArtifacts),
     ...issuesFromMutation(mutationReport, sourceArtifacts, publication),
@@ -114,7 +121,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     ...issuesFromReadiness(readiness, sourceArtifacts),
     ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts),
     ...issuesFromHandoff(handoff, sourceArtifacts, publication),
-    ...issuesFromTestCreation(testCreationPlan, repoMap, sourceArtifacts, publication)
+    ...issuesFromTestCreation(testCreationAutomation, repoMap, sourceArtifacts, publication)
   ];
 
   const previousByFingerprint = new Map((previousIssues?.issues ?? []).map((issue) => [issue.dedupeFingerprint, issue]));
@@ -142,6 +149,25 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
 
   for (const previous of previousIssues?.issues ?? []) {
     if (!keyed.has(previous.dedupeFingerprint) && previous.status !== "resolved_candidate" && previous.status !== "suppressed") {
+      if (previous.issueKind === "test_adequacy_gap" && !testCreationAutomation.canResolveTestAdequacy) {
+        const blocked = {
+          ...ensurePublicationMetadata(previous),
+          status: "blocked" as const,
+          labels: dedupe([...previous.labels, "visual-hive/blocked"]),
+          sourceArtifacts: dedupe([...previous.sourceArtifacts, sourceArtifacts.testCreationPlan ?? ".visual-hive/test-creation-plan.json"]),
+          guardrails: DEFAULT_GUARDRAILS,
+          validationCommand: previous.validationCommand || "visual-hive test-creation-plan && visual-hive issues --write"
+        };
+        keyed.set(previous.dedupeFingerprint, {
+          ...blocked,
+          body: renderIssueBody(
+            blocked,
+            `Resolution is blocked because the current test-creation plan cannot authoritatively omit this repository-specific finding: ${testCreationAutomation.resolutionBlockReason ?? "the plan is not eligible for automated resolution"}. A structurally valid visual-hive.test-creation-plan.v2 with grounded evidence, or a valid empty/no-relevant v2 plan, is required.`,
+            rootDir
+          )
+        });
+        continue;
+      }
       keyed.set(previous.dedupeFingerprint, {
         ...ensurePublicationMetadata(previous),
         status: "resolved_candidate",
@@ -620,16 +646,62 @@ function issuesFromHandoff(
     });
 }
 
+function testCreationAutomationView(value: unknown): TestCreationAutomationView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "the test-creation plan is missing or unreadable"
+    };
+  }
+  if ((value as JsonObject).schemaVersion !== "visual-hive.test-creation-plan.v2") {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "legacy or unsupported test-creation plans cannot drive repository automation"
+    };
+  }
+  const parsed = TestCreationPlanV2Schema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      recommendations: [],
+      canResolveTestAdequacy: false,
+      resolutionBlockReason: "the v2 test-creation plan or its grounding is malformed"
+    };
+  }
+
+  const relevant = parsed.data.recommendations.filter(isTestAdequacyRecommendation);
+  const grounded = relevant.filter(isGroundedForAutomation);
+  const ineligible = relevant.filter((recommendation) => !isGroundedForAutomation(recommendation));
+  return {
+    recommendations: grounded,
+    canResolveTestAdequacy: ineligible.length === 0,
+    ...(ineligible.length
+      ? { resolutionBlockReason: "one or more relevant v2 recommendations are unresolved or lack automation-eligible grounding" }
+      : {})
+  };
+}
+
+function isTestAdequacyRecommendation(recommendation: TestCreationRecommendation): boolean {
+  return recommendation.source === "testing_layer"
+    && recommendation.kind === "unit_test"
+    && (recommendation.priority === "high" || recommendation.priority === "medium");
+}
+
+function isGroundedForAutomation(recommendation: TestCreationRecommendation): boolean {
+  return recommendation.grounding.status === "grounded"
+    && recommendation.grounding.evidence.length > 0
+    && recommendation.grounding.evidence.every((item) => Boolean(item.trim()))
+    && recommendation.grounding.unresolvedReasons.length === 0;
+}
+
 function issuesFromTestCreation(
-  plan: TestCreationPlan | undefined,
+  automation: TestCreationAutomationView,
   repoMap: JsonObject | undefined,
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
-  if (!plan) return [];
-  return plan.recommendations
-    .filter((recommendation) => recommendation.source === "testing_layer" && recommendation.kind === "unit_test")
-    .filter((recommendation) => recommendation.priority === "high" || recommendation.priority === "medium")
+  return automation.recommendations
     .slice(0, 1)
     .map((recommendation) => {
       const structuredLayerId = recommendation.layer?.id;
@@ -735,7 +807,7 @@ function workItemContractId(item: JsonObject): string | undefined {
 
 function buildPublicationContext(
   mutationReport: MutationReport | undefined,
-  testCreationPlan: TestCreationPlan | undefined,
+  testCreationAutomation: TestCreationAutomationView,
   readiness: JsonObject | undefined
 ): PublicationContext {
   const mutationRoots = uniqueBy(
@@ -746,9 +818,7 @@ function buildPublicationContext(
     (root) => root.rootCauseKey
   ).sort((left, right) => stableCompare(left.rootCauseKey, right.rootCauseKey));
   const testAdequacyRoots = uniqueBy(
-    (testCreationPlan?.recommendations ?? [])
-      .filter((recommendation) => recommendation.source === "testing_layer" && recommendation.kind === "unit_test")
-      .filter((recommendation) => recommendation.priority === "high" || recommendation.priority === "medium")
+    testCreationAutomation.recommendations
       .slice(0, 1)
       .map((recommendation) => recommendation.layer?.id)
       .filter((layerId): layerId is number => typeof layerId === "number" && Number.isInteger(layerId) && layerId > 0)

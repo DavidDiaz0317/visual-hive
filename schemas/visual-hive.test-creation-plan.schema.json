@@ -15,7 +15,7 @@
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
-      "const": "visual-hive.test-creation-plan.v1"
+      "const": "visual-hive.test-creation-plan.v2"
     },
     "generatedAt": {
       "type": "string"
@@ -156,6 +156,7 @@
         "rationale",
         "affected",
         "currentEvidence",
+        "grounding",
         "suggestedContract",
         "suggestedMutation",
         "validationCommand",
@@ -221,6 +222,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "grounding": {
+          "$ref": "#/$defs/grounding"
         },
         "suggestedContract": {
           "$ref": "#/$defs/suggestedContract"
@@ -320,13 +324,45 @@
         }
       }
     },
+    "grounding": {
+      "type": "object",
+      "required": [
+        "status",
+        "evidence",
+        "unresolvedReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "grounded",
+            "unresolved"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolvedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "suggestedContract": {
       "type": "object",
       "required": [
         "id",
         "description",
-        "route",
-        "selectors"
+        "selectors",
+        "mustNotExistSelectors",
+        "textMustExist",
+        "textMustNotExist",
+        "maskSelectors"
       ],
       "additionalProperties": false,
       "properties": {
@@ -346,6 +382,30 @@
           "type": "string"
         },
         "selectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mustNotExistSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "textMustExist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "textMustNotExist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maskSelectors": {
           "type": "array",
           "items": {
             "type": "string"

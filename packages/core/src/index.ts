@@ -76,6 +76,24 @@ export * from "./providers/handoff.js";
 export * from "./providers/upload.js";
 export * from "./mutations/score.js";
 export * from "./mutations/operators.js";
+export * from "./repair/canonical.js";
+export * from "./repair/types.js";
+export {
+  buildVisualHiveTaskContext,
+  parseVisualHiveTaskContext,
+  parseVisualRepairValidation,
+  computeVisualRepositoryFingerprint,
+  computeVisualValidationProfileDigest
+} from "./repair/build.js";
+export * from "./repair/assets.js";
+export * from "./repair/runContext.js";
+export * from "./repair/imageCompare.js";
+export * from "./repair/authoritativeValidation.js";
+export * from "./repair/swebench.js";
+export * from "./repair/store.js";
+export * from "./repair/toolProtocol.js";
+export * from "./repair/hiveContracts.js";
+export * from "./repair/taskContextCompiler.js";
 export * from "./schemas/catalog.js";
 export * from "./capabilities/types.js";
 export * from "./capabilities/baseline.js";

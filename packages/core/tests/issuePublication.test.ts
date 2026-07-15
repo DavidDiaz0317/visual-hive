@@ -219,7 +219,7 @@ describe("root-cause publication metadata", () => {
     expect(readinessIssue?.rootCauseKey.startsWith("finding/external_repo_onboarding/")).toBe(true);
   });
 
-  it("fails open to independent canonical findings when structured linkage is malformed", async () => {
+  it("fails open for malformed mutation linkage and ignores malformed test-creation automation", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/mutation-report.json", mutationReport([{
       ...survivor("api-500", "localPreview", ["dashboard-shell"]),
@@ -254,9 +254,9 @@ describe("root-cause publication metadata", () => {
     });
 
     const result = await buildIssuesReport({ rootDir, project: "malformed" });
-    expect(result.report.issues).toHaveLength(3);
+    expect(result.report.issues).toHaveLength(2);
     expect(result.report.issues.every((issue) => issue.publicationRole === "canonical")).toBe(true);
-    expect(new Set(result.report.issues.map((issue) => issue.rootCauseKey)).size).toBe(3);
+    expect(new Set(result.report.issues.map((issue) => issue.rootCauseKey)).size).toBe(2);
     expect(result.report.issues.some((issue) => issue.rootCauseKey.startsWith("test-adequacy/"))).toBe(false);
     expect(result.report.issues.every((issue) => issue.blockedByRootKeys.length === 0)).toBe(true);
   });
@@ -355,17 +355,59 @@ async function writeDummyNineArtifacts(root: string): Promise<void> {
     mapFindings: []
   });
   await writeArtifact(root, ".visual-hive/test-creation-plan.json", {
+    schemaVersion: "visual-hive.test-creation-plan.v2",
+    generatedAt: "2026-07-12T00:00:00.000Z",
+    project: "hive-visual-hive-e2e-proof",
+    sourceArtifacts: {},
+    governance: {
+      verdictAuthority: "visual_hive",
+      agentAuthority: "advisory_test_generation_only",
+      writePolicy: "no_config_or_test_files_written",
+      secretPolicy: "redacted_values_names_only"
+    },
+    summary: {
+      total: 1,
+      high: 0,
+      medium: 1,
+      low: 0,
+      fromTestingLayers: 1,
+      fromCoverageRecommendations: 0,
+      fromMutationSurvivors: 0,
+      fromHandoffWorkItems: 0
+    },
     recommendations: [{
       id: "layer-2-unknown",
+      gapId: "layer-2-unknown",
       source: "testing_layer",
       kind: "unit_test",
       priority: "medium",
       title: "Add unit test evidence for Unit",
       rationale: ["No repository unit test runner was detected."],
+      currentEvidence: ["repo-map:coverage-gap:unit-layer"],
+      grounding: {
+        status: "grounded",
+        evidence: ["repo-map:coverage-gap:unit-layer"],
+        unresolvedReasons: []
+      },
+      suggestedContract: {
+        id: "unit-layer-contract",
+        description: "Repository-grounded unit test guidance.",
+        route: "/",
+        selectors: [],
+        mustNotExistSelectors: [],
+        textMustExist: [],
+        textMustNotExist: [],
+        maskSelectors: []
+      },
+      suggestedMutation: "not_applicable",
+      validationCommand: "npm test",
+      hiveOwner: "tester",
       layer: { id: 2, name: "Unit", status: "unknown" },
       suggestedTests: ["Add unit tests."],
       artifacts: [".visual-hive/testing-layers.json"],
-      affected: { route: "/", component: "critical-route-shell" }
+      affected: { route: "/", component: "critical-route-shell" },
+      trustedOnly: false,
+      applyMode: "advisory_no_write"
     }]
   });
   await writeArtifact(root, ".visual-hive/readiness.json", {

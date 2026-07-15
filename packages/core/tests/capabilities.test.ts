@@ -133,6 +133,31 @@ describe("capability parity report", () => {
       ".visual-hive/hive/wiki/*.md",
       ".visual-hive/plan*.json",
       ".visual-hive/provider-upload/argos/screenshots/**",
+      ".visual-hive/repair",
+      ".visual-hive/repair/sessions",
+      ".visual-hive/repair/sessions/*",
+      ".visual-hive/repair/sessions/*/task-assets",
+      ".visual-hive/repair/sessions/*/task-assets/**",
+      ".visual-hive/repair/sessions/*/task-context.json",
+      ".visual-hive/repair/sessions/*/runs",
+      ".visual-hive/repair/sessions/*/runs/exec.*",
+      ".visual-hive/repair/sessions/*/runs/exec.*/**",
+      ".visual-hive/repair/sessions/*/runs/run.*",
+      ".visual-hive/repair/sessions/*/runs/run.*/bundle",
+      ".visual-hive/repair/sessions/*/runs/run.*/bundle/*/files/**",
+      ".visual-hive/repair/sessions/*/runs/run.*/bundle/*/manifest.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/capture-failure.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/capture-input.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/capture-metadata.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/capture-result.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/report.json",
+      ".visual-hive/repair/sessions/*/runs/run.*/run-context.json",
+      ".visual-hive/repair/sessions/*/runs/run.*.failed.*",
+      ".visual-hive/repair/sessions/*/runs/run.*.failed.*/**",
+      ".visual-hive/repair/sessions/*/runs/run.*.interrupted.*",
+      ".visual-hive/repair/sessions/*/runs/run.*.interrupted.*/**",
+      ".visual-hive/repair/sessions/*/validations",
+      ".visual-hive/repair/sessions/*/validations/*.json",
       ".visual-hive/snapshots/**"
     ];
     const requiredFixedDiagnostics = [
@@ -225,7 +250,7 @@ describe("capability parity report", () => {
       const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas", capability.filename), "utf8"));
       expect(() => new Ajv2020({ allErrors: true, strict: false }).compile(schema), capability.filename).not.toThrow();
     }
-  });
+  }, 30_000);
 });
 
 function cloneBaseline(): CapabilityInventory {

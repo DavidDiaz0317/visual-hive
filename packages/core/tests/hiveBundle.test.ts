@@ -125,6 +125,7 @@ describe("Visual Hive atomic bundle", () => {
       acmmRequest: 3,
       artifacts: ["../secret.txt"],
       source: source(),
+      purpose: "repair-validation" as const,
       producerVersion: "0.2.0",
       producerGitCommit: "abc123"
     })).rejects.toThrow("unsafe");
@@ -436,6 +437,77 @@ describe("Visual Hive atomic bundle", () => {
       producerVersion: "0.3.0",
       producerGitCommit: "abc123"
     })).rejects.toThrow("Hosted Visual Hive bundle publication requires");
+
+    const advisoryRepair = await writeVisualHiveBundleV3({
+      rootDir,
+      bundleId: "advisory-repair-evidence",
+      purpose: "repair-validation",
+      project: "local-demo",
+      mode: "full",
+      verdict: "passed",
+      acmmRequest: 5,
+      artifacts: [".visual-hive/local-evidence.json"],
+      source: { ...result.manifest.source, repository: "owner/repo", event: "hive_repair", commitSha: "a".repeat(40) },
+      scan: { scope: "full", authoritativeForResolution: false },
+      observations: [observation({ fingerprint: "repair-present", state: "present" })],
+      producerVersion: "0.3.2",
+      producerGitCommit: "abc123"
+    });
+    expect(advisoryRepair.manifest.schemaVersion).toBe("visual-hive.bundle.v2");
+    expect(verifyVisualHiveBundleDigest(advisoryRepair.manifest)).toBe(true);
+
+    await expect(writeVisualHiveBundleV3({
+      rootDir,
+      bundleId: "repair-cannot-claim-authority",
+      purpose: "repair-validation",
+      project: "local-demo",
+      mode: "full",
+      verdict: "passed",
+      acmmRequest: 5,
+      artifacts: [".visual-hive/local-evidence.json"],
+      source: { ...result.manifest.source, repository: "owner/repo", event: "hive_repair", commitSha: "a".repeat(40) },
+      scan: { scope: "full", authoritativeForResolution: true },
+      observations: [observation({ fingerprint: "repair-authority", state: "present" })],
+      producerVersion: "0.3.2",
+      producerGitCommit: "abc123"
+    })).rejects.toThrow("cannot claim resolution authority");
+  });
+
+  it("enforces caller-supplied bundle file, per-file, and aggregate byte limits", async () => {
+    const rootDir = await makeRoot();
+    await mkdir(path.join(rootDir, "evidence"), { recursive: true });
+    await Promise.all([
+      writeFile(path.join(rootDir, "evidence", "one.bin"), Buffer.alloc(4, 1)),
+      writeFile(path.join(rootDir, "evidence", "two.bin"), Buffer.alloc(4, 2))
+    ]);
+    const base = {
+      rootDir,
+      project: "demo",
+      mode: "measured" as const,
+      verdict: "ready" as const,
+      acmmRequest: 3,
+      artifacts: ["evidence/one.bin", "evidence/two.bin"],
+      source: source(),
+      purpose: "repair-validation" as const,
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    };
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "too-many-files",
+      artifactLimits: { maxFiles: 1, maxFileBytes: 4, maxTotalBytes: 8 }
+    })).rejects.toThrow("1-file limit");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "file-too-large",
+      artifactLimits: { maxFiles: 2, maxFileBytes: 3, maxTotalBytes: 8 }
+    })).rejects.toThrow("bounded file size");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "aggregate-too-large",
+      artifactLimits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 7 }
+    })).rejects.toThrow("7-byte aggregate limit");
   });
 
   it("rejects absent lifecycle observations from a non-authoritative scan", async () => {

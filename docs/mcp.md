@@ -80,6 +80,72 @@ The intended flow is:
 4. Use `visual_hive_get_validation_command` before proposing any write-preview change.
 5. Use `visual_hive_get_handoff_context` only when the issue routes to trusted GitHub or Hive handoff.
 
+`visual_hive_get_issue_context` now requires the exact task identity, task-context digest, repository, and issue fingerprint. It never selects the first active issue. Legacy zero-argument callers receive an identity-required response.
+
+## Multimodal Repair Tools
+
+Hive treatment sessions receive exactly these read-only Visual Hive tools:
+
+- `visual_hive_get_task_context`
+- `visual_hive_get_issue_context`
+- `visual_hive_search_surface`
+- `visual_hive_get_visual_asset`
+- `visual_hive_get_screenshot_set`
+- `visual_hive_get_browser_evidence`
+- `visual_hive_compare_assets`
+- `visual_hive_get_repair_validation`
+
+The repair server is separate from the general artifact MCP server. Its store must already exist as an ordinary canonical directory, and its session must be an authorized `hive.repair-session.v1` snapshot with `effectiveMode: visual_hive`. Print the exact scoped manifest or start stdio with:
+
+```bash
+visual-hive repair mcp \
+  --store <absolute-repair-store> \
+  --hive-session <hive.repair-session.v1.json> \
+  --describe
+
+visual-hive repair mcp \
+  --store <absolute-repair-store> \
+  --hive-session <hive.repair-session.v1.json> \
+  --stdio
+```
+
+After normal MCP initialization, an exact task-context call has this logical JSON-RPC shape:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "visual_hive_get_task_context",
+    "arguments": {
+      "taskId": "task.card-layout",
+      "repository": "owner/repo",
+      "taskContextDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "section": "summary",
+      "cursor": 0,
+      "limit": 20,
+      "maxChars": 16000
+    }
+  }
+}
+```
+
+The server checks every supplied identity against the signed session and returns the session/task/repository binding with the result. Changing only a digest, commit, repository, task, authorization window, or unapproved tool name is an error rather than a request for best-effort matching.
+
+Every call requires a repository, task ID, and canonical task-context digest. Run-backed calls additionally require the exact run-context digest and commit. Receipt retrieval requires the finding, repair head, and receipt digest. Callers provide identities only; filesystem paths are never accepted.
+
+Artifacts are stored below a content-addressed repair-session directory. Reads reject traversal, symlinks, oversized content, digest drift, repository drift, stale commits, ambiguous issue identities, and ambiguous screenshot roles. Image tools return raw MCP image blocks plus a compact JSON text fallback. Comparison uses `pixelmatch.v7.threshold-0.1.include-aa-false.diagnostic-v2` in memory, reports exact before/after dimensions and changed bounds, renders added/removed/changed regions with fixed diagnostic colors, and cannot accept a caller-supplied threshold.
+
+These tools never execute Playwright, modify baselines, write source, call GitHub, or decide lifecycle state. Hive brokers declared reproduction and validation profiles; Visual Hive's deterministic receipt remains the visual oracle.
+
+### Hive broker boundary
+
+The model must not launch or connect to this server directly in an authoritative repair. Hive owns the stdio child, validates the model's structured request against the frozen tool schema and authorization, enforces turn/tool/image/text/time budgets, records the request and terminal result digest, and supplies only that bounded result to the next model turn. The MCP child receives no GitHub token and no repository write authority.
+
+Repair MCP performs artifact reads and comparisons only, so it never substitutes for the execution sandbox. `visual-hive repair capture` must be launched separately by Hive inside the operating-system broker boundary documented in [`repair-session-integration.md`](./repair-session-integration.md): repository code cannot reach Hive-owned authorization/result paths or sibling environment, and its complete process tree is owned and terminated by a Job Object, container, or cgroup-equivalent boundary. Without that boundary, capture is local evidence only and cannot authorize publication or merge.
+
 ## Disabled Execution
 
 These execution or write-capable tools are described in the manifest as disabled by default:
