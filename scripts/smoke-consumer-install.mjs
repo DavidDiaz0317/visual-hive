@@ -16,6 +16,21 @@ const publishableWorkspacePackages = [
   "playwright-adapter",
   "cli"
 ];
+const inheritedGitHubContextVariables = [
+  "GITHUB_ACTIONS",
+  "GITHUB_EVENT_NAME",
+  "GITHUB_HEAD_REF",
+  "GITHUB_REF",
+  "GITHUB_REF_NAME",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REPOSITORY_ID",
+  "GITHUB_RUN_ATTEMPT",
+  "GITHUB_RUN_ID",
+  "GITHUB_SHA",
+  "GITHUB_WORKFLOW",
+  "VISUAL_HIVE_SOURCE_CONCLUSION",
+  "VISUAL_HIVE_WORKFLOW_ARTIFACT_ID"
+];
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-consumer-"));
 const appRoot = path.join(tempRoot, "consumer-react-app");
@@ -23,6 +38,7 @@ const packageRoot = path.join(tempRoot, "packages");
 const configPath = path.join(appRoot, "visual-hive.config.yaml");
 const changedFilesPath = path.join(appRoot, "changed-files.txt");
 let completed = false;
+let installedCliEntrypoint;
 
 try {
   const packedDependencies = await packVisualHiveWorkspaces(packageRoot);
@@ -60,8 +76,8 @@ try {
   }
   await run("npx", ["playwright", "install", "chromium"], appRoot);
   await run("npm", ["run", "build"], appRoot);
-  const installedCliEntrypoint = path.join(appRoot, "node_modules", "@visual-hive", "cli", "dist", "index.js");
-  const version = await runCapture(process.execPath, [installedCliEntrypoint, "--version"], appRoot, DEFAULT_COMMAND_TIMEOUT_MS, {
+  installedCliEntrypoint = path.join(appRoot, "node_modules", "@visual-hive", "cli", "dist", "index.js");
+  const version = await runVisualHiveCapture(["--version"], appRoot, {
     npm_package_version: "99.99.99-consumer"
   });
   if (version.stdout.trim() !== installedIdentity.version) {
@@ -249,15 +265,50 @@ async function packVisualHiveWorkspaces(destination) {
 }
 
 function runVisualHive(args, cwd, env = {}) {
-  return run("npm", ["exec", "--", "visual-hive", ...args], cwd, env);
+  return run(process.execPath, [requireInstalledCliEntrypoint(), ...args], cwd, visualHiveEnvironment(env));
 }
 
 function runVisualHiveCapture(args, cwd, env = {}) {
-  return runCapture("npm", ["exec", "--", "visual-hive", ...args], cwd, DEFAULT_COMMAND_TIMEOUT_MS, env);
+  return runCapture(
+    process.execPath,
+    [requireInstalledCliEntrypoint(), ...args],
+    cwd,
+    DEFAULT_COMMAND_TIMEOUT_MS,
+    visualHiveEnvironment(env)
+  );
 }
 
 function runVisualHiveAllowFailure(args, cwd) {
-  return runAllowFailure("npm", ["exec", "--", "visual-hive", ...args], cwd);
+  return runAllowFailure(
+    process.execPath,
+    [requireInstalledCliEntrypoint(), ...args],
+    cwd,
+    DEFAULT_COMMAND_TIMEOUT_MS,
+    visualHiveEnvironment()
+  );
+}
+
+function requireInstalledCliEntrypoint() {
+  if (!installedCliEntrypoint) {
+    throw new Error("Packed Visual Hive CLI entrypoint is not installed.");
+  }
+  return installedCliEntrypoint;
+}
+
+function visualHiveEnvironment(env = {}) {
+  return {
+    ...Object.fromEntries(inheritedGitHubContextVariables.map((name) => [name, undefined])),
+    ...env
+  };
+}
+
+function childEnvironment(overrides = {}) {
+  const env = { ...process.env };
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value === undefined) delete env[name];
+    else env[name] = value;
+  }
+  return env;
 }
 
 function run(command, args, cwd, env = {}, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS) {
@@ -265,7 +316,7 @@ function run(command, args, cwd, env = {}, timeoutMs = DEFAULT_COMMAND_TIMEOUT_M
     let settled = false;
     const child = spawn(commandForPlatform(command), args, {
       cwd,
-      env: { ...process.env, ...env },
+      env: childEnvironment(env),
       stdio: "inherit",
       shell: useShellForPlatformCommand(command),
       windowsHide: true
@@ -296,12 +347,12 @@ function run(command, args, cwd, env = {}, timeoutMs = DEFAULT_COMMAND_TIMEOUT_M
   });
 }
 
-function runAllowFailure(command, args, cwd, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS) {
+function runAllowFailure(command, args, cwd, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS, env = {}) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const child = spawn(commandForPlatform(command), args, {
       cwd,
-      env: { ...process.env, VISUAL_HIVE_CI: "true" },
+      env: childEnvironment({ ...env, VISUAL_HIVE_CI: "true" }),
       stdio: "inherit",
       shell: useShellForPlatformCommand(command),
       windowsHide: true
@@ -334,7 +385,7 @@ function runCapture(command, args, cwd, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS, 
     let stderr = "";
     const child = spawn(commandForPlatform(command), args, {
       cwd,
-      env: { ...process.env, ...env },
+      env: childEnvironment(env),
       stdio: ["ignore", "pipe", "pipe"],
       shell: useShellForPlatformCommand(command),
       windowsHide: true
