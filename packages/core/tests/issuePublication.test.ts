@@ -271,6 +271,27 @@ describe("root-cause publication metadata", () => {
     expect(result.report.issues[0]).toMatchObject({ publicationRole: "canonical", blockedByRootKeys: [] });
     expect(result.report.issues[0]?.rootCauseKey.startsWith("finding/mutation_survivor/")).toBe(true);
   });
+
+  it("does not let a passed provider envelope hide a failed nested upload", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/evidence-packet.json", {
+      providers: [{
+        providerId: "argos",
+        status: "passed",
+        message: "The deterministic provider adapter completed, but its supplemental upload failed.",
+        upload: { status: "failed" }
+      }]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "provider-upload-failure" });
+
+    expect(result.report.issues).toHaveLength(1);
+    expect(result.report.issues[0]).toMatchObject({
+      issueKind: "provider_governance",
+      severity: "high",
+      title: "[Visual Hive] Provider governance: argos failed"
+    });
+  });
 });
 
 async function makeRoot(): Promise<string> {

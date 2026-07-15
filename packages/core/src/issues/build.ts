@@ -597,12 +597,13 @@ function issuesFromReadiness(readiness: JsonObject | undefined, sourceArtifacts:
 function issuesFromProviderEvidence(evidence: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
   const providers = arrayOfObjects(evidence?.providers);
   return providers
-    .filter((provider) => ["failed", "missing_credentials", "blocked"].includes(readString(provider, "status") ?? readString(objectValue(provider, "upload"), "status") ?? ""))
-    .map((provider) =>
+    .map((provider) => ({ provider, issueStatus: providerIssueStatus(provider) }))
+    .filter((entry): entry is { provider: JsonObject; issueStatus: "failed" | "missing_credentials" | "blocked" } => entry.issueStatus !== undefined)
+    .map(({ provider, issueStatus }) =>
       baseIssue({
         issueKind: "provider_governance",
-        severity: readString(provider, "status") === "failed" ? "high" : "medium",
-        title: `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${readString(provider, "status") ?? "needs review"}`,
+        severity: issueStatus === "failed" ? "high" : "medium",
+        title: `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${issueStatus}`,
         labels: ["visual-hive/blocked"],
         owningAgentHint: "hive/ci",
         sourceArtifacts: [sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json", ".visual-hive/provider-results.json"],
@@ -611,6 +612,14 @@ function issuesFromProviderEvidence(evidence: JsonObject | undefined, sourceArti
         bodySummary: readString(provider, "message") ?? JSON.stringify(provider).slice(0, 800)
       })
     );
+}
+
+function providerIssueStatus(provider: JsonObject): "failed" | "missing_credentials" | "blocked" | undefined {
+  const statuses = [readString(provider, "status"), readString(objectValue(provider, "upload"), "status")];
+  for (const status of ["failed", "missing_credentials", "blocked"] as const) {
+    if (statuses.includes(status)) return status;
+  }
+  return undefined;
 }
 
 function issuesFromHandoff(
