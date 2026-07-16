@@ -5576,6 +5576,40 @@ describe("artifact index", () => {
 });
 
 describe("setup recommendations", () => {
+  it("uses the Next.js hostname flag for a generated development server command", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-next-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "next-dashboard",
+      scripts: { build: "next build", dev: "next dev" },
+      dependencies: { next: "^16.0.0", react: "^19.0.0", "react-dom": "^19.0.0" }
+    });
+    await mkdir(path.join(targetRoot, "app"), { recursive: true });
+    await writeFile(path.join(targetRoot, "app", "page.tsx"), `<main data-testid="app-shell">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot });
+
+    expect(recommendation.project.type).toBe("nextjs");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run dev -- --hostname 127.0.0.1 --port 4173");
+  });
+
+  it("keeps the generic host flag for a non-Next.js development server", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-vite-dev-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "vite-dashboard",
+      scripts: { build: "vite build", dev: "vite" },
+      dependencies: { react: "^19.0.0", vite: "^6.0.0" }
+    });
+    await mkdir(path.join(targetRoot, "src"), { recursive: true });
+    await writeFile(path.join(targetRoot, "src", "App.tsx"), `<main data-testid="app-shell">Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot });
+
+    expect(recommendation.project.type).toBe("react-vite");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run dev -- --host 127.0.0.1 --port 4173");
+  });
+
   it("discovers and configures a nested frontend workspace", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-nested-"));
     tempDirs.push(targetRoot);
