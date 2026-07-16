@@ -5585,12 +5585,14 @@ describe("setup recommendations", () => {
       dependencies: { next: "^16.0.0", react: "^19.0.0", "react-dom": "^19.0.0" }
     });
     await mkdir(path.join(targetRoot, "app"), { recursive: true });
-    await writeFile(path.join(targetRoot, "app", "page.tsx"), `<main data-testid="app-shell">Dashboard</main>`, "utf8");
+    await writeFile(path.join(targetRoot, "app", "page.tsx"), `<main>Dashboard</main>`, "utf8");
 
     const recommendation = await recommendSetup({ repoRoot: targetRoot });
 
     expect(recommendation.project.type).toBe("nextjs");
     expect(recommendation.recommendedTarget.serve).toBe("npm run dev -- --hostname 127.0.0.1 --port 4173");
+    expect(recommendation.detectedSelectors).toContainEqual({ selector: "main", sourceFile: "app/page.tsx", occurrences: 1 });
+    expect(recommendation.recommendedContracts[0]?.selectors).toEqual(["main"]);
   });
 
   it("keeps the generic host flag for a non-Next.js development server", async () => {

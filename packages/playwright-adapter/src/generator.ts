@@ -465,6 +465,7 @@ async function compareScreenshot(page, contractId, shot, artifacts, activeMutati
   const actual = await page.screenshot({
     fullPage: shot.fullPage ?? true,
     animations: "disabled",
+    caret: "initial",
     mask
   });
   artifacts.push(artifactReference(actualPath));
