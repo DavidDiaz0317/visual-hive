@@ -8,7 +8,7 @@ The harness refuses to pull an image. The reviewed Playwright image must already
 mcr.microsoft.com/playwright@sha256:9bd26ad900bb5e0f4dee75839e957a89ae89c2b7ab1e76050e559790e946b948
 ```
 
-It also requires caller-supplied commit, tree, and lockfile SHA-256 identities for both clean worktrees. It rejects dirty worktrees, linked/reparse tracked files, digest drift, an existing output directory, or an output below either source worktree.
+It also requires caller-supplied commit, tree, and lockfile SHA-256 identities for both clean worktrees. A lockfile identity is the SHA-256 of the exact tracked Git blob at `HEAD`, so the identity is stable across platform-specific checkout line endings while the ordinary-file and clean-worktree checks still reject local replacement or modification. The harness rejects dirty worktrees, linked/reparse tracked files, digest drift, an existing output directory, or an output below either source worktree.
 
 ## Preliminary proof
 

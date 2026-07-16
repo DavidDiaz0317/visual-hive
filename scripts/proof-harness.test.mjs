@@ -288,19 +288,34 @@ test("clean repository inspection binds exact commit, tree, lock, and dirtiness"
   execFileSync("git", ["-C", root, "commit", "-qm", "fixture"]);
   const commit = git(root, ["rev-parse", "HEAD"]);
   const tree = git(root, ["rev-parse", "HEAD^{tree}"]);
+  const canonicalLock = execFileSync("git", ["-C", root, "show", "HEAD:package-lock.json"]);
   const lockSha256 = createHash("sha256")
-    .update(await readFile(path.join(root, "package-lock.json")))
+    .update(canonicalLock)
     .digest("hex");
+  const systemRunner = new SystemCommandRunner();
+  const calls = [];
+  const recordingRunner = {
+    async run(command, args, options) {
+      calls.push({ command, args: [...args] });
+      return systemRunner.run(command, args, options);
+    },
+  };
   const result = await inspectCleanRepository({
     root,
     expectedCommit: commit,
     expectedTree: tree,
     lockPath: "package-lock.json",
     expectedLockSha256: lockSha256,
-    runner: new SystemCommandRunner(),
+    runner: recordingRunner,
     label: "fixture",
   });
   assert.equal(result.commit, commit);
+  assert.ok(
+    calls.some(
+      ({ command, args }) =>
+        command === "git" && args.at(-2) === "show" && args.at(-1) === "HEAD:package-lock.json",
+    ),
+  );
   await writeFile(path.join(root, "dirty.txt"), "dirty");
   await assert.rejects(
     inspectCleanRepository({

@@ -682,7 +682,8 @@ async function repositoryIdentity(root, expected) {
     throw new Error(`Repository identity/cleanliness mismatch for ${root}.`);
   }
   const lockFile = await ordinaryFile(root, path.join(root, expected.lockPath));
-  const lockSha256 = sha256(await readFile(lockFile));
+  const trackedLockPath = path.relative(root, lockFile).replaceAll("\\", "/");
+  const lockSha256 = sha256(gitBytes(root, ["show", `HEAD:${trackedLockPath}`]));
   if (lockSha256 !== expected.lockSha256) throw new Error(`Lock digest mismatch for ${root}.`);
   return { commit, tree, lockPath: expected.lockPath, lockSha256 };
 }
@@ -910,6 +911,13 @@ function git(cwd, args, allowEmpty = false) {
   }).trim();
   if (!allowEmpty && !value) throw new Error(`git ${args.join(" ")} returned no value.`);
   return value;
+}
+
+function gitBytes(cwd, args) {
+  return execFileSync("git", trustedGitCommandArgs(cwd, args), {
+    timeout: 10_000,
+    maxBuffer: 4 * 1024 * 1024,
+  });
 }
 
 // Root attests the pwuser-owned target clone only after that user is

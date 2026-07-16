@@ -139,7 +139,13 @@ export async function inspectCleanRepository({
     path.resolve(canonicalRoot, lockPath),
     `${label} lockfile`,
   );
-  const lockSha256 = sha256(await readFile(canonicalLock));
+  const trackedLockPath = path.relative(canonicalRoot, canonicalLock).replaceAll("\\", "/");
+  const lockBlob = await runner.run(
+    "git",
+    ["-C", canonicalRoot, "show", `HEAD:${trackedLockPath}`],
+    { timeoutMs: 30_000 },
+  );
+  const lockSha256 = sha256(Buffer.from(lockBlob.stdout, "utf8"));
   if (lockSha256 !== expectedLockSha256) {
     throw new Error(
       `${label} lock digest mismatch: expected ${expectedLockSha256}, got ${lockSha256}.`,
