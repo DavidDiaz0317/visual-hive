@@ -106,7 +106,7 @@
             "hive/architect"
           ]
         },
-        "sourceArtifacts": { "type": "array", "items": { "type": "string" } },
+        "sourceArtifacts": { "type": "array", "minItems": 1, "items": { "type": "string" } },
         "affected": {
           "type": "array",
           "items": {
@@ -159,6 +159,25 @@
         {
           "if": { "properties": { "publicationRole": { "const": "derivative" } }, "required": ["publicationRole"] },
           "then": { "properties": { "issueKind": { "enum": ["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"] } } }
+        },
+        {
+          "oneOf": [
+            { "properties": { "issueKind": { "const": "setup_needed" }, "owningAgentHint": { "const": "visual-hive/setup" } } },
+            { "properties": { "issueKind": { "const": "map_drift" }, "owningAgentHint": { "const": "visual-hive/map" } } },
+            { "properties": { "issueKind": { "const": "missing_visual_coverage" }, "owningAgentHint": { "enum": ["visual-hive/test-creator", "visual-hive/map"] } } },
+            { "properties": { "issueKind": { "const": "test_adequacy_gap" }, "owningAgentHint": { "const": "visual-hive/test-creator" } } },
+            { "properties": { "issueKind": { "const": "weak_visual_test" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+            { "properties": { "issueKind": { "const": "stale_baseline" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+            { "properties": { "issueKind": { "const": "baseline_churn" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+            { "properties": { "issueKind": { "const": "visual_regression" }, "owningAgentHint": { "const": "hive/quality" } } },
+            { "properties": { "issueKind": { "const": "selector_contract_failure" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+            { "properties": { "issueKind": { "const": "screenshot_diff" }, "owningAgentHint": { "enum": ["hive/quality", "visual-hive/test-maintainer"] } } },
+            { "properties": { "issueKind": { "const": "mutation_survivor" }, "owningAgentHint": { "const": "visual-hive/mutation" } } },
+            { "properties": { "issueKind": { "const": "workflow_safety" }, "owningAgentHint": { "const": "hive/ci" } } },
+            { "properties": { "issueKind": { "const": "provider_governance" }, "owningAgentHint": { "const": "hive/ci" } } },
+            { "properties": { "issueKind": { "const": "protected_target_blocked" }, "owningAgentHint": { "const": "hive/ci" } } },
+            { "properties": { "issueKind": { "const": "external_repo_onboarding" }, "owningAgentHint": { "enum": ["visual-hive/setup", "hive/quality"] } } }
+          ]
         }
       ]
     }

@@ -100,11 +100,22 @@
             ]
           },
           "severity": { "enum": ["low", "medium", "high", "critical"] },
-          "owningAgentHint": { "type": "string", "minLength": 1 },
+          "owningAgentHint": {
+            "enum": [
+              "visual-hive/setup",
+              "visual-hive/map",
+              "visual-hive/test-creator",
+              "visual-hive/test-maintainer",
+              "visual-hive/mutation",
+              "hive/quality",
+              "hive/ci",
+              "hive/architect"
+            ]
+          },
           "title": { "type": "string", "minLength": 1, "maxLength": 512 },
           "body": { "type": "string", "minLength": 1, "maxLength": 60000 },
           "labels": { "type": "array", "uniqueItems": true, "maxItems": 50, "items": { "type": "string", "minLength": 1 } },
-          "sourceArtifacts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" } },
+          "sourceArtifacts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" } },
           "affectedContracts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
           "validationCommand": { "type": "string", "minLength": 1 },
           "observedAt": { "type": "string", "format": "date-time" },
@@ -133,6 +144,25 @@
           {
             "if": { "properties": { "publicationRole": { "const": "derivative" } }, "required": ["publicationRole"] },
             "then": { "properties": { "issueKind": { "enum": ["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"] } } }
+          },
+          {
+            "oneOf": [
+              { "properties": { "issueKind": { "const": "setup_needed" }, "owningAgentHint": { "const": "visual-hive/setup" } } },
+              { "properties": { "issueKind": { "const": "map_drift" }, "owningAgentHint": { "const": "visual-hive/map" } } },
+              { "properties": { "issueKind": { "const": "missing_visual_coverage" }, "owningAgentHint": { "enum": ["visual-hive/test-creator", "visual-hive/map"] } } },
+              { "properties": { "issueKind": { "const": "test_adequacy_gap" }, "owningAgentHint": { "const": "visual-hive/test-creator" } } },
+              { "properties": { "issueKind": { "const": "weak_visual_test" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+              { "properties": { "issueKind": { "const": "stale_baseline" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+              { "properties": { "issueKind": { "const": "baseline_churn" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+              { "properties": { "issueKind": { "const": "visual_regression" }, "owningAgentHint": { "const": "hive/quality" } } },
+              { "properties": { "issueKind": { "const": "selector_contract_failure" }, "owningAgentHint": { "const": "visual-hive/test-maintainer" } } },
+              { "properties": { "issueKind": { "const": "screenshot_diff" }, "owningAgentHint": { "enum": ["hive/quality", "visual-hive/test-maintainer"] } } },
+              { "properties": { "issueKind": { "const": "mutation_survivor" }, "owningAgentHint": { "const": "visual-hive/mutation" } } },
+              { "properties": { "issueKind": { "const": "workflow_safety" }, "owningAgentHint": { "const": "hive/ci" } } },
+              { "properties": { "issueKind": { "const": "provider_governance" }, "owningAgentHint": { "const": "hive/ci" } } },
+              { "properties": { "issueKind": { "const": "protected_target_blocked" }, "owningAgentHint": { "const": "hive/ci" } } },
+              { "properties": { "issueKind": { "const": "external_repo_onboarding" }, "owningAgentHint": { "enum": ["visual-hive/setup", "hive/quality"] } } }
+            ]
           }
         ]
       }

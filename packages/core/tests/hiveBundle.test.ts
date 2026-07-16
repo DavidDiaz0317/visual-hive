@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { indexArtifacts } from "../src/artifacts/index.js";
+import { VISUAL_HIVE_OWNER_HINTS_BY_ISSUE_KIND, VISUAL_HIVE_PRODUCER_ISSUE_KINDS } from "../src/issues/producerContract.js";
 import {
   VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM,
   VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM,
@@ -749,7 +750,8 @@ describe("Visual Hive atomic bundle", () => {
       fingerprint: "visual-hive:derivative:one",
       publicationRole: "derivative",
       rootCauseKey: "mutation/api-500/localPreview/dashboard-shell",
-      issueKind: "missing_visual_coverage"
+      issueKind: "missing_visual_coverage",
+      owningAgentHint: "visual-hive/test-creator"
     });
     const aggregate = observation({
       fingerprint: "visual-hive:aggregate:one",
@@ -824,6 +826,93 @@ describe("Visual Hive atomic bundle", () => {
         observation({ fingerprint: "canonical-two", publicationRole: "canonical", rootCauseKey: duplicateRoot })
       ]
     })).rejects.toThrow("Duplicate lifecycle observation");
+  });
+
+  it("emits a schema-valid evidence packet for every deterministic producer route", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.bundle.schema.json"), "utf8"));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    const routes = VISUAL_HIVE_PRODUCER_ISSUE_KINDS.flatMap((issueKind) =>
+      VISUAL_HIVE_OWNER_HINTS_BY_ISSUE_KIND[issueKind].map((owningAgentHint) => ({ issueKind, owningAgentHint }))
+    );
+    const result = await writeVisualHiveBundle({
+      rootDir,
+      bundleId: "producer-routes",
+      project: "producer-routing",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json"],
+      observations: routes.map((route, index) => observation({
+        fingerprint: `visual-hive:producer-route:${index}`,
+        rootCauseKey: `finding/${route.issueKind}/producer-route-${index}`,
+        issueKind: route.issueKind,
+        owningAgentHint: route.owningAgentHint
+      })),
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    });
+
+    expect(validate(result.manifest), JSON.stringify(validate.errors, null, 2)).toBe(true);
+    expect(new Set(result.manifest.observations.map((item) => item.issueKind))).toEqual(new Set(VISUAL_HIVE_PRODUCER_ISSUE_KINDS));
+    for (const route of routes) {
+      const packet = result.manifest.observations.find((item) => item.issueKind === route.issueKind && item.owningAgentHint === route.owningAgentHint);
+      expect(packet).toMatchObject({
+        ...route,
+        sourceArtifact: ".visual-hive/issues.json",
+        sourceArtifacts: [".visual-hive/report.json"],
+        affectedContracts: ["app-shell"],
+        validationCommand: "npm test"
+      });
+    }
+    expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);
+    const expandedAuthority = structuredClone(result.manifest);
+    expandedAuthority.observations.find((item) => item.issueKind === "workflow_safety")!.owningAgentHint = "hive/quality";
+    expect(validate(expandedAuthority)).toBe(false);
+    expect(verifyVisualHiveBundleDigest(expandedAuthority)).toBe(false);
+  });
+
+  it("rejects owner-hint authority expansion and unknown or unproven kinds", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const base = {
+      rootDir,
+      project: "producer-routing",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    };
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "mismatched-owner",
+      observations: [observation({ issueKind: "workflow_safety", owningAgentHint: "hive/quality" })]
+    })).rejects.toThrow("Unsupported Visual Hive issue kind and owner hint pair");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "authority-owner",
+      observations: [observation({ issueKind: "mutation_survivor", owningAgentHint: "hive/architect" })]
+    })).rejects.toThrow("Unsupported Visual Hive issue kind and owner hint pair");
+
+    for (const issueKind of ["ci_failure", "security_finding", "architecture_finding", "unknown_future_kind"]) {
+      await expect(writeVisualHiveBundle({
+        ...base,
+        bundleId: `unproven-${issueKind}`,
+        observations: [observation({ issueKind, owningAgentHint: "hive/ci" })]
+      })).rejects.toThrow("Unknown lifecycle observation issue kind");
+    }
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "missing-evidence",
+      observations: [observation({ sourceArtifacts: [] })]
+    })).rejects.toThrow("requires at least one evidence artifact");
   });
 
   it("binds requested authority and verdict metadata into the aggregate digest", async () => {

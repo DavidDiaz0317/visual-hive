@@ -18,6 +18,7 @@ export type VisualHiveIssueKind =
 export type VisualHiveIssueSeverity = "low" | "medium" | "high" | "critical";
 export type VisualHiveIssueStatus = "open_candidate" | "update_candidate" | "resolved_candidate" | "suppressed" | "blocked";
 export type VisualHivePublicationRole = "canonical" | "derivative" | "aggregate";
+/** Digest-bound routing guidance only; Hive independently selects an existing role. */
 export type VisualHiveOwningAgentHint =
   | "visual-hive/setup"
   | "visual-hive/map"

@@ -264,6 +264,16 @@ describe.sequential("runPlaywrightRepairCapture", () => {
       config: { ...fixture.config, project: { ...fixture.config.project, name: "candidate-controlled-config" } }
     })).rejects.toThrow("authorized base config digest");
     expect(() => parsePlaywrightRepairCaptureFinding({ ...fixture.finding, unexpected: true })).toThrow("missing or unknown fields");
+    expect(() => parsePlaywrightRepairCaptureFinding({
+      ...fixture.finding,
+      issueKind: "workflow_safety",
+      owningAgentHint: "hive/quality"
+    })).toThrow("unsupported issue kind and owner hint pair");
+    expect(() => parsePlaywrightRepairCaptureFinding({
+      ...fixture.finding,
+      issueKind: "security_finding",
+      owningAgentHint: "hive/architect"
+    })).toThrow("issueKind");
 
     const mismatchedObligation = await createRepairFixture({ baseline: true });
     rebindFixtureTask(mismatchedObligation, {
