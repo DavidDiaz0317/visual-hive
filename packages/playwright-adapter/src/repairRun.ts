@@ -804,6 +804,7 @@ async function executeCapture(
   await writeJsonExclusive(rootDir, metadataPath, metadata);
 
   const artifactPaths = sortedUnique([
+    ...options.finding.sourceArtifacts,
     reportPath,
     runContextPath,
     runtimeIdentityPath,

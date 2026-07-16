@@ -283,6 +283,9 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       options.observations ?? observationsFromIssues(options.issues ?? [], source.repository, generatedAt, options.issuesArtifact),
       source.repository
     );
+    if (bundleEvidence) {
+      validateV3ObservationEvidence(observations, callerSuppliedArtifacts, bundleEvidence.indexedArtifacts, files);
+    }
     if (!scan.authoritativeForResolution && observations.some((observation) => observation.state === "absent")) {
       throw new Error("Absent lifecycle observations require an authoritative Visual Hive scan.");
     }
@@ -439,6 +442,7 @@ function verifyV3BundleDigest(manifest: VisualHiveBundleManifest): boolean {
   if (manifest.replayProtection.key !== v3ReplayKey(manifest.source, manifest.bundleId)) return false;
   if (!validArtifactIndexBinding(manifest.artifactIndex, manifest.files)) return false;
   if (!validCapabilityParityBinding(manifest.capabilityParity, manifest.files)) return false;
+  if (!validV3ObservationEvidenceBindings(manifest.observations, manifest.files)) return false;
   const digest = digestV3BundleContent(
     manifest.files,
     manifest.scan,
@@ -1092,6 +1096,62 @@ function requiredBundleFile(files: VisualHiveBundleFile[], sourcePath: string, d
   const file = files.find((candidate) => candidate.sourcePath === sourcePath);
   if (!file || file.sha256 !== digest) throw new Error(`Required bundle evidence was not copied with its validated digest: ${sourcePath}`);
   return file;
+}
+
+function validateV3ObservationEvidence(
+  observations: VisualHiveBundleObservation[],
+  requestedArtifacts: Set<string>,
+  indexedArtifacts: Map<string, ArtifactIndexEntry>,
+  files: VisualHiveBundleFile[]
+): void {
+  for (const observation of observations) {
+    for (const evidencePath of uniqueSorted([observation.sourceArtifact, ...observation.sourceArtifacts])) {
+      if (!requestedArtifacts.has(evidencePath)) {
+        throw new Error(`Visual Hive bundle v3 observation evidence must be explicitly requested: ${evidencePath}`);
+      }
+      const indexed = indexedArtifacts.get(evidencePath);
+      if (!indexed) {
+        throw new Error(`Visual Hive bundle v3 observation evidence is missing from the complete content-addressed index: ${evidencePath}`);
+      }
+      const matches = files.filter((file) => file.sourcePath === evidencePath);
+      if (matches.length !== 1) {
+        throw new Error(`Visual Hive bundle v3 observation evidence must have exactly one compact file record: ${evidencePath}`);
+      }
+      const bundled = matches[0]!;
+      if (bundled.path !== `files/${evidencePath}` || bundled.sha256 !== indexed.sha256 || bundled.size !== indexed.bytes) {
+        throw new Error(`Visual Hive bundle v3 observation evidence does not match its indexed digest: ${evidencePath}`);
+      }
+    }
+  }
+}
+
+function validV3ObservationEvidenceBindings(
+  observations: VisualHiveBundleObservation[],
+  files: VisualHiveBundleFile[]
+): boolean {
+  const filesBySourcePath = new Map<string, VisualHiveBundleFile[]>();
+  try {
+    for (const file of files) {
+      const sourcePath = normalizeRelativeArtifactPath(file.sourcePath);
+      const existing = filesBySourcePath.get(sourcePath) ?? [];
+      existing.push(file);
+      filesBySourcePath.set(sourcePath, existing);
+    }
+    for (const observation of observations) {
+      for (const evidencePath of uniqueSorted([observation.sourceArtifact, ...observation.sourceArtifacts])) {
+        const matches = filesBySourcePath.get(evidencePath);
+        if (matches?.length !== 1) return false;
+        const file = matches[0]!;
+        if (file.sourcePath !== evidencePath
+          || file.path !== `files/${evidencePath}`
+          || file.size <= 0
+          || !/^[a-f0-9]{64}$/.test(file.sha256)) return false;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 function validArtifactIndexBinding(binding: VisualHiveBundleArtifactIndexBinding, files: VisualHiveBundleFile[]): boolean {

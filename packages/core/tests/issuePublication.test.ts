@@ -178,6 +178,18 @@ describe("root-cause publication metadata", () => {
     expect(canonical[0]?.body).toContain("Add API failure coverage for route /b.");
     expect(canonical[0]?.body).toContain("npm test -- route-a");
     expect(canonical[0]?.body).toContain("npm test -- route-b");
+    await writeArtifact(rootDir, ".visual-hive/evidence/route-a.json", { route: "/a", detected: false });
+    await writeArtifact(rootDir, ".visual-hive/evidence/route-b.json", { route: "/b", detected: false });
+    await writeArtifact(rootDir, ".visual-hive/coverage.json", {
+      schemaVersion: 1,
+      project: "coalesced-mutation",
+      gaps: [{ contractId: "dashboard-shell", mutationOperator: "api-500" }]
+    });
+    await writeArtifact(rootDir, ".visual-hive/issues.json", report.report);
+    const observationArtifacts = [
+      ".visual-hive/issues.json",
+      ...new Set(report.report.issues.flatMap((issue) => issue.sourceArtifacts))
+    ];
     await prepareBundleEvidence(rootDir, "coalesced-mutation");
 
     const bundle = await writeVisualHiveBundle({
@@ -187,7 +199,7 @@ describe("root-cause publication metadata", () => {
       mode: "full",
       verdict: "blocked",
       acmmRequest: 4,
-      artifacts: [".visual-hive/mutation-report.json"],
+      artifacts: observationArtifacts,
       source: {
         repository: "owner/coalesced-mutation",
         ref: "refs/heads/main",
@@ -201,6 +213,7 @@ describe("root-cause publication metadata", () => {
       },
       scan: { scope: "full", authoritativeForResolution: true },
       issues: report.report.issues,
+      issuesArtifact: ".visual-hive/issues.json",
       producerVersion: "0.3.0",
       producerGitCommit: "abc123"
     });

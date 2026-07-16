@@ -57,6 +57,9 @@ export async function runHiveBundleCommand(options: HiveBundleCommandOptions = {
     importManifestPath,
     validationSummaryPath,
     issuesPath,
+    ...issues.issues
+      .filter((issue) => issue.status === "open_candidate" || issue.status === "update_candidate" || issue.status === "resolved_candidate")
+      .flatMap((issue) => issue.sourceArtifacts),
     ...Object.values(importManifest.sourceArtifacts),
     path.join(path.dirname(importManifestPath), "hive-setup-pack.json"),
     path.join(path.dirname(importManifestPath), "hive-setup-pack.md")
