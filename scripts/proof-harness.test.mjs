@@ -16,7 +16,7 @@ import {
   validateImageReference,
   verifyExportDirectory,
 } from "./proof-harness.mjs";
-import { copyOrdinaryEvidence } from "./proof-harness-container.mjs";
+import { copyOrdinaryEvidence, readVerifiedSourceEvidence } from "./proof-harness-container.mjs";
 
 class FakeDockerRunner {
   constructor(options = {}) {
@@ -127,6 +127,23 @@ test("proof harness arguments reject unknown fields and ambiguous help", () => {
   assert.deepEqual(parseArguments(["--help"]), { help: true });
 });
 
+test("system command failures withhold target output and command arguments", async () => {
+  const secret = "ghp_abcdefghijklmnopqrstuvwxyz123456";
+  await assert.rejects(
+    new SystemCommandRunner().run(
+      process.execPath,
+      ["-e", `console.error(${JSON.stringify(secret)}); process.exit(7);`],
+      { timeoutMs: 10_000 },
+    ),
+    (error) => {
+      assert.match(error.message, /exited 7; command output withheld \(sha256:[a-f0-9]{64}\)/u);
+      assert.doesNotMatch(error.message, new RegExp(secret, "u"));
+      assert.doesNotMatch(error.message, /console\.error/u);
+      return true;
+    },
+  );
+});
+
 test("preliminary workflow builds online, detaches, then runs only the strict health pipeline", async () => {
   const runner = new FakeDockerRunner();
   await runDockerProof(proofInput("preliminary"), runner);
@@ -153,6 +170,7 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   const pipelineIndex = commandLines.findIndex((line) => line.includes(" pipeline "));
   const visualFreezeIndex = commandLines.findIndex((line) => line.includes("chmod -R a-w /work/visual-hive"));
   const openWorkIndex = commandLines.findIndex((line) => line.includes("chmod 0777 /work"));
+  const targetMkdirIndex = commandLines.findIndex((line) => line.includes("mkdir /work/target"));
   const targetCloneIndex = commandLines.findIndex((line) => line.includes("git clone") && line.includes("target.bundle"));
   const closeWorkIndex = commandLines.findIndex((line) => line.includes("chmod 0755 /work"));
   const targetInstallIndex = commandLines.findIndex((line) => line.includes("npm --prefix dashboard ci"));
@@ -160,14 +178,26 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   assert.ok(preflightIndex < disconnectIndex && disconnectIndex < isolationIndex && isolationIndex < pipelineIndex);
   assert.ok(
     visualFreezeIndex < openWorkIndex &&
-      openWorkIndex < targetCloneIndex &&
-      targetCloneIndex < closeWorkIndex &&
-      closeWorkIndex < targetInstallIndex,
+      openWorkIndex < targetMkdirIndex &&
+      targetMkdirIndex < closeWorkIndex &&
+      closeWorkIndex < targetCloneIndex &&
+      targetCloneIndex < targetInstallIndex,
   );
   assert.ok(commandLines.some((line) => line.includes("chmod -R a-w /work/visual-hive")));
   assert.ok(!commandLines.some((line) => line.includes("chown")));
+  assert.ok(commandLines.some((line) => /^exec --user pwuser .*mkdir \/work\/target/u.test(line)));
   assert.ok(commandLines.some((line) => /^exec --user pwuser .*git clone .*target\.bundle \/work\/target/u.test(line)));
-  assert.ok(commandLines.some((line) => line.includes("proof-harness-container.mjs quiesce-user")));
+  const quiesceIndexes = commandLines
+    .map((line, index) => (line.includes("proof-harness-container.mjs quiesce-user") ? index : -1))
+    .filter((index) => index >= 0);
+  const attestIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs attest-inputs"));
+  const sourcePreflightIndex = commandLines.findIndex((line) => line.includes("visual-hive-proof-preflight.mjs"));
+  const verifySourceIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs verify-source"));
+  const verifyRunIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs verify-run"));
+  assert.equal(quiesceIndexes.length, 3);
+  assert.ok(targetInstallIndex < quiesceIndexes[0] && quiesceIndexes[0] < attestIndex);
+  assert.ok(sourcePreflightIndex < quiesceIndexes[1] && quiesceIndexes[1] < verifySourceIndex);
+  assert.ok(pipelineIndex < quiesceIndexes[2] && quiesceIndexes[2] < verifyRunIndex);
   for (const line of commandLines.filter(
     (candidate) =>
       candidate.includes("npm --prefix dashboard") ||
@@ -176,7 +206,7 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   )) {
     assert.match(line, /^exec --user pwuser /u);
   }
-  assert.equal(commandLines.filter((line) => line.includes("sha256sum /proof/")).length, 6);
+  assert.equal(commandLines.filter((line) => line.includes("sha256sum /proof/")).length, 8);
   const pipeline = commandLines[pipelineIndex];
   for (const token of [
     "--mode pr",
@@ -352,6 +382,57 @@ test("evidence freezing exports asserted bytes and rejects a post-assertion sour
     ),
     /changed after its sealed assertion/u,
   );
+});
+
+test("source verification binds one frozen preflight read across a later source swap", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vh-proof-source-freeze-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const targetRoot = path.join(root, "target");
+  await mkdir(targetRoot);
+  const inputPath = path.join(root, "input.json");
+  const sourcePath = path.join(targetRoot, "source-integrity.json");
+  const frozenSourcePath = path.join(root, "frozen-source-integrity.json");
+  const input = {
+    status: "verified",
+    target: {
+      commit: "a".repeat(40),
+      tree: "b".repeat(40),
+      configSha256: "c".repeat(64),
+      sourceManifestSha256: "d".repeat(64),
+    },
+  };
+  const source = {
+    status: "ready",
+    repository: { commit: input.target.commit, tree: input.target.tree },
+    inputs: {
+      config: { sha256: input.target.configSha256 },
+      sourceManifest: { sha256: input.target.sourceManifestSha256 },
+      baselineUpdatesAllowed: false,
+      snapshots: Array.from({ length: 18 }, (_, index) => ({ path: `snapshot-${index}.png` })),
+      snapshotSetSha256: "e".repeat(64),
+    },
+  };
+  const original = Buffer.from(`${JSON.stringify(source)}\n`);
+  await writeFile(inputPath, `${JSON.stringify(input)}\n`);
+  await writeFile(sourcePath, original);
+
+  const verified = await readVerifiedSourceEvidence({
+    inputRoot: root,
+    targetRoot,
+    inputPath,
+    sourcePath,
+    frozenSourcePath,
+  });
+  await writeFile(sourcePath, `${JSON.stringify({ ...source, status: "swapped" })}\n`);
+
+  assert.deepEqual(verified.frozenBytes, original);
+  assert.equal(
+    verified.attestation.sourcePreflightSha256,
+    createHash("sha256").update(original).digest("hex"),
+  );
+  assert.equal(verified.attestation.frozenSourcePreflight, frozenSourcePath);
+  assert.deepEqual(verified.attestation.repository, source.repository);
+  assert.deepEqual(verified.attestation.inputs, source.inputs);
 });
 
 async function writeProofExport(root, mode) {

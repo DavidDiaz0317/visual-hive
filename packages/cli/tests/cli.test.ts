@@ -184,15 +184,31 @@ async function removeTempDir(dir: string): Promise<void> {
 }
 
 describe("CLI commands", () => {
-  it("confines an optional runtime sidecar to the config root", () => {
+  it("confines an optional runtime sidecar to a new proof runtime identity", () => {
     const root = path.resolve(os.tmpdir(), "visual-hive-runtime-root");
-    expect(resolveRuntimeSidecarPath(root, ".visual-hive/proof/runtime.json")).toBe(
-      path.join(root, ".visual-hive", "proof", "runtime.json")
+    expect(resolveRuntimeSidecarPath(root, ".visual-hive/proof/manual/runtime.json")).toBe(
+      path.join(root, ".visual-hive", "proof", "manual", "runtime.json")
     );
-    expect(resolveRuntimeSidecarPath(root, path.join(root, "bound-runtime.json"))).toBe(path.join(root, "bound-runtime.json"));
-    expect(() => resolveRuntimeSidecarPath(root, ".")).toThrow(/inside the Visual Hive config root/u);
-    expect(() => resolveRuntimeSidecarPath(root, path.join("..", "escaped-runtime.json"))).toThrow(
-      /inside the Visual Hive config root/u
+    const absolute = path.join(root, ".visual-hive", "proof", "absolute", "runtime.json");
+    expect(resolveRuntimeSidecarPath(root, absolute)).toBe(absolute);
+    for (const protectedPath of [
+      ".",
+      "visual-hive.config.yaml",
+      "proof-source-manifest.json",
+      ".visual-hive/report.json",
+      ".visual-hive/snapshots/baseline.png",
+      ".visual-hive/baseline-approvals.json",
+      ".visual-hive/hive/bundle.json",
+      ".visual-hive/proof/manual/report.json",
+      ".visual-hive/proof/../report.json",
+      path.join("..", "escaped-runtime.json")
+    ]) {
+      expect(() => resolveRuntimeSidecarPath(root, protectedPath), protectedPath).toThrow(
+        /new runtime\.json file inside the dedicated Visual Hive proof evidence directory/u
+      );
+    }
+    expect(() => resolveRuntimeSidecarPath(root, ".visual-hive/proof/manual/runtime.txt")).toThrow(
+      /new runtime\.json file inside the dedicated Visual Hive proof evidence directory/u
     );
   });
 
@@ -4274,7 +4290,7 @@ selection:
     const exitCode = await runDeterministicCommand({
       config: configPath,
       cwd: tempRoot,
-      runtimeSidecar: ".visual-hive/proof/ignored-runtime.json"
+      runtimeSidecar: ".visual-hive/proof/ignored/runtime.json"
     });
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
 
@@ -4292,7 +4308,7 @@ selection:
     });
     expect(report.results).toEqual([]);
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
-    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored-runtime.json"))).rejects.toThrow();
+    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored", "runtime.json"))).rejects.toThrow();
   });
 
   it("pipeline writes an operational artifact for ignored docs-only changes", async () => {
@@ -4338,7 +4354,7 @@ selection:
       mode: "pr",
       changedFiles: changedPath,
       continueOnError: true,
-      runtimeSidecar: ".visual-hive/proof/ignored-pipeline-runtime.json"
+      runtimeSidecar: ".visual-hive/proof/ignored-pipeline/runtime.json"
     });
     const pipeline = await readJson<typeof result.report>(path.join(tempRoot, ".visual-hive", "pipeline.json"));
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
@@ -4472,7 +4488,7 @@ selection:
     await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-issue.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
-    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored-pipeline-runtime.json"))).rejects.toThrow();
+    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored-pipeline", "runtime.json"))).rejects.toThrow();
   }, 20_000);
 
   it("fails clearly when no contracts are selected", async () => {

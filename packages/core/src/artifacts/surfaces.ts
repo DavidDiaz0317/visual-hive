@@ -130,6 +130,8 @@ export const VISUAL_HIVE_ARTIFACT_SURFACE_PATHS = [
   ".visual-hive/provider-upload/argos",
   ".visual-hive/provider-upload/argos/manifest.json",
   ".visual-hive/provider-upload/argos/screenshots/**",
+  ".visual-hive/proof",
+  ".visual-hive/proof/**/runtime.json",
   ".visual-hive/readiness.json",
   ".visual-hive/recommendations.json",
   ".visual-hive/repair",
@@ -208,6 +210,7 @@ const DIRECTORY_SURFACES = new Set<string>([
   ".visual-hive/hive/modes",
   ".visual-hive/hive/wiki",
   ".visual-hive/provider-upload/argos",
+  ".visual-hive/proof",
   ".visual-hive/repair",
   ".visual-hive/repair/sessions",
   ".visual-hive/snapshots"
@@ -254,6 +257,7 @@ function dynamicRoles(artifactPath: string): string[] {
   if (artifactPath.startsWith(".visual-hive/artifacts/diffs/")) return ["visual-diff"];
   if (artifactPath.startsWith(".visual-hive/snapshots/")) return ["baseline"];
   if (artifactPath.startsWith(".visual-hive/provider-upload/argos/screenshots/")) return ["provider-upload", "screenshot"];
+  if (artifactPath.startsWith(".visual-hive/proof/")) return ["runtime-identity"];
   if (artifactPath.startsWith(".visual-hive/repair/sessions/")) return ["repair-session", "hive-scoped"];
   return [];
 }
@@ -267,6 +271,7 @@ function producerContractFor(artifactPath: string): string {
   if (artifactPath.startsWith(".visual-hive/artifacts/screenshots/") || artifactPath.startsWith(".visual-hive/artifacts/diffs/")) return "deterministic-runner";
   if (artifactPath.startsWith(".visual-hive/snapshots/")) return "playwright-baseline-store";
   if (artifactPath.startsWith(".visual-hive/provider-upload/argos/screenshots/")) return "guarded-argos-upload";
+  if (artifactPath.startsWith(".visual-hive/proof/")) return "playwright-runtime-sidecar";
   if (artifactPath.startsWith(".visual-hive/repair/sessions/")) return "hive-scoped-repair-session";
   if (artifactPath.startsWith(".visual-hive/github-app-")) return "github-app-diagnostics";
   if (artifactPath.startsWith(".visual-hive/control-plane-") || artifactPath.endsWith("-edits.json")) return "control-plane-audit";

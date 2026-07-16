@@ -194,7 +194,8 @@ test.describe("visual-hive generated deterministic contracts", () => {
           null,
           2
         ) + "\\n",
-        "utf8"
+        "utf8",
+        true
       );
     } finally {
       await page.close();
@@ -930,7 +931,7 @@ function sameAbsolutePath(left, right) {
   return normalize(left) === normalize(right);
 }
 
-async function writeEvidenceFileExclusive(filePath, data, encoding) {
+async function writeEvidenceFileExclusive(filePath, data, encoding, forceExclusive = false) {
   if (!evidenceRoot) {
     await writeFile(filePath, data, encoding);
     return;
@@ -959,7 +960,7 @@ async function writeEvidenceFileExclusive(filePath, data, encoding) {
   if (relativeCanonicalParent === ".." || relativeCanonicalParent.startsWith(".." + path.sep) || path.isAbsolute(relativeCanonicalParent)) throw new Error("Visual Hive evidence parent resolved outside its bound root.");
   const noFollowFlag = process.platform === "win32" ? 0 : (constants.O_NOFOLLOW || 0);
   let handle;
-  if (exclusiveEvidenceWrites) {
+  if (exclusiveEvidenceWrites || forceExclusive) {
     handle = await open(absolute, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | noFollowFlag, 0o600);
   } else {
     try {

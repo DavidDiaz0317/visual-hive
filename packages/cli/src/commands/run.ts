@@ -11,7 +11,7 @@ import {
   type Report,
   type VisualHiveConfig
 } from "@visual-hive/core";
-import { runPlaywrightContracts } from "@visual-hive/playwright-adapter";
+import { assertNewRuntimeSidecarPath, runPlaywrightContracts } from "@visual-hive/playwright-adapter";
 import { isIntentionalIgnoredFilesPlan } from "./plan.js";
 
 export interface RunCommandOptions {
@@ -27,6 +27,12 @@ export interface RunCommandOptions {
 export async function runDeterministicCommand(options: RunCommandOptions = {}): Promise<number> {
   const cwd = options.cwd ?? process.cwd();
   const loaded = await loadConfig(options.config, cwd);
+  const runtimeSidecarPath = options.runtimeSidecar
+    ? resolveRuntimeSidecarPath(loaded.rootDir, options.runtimeSidecar)
+    : undefined;
+  if (runtimeSidecarPath) {
+    await assertNewRuntimeSidecarPath(loaded.rootDir, runtimeSidecarPath);
+  }
   const planPath = path.resolve(loaded.rootDir, options.plan ?? path.join(".visual-hive", "plan.json"));
   const plan = await readJson<Plan>(planPath);
   if (plan.items.length === 0) {
@@ -44,9 +50,7 @@ export async function runDeterministicCommand(options: RunCommandOptions = {}): 
     ci: options.ci,
     skipInstall: options.skipInstall,
     skipBuild: options.skipBuild,
-    runtimeSidecarPath: options.runtimeSidecar
-      ? resolveRuntimeSidecarPath(loaded.rootDir, options.runtimeSidecar)
-      : undefined
+    runtimeSidecarPath
   });
   await writeJson(path.join(loaded.rootDir, ".visual-hive", "report.json"), report);
   return exitCode || (report.status === "failed" ? 1 : 0);
@@ -54,10 +58,19 @@ export async function runDeterministicCommand(options: RunCommandOptions = {}): 
 
 export function resolveRuntimeSidecarPath(rootDir: string, requestedPath: string): string {
   const root = path.resolve(rootDir);
+  const proofRoot = path.join(root, ".visual-hive", "proof");
   const candidate = path.resolve(root, requestedPath);
-  const relative = path.relative(root, candidate);
-  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error("Playwright runtime sidecar must be a file inside the Visual Hive config root.");
+  const relative = path.relative(proofRoot, candidate);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative) ||
+    path.basename(candidate) !== "runtime.json"
+  ) {
+    throw new Error(
+      "Playwright runtime sidecar must be a new runtime.json file inside the dedicated Visual Hive proof evidence directory.",
+    );
   }
   return candidate;
 }

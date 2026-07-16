@@ -159,6 +159,8 @@ const ARTIFACT_SURFACE_CONTRACT_SHA256: Record<string, string> = {
   ".visual-hive/provider-upload/argos": "cff270223c4d99677dc097136d0eca6374e17de9467402061f644d7bf1ea83d3",
   ".visual-hive/provider-upload/argos/manifest.json": "aea58c5d53d85be6d10858155917cb9960e7056948a1eebfe5f25eb145ef0014",
   ".visual-hive/provider-upload/argos/screenshots/**": "aaf617987fba2d9361941f06d792810fa7d4bde4edb6a61d84af1a5ccb3f5bb4",
+  ".visual-hive/proof": "cff270223c4d99677dc097136d0eca6374e17de9467402061f644d7bf1ea83d3",
+  ".visual-hive/proof/**/runtime.json": "a6f55c0709a525e4f84b189792bd694119933d2d36c64de39a9edddde1d9da02",
   ".visual-hive/readiness.json": "7feff18aab1f209ba7eaed80a61a8e8a8a499b072ba20f222cc674c51bd7d4c7",
   ".visual-hive/recommendations.json": "fa1c8645fdea3efbc040affc625e515af88b90d8eb4e9790b90d13005bad9522",
   ".visual-hive/repair": "cff270223c4d99677dc097136d0eca6374e17de9467402061f644d7bf1ea83d3",

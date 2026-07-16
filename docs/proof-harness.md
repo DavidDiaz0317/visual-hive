@@ -43,7 +43,7 @@ Both modes create containers with no published host ports. Cleanup removes only 
 
 ## Bound runtime sidecar
 
-The harness uses the normal Visual Hive CLI with `--runtime-sidecar <path>`. This is a narrow pass-through to the existing Playwright execution-binding implementation. Omitting it preserves the prior `run` and `pipeline` behavior; supplying it writes the browser/runtime/font sidecar inside the config root and binds it to the same generated spec/config and report execution digest.
+The harness uses the normal Visual Hive CLI with `--runtime-sidecar <path>`. This is a narrow pass-through to the existing Playwright execution-binding implementation. Omitting it preserves the prior `run` and `pipeline` behavior; supplying it exclusively creates a new `.visual-hive/proof/**/runtime.json` browser/runtime/font sidecar and binds it to the same generated spec/config and report execution digest. Existing destinations and paths outside that dedicated subtree are refused.
 
 Run the fake-runner and fail-closed orchestration tests without Docker:
 

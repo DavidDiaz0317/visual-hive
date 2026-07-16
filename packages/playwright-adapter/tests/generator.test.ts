@@ -15,7 +15,7 @@ import { buildPlaywrightConfigContent, buildSpecContent, generatePlaywrightSpec 
 import { collectArtifacts } from "../src/artifactCollector.js";
 import { waitForServerUrl } from "../src/serverManager.js";
 import { comparePngSnapshot } from "../src/visualDiff.js";
-import { normalizeStructuredContractResult, playwrightNodeModulesPath, resolvePlaywrightCli, runPlaywrightContracts } from "../src/runner.js";
+import { assertNewRuntimeSidecarPath, normalizeStructuredContractResult, playwrightNodeModulesPath, resolvePlaywrightCli, runPlaywrightContracts } from "../src/runner.js";
 import { PNG } from "pngjs";
 
 const tempDirs: string[] = [];
@@ -51,6 +51,28 @@ describe("buildSpecContent", () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("hidden generated spec");
+  });
+
+  it("requires runtime sidecars to use a new ordinary destination", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-runtime-sidecar-path-"));
+    tempDirs.push(tempRoot);
+    const proofRoot = path.join(tempRoot, ".visual-hive", "proof");
+    const transactionRoot = path.join(proofRoot, "transaction");
+    await mkdir(transactionRoot, { recursive: true });
+    const runtimePath = path.join(transactionRoot, "runtime.json");
+    await expect(assertNewRuntimeSidecarPath(tempRoot, runtimePath)).resolves.toBeUndefined();
+    await writeFile(runtimePath, '{"schemaVersion":"preseeded"}\n', "utf8");
+    await expect(assertNewRuntimeSidecarPath(tempRoot, runtimePath)).rejects.toThrow(
+      /destination already exists/u
+    );
+
+    const realParent = path.join(tempRoot, "real-runtime-parent");
+    const linkedParent = path.join(proofRoot, "linked");
+    await mkdir(realParent);
+    await symlink(realParent, linkedParent, process.platform === "win32" ? "junction" : "dir");
+    await expect(
+      assertNewRuntimeSidecarPath(tempRoot, path.join(linkedParent, "runtime.json"))
+    ).rejects.toThrow(/linked|junction/u);
   });
 
   it("includes expected selectors, routes, viewport usage, and mutation hook", () => {
@@ -118,6 +140,8 @@ describe("buildSpecContent", () => {
     expect(content).toContain("domcontentloaded");
     expect(content).not.toContain("networkidle");
     expect(content).toContain("visualHiveCi === \"false\" ? false");
+    expect(content).toContain("if (exclusiveEvidenceWrites || forceExclusive)");
+    expect(content).toMatch(/runtimeSidecarPath,[\s\S]*?"utf8",\s*true\s*\);/u);
     expect(content).toContain("applyWaits");
     expect(content).toContain("runFlowSteps");
     expect(content).toContain("executeFlowStep");

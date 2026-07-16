@@ -124,8 +124,32 @@ async function attestInputs(args) {
 async function verifySource(args) {
   const inputPath = required(args, "--input-attestation");
   const sourcePath = required(args, "--source-preflight");
-  const input = await readJsonOrdinary("/", inputPath);
-  const source = await readJsonOrdinary("/work/target", sourcePath);
+  const frozenSourcePath = required(args, "--frozen-source-output");
+  if (frozenSourcePath !== "/proof/source-preflight.json") {
+    throw new Error("Frozen source preflight must use the reviewed root-owned evidence path.");
+  }
+  const verified = await readVerifiedSourceEvidence({
+    inputRoot: "/",
+    targetRoot: "/work/target",
+    inputPath,
+    sourcePath,
+    frozenSourcePath,
+  });
+  await writeBytesExclusive(frozenSourcePath, verified.frozenBytes);
+  await writeJsonExclusive(required(args, "--output"), verified.attestation);
+}
+
+export async function readVerifiedSourceEvidence({
+  inputRoot,
+  targetRoot,
+  inputPath,
+  sourcePath,
+  frozenSourcePath,
+}) {
+  const inputEvidence = await readFrozenJson(inputRoot, inputPath);
+  const sourceEvidence = await readFrozenJson(targetRoot, sourcePath);
+  const input = inputEvidence.value;
+  const source = sourceEvidence.value;
   if (input.status !== "verified" || source.status !== "ready") {
     throw new Error("Input or source attestation is not ready.");
   }
@@ -143,15 +167,19 @@ async function verifySource(args) {
   if (!sha256Pattern.test(source.inputs.snapshotSetSha256 ?? "")) {
     throw new Error("Target source preflight has no snapshot-set digest.");
   }
-  await writeJsonExclusive(required(args, "--output"), {
-    schemaVersion: "visual-hive.outer-proof-source.v1",
-    status: "verified",
-    capturedAt: new Date().toISOString(),
-    sourcePreflight: sourcePath,
-    sourcePreflightSha256: sha256(await readFile(sourcePath)),
-    repository: source.repository,
-    inputs: source.inputs,
-  });
+  return {
+    frozenBytes: sourceEvidence.bytes,
+    attestation: {
+      schemaVersion: "visual-hive.outer-proof-source.v1",
+      status: "verified",
+      capturedAt: new Date().toISOString(),
+      sourcePreflight: sourcePath,
+      frozenSourcePreflight: frozenSourcePath,
+      sourcePreflightSha256: sha256(sourceEvidence.bytes),
+      repository: source.repository,
+      inputs: source.inputs,
+    },
+  };
 }
 
 async function proveIsolation(args) {
@@ -310,6 +338,17 @@ async function verifyRun(args) {
   if (snapshots.snapshotSetSha256 !== source.inputs.snapshotSetSha256) {
     throw new Error("Baseline snapshot set changed after the source preflight.");
   }
+  if (source.frozenSourcePreflight !== "/proof/source-preflight.json") {
+    throw new Error("Frozen source preflight does not use the reviewed root-owned evidence path.");
+  }
+  const frozenSourceEvidence = await readFrozenJson("/", source.frozenSourcePreflight);
+  if (
+    sha256(frozenSourceEvidence.bytes) !== source.sourcePreflightSha256 ||
+    JSON.stringify(frozenSourceEvidence.value.repository) !== JSON.stringify(source.repository) ||
+    JSON.stringify(frozenSourceEvidence.value.inputs) !== JSON.stringify(source.inputs)
+  ) {
+    throw new Error("Frozen source preflight bytes do not match their sealed source attestation.");
+  }
 
   const selected = mode === "preliminary" ? expectedPreliminary : expectedCandidate;
   const planRelative = mode === "preliminary" ? ".visual-hive/plan.json" : ".visual-hive/plan.visual-candidate.json";
@@ -342,9 +381,10 @@ async function verifyRun(args) {
       frozenBytes: sourceEvidence.bytes,
     },
     {
-      source: source.sourcePreflight,
+      source: frozenSourceEvidence.source,
       outputRelative: "attestations/target-source-preflight.json",
-      allowedRoot: targetRoot,
+      allowedRoot: "/",
+      frozenBytes: frozenSourceEvidence.bytes,
       expectedSha256: source.sourcePreflightSha256,
     },
     {
@@ -924,7 +964,12 @@ function parseArgs(argv) {
       "--image-id",
       "--output",
     ]),
-    "verify-source": new Set(["--input-attestation", "--source-preflight", "--output"]),
+    "verify-source": new Set([
+      "--input-attestation",
+      "--source-preflight",
+      "--frozen-source-output",
+      "--output",
+    ]),
     "prove-isolation": new Set(["--docker-state-base64", "--output"]),
     "quiesce-user": new Set(),
     "verify-plan": new Set(["--plan", "--expected-contract"]),

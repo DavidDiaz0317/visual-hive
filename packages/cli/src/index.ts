@@ -210,7 +210,7 @@ program
     .option("--bootstrap-baselines", "seed missing baselines in a non-strict local/trusted pass before strict CI")
     .option("--skip-install", "skip target install commands during deterministic runs")
     .option("--skip-build", "skip target build commands during deterministic runs")
-    .option("--runtime-sidecar <path>", "write the bound Playwright runtime identity inside the config root")
+    .option("--runtime-sidecar <path>", "write a new bound Playwright runtime identity below .visual-hive/proof/")
     .option("--enforce-mutation", "run mutation checks and fail when the configured minimum score is not met")
   .option("--continue-on-error", "record downstream evidence after non-oracle pipeline step failures")
   .option("--github-step-summary", "append the markdown report to GITHUB_STEP_SUMMARY when present")
@@ -247,7 +247,7 @@ program
   .option("--ci", "fail on missing baselines")
   .option("--skip-install", "skip configured install commands")
   .option("--skip-build", "skip configured build commands")
-  .option("--runtime-sidecar <path>", "write the bound Playwright runtime identity inside the config root")
+  .option("--runtime-sidecar <path>", "write a new bound Playwright runtime identity below .visual-hive/proof/")
   .action(async (options) => {
     try {
       process.exitCode = await runDeterministicCommand({

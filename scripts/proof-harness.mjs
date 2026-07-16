@@ -73,9 +73,12 @@ export class SystemCommandRunner {
           return;
         }
         if (result.exitCode !== 0 && !options.allowFailure) {
+          const outputDigest = sha256(
+            Buffer.from(`${result.stderr}\0${result.stdout}`, "utf8"),
+          );
           reject(
             new Error(
-              `${command} ${args.join(" ")} exited ${result.exitCode}: ${result.stderr.trim() || result.stdout.trim()}`,
+              `${command} exited ${result.exitCode}; command output withheld (sha256:${outputDigest}).`,
             ),
           );
           return;
@@ -245,7 +248,18 @@ export async function runDockerProof(input, runner) {
     );
     await dockerExec(runner, containerName, ["npm", "run", "build"], 600_000, "/work/visual-hive");
     await dockerExec(runner, containerName, ["chmod", "-R", "a-w", "/work/visual-hive"], 60_000);
+    const helper = "/work/visual-hive/scripts/proof-harness-container.mjs";
     await dockerExec(runner, containerName, ["chmod", "0777", "/work"]);
+    await dockerExec(
+      runner,
+      containerName,
+      ["mkdir", "/work/target"],
+      30_000,
+      "/work",
+      false,
+      targetExecOptions,
+    );
+    await dockerExec(runner, containerName, ["chmod", "0755", "/work"]);
     await dockerExec(
       runner,
       containerName,
@@ -264,7 +278,6 @@ export async function runDockerProof(input, runner) {
       false,
       targetExecOptions,
     );
-    await dockerExec(runner, containerName, ["chmod", "0755", "/work"]);
     await dockerExec(
       runner,
       containerName,
@@ -283,8 +296,15 @@ export async function runDockerProof(input, runner) {
       false,
       [...targetExecOptions, "--env", "VITE_DASHBOARD_API_URL=http://127.0.0.1:18010"],
     );
-
-    const helper = "/work/visual-hive/scripts/proof-harness-container.mjs";
+    await dockerExec(
+      runner,
+      containerName,
+      ["node", helper, "quiesce-user"],
+      30_000,
+      "/work/target",
+      false,
+      targetExecOptions,
+    );
     await dockerExec(
       runner,
       containerName,
@@ -332,6 +352,15 @@ export async function runDockerProof(input, runner) {
       false,
       [...targetExecOptions, "--env", `VISUAL_HIVE_PROOF_NAMESPACE=${runId}`],
     );
+    await dockerExec(
+      runner,
+      containerName,
+      ["node", helper, "quiesce-user"],
+      30_000,
+      "/work/target",
+      false,
+      targetExecOptions,
+    );
     const sourcePreflight = `/work/target/artifacts/visual-hive-proof/${runId}/source-integrity.json`;
     await dockerExec(
       runner,
@@ -344,6 +373,8 @@ export async function runDockerProof(input, runner) {
         "/proof/input-attestation.json",
         "--source-preflight",
         sourcePreflight,
+        "--frozen-source-output",
+        "/proof/source-preflight.json",
         "--output",
         "/proof/source-attestation.json",
       ],
@@ -353,6 +384,10 @@ export async function runDockerProof(input, runner) {
     sealedAttestations.set(
       "/proof/source-attestation.json",
       await containerFileSha256(runner, containerName, "/proof/source-attestation.json"),
+    );
+    sealedAttestations.set(
+      "/proof/source-preflight.json",
+      await containerFileSha256(runner, containerName, "/proof/source-preflight.json"),
     );
 
     await docker(runner, ["network", "disconnect", "--force", networkName, containerName], 15_000);
