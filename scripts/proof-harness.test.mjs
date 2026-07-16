@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,6 +13,7 @@ import {
   inspectCleanRepository,
   parseArguments,
   runDockerProof,
+  trustedGitEnvironment as trustedHostGitEnvironment,
   validateImageReference,
   verifyExportDirectory,
 } from "./proof-harness.mjs";
@@ -20,6 +21,7 @@ import {
   copyOrdinaryEvidence,
   readVerifiedSourceEvidence,
   trustedGitCommandArgs,
+  trustedGitEnvironment as trustedContainerGitEnvironment,
 } from "./proof-harness-container.mjs";
 
 class FakeDockerRunner {
@@ -99,10 +101,18 @@ const identity = {
   lockSha256: "c".repeat(64),
 };
 
-test("root attestation scopes Git ownership trust to the exact clone", () => {
+test("root attestation scopes Git operations to an exact trusted reference", () => {
   assert.deepEqual(trustedGitCommandArgs("/work/target", ["status", "--porcelain=v1"]), [
     "-c",
     "safe.directory=/work/target",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "core.attributesFile=/dev/null",
+    "-c",
+    "core.untrackedCache=false",
     "-C",
     "/work/target",
     "status",
@@ -113,6 +123,20 @@ test("root attestation scopes Git ownership trust to the exact clone", () => {
     /canonical repository path/u,
   );
   assert.throws(() => trustedGitCommandArgs("work/target", ["status"]), /canonical repository path/u);
+  for (const environment of [
+    trustedHostGitEnvironment(
+      { PATH: "fixture", GIT_DIR: "target-owned", GIT_CONFIG: "target-owned" },
+      "NUL",
+    ),
+    trustedContainerGitEnvironment({ PATH: "fixture", GIT_DIR: "target-owned", GIT_CONFIG: "target-owned" }),
+  ]) {
+    assert.equal(environment.PATH, "fixture");
+    assert.equal(environment.GIT_DIR, undefined);
+    assert.equal(environment.GIT_CONFIG, environment.GIT_CONFIG_GLOBAL);
+    assert.equal(environment.GIT_CONFIG_NOSYSTEM, "1");
+    assert.equal(environment.GIT_OPTIONAL_LOCKS, "0");
+    assert.equal(environment.GIT_NO_REPLACE_OBJECTS, "1");
+  }
 });
 
 function proofInput(mode) {
@@ -184,6 +208,13 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
 
   const commandLines = dockerCalls.map((call) => call.args.join(" "));
   const buildIndex = commandLines.findIndex((line) => line.includes("npm run build"));
+  const visualReferenceCloneIndex = commandLines.findIndex(
+    (line) => line.includes("git clone") && line.includes("/proof/reference/visual-hive"),
+  );
+  const targetReferenceCloneIndex = commandLines.findIndex(
+    (line) => line.includes("git clone") && line.includes("/proof/reference/target"),
+  );
+  const referenceFreezeIndex = commandLines.findIndex((line) => line.includes("chmod -R a-w /proof/reference"));
   const preflightIndex = commandLines.findIndex((line) => line.includes("visual-hive-proof-preflight.mjs"));
   const disconnectIndex = commandLines.findIndex((line) => line.startsWith("network disconnect"));
   const isolationIndex = commandLines.findIndex((line) => line.includes("prove-isolation"));
@@ -191,10 +222,18 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   const visualFreezeIndex = commandLines.findIndex((line) => line.includes("chmod -R a-w /work/visual-hive"));
   const openWorkIndex = commandLines.findIndex((line) => line.includes("chmod 0777 /work"));
   const targetMkdirIndex = commandLines.findIndex((line) => line.includes("mkdir /work/target"));
-  const targetCloneIndex = commandLines.findIndex((line) => line.includes("git clone") && line.includes("target.bundle"));
+  const targetCloneIndex = commandLines.findIndex(
+    (line) => line.includes("git clone") && line.includes("target.bundle /work/target"),
+  );
   const closeWorkIndex = commandLines.findIndex((line) => line.includes("chmod 0755 /work"));
   const targetInstallIndex = commandLines.findIndex((line) => line.includes("npm --prefix dashboard ci"));
   assert.ok(buildIndex >= 0 && buildIndex < preflightIndex);
+  assert.ok(
+    visualReferenceCloneIndex >= 0 &&
+      visualReferenceCloneIndex < targetReferenceCloneIndex &&
+      targetReferenceCloneIndex < referenceFreezeIndex &&
+      referenceFreezeIndex < buildIndex,
+  );
   assert.ok(preflightIndex < disconnectIndex && disconnectIndex < isolationIndex && isolationIndex < pipelineIndex);
   assert.ok(
     visualFreezeIndex < openWorkIndex &&
@@ -207,6 +246,18 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   assert.ok(!commandLines.some((line) => line.includes("chown")));
   assert.ok(commandLines.some((line) => /^exec --user pwuser .*mkdir \/work\/target/u.test(line)));
   assert.ok(commandLines.some((line) => /^exec --user pwuser .*git clone .*target\.bundle \/work\/target/u.test(line)));
+  for (const index of [visualReferenceCloneIndex, targetReferenceCloneIndex]) {
+    for (const setting of [
+      "GIT_CONFIG_NOSYSTEM=1",
+      "GIT_CONFIG_SYSTEM=/dev/null",
+      "GIT_CONFIG_GLOBAL=/dev/null",
+      "GIT_CONFIG=/dev/null",
+      "GIT_OPTIONAL_LOCKS=0",
+      "GIT_NO_REPLACE_OBJECTS=1",
+    ]) {
+      assert.match(commandLines[index], new RegExp(setting.replaceAll("/", "\\/"), "u"));
+    }
+  }
   const quiesceIndexes = commandLines
     .map((line, index) => (line.includes("proof-harness-container.mjs quiesce-user") ? index : -1))
     .filter((index) => index >= 0);
@@ -339,6 +390,43 @@ test("clean repository inspection binds exact commit, tree, lock, and dirtiness"
     }),
     /must be clean/u,
   );
+});
+
+test("clean repository inspection cannot execute a target-owned fsmonitor command", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vh-proof-fsmonitor-repo-"));
+  const hookRoot = await mkdtemp(path.join(os.tmpdir(), "vh-proof-fsmonitor-hook-"));
+  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(hookRoot, { recursive: true, force: true })]));
+  execFileSync("git", ["init", "-q", root]);
+  execFileSync("git", ["-C", root, "config", "user.name", "Proof Test"]);
+  execFileSync("git", ["-C", root, "config", "user.email", "proof@example.invalid"]);
+  await writeFile(path.join(root, "package-lock.json"), '{"lockfileVersion":3}\n');
+  execFileSync("git", ["-C", root, "add", "package-lock.json"]);
+  execFileSync("git", ["-C", root, "commit", "-qm", "fixture"]);
+  const marker = path.join(hookRoot, "invoked");
+  const hook = path.join(hookRoot, "fsmonitor.sh");
+  const shellPath = (value) => value.replaceAll("\\", "/").replaceAll("'", "'\\''");
+  await writeFile(hook, `#!/bin/sh\nprintf invoked > '${shellPath(marker)}'\nprintf 'builtin:fake\\n'\n`);
+  await chmod(hook, 0o755);
+  execFileSync("git", ["-C", root, "config", "core.fsmonitor", shellPath(hook)]);
+  try {
+    execFileSync("git", ["-C", root, "status", "--porcelain=v1"]);
+  } catch {
+    // The malicious command may return an invalid fsmonitor response; invocation is the exploit condition.
+  }
+  assert.equal(await readFile(marker, "utf8"), "invoked");
+  await rm(marker, { force: true });
+
+  const canonicalLock = execFileSync("git", ["-C", root, "show", "HEAD:package-lock.json"]);
+  await inspectCleanRepository({
+    root,
+    expectedCommit: git(root, ["rev-parse", "HEAD"]),
+    expectedTree: git(root, ["rev-parse", "HEAD^{tree}"]),
+    lockPath: "package-lock.json",
+    expectedLockSha256: createHash("sha256").update(canonicalLock).digest("hex"),
+    runner: new SystemCommandRunner(),
+    label: "hostile fixture",
+  });
+  await assert.rejects(readFile(marker), (error) => error?.code === "ENOENT");
 });
 
 test("export verifier accepts only the deterministic preliminary allowlist", async (t) => {

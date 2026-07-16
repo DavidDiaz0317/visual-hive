@@ -15,18 +15,27 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const expectedPreliminary = "app-shell-content-health";
 const expectedCandidate = "app-shell-visual-stability";
+const targetReferenceRoot = "/proof/reference/target";
+const visualReferenceRoot = "/proof/reference/visual-hive";
+const repositoryVerification = Object.freeze({
+  source: "read_only_bundles",
+  referenceOwnership: "root",
+  targetGitMetadataTrusted: false,
+  gitConfiguration: "disabled",
+  trackedComparison: "raw_bytes_and_modes",
+});
 const scriptPath = fileURLToPath(import.meta.url);
 
 async function attestInputs(args) {
   const targetRoot = await realpath(required(args, "--target-root"));
   const visualRoot = await realpath(required(args, "--visual-root"));
-  const target = await repositoryIdentity(targetRoot, {
+  const target = await repositoryIdentity(targetRoot, await realpath(targetReferenceRoot), {
     commit: required(args, "--target-commit"),
     tree: required(args, "--target-tree"),
     lockPath: "dashboard/package-lock.json",
     lockSha256: required(args, "--target-lock-sha256"),
   });
-  const visual = await repositoryIdentity(visualRoot, {
+  const visual = await repositoryIdentity(visualRoot, await realpath(visualReferenceRoot), {
     commit: required(args, "--visual-commit"),
     tree: required(args, "--visual-tree"),
     lockPath: "package-lock.json",
@@ -81,6 +90,7 @@ async function attestInputs(args) {
       reference: required(args, "--image-reference"),
       id: required(args, "--image-id"),
     },
+    repositoryVerification,
     target: {
       ...target,
       configPath: "visual-hive.config.yaml",
@@ -335,6 +345,9 @@ async function verifyRun(args) {
   if (input.status !== "verified" || source.status !== "verified" || isolation.status !== "isolated") {
     throw new Error("Proof prerequisite evidence is incomplete.");
   }
+  if (JSON.stringify(input.repositoryVerification) !== JSON.stringify(repositoryVerification)) {
+    throw new Error("Proof input does not bind the root-owned repository verification method.");
+  }
   const targetUser = input.runtime?.targetExecutionUser;
   if (targetUser?.name !== "pwuser" || !Number.isSafeInteger(targetUser.uid) || targetUser.uid <= 0) {
     throw new Error("Proof input does not bind the reviewed non-root target execution identity.");
@@ -343,14 +356,14 @@ async function verifyRun(args) {
   if (activeTargetProcesses.length !== 0) {
     throw new Error(`Target execution user is not quiescent: ${activeTargetProcesses.join(", ")}.`);
   }
-  const finalTarget = await repositoryIdentity(targetRoot, {
+  const finalTarget = await repositoryIdentity(targetRoot, await realpath(targetReferenceRoot), {
     commit: input.target.commit,
     tree: input.target.tree,
     lockPath: input.target.lockPath,
     lockSha256: input.target.lockSha256,
   });
   const visualRoot = await realpath("/work/visual-hive");
-  const finalVisual = await repositoryIdentity(visualRoot, {
+  const finalVisual = await repositoryIdentity(visualRoot, await realpath(visualReferenceRoot), {
     commit: input.visualHive.commit,
     tree: input.visualHive.tree,
     lockPath: input.visualHive.lockPath,
@@ -716,18 +729,55 @@ async function verifyFrozenExport(outputRoot, mode, input) {
   }
 }
 
-async function repositoryIdentity(root, expected) {
-  const commit = git(root, ["rev-parse", "HEAD"]);
-  const tree = git(root, ["rev-parse", "HEAD^{tree}"]);
-  const status = git(root, ["status", "--porcelain=v1", "--untracked-files=all"], true);
-  if (commit !== expected.commit || tree !== expected.tree || status) {
+async function repositoryIdentity(root, referenceRoot, expected) {
+  const commit = git(referenceRoot, ["rev-parse", "HEAD"]);
+  const tree = git(referenceRoot, ["rev-parse", "HEAD^{tree}"]);
+  if (commit !== expected.commit || tree !== expected.tree) {
     throw new Error(`Repository identity/cleanliness mismatch for ${root}.`);
   }
+  await compareWorktreeToReference(root, referenceRoot);
   const lockFile = await ordinaryFile(root, path.join(root, expected.lockPath));
   const trackedLockPath = path.relative(root, lockFile).replaceAll("\\", "/");
-  const lockSha256 = sha256(gitBytes(root, ["show", `HEAD:${trackedLockPath}`]));
+  const lockSha256 = sha256(gitBytes(referenceRoot, ["show", `HEAD:${trackedLockPath}`]));
   if (lockSha256 !== expected.lockSha256) throw new Error(`Lock digest mismatch for ${root}.`);
   return { commit, tree, lockPath: expected.lockPath, lockSha256 };
+}
+
+async function compareWorktreeToReference(root, referenceRoot) {
+  const listing = gitBytes(referenceRoot, ["ls-files", "-z", "--stage"]).toString("utf8");
+  for (const record of listing.split("\0").filter(Boolean)) {
+    const match = /^(100644|100755) ([a-f0-9]{40}) 0\t(.+)$/u.exec(record);
+    if (!match) throw new Error("Root-owned Git reference contains a non-regular or staged entry.");
+    const [, mode, objectId, relative] = match;
+    if (path.posix.isAbsolute(relative) || relative.split("/").includes("..")) {
+      throw new Error("Root-owned Git reference contains an unsafe tracked path.");
+    }
+    const targetPath = await ordinaryFile(root, path.join(root, relative));
+    const entry = await lstat(targetPath);
+    const executable = (entry.mode & 0o111) !== 0;
+    if (executable !== (mode === "100755")) {
+      throw new Error(`Tracked file mode changed during proof execution: ${relative}.`);
+    }
+    const targetBytes = await readFile(targetPath);
+    const referenceBytes = gitBytes(referenceRoot, ["cat-file", "blob", objectId]);
+    if (!targetBytes.equals(referenceBytes)) {
+      throw new Error(`Tracked file bytes changed during proof execution: ${relative}.`);
+    }
+  }
+  const untracked = gitBytes(referenceRoot, [
+    `--work-tree=${root}`,
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+    "-z",
+  ])
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean)
+    .filter((relative) => relative !== ".git" && !relative.startsWith(".git/"));
+  if (untracked.length !== 0) {
+    throw new Error(`Repository identity/cleanliness mismatch for ${root}.`);
+  }
 }
 
 async function digestDist(visualRoot) {
@@ -948,6 +998,7 @@ function expectConnectionRefused(host, port) {
 function git(cwd, args, allowEmpty = false) {
   const value = execFileSync("git", trustedGitCommandArgs(cwd, args), {
     encoding: "utf8",
+    env: trustedGitEnvironment(process.env),
     timeout: 10_000,
     maxBuffer: 4 * 1024 * 1024,
   }).trim();
@@ -957,16 +1008,34 @@ function git(cwd, args, allowEmpty = false) {
 
 function gitBytes(cwd, args) {
   return execFileSync("git", trustedGitCommandArgs(cwd, args), {
+    env: trustedGitEnvironment(process.env),
     timeout: 10_000,
     maxBuffer: 4 * 1024 * 1024,
   });
 }
 
-// Root attests the pwuser-owned target clone only after that user is
-// quiescent. Modern Git otherwise rejects this deliberate ownership boundary
-// before it can compare the exact commit, tree, cleanliness, and lock digest.
-// Scope the exception to this one already-realpathed repository argument; do
-// not mutate global/system Git configuration or trust every directory.
+export function trustedGitEnvironment(baseEnvironment) {
+  const environment = {};
+  for (const [name, value] of Object.entries(baseEnvironment ?? {})) {
+    if (!/^GIT_/iu.test(name) && value !== undefined) environment[name] = value;
+  }
+  return {
+    ...environment,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG: "/dev/null",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_PAGER: "cat",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+}
+
+// Root reads only a pristine root-owned reference clone. Keep the ownership
+// exception and all execution-capable configuration overrides scoped to that
+// one already-realpathed repository argument.
 export function trustedGitCommandArgs(cwd, args) {
   if (
     typeof cwd !== "string" ||
@@ -979,7 +1048,21 @@ export function trustedGitCommandArgs(cwd, args) {
   ) {
     throw new Error("Trusted Git attestation requires one canonical repository path and argument list.");
   }
-  return ["-c", `safe.directory=${cwd}`, "-C", cwd, ...args];
+  return [
+    "-c",
+    `safe.directory=${cwd}`,
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "core.attributesFile=/dev/null",
+    "-c",
+    "core.untrackedCache=false",
+    "-C",
+    cwd,
+    ...args,
+  ];
 }
 
 function contained(root, candidate) {

@@ -32,7 +32,11 @@ export class SystemCommandRunner {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         cwd: options.cwd,
-        env: options.env ? { ...process.env, ...options.env } : process.env,
+        env: options.replaceEnv
+          ? options.env
+          : options.env
+            ? { ...process.env, ...options.env }
+            : process.env,
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -177,6 +181,27 @@ export async function runDockerProof(input, runner) {
   const networkName = `${runId}-net`;
   const containerName = `${runId}-container`;
   const targetExecOptions = ["--user", "pwuser", "--env", "HOME=/home/pwuser"];
+  const trustedGitExecOptions = [
+    "--env",
+    "GIT_CONFIG_NOSYSTEM=1",
+    "--env",
+    "GIT_CONFIG_SYSTEM=/dev/null",
+    "--env",
+    "GIT_CONFIG_GLOBAL=/dev/null",
+    "--env",
+    "GIT_CONFIG=/dev/null",
+    "--env",
+    "GIT_ATTR_NOSYSTEM=1",
+    "--env",
+    "GIT_OPTIONAL_LOCKS=0",
+    "--env",
+    "GIT_TERMINAL_PROMPT=0",
+    "--env",
+    "GIT_PAGER=cat",
+    "--env",
+    "GIT_NO_REPLACE_OBJECTS=1",
+  ];
+  const targetGitExecOptions = [...targetExecOptions, ...trustedGitExecOptions];
   let networkCreated = false;
   let containerCreated = false;
   let primaryError;
@@ -241,9 +266,62 @@ export async function runDockerProof(input, runner) {
     if (!create.stdout.trim()) throw new Error("Docker create returned no container identity.");
     containerCreated = true;
     await docker(runner, ["start", containerName], 15_000);
-    await dockerExec(runner, containerName, ["mkdir", "-p", "/work", "/proof"]);
-    await dockerExec(runner, containerName, ["git", "clone", "/proof/input/visual-hive.bundle", "/work/visual-hive"], 60_000);
-    await dockerExec(runner, containerName, ["git", "-C", "/work/visual-hive", "checkout", "--detach", input.visual.commit]);
+    await dockerExec(runner, containerName, ["mkdir", "-p", "/work", "/proof/reference"]);
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "clone", "/proof/input/visual-hive.bundle", "/proof/reference/visual-hive"],
+      60_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "-C", "/proof/reference/visual-hive", "checkout", "--detach", input.visual.commit],
+      30_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "clone", "/proof/input/target.bundle", "/proof/reference/target"],
+      60_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "-C", "/proof/reference/target", "checkout", "--detach", input.target.commit],
+      30_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
+    await dockerExec(runner, containerName, ["chmod", "-R", "a-w", "/proof/reference"], 60_000);
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "clone", "/proof/input/visual-hive.bundle", "/work/visual-hive"],
+      60_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
+    await dockerExec(
+      runner,
+      containerName,
+      ["git", "-C", "/work/visual-hive", "checkout", "--detach", input.visual.commit],
+      30_000,
+      undefined,
+      false,
+      trustedGitExecOptions,
+    );
 
     await dockerExec(
       runner,
@@ -273,7 +351,7 @@ export async function runDockerProof(input, runner) {
       60_000,
       "/work",
       false,
-      targetExecOptions,
+      targetGitExecOptions,
     );
     await dockerExec(
       runner,
@@ -282,7 +360,7 @@ export async function runDockerProof(input, runner) {
       30_000,
       "/work/target",
       false,
-      targetExecOptions,
+      targetGitExecOptions,
     );
     await dockerExec(
       runner,
@@ -847,10 +925,10 @@ export async function runProofHarness(options, runner = new SystemCommandRunner(
   try {
     staging = await mkdtemp(path.join(os.tmpdir(), "visual-hive-proof-"));
     if (staging.includes(",")) throw new Error("Docker proof staging path must not contain commas.");
-    await runner.run("git", ["-C", visual.root, "bundle", "create", path.join(staging, "visual-hive.bundle"), "HEAD"], {
+    await runTrustedGit(runner, ["-C", visual.root, "bundle", "create", path.join(staging, "visual-hive.bundle"), "HEAD"], {
       timeoutMs: 120_000,
     });
-    await runner.run("git", ["-C", target.root, "bundle", "create", path.join(staging, "target.bundle"), "HEAD"], {
+    await runTrustedGit(runner, ["-C", target.root, "bundle", "create", path.join(staging, "target.bundle"), "HEAD"], {
       timeoutMs: 120_000,
     });
     const result = await runDockerProof(
@@ -1000,10 +1078,52 @@ function assertContainerIsolationState(state) {
 }
 
 async function git(runner, cwd, args, allowEmpty = false) {
-  const result = await runner.run("git", ["-C", cwd, ...args], { timeoutMs: 30_000 });
+  const result = await runTrustedGit(runner, ["-C", cwd, ...args], { timeoutMs: 30_000 });
   const value = result.stdout.trim();
   if (!allowEmpty && !value) throw new Error(`git ${args.join(" ")} returned no value.`);
   return value;
+}
+
+async function runTrustedGit(runner, args, options) {
+  const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+  return runner.run(
+    "git",
+    [
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.hooksPath=${nullDevice}`,
+      "-c",
+      `core.attributesFile=${nullDevice}`,
+      "-c",
+      "core.untrackedCache=false",
+      ...args,
+    ],
+    {
+      ...options,
+      env: trustedGitEnvironment(process.env, nullDevice),
+      replaceEnv: true,
+    },
+  );
+}
+
+export function trustedGitEnvironment(baseEnvironment, nullDevice) {
+  const environment = {};
+  for (const [name, value] of Object.entries(baseEnvironment ?? {})) {
+    if (!/^GIT_/iu.test(name) && value !== undefined) environment[name] = value;
+  }
+  return {
+    ...environment,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_SYSTEM: nullDevice,
+    GIT_CONFIG_GLOBAL: nullDevice,
+    GIT_CONFIG: nullDevice,
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_PAGER: "cat",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
 }
 
 function parseJsonLine(value, label) {
