@@ -15,6 +15,14 @@ export default defineConfig({
     }
   },
   test: {
+    // Artifact and bundle integrity tests perform bounded filesystem sealing.
+    // Under the full parallel suite they can cross Vitest's 5s default even
+    // though isolated bodies complete in about one second. Keep a finite
+    // suite-wide budget that remains strict but is stable under contention.
+    testTimeout: 15_000,
+    // Bound parallel browser/process pressure so Chromium screenshot capture
+    // remains deterministic on both developer and GitHub-hosted machines.
+    maxWorkers: 4,
     include: ["packages/**/tests/**/*.test.ts"],
     exclude: ["**/.visual-hive/**", "**/node_modules/**", "**/dist/**"]
   }
