@@ -527,6 +527,23 @@ export async function runDockerProof(input, runner) {
       false,
       targetExecOptions,
     );
+    await dockerExec(
+      runner,
+      containerName,
+      [
+        "node",
+        helper,
+        "release-runtime-evidence",
+        "--mode",
+        mode,
+        "--target-root",
+        "/work/target",
+      ],
+      30_000,
+      "/work/target",
+      false,
+      targetExecOptions,
+    );
 
     for (const [attestationPath, expectedDigest] of sealedAttestations) {
       const actualDigest = await containerFileSha256(runner, containerName, attestationPath);

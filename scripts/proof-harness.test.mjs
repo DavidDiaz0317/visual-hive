@@ -213,11 +213,20 @@ test("preliminary workflow builds online, detaches, then runs only the strict he
   const attestIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs attest-inputs"));
   const sourcePreflightIndex = commandLines.findIndex((line) => line.includes("visual-hive-proof-preflight.mjs"));
   const verifySourceIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs verify-source"));
+  const releaseRuntimeIndex = commandLines.findIndex((line) =>
+    line.includes("proof-harness-container.mjs release-runtime-evidence"),
+  );
   const verifyRunIndex = commandLines.findIndex((line) => line.includes("proof-harness-container.mjs verify-run"));
   assert.equal(quiesceIndexes.length, 3);
   assert.ok(targetInstallIndex < quiesceIndexes[0] && quiesceIndexes[0] < attestIndex);
   assert.ok(sourcePreflightIndex < quiesceIndexes[1] && quiesceIndexes[1] < verifySourceIndex);
-  assert.ok(pipelineIndex < quiesceIndexes[2] && quiesceIndexes[2] < verifyRunIndex);
+  assert.ok(
+    pipelineIndex < quiesceIndexes[2] &&
+      quiesceIndexes[2] < releaseRuntimeIndex &&
+      releaseRuntimeIndex < verifyRunIndex,
+  );
+  assert.match(commandLines[releaseRuntimeIndex], /^exec --user pwuser /u);
+  assert.match(commandLines[releaseRuntimeIndex], /--mode preliminary --target-root \/work\/target/u);
   for (const line of commandLines.filter(
     (candidate) =>
       candidate.includes("npm --prefix dashboard") ||
@@ -254,6 +263,7 @@ test("candidate workflow verifies the isolated visual plan and requires an expec
   assert.match(lines[plan], /--exclude-contract app-shell-content-health/u);
   assert.doesNotMatch(lines[run], /update-snapshots/u);
   assert.equal(lines.filter((line) => line.includes(" pipeline ")).length, 0);
+  assert.ok(lines.some((line) => line.includes("release-runtime-evidence --mode candidate")));
 
   await assert.rejects(
     runDockerProof(proofInput("candidate"), new FakeDockerRunner({ candidatePasses: true })),
