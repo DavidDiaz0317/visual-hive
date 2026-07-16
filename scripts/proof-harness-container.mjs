@@ -903,13 +903,33 @@ function expectConnectionRefused(host, port) {
 }
 
 function git(cwd, args, allowEmpty = false) {
-  const value = execFileSync("git", ["-C", cwd, ...args], {
+  const value = execFileSync("git", trustedGitCommandArgs(cwd, args), {
     encoding: "utf8",
     timeout: 10_000,
     maxBuffer: 4 * 1024 * 1024,
   }).trim();
   if (!allowEmpty && !value) throw new Error(`git ${args.join(" ")} returned no value.`);
   return value;
+}
+
+// Root attests the pwuser-owned target clone only after that user is
+// quiescent. Modern Git otherwise rejects this deliberate ownership boundary
+// before it can compare the exact commit, tree, cleanliness, and lock digest.
+// Scope the exception to this one already-realpathed repository argument; do
+// not mutate global/system Git configuration or trust every directory.
+export function trustedGitCommandArgs(cwd, args) {
+  if (
+    typeof cwd !== "string" ||
+    cwd.length === 0 ||
+    !path.posix.isAbsolute(cwd) ||
+    cwd.includes("\0") ||
+    cwd.includes("\n") ||
+    cwd.includes("\r") ||
+    !Array.isArray(args)
+  ) {
+    throw new Error("Trusted Git attestation requires one canonical repository path and argument list.");
+  }
+  return ["-c", `safe.directory=${cwd}`, "-C", cwd, ...args];
 }
 
 function contained(root, candidate) {

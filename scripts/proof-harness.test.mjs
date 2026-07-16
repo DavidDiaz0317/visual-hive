@@ -16,7 +16,11 @@ import {
   validateImageReference,
   verifyExportDirectory,
 } from "./proof-harness.mjs";
-import { copyOrdinaryEvidence, readVerifiedSourceEvidence } from "./proof-harness-container.mjs";
+import {
+  copyOrdinaryEvidence,
+  readVerifiedSourceEvidence,
+  trustedGitCommandArgs,
+} from "./proof-harness-container.mjs";
 
 class FakeDockerRunner {
   constructor(options = {}) {
@@ -94,6 +98,22 @@ const identity = {
   tree: "b".repeat(40),
   lockSha256: "c".repeat(64),
 };
+
+test("root attestation scopes Git ownership trust to the exact clone", () => {
+  assert.deepEqual(trustedGitCommandArgs("/work/target", ["status", "--porcelain=v1"]), [
+    "-c",
+    "safe.directory=/work/target",
+    "-C",
+    "/work/target",
+    "status",
+    "--porcelain=v1",
+  ]);
+  assert.throws(
+    () => trustedGitCommandArgs("/work/target\n[include]", ["status"]),
+    /canonical repository path/u,
+  );
+  assert.throws(() => trustedGitCommandArgs("work/target", ["status"]), /canonical repository path/u);
+});
 
 function proofInput(mode) {
   return {
