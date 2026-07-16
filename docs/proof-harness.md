@@ -1,6 +1,6 @@
 # Isolated proof harness
 
-`npm run proof:harness -- ...` runs the fork-only AI-HPC evidence lane without publishing, opening a pull request, merging, or updating a screenshot baseline. It is deliberately narrower than release tooling and Hive setup: its only job is to produce reviewable evidence from exact local commits.
+`node scripts/proof-harness.mjs ...` runs the fork-only AI-HPC evidence lane without publishing, opening a pull request, merging, or updating a screenshot baseline. Calling the entry point directly keeps PowerShell from consuming npm's argument separator. The harness is deliberately narrower than release tooling and Hive setup: its only job is to produce reviewable evidence from exact local commits.
 
 The harness refuses to pull an image. The reviewed Playwright image must already exist locally at this repository digest:
 
@@ -13,7 +13,7 @@ It also requires caller-supplied commit, tree, and lockfile SHA-256 identities f
 ## Preliminary proof
 
 ```powershell
-npm run proof:harness -- `
+node scripts/proof-harness.mjs `
   --mode preliminary `
   --target-root C:\path\to\ai-hpc-fork `
   --target-commit <40-character-sha> `
