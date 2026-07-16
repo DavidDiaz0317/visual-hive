@@ -5576,6 +5576,23 @@ describe("artifact index", () => {
 });
 
 describe("setup recommendations", () => {
+  it("uses a production Next.js server after a generated build when available", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-next-production-"));
+    tempDirs.push(targetRoot);
+    await writeJson(path.join(targetRoot, "package.json"), {
+      name: "next-dashboard",
+      scripts: { build: "next build", dev: "next dev", start: "next start" },
+      dependencies: { next: "^16.0.0", react: "^19.0.0", "react-dom": "^19.0.0" }
+    });
+    await mkdir(path.join(targetRoot, "app"), { recursive: true });
+    await writeFile(path.join(targetRoot, "app", "page.tsx"), `<main>Dashboard</main>`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot });
+
+    expect(recommendation.recommendedTarget.build).toBe("npm run build");
+    expect(recommendation.recommendedTarget.serve).toBe("npm run start -- --hostname 127.0.0.1 --port 4173");
+  });
+
   it("uses the Next.js hostname flag for a generated development server command", async () => {
     const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-next-"));
     tempDirs.push(targetRoot);
