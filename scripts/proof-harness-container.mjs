@@ -272,34 +272,39 @@ async function quiesceUser() {
   throw new Error(`Target execution user did not quiesce; remaining processes: ${remaining.join(", ")}.`);
 }
 
-async function releaseRuntimeEvidence(args) {
+async function releaseVerifierEvidence(args) {
   const uid = process.getuid?.();
   if (!Number.isSafeInteger(uid) || uid <= 0) {
-    throw new Error("release-runtime-evidence must run as the reviewed non-root execution user.");
+    throw new Error("release-verifier-evidence must run as the reviewed non-root execution user.");
   }
   const active = (await processesForUid(uid)).filter((pid) => pid !== process.pid);
   if (active.length !== 0) {
-    throw new Error(`Runtime evidence cannot be released while target processes remain: ${active.join(", ")}.`);
+    throw new Error(`Verifier evidence cannot be released while target processes remain: ${active.join(", ")}.`);
   }
   const targetRoot = await realpath(required(args, "--target-root"));
   if (targetRoot !== "/work/target") {
-    throw new Error("Runtime evidence release requires the reviewed target root.");
+    throw new Error("Verifier evidence release requires the reviewed target root.");
   }
   const mode = required(args, "--mode");
-  const runtimeRelative = {
-    preliminary: ".visual-hive/proof/preliminary/runtime.json",
-    candidate: ".visual-hive/proof/candidate/runtime.json",
+  const evidenceRelatives = {
+    preliminary: [
+      ".visual-hive/proof/preliminary/runtime.json",
+      ".visual-hive/artifacts-index.json",
+    ],
+    candidate: [".visual-hive/proof/candidate/runtime.json"],
   }[mode];
-  if (!runtimeRelative) throw new Error("Runtime evidence release requires a reviewed proof mode.");
-  const runtimePath = await ordinaryFile(targetRoot, path.join(targetRoot, runtimeRelative));
-  const before = await lstat(runtimePath);
-  if (before.uid !== uid || (before.mode & 0o022) !== 0) {
-    throw new Error("Runtime evidence must be owned by the quiescent target user and non-writable by peers.");
-  }
-  await chmod(runtimePath, 0o444);
-  const after = await lstat(runtimePath);
-  if (after.uid !== uid || (after.mode & 0o777) !== 0o444) {
-    throw new Error("Runtime evidence did not enter the reviewed read-only handoff state.");
+  if (!evidenceRelatives) throw new Error("Verifier evidence release requires a reviewed proof mode.");
+  for (const relative of evidenceRelatives) {
+    const evidencePath = await ordinaryFile(targetRoot, path.join(targetRoot, relative));
+    const before = await lstat(evidencePath);
+    if (before.uid !== uid || (before.mode & 0o022) !== 0) {
+      throw new Error("Verifier evidence must be owned by the quiescent target user and non-writable by peers.");
+    }
+    await chmod(evidencePath, 0o444);
+    const after = await lstat(evidencePath);
+    if (after.uid !== uid || (after.mode & 0o777) !== 0o444) {
+      throw new Error("Verifier evidence did not enter the reviewed read-only handoff state.");
+    }
   }
 }
 
@@ -1031,7 +1036,7 @@ function parseArgs(argv) {
     ]),
     "prove-isolation": new Set(["--docker-state-base64", "--output"]),
     "quiesce-user": new Set(),
-    "release-runtime-evidence": new Set(["--mode", "--target-root"]),
+    "release-verifier-evidence": new Set(["--mode", "--target-root"]),
     "verify-plan": new Set(["--plan", "--expected-contract"]),
     "verify-run": new Set([
       "--mode",
@@ -1062,7 +1067,7 @@ async function main() {
   else if (command === "verify-source") await verifySource(args);
   else if (command === "prove-isolation") await proveIsolation(args);
   else if (command === "quiesce-user") await quiesceUser();
-  else if (command === "release-runtime-evidence") await releaseRuntimeEvidence(args);
+  else if (command === "release-verifier-evidence") await releaseVerifierEvidence(args);
   else if (command === "verify-plan") await verifyPlanCommand(args);
   else if (command === "verify-run") await verifyRun(args);
   else throw new Error(`Unknown proof helper command: ${command ?? "<missing>"}.`);

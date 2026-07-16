@@ -533,7 +533,7 @@ export async function runDockerProof(input, runner) {
       [
         "node",
         helper,
-        "release-runtime-evidence",
+        "release-verifier-evidence",
         "--mode",
         mode,
         "--target-root",
