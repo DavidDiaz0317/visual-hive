@@ -291,7 +291,13 @@ async function releaseVerifierEvidence(args) {
       ".visual-hive/proof/preliminary/runtime.json",
       ".visual-hive/artifacts-index.json",
     ],
-    candidate: [".visual-hive/proof/candidate/runtime.json"],
+    candidate: [
+      ".visual-hive/proof/candidate/runtime.json",
+      ".visual-hive/artifacts/screenshots/app-shell-visual-stability__app-shell-desktop__desktop.png",
+      ".visual-hive/artifacts/screenshots/app-shell-visual-stability__app-shell-desktop__desktop.diff.png",
+      ".visual-hive/artifacts/screenshots/app-shell-visual-stability__app-shell-mobile__mobile.png",
+      ".visual-hive/artifacts/screenshots/app-shell-visual-stability__app-shell-mobile__mobile.diff.png",
+    ],
   }[mode];
   if (!evidenceRelatives) throw new Error("Verifier evidence release requires a reviewed proof mode.");
   for (const relative of evidenceRelatives) {
