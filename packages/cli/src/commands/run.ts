@@ -21,6 +21,7 @@ export interface RunCommandOptions {
   plan?: string;
   skipInstall?: boolean;
   skipBuild?: boolean;
+  runtimeSidecar?: string;
 }
 
 export async function runDeterministicCommand(options: RunCommandOptions = {}): Promise<number> {
@@ -42,10 +43,23 @@ export async function runDeterministicCommand(options: RunCommandOptions = {}): 
     rootDir: loaded.rootDir,
     ci: options.ci,
     skipInstall: options.skipInstall,
-    skipBuild: options.skipBuild
+    skipBuild: options.skipBuild,
+    runtimeSidecarPath: options.runtimeSidecar
+      ? resolveRuntimeSidecarPath(loaded.rootDir, options.runtimeSidecar)
+      : undefined
   });
   await writeJson(path.join(loaded.rootDir, ".visual-hive", "report.json"), report);
   return exitCode || (report.status === "failed" ? 1 : 0);
+}
+
+export function resolveRuntimeSidecarPath(rootDir: string, requestedPath: string): string {
+  const root = path.resolve(rootDir);
+  const candidate = path.resolve(root, requestedPath);
+  const relative = path.relative(root, candidate);
+  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error("Playwright runtime sidecar must be a file inside the Visual Hive config root.");
+  }
+  return candidate;
 }
 
 async function createIgnoredFilesReport(config: VisualHiveConfig, plan: Plan, rootDir: string): Promise<Report> {

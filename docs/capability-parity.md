@@ -20,6 +20,8 @@ Provider support is also recorded per operation. The guarded Argos upload path i
 
 When a public surface changes, update its implementation, schema or registry first, then review and update `VISUAL_HIVE_CAPABILITY_BASELINE`. The focused parity tests must prove the dynamic surface and frozen baseline match. Do not update the baseline merely to make a failing gate green; confirm the change preserves Visual Hive's deterministic verdict authority and standalone capability first.
 
+The reviewed `run` and `pipeline` command contracts include the optional `--runtime-sidecar <path>` evidence output. The path is confined to the config root and delegates to the existing execution-bound Playwright runtime identity; omitting it preserves the prior execution and artifact behavior.
+
 Maintainers can check the complete live surface deterministically with:
 
 ```bash

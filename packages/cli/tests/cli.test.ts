@@ -13,7 +13,7 @@ import { runDoctor } from "../src/commands/doctor.js";
 import { formatPlanSummary, parsePlanMode, runPlanCommand } from "../src/commands/plan.js";
 import { runPipelineCommand } from "../src/commands/pipeline.js";
 import { formatPlansSummary, runPlansCommand } from "../src/commands/plans.js";
-import { runDeterministicCommand } from "../src/commands/run.js";
+import { resolveRuntimeSidecarPath, runDeterministicCommand } from "../src/commands/run.js";
 import { formatMutationSummary, runMutateCommand } from "../src/commands/mutate.js";
 import { runInit } from "../src/commands/init.js";
 import {
@@ -184,6 +184,18 @@ async function removeTempDir(dir: string): Promise<void> {
 }
 
 describe("CLI commands", () => {
+  it("confines an optional runtime sidecar to the config root", () => {
+    const root = path.resolve(os.tmpdir(), "visual-hive-runtime-root");
+    expect(resolveRuntimeSidecarPath(root, ".visual-hive/proof/runtime.json")).toBe(
+      path.join(root, ".visual-hive", "proof", "runtime.json")
+    );
+    expect(resolveRuntimeSidecarPath(root, path.join(root, "bound-runtime.json"))).toBe(path.join(root, "bound-runtime.json"));
+    expect(() => resolveRuntimeSidecarPath(root, ".")).toThrow(/inside the Visual Hive config root/u);
+    expect(() => resolveRuntimeSidecarPath(root, path.join("..", "escaped-runtime.json"))).toThrow(
+      /inside the Visual Hive config root/u
+    );
+  });
+
   it("requires release identity for hosted authority while preserving local v2 bundles", async () => {
     const previousEventName = process.env.GITHUB_EVENT_NAME;
     const previousRunId = process.env.GITHUB_RUN_ID;
@@ -4259,7 +4271,11 @@ selection:
 
     const plan = await runPlanCommand({ config: configPath, cwd: tempRoot, mode: "pr", changedFiles: changedPath });
     const summary = await readFile(path.join(tempRoot, ".visual-hive", "plan.json"), "utf8");
-    const exitCode = await runDeterministicCommand({ config: configPath, cwd: tempRoot });
+    const exitCode = await runDeterministicCommand({
+      config: configPath,
+      cwd: tempRoot,
+      runtimeSidecar: ".visual-hive/proof/ignored-runtime.json"
+    });
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
 
     expect(plan.items).toEqual([]);
@@ -4276,6 +4292,7 @@ selection:
     });
     expect(report.results).toEqual([]);
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
+    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored-runtime.json"))).rejects.toThrow();
   });
 
   it("pipeline writes an operational artifact for ignored docs-only changes", async () => {
@@ -4320,7 +4337,8 @@ selection:
       cwd: tempRoot,
       mode: "pr",
       changedFiles: changedPath,
-      continueOnError: true
+      continueOnError: true,
+      runtimeSidecar: ".visual-hive/proof/ignored-pipeline-runtime.json"
     });
     const pipeline = await readJson<typeof result.report>(path.join(tempRoot, ".visual-hive", "pipeline.json"));
     const report = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
@@ -4454,6 +4472,7 @@ selection:
     await expect(access(path.join(tempRoot, ".visual-hive", "testing-layers.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "hive-issue.md"))).resolves.toBeUndefined();
     await expect(access(path.join(tempRoot, ".visual-hive", "artifacts-index.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored-pipeline-runtime.json"))).rejects.toThrow();
   }, 20_000);
 
   it("fails clearly when no contracts are selected", async () => {
