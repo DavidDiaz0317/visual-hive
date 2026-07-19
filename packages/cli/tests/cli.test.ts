@@ -6388,7 +6388,7 @@ contracts:
     });
   });
 
-  it("restores the deterministic report after mutation runs", async () => {
+  it("restores deterministic report and bound evidence after mutation runs", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-mutate-restore-"));
     tempDirs.push(tempRoot);
     const configPath = path.join(tempRoot, "visual-hive.config.yaml");
@@ -6410,10 +6410,13 @@ contracts:
     selectors:
       mustExist:
         - "[data-testid='critical-action-button']"
+      mustNotExist:
+        - "[data-testid='login-page']"
 mutation:
   enabled: true
   operators:
     - hide-critical-button
+    - force-login-on-demo
 `,
       "utf8"
     );
@@ -6438,7 +6441,7 @@ mutation:
         }
       ],
       excluded: [],
-      mutation: { enabled: true, operators: ["hide-critical-button"], minScore: 0.7, reasons: ["test"] },
+      mutation: { enabled: true, operators: ["hide-critical-button", "force-login-on-demo"], minScore: 0.7, reasons: ["test"] },
       providerPolicy: []
     };
     await writeJson(path.join(tempRoot, ".visual-hive", "plan.json"), plan);
@@ -6478,7 +6481,7 @@ mutation:
           status: "passed",
           durationMs: 5,
           errors: [],
-          artifacts: [],
+          artifacts: [".visual-hive/artifacts/results/home.json"],
           reproductionCommand: "visual-hive run --ci"
         }
       ]
@@ -6487,23 +6490,85 @@ mutation:
       ...deterministicReport,
       status: "failed",
       summary: { ...deterministicReport.summary, passed: 0, failed: 1 },
-      results: [{ ...deterministicReport.results[0]!, status: "failed", errors: ["mutation killed"] }]
+      results: [{
+        ...deterministicReport.results[0]!,
+        status: "failed",
+        errors: ["mutation killed"],
+        artifacts: []
+      }]
     };
+    const resultsDir = path.join(tempRoot, ".visual-hive", "artifacts", "results");
+    const generatedDir = path.join(tempRoot, ".visual-hive", "generated");
+    const deterministicResult = "{\"kind\":\"deterministic\"}\n";
+    const deterministicSpec = "// deterministic generated spec\n";
+    const deterministicConfig = "module.exports = { deterministic: true };\n";
+    await mkdir(resultsDir, { recursive: true });
+    await mkdir(generatedDir, { recursive: true });
+    await writeFile(path.join(resultsDir, "home.json"), deterministicResult, "utf8");
+    await writeFile(path.join(generatedDir, "visual-hive.generated.spec.ts"), deterministicSpec, "utf8");
+    await writeFile(path.join(generatedDir, "visual-hive.generated.config.cjs"), deterministicConfig, "utf8");
     await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), deterministicReport);
+    const staleMutationEvidence = path.join(tempRoot, ".visual-hive", "mutation", "stale.json");
+    await mkdir(path.dirname(staleMutationEvidence), { recursive: true });
+    await writeFile(staleMutationEvidence, "{}\n", "utf8");
 
+    const mutationCalls: Array<{ operator: string; resultPath: string; generatedOutputDir: string }> = [];
     await runMutateCommand({
       config: configPath,
       cwd: tempRoot,
-      runner: async () => {
-        await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), mutatedReport);
-        return { report: mutatedReport, exitCode: 1 };
+      runner: async ({ config, generatedOutputDir, mutationOperator, playwrightOutputDir }) => {
+        const callIndex = mutationCalls.length + 1;
+        const outputRoot = path.join(tempRoot, ".visual-hive", "mutation", `operator-${callIndex}`);
+        expect(config.visual.artifactDir).toBe(`.visual-hive/mutation/operator-${callIndex}/artifacts`);
+        expect(generatedOutputDir).toBe(path.join(outputRoot, "generated"));
+        expect(playwrightOutputDir).toBe(path.join(outputRoot, "playwright-results"));
+        expect(mutationOperator).toBe(callIndex === 1 ? "hide-critical-button" : "force-login-on-demo");
+        const mutationResultsDir = path.join(tempRoot, config.visual.artifactDir, "results");
+        await rm(mutationResultsDir, { recursive: true, force: true });
+        await mkdir(mutationResultsDir, { recursive: true });
+        await mkdir(generatedOutputDir!, { recursive: true });
+        const resultPath = path.join(mutationResultsDir, `${mutationOperator}__home.json`);
+        const resultArtifact = `${config.visual.artifactDir}/results/${mutationOperator}__home.json`;
+        await writeFile(resultPath, `{"kind":"${mutationOperator}"}\n`, "utf8");
+        await writeFile(path.join(generatedOutputDir!, "visual-hive.generated.spec.ts"), "// mutation generated spec\n", "utf8");
+        await writeFile(path.join(generatedOutputDir!, "visual-hive.generated.config.cjs"), "module.exports = { mutation: true };\n", "utf8");
+        const operatorReport: Report = {
+          ...mutatedReport,
+          results: [{ ...mutatedReport.results[0]!, artifacts: [resultArtifact] }]
+        };
+        mutationCalls.push({ operator: mutationOperator!, resultPath, generatedOutputDir: generatedOutputDir! });
+        await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), operatorReport);
+        return { report: operatorReport, exitCode: 1 };
       }
     });
 
     const restored = await readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"));
     expect(restored.status).toBe("passed");
     expect(restored.results[0]?.errors).toEqual([]);
-    await expect(readJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"))).resolves.toMatchObject({ score: 1 });
+    await expect(readFile(path.join(resultsDir, "home.json"), "utf8")).resolves.toBe(deterministicResult);
+    await expect(readFile(path.join(generatedDir, "visual-hive.generated.spec.ts"), "utf8")).resolves.toBe(deterministicSpec);
+    await expect(readFile(path.join(generatedDir, "visual-hive.generated.config.cjs"), "utf8")).resolves.toBe(deterministicConfig);
+    await expect(access(staleMutationEvidence)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(mutationCalls.map((call) => call.operator)).toEqual(["hide-critical-button", "force-login-on-demo"]);
+    for (const call of mutationCalls) {
+      await expect(readFile(call.resultPath, "utf8")).resolves.toBe(`{"kind":"${call.operator}"}\n`);
+      await expect(readFile(path.join(call.generatedOutputDir, "visual-hive.generated.spec.ts"), "utf8")).resolves.toBe("// mutation generated spec\n");
+      await expect(readFile(path.join(call.generatedOutputDir, "visual-hive.generated.config.cjs"), "utf8")).resolves.toBe("module.exports = { mutation: true };\n");
+    }
+    await expect(readJson(path.join(tempRoot, ".visual-hive", "mutation-report.json"))).resolves.toMatchObject({ score: 1, total: 2, killed: 2 });
+
+    await expect(runMutateCommand({
+      config: configPath,
+      cwd: tempRoot,
+      runner: async ({ config }) => {
+        expect(config.visual.artifactDir).toBe(".visual-hive/mutation/operator-1/artifacts");
+        await writeJson(path.join(tempRoot, ".visual-hive", "report.json"), mutatedReport);
+        throw new Error("simulated mutation runner failure");
+      }
+    })).rejects.toThrow("simulated mutation runner failure");
+    await expect(readJson<Report>(path.join(tempRoot, ".visual-hive", "report.json"))).resolves.toMatchObject({ status: "passed" });
+    await expect(readFile(path.join(resultsDir, "home.json"), "utf8")).resolves.toBe(deterministicResult);
+    await expect(readFile(path.join(generatedDir, "visual-hive.generated.spec.ts"), "utf8")).resolves.toBe(deterministicSpec);
   });
 
   it("enforces min score and records not-applicable mutations", async () => {

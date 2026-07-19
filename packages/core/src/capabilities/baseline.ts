@@ -142,6 +142,8 @@ const ARTIFACT_SURFACE_CONTRACT_SHA256: Record<string, string> = {
   ".visual-hive/llm-usage.json": "1177a9d2695e15b957774ac3f1d992be458fff891ce3fee75b64277123a9243b",
   ".visual-hive/mcp-manifest.json": "eea308e9fafb85e86bb3957c2fa727484a8529cdc017e79abca954023adada30",
   ".visual-hive/missing-tests.md": "e64f5cb40890a7a65fdd56601e99a59d43b1ed3db119d5a94a78799372e8eea3",
+  ".visual-hive/mutation": "cff270223c4d99677dc097136d0eca6374e17de9467402061f644d7bf1ea83d3",
+  ".visual-hive/mutation/**": "e00d57a3e73fd58735538fb42dd875c74de313906d6128efc94bf00b0c6b6f82",
   ".visual-hive/mutation-report.json": "1f91b1fec859182ed4953b63db619cd4de26c771580eea3b050a4683bf89d33d",
   ".visual-hive/path-leak-scan.json": "8a25ace7cf3228081a01bcb90a45fc0be22882d3eab073c9491c7b5b5f2ffa97",
   ".visual-hive/pipeline.json": "392f900292506ca74a4f72b3d8925cd32183b9cc9c1aeb32a2f46839b6dc1c8f",

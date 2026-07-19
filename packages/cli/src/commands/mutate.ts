@@ -26,6 +26,8 @@ export type MutationRunner = (options: {
   mutationOperator?: string;
   mutationOperators?: string[];
   mutationMatrix?: Record<string, string[]>;
+  generatedOutputDir?: string;
+  playwrightOutputDir?: string;
   runTargetCommands?: boolean;
   skipInstall?: boolean;
   skipBuild?: boolean;
@@ -52,6 +54,9 @@ interface ApplicableMutationMapping {
 }
 
 const MUTATION_LIFECYCLE_COMMAND_TIMEOUT_MS = 300_000;
+// The Playwright runner clears result files and rewrites its generated spec.
+// Keep mutation adequacy evidence separate from the deterministic run restored below.
+const MUTATION_OUTPUT_ROOT = ".visual-hive/mutation";
 
 export async function runMutateCommand(options: MutateCommandOptions = {}): Promise<{ exitCode: number; reportPath: string; report: MutationReport }> {
   const cwd = options.cwd ?? process.cwd();
@@ -70,6 +75,7 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
   let targetSession: MutationTargetSession | undefined;
   const deterministicReportPath = path.join(loaded.rootDir, ".visual-hive", "report.json");
   const previousDeterministicReport = await readOptionalReport(deterministicReportPath);
+  await rm(path.resolve(loaded.rootDir, MUTATION_OUTPUT_ROOT), { recursive: true, force: true });
 
   if (manageTargetLifecycle) {
     try {
@@ -88,7 +94,7 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
   }
 
   try {
-    for (const operator of operators) {
+    for (const [operatorIndex, operator] of operators.entries()) {
       const mapping = selectContractsForMutation(
         operator,
         loaded.config.contracts.filter((contract) => plan.items.some((item) => item.contractId === contract.id))
@@ -132,7 +138,7 @@ export async function runMutateCommand(options: MutateCommandOptions = {}): Prom
         });
       }
       const { report, exitCode } = await runner({
-        config: loaded.config,
+        ...mutationExecutionOptions(loaded.config, loaded.rootDir, `operator-${operatorIndex + 1}`),
         plan: mutationPlan,
         rootDir: loaded.rootDir,
         ci: true,
@@ -365,7 +371,7 @@ async function runDefaultMutationBatch(input: {
       const selectedTargetIds = new Set(batchItems.map((item) => item.targetId));
       const startedAt = Date.now();
       const { report } = await runPlaywrightContracts({
-        config: input.config,
+        ...mutationExecutionOptions(input.config, input.rootDir, "batch"),
         plan: {
           ...input.plan,
           items: batchItems,
@@ -429,6 +435,23 @@ async function restoreDeterministicReport(reportPath: string, report: Report | u
     return;
   }
   await rm(reportPath, { force: true });
+}
+
+function mutationExecutionOptions(config: VisualHiveConfig, rootDir: string, namespace: string): {
+  config: VisualHiveConfig;
+  generatedOutputDir: string;
+  playwrightOutputDir: string;
+} {
+  if (!/^(?:batch|operator-[1-9][0-9]*)$/u.test(namespace)) throw new Error("Invalid mutation output namespace.");
+  const outputRoot = `${MUTATION_OUTPUT_ROOT}/${namespace}`;
+  return {
+    config: {
+      ...config,
+      visual: { ...config.visual, artifactDir: `${outputRoot}/artifacts` }
+    },
+    generatedOutputDir: path.resolve(rootDir, outputRoot, "generated"),
+    playwrightOutputDir: path.resolve(rootDir, outputRoot, "playwright-results")
+  };
 }
 
 function inferFailureKind(errors: string[]): string | undefined {
