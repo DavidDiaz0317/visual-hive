@@ -4307,6 +4307,7 @@ selection:
       evidenceReadToolName: "visual_hive_read_latest_report"
     });
     expect(report.results).toEqual([]);
+    expect(report.generatedSpecPath).toBe(".visual-hive/generated/visual-hive.generated.spec.ts");
     expect(report.noContractsReason).toContain("selection.ignoreChangedFiles");
     await expect(access(path.join(tempRoot, ".visual-hive", "proof", "ignored", "runtime.json"))).rejects.toThrow();
   });

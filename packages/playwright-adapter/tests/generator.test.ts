@@ -821,7 +821,7 @@ describe("buildSpecContent", () => {
     expect(report.verdictSummary?.blockedBecause).toContain("playwright.deterministic_run");
     expect(report.verdictSummary?.blockedBecause).toContain("visual_hive.target_lifecycle_failure");
     expect(report.verdictContributions?.some((contribution) => contribution.key === "playwright.contract_result.home" && contribution.status === "blocked" && contribution.gating)).toBe(true);
-    expect(report.generatedSpecPath).toContain("visual-hive.generated.spec.ts");
+    expect(report.generatedSpecPath).toBe(".visual-hive/generated/visual-hive.generated.spec.ts");
     expect(report.targetLifecycle.some((event) => event.phase === "serve" && event.status === "failed")).toBe(true);
     expect(report.providerResults?.find((provider) => provider.providerId === "playwright")?.status).toBe("failed");
     expect(report.results[0]?.errors.join("\n")).toContain("Target server failed to start");

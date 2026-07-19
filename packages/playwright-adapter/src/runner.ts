@@ -496,6 +496,10 @@ export async function buildReportFromPlaywrightOutput(input: {
   targetStartupErrors: Map<string, string>;
   mutationBatch?: boolean;
 }): Promise<Report> {
+  const canonicalRootDir = await realpath(path.resolve(input.rootDir));
+  const generatedSpecAbsolute = path.isAbsolute(input.generatedSpecPath)
+    ? path.resolve(input.generatedSpecPath)
+    : path.resolve(canonicalRootDir, input.generatedSpecPath);
   if (!input.mutationBatch && !input.executionError) {
     await waitForStructuredContractResults(
       input.rootDir,
@@ -505,7 +509,7 @@ export async function buildReportFromPlaywrightOutput(input: {
       input.deadlineAtMs
     );
   }
-  const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
+  const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, generatedSpecAbsolute);
   const expectedStructuredTargets = new Map(input.plan.items.filter((item) => !input.targetStartupErrors.has(item.targetId)).map((item) => [item.contractId, item.targetId]));
   const structuredResultList = await readStructuredContractResults(
     input.rootDir,
@@ -641,7 +645,7 @@ export async function buildReportFromPlaywrightOutput(input: {
     selectedContracts: input.plan.items.map((item) => item.contractId),
     excludedContracts: input.plan.excluded,
     targetLifecycle: input.targetLifecycle,
-    generatedSpecPath: input.generatedSpecPath,
+    generatedSpecPath: relativeOutputPath(canonicalRootDir, generatedSpecAbsolute),
     executionBinding: input.executionBinding,
     results,
     summary,

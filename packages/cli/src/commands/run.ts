@@ -77,7 +77,7 @@ export function resolveRuntimeSidecarPath(rootDir: string, requestedPath: string
 
 async function createIgnoredFilesReport(config: VisualHiveConfig, plan: Plan, rootDir: string): Promise<Report> {
   const repository = await collectRepositoryMetadata({ repoRoot: rootDir });
-  const generatedSpecPath = path.join(rootDir, ".visual-hive", "generated", "visual-hive.generated.spec.ts");
+  const generatedSpecPath = ".visual-hive/generated/visual-hive.generated.spec.ts";
   const reason = sanitizeText(`No deterministic contracts were run because all changed files matched selection.ignoreChangedFiles: ${plan.ignoredChangedFiles
     .map((entry) => `${entry.file} (${entry.pattern})`)
     .join(", ")}`);

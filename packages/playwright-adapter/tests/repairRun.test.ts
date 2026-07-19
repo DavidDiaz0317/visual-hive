@@ -566,26 +566,34 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     const fixture = await createRepairFixture({ baseline: true });
     const generatedDir = path.join(fixture.rootDir, ".visual-hive", "generated-unit");
     const generatedSpecPath = path.join(generatedDir, "visual-hive.generated.spec.ts");
+    const linkedRoot = `${fixture.rootDir}-linked`;
     await mkdir(generatedDir, { recursive: true });
     await writeFile(generatedSpecPath, "// intentionally empty reporter fixture\n", "utf8");
-    const report = await buildReportFromPlaywrightOutput({
-      config: fixture.config,
-      plan: fixture.plan,
-      stdout: JSON.stringify({ suites: [], errors: [] }),
-      stderr: "",
-      exitCode: 0,
-      rootDir: fixture.rootDir,
-      durationMs: 1,
-      targetLifecycle: [],
-      generatedSpecPath,
-      executionBinding: testExecutionBinding,
-      deadlineAtMs: Date.now() + 1,
-      targetStartupErrors: new Map()
-    });
+    await symlink(fixture.rootDir, linkedRoot, process.platform === "win32" ? "junction" : "dir");
+    try {
+      const report = await buildReportFromPlaywrightOutput({
+        config: fixture.config,
+        plan: fixture.plan,
+        stdout: JSON.stringify({ suites: [], errors: [] }),
+        stderr: "",
+        exitCode: 0,
+        rootDir: linkedRoot,
+        durationMs: 1,
+        targetLifecycle: [],
+        generatedSpecPath: ".visual-hive/generated-unit/visual-hive.generated.spec.ts",
+        executionBinding: testExecutionBinding,
+        deadlineAtMs: Date.now() + 1,
+        targetStartupErrors: new Map()
+      });
 
-    expect(report.status).toBe("failed");
-    expect(report.results[0]).toMatchObject({ contractId: "contract.card", status: "failed" });
-    expect(report.results[0]?.errors.join("\n")).toContain("did not return expected contract");
+      expect(report.status).toBe("failed");
+      expect(report.generatedSpecPath).toBe(".visual-hive/generated-unit/visual-hive.generated.spec.ts");
+      expect(report.artifacts).toContain(generatedSpecPath);
+      expect(report.results[0]).toMatchObject({ contractId: "contract.card", status: "failed" });
+      expect(report.results[0]?.errors.join("\n")).toContain("did not return expected contract");
+    } finally {
+      await rm(linkedRoot, { force: true });
+    }
   }, 120_000);
 
   it("rejects wrong execution bindings, wrong targets, unknown fields, and aggregate result overflow", async () => {
