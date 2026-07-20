@@ -6063,7 +6063,7 @@ export const Alert = {};
     expect(recommendation.recommendedContracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       targetId: "componentLibrary",
-      selectors: ["[data-testid='dashboard-card']"]
+      selectors: ["body"]
     });
     expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual([
       "storybook-dashboard-banner-alert-visual-stability",
@@ -6072,7 +6072,7 @@ export const Alert = {};
     expect(parsedYaml.contracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       target: "componentLibrary",
-      selectors: { mustExist: ["[data-testid='dashboard-card']"] }
+      selectors: { mustExist: ["body"] }
     });
     expect(parsedYaml.contracts[0]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
       "/iframe.html?id=dashboard-banner--alert&viewMode=story",
@@ -6119,6 +6119,145 @@ export const Alert = {};
     expect(setupDocs).toContain("src/components/Card.stories.tsx");
     expect(setupDocs).toContain("/iframe.html?id=dashboard-banner--alert&viewMode=story");
     expect(setupDocs).toContain("/iframe.html?id=dashboard-card--primary&viewMode=story");
+  });
+
+  it("prioritizes selected-package stories beyond the bounded source inventory", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-large-storybook-"));
+    tempDirs.push(targetRoot);
+    const webRoot = path.join(targetRoot, "web");
+    const noiseRoot = path.join(webRoot, "src", "000-noise");
+    const storyRoot = path.join(webRoot, "src", "components", "ui");
+    await mkdir(noiseRoot, { recursive: true });
+    await mkdir(storyRoot, { recursive: true });
+    await writeJson(path.join(webRoot, "package.json"), {
+      name: "large-storybook-workspace",
+      scripts: {
+        storybook: "storybook dev -p 6006",
+        "build-storybook": "storybook build"
+      },
+      dependencies: {
+        react: "^19.0.0",
+        "@storybook/react-vite": "^8.0.0"
+      }
+    });
+    await Promise.all(
+      Array.from({ length: 260 }, (_, index) =>
+        writeFile(path.join(noiseRoot, `${String(index).padStart(3, "0")}.ts`), `export const value${index} = ${index};\n`, "utf8")
+      )
+    );
+    await writeFile(path.join(webRoot, "src", "000-app.tsx"), `<main data-testid="dashboard-page">Dashboard</main>`, "utf8");
+    await writeFile(path.join(storyRoot, "AccessibleStatus.tsx"), `export const AccessibleStatus = () => <span>Healthy</span>;\n`, "utf8");
+    await writeFile(
+      path.join(storyRoot, "AccessibleStatus.stories.tsx"),
+      `
+import { AccessibleStatus } from "./AccessibleStatus";
+export default { title: "UI/AccessibleStatus", component: AccessibleStatus };
+export const Icon2XL = {};
+`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(storyRoot, "Cafe.stories.tsx"),
+      `export default { title: "UI/Café" };\nexport const Default = {};\n`,
+      "utf8"
+    );
+    await writeFile(path.join(storyRoot, "Docs.stories.mdx"), `<Meta title="UI/Docs" />\n<Story name="Default">Docs</Story>\n`, "utf8");
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+    const parsedYaml = VisualHiveConfigSchema.parse(parseYaml(recommendation.recommendedConfigYaml));
+
+    expect(recommendation.project).toMatchObject({ packagePath: "web", name: "large-storybook-workspace" });
+    expect(recommendation.detectedSelectors).toContainEqual({
+      selector: "[data-testid='dashboard-page']",
+      sourceFile: "web/src/000-app.tsx",
+      occurrences: 1
+    });
+    expect(recommendation.detectedStories).toEqual(
+      expect.arrayContaining([
+        {
+          storyFile: "web/src/components/ui/AccessibleStatus.stories.tsx",
+          title: "UI/AccessibleStatus",
+          exports: ["Icon2XL"],
+          route: "/iframe.html?id=ui-accessiblestatus--icon-2-xl&viewMode=story"
+        },
+        {
+          storyFile: "web/src/components/ui/Cafe.stories.tsx",
+          title: "UI/Café",
+          exports: ["Default"],
+          route: "/iframe.html?id=ui-caf%C3%A9--default&viewMode=story"
+        },
+        {
+          storyFile: "web/src/components/ui/Docs.stories.mdx",
+          title: "UI/Docs",
+          exports: ["Default"],
+          route: "/iframe.html?id=ui-docs--default&viewMode=story"
+        }
+      ])
+    );
+    expect(recommendation.recommendedContracts[0]).toMatchObject({
+      id: "storybook-ui-accessiblestatus-icon-2-xl-visual-stability",
+      selectors: ["body"],
+      screenshots: expect.arrayContaining([
+        expect.objectContaining({ route: "/iframe.html?id=ui-accessiblestatus--icon-2-xl&viewMode=story" })
+      ])
+    });
+    expect(recommendation.recommendedContracts.flatMap((contract) => contract.screenshots).map((screenshot) => screenshot.route)).not.toContain(
+      "/iframe.html?viewMode=story"
+    );
+    expect(parsedYaml.targets.componentLibrary).toMatchObject({
+      stories: ["web/src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
+      components: ["web/src/components/**"]
+    });
+    expect(parsedYaml.contracts[0]?.selectors.mustExist).toEqual(["body"]);
+    expect(recommendation.recommendedContracts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "storybook-ui-docs-default-visual-stability",
+          screenshots: expect.arrayContaining([expect.objectContaining({ route: "/iframe.html?id=ui-docs--default&viewMode=story" })])
+        })
+      ])
+    );
+    expect(buildSetupDocsMarkdown(recommendation)).not.toContain("No Storybook story files were detected.");
+  });
+
+  it("excludes stories outside the selected Storybook package", async () => {
+    const targetRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-recommend-storybook-boundary-"));
+    tempDirs.push(targetRoot);
+    const webRoot = path.join(targetRoot, "web");
+    const webStoryRoot = path.join(webRoot, "src");
+    const siblingStoryRoot = path.join(targetRoot, "admin", "src");
+    await mkdir(webStoryRoot, { recursive: true });
+    await mkdir(siblingStoryRoot, { recursive: true });
+    await writeJson(path.join(webRoot, "package.json"), {
+      name: "selected-storybook-package",
+      scripts: { storybook: "storybook dev -p 6006" },
+      dependencies: { react: "^19.0.0", "@storybook/react-vite": "^8.0.0" }
+    });
+    await writeFile(
+      path.join(webStoryRoot, "Zulu.stories.tsx"),
+      `export default { title: "Selected/Zulu" };\nexport const Default = {};\n`,
+      "utf8"
+    );
+    await writeFile(
+      path.join(siblingStoryRoot, "AAA.stories.tsx"),
+      `export default { title: "Sibling/ShouldNotRun" };\nexport const Default = {};\n`,
+      "utf8"
+    );
+
+    const recommendation = await recommendSetup({ repoRoot: targetRoot, now: new Date("2026-06-15T00:00:00.000Z") });
+
+    expect(recommendation.project).toMatchObject({ packagePath: "web", name: "selected-storybook-package" });
+    expect(recommendation.detectedStories).toEqual([
+      {
+        storyFile: "web/src/Zulu.stories.tsx",
+        title: "Selected/Zulu",
+        exports: ["Default"],
+        route: "/iframe.html?id=selected-zulu--default&viewMode=story"
+      }
+    ]);
+    expect(recommendation.recommendedContracts.map((contract) => contract.id)).not.toContain(
+      "storybook-sibling-shouldnotrun-default-visual-stability"
+    );
   });
 
   it("recommends a commandGroup target for complex fullstack and fake OAuth scripts", async () => {

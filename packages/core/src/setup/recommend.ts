@@ -236,6 +236,8 @@ interface RepoInventory {
 const DEFAULT_PORT = 4173;
 const STORYBOOK_PORT = 6006;
 const MAX_SOURCE_FILES = 250;
+const MAX_DETECTED_STORY_FILES = 20;
+const MAX_STORY_DISCOVERY_ENTRIES = 20_000;
 const MAX_RECOMMENDED_STORYBOOK_CONTRACTS = 3;
 const MAX_RECOMMENDED_ROUTE_CONTRACTS = 3;
 const TEST_ID_PATTERN = /data-testid\s*=\s*["'`]([^"'`]+)["'`]/g;
@@ -244,6 +246,9 @@ const SEMANTIC_MAIN_PATTERN = /<\s*main(?:\s|>)/gi;
 const ROUTE_HINT_PATTERN = /\b(?:to|href|path)\s*=\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]|(?:route|path)\s*:\s*["'`]((?:\/|#\/)[^"'`{}\s]*)["'`]/g;
 const STORY_TITLE_PATTERN = /title\s*:\s*["'`]([^"'`]+)["'`]/;
 const STORY_EXPORT_PATTERN = /export\s+(?:const|function)\s+([A-Z_a-z]\w*)/g;
+const STORY_MDX_TITLE_PATTERN = /<Meta\b[^>]*\btitle\s*=\s*["'`]([^"'`]+)["'`][^>]*>/i;
+const STORY_MDX_NAME_PATTERN = /<Story\b[^>]*\bname\s*=\s*["'`]([^"'`]+)["'`][^>]*>/gi;
+const STORYBOOK_SANITIZE_PATTERN = /[ \u2019\u2013\u2014\u2015\u2032\u00bf'`~!@#$%^&*()_|+\-=?;:'",.<>{}[\]\\/]/gi;
 const NON_STORY_EXPORTS = new Set(["meta", "default"]);
 const SOURCE_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".html"]);
 const SKIPPED_DIRS = new Set([".git", ".visual-hive", "node_modules", "dist", "build", "coverage", ".next", "out"]);
@@ -345,7 +350,7 @@ export async function recommendSetup(options: RecommendSetupOptions): Promise<Se
     recommendedConfigYaml,
     detectedSelectors: inventory.selectors.slice(0, 20),
     detectedRoutes: inventory.routes.slice(0, 20),
-    detectedStories: inventory.stories.slice(0, 20),
+    detectedStories: inventory.stories.slice(0, MAX_DETECTED_STORY_FILES),
     detectedWorkflows: inventory.workflows.slice(0, 20),
     playwright: inventory.playwright,
     recommendedTarget: {
@@ -401,7 +406,11 @@ async function inspectRepository(repoRoot: string): Promise<RepoInventory> {
   const packageRoot = path.resolve(repoRoot, packagePath);
   const packageManager = await detectPackageManager(packageRoot);
   const detectedFrameworks = detectFrameworks(packageJson);
-  const sourceFiles = await collectSourceFiles(repoRoot);
+  const sourceFiles = await collectSourceFiles(
+    repoRoot,
+    packageRoot,
+    detectedFrameworks.includes("storybook")
+  );
   const selectors = await collectSelectors(repoRoot, sourceFiles);
   const routes = await collectRoutes(repoRoot, sourceFiles);
   const stories = await collectStories(repoRoot, sourceFiles);
@@ -753,7 +762,10 @@ function buildContracts(
   inventory: RepoInventory
 ): Array<{ config: ContractConfig; reasons: string[] }> {
   if (target.kind === "storybook") {
-    return buildStorybookContracts(selector, targetId, inventory);
+    // Repository-wide selectors do not prove that a particular isolated story
+    // renders that element. Keep readiness generic; the named route and its
+    // screenshots remain the deterministic, human-reviewable oracle.
+    return buildStorybookContracts("body", targetId, inventory);
   }
   return buildAppContracts(selector, targetId, inventory);
 }
@@ -902,7 +914,7 @@ function buildStorybookContracts(
           ? `Detected Storybook story ${story.title} in ${story.storyFile}; starter screenshots target ${story.route}.`
           : "Storybook was detected, but no story files were found; starter screenshots use the Storybook iframe route and should be refined after adding stories.",
         selector === "body"
-          ? "No known stable component data-testid was detected, so the starter Storybook contract uses body until a component-owned selector is added."
+          ? "No exact story-owned selector was proven, so the starter Storybook contract uses body rather than borrowing a repository-wide app selector."
           : `Detected component selector ${selector}.`,
         "Desktop and mobile Storybook screenshots give a PR-safe component visual lane without requiring Chromatic."
       ]
@@ -1496,30 +1508,94 @@ function buildWarnings(inventory: RepoInventory, serve: string | undefined, sele
   return warnings;
 }
 
-async function collectSourceFiles(repoRoot: string): Promise<string[]> {
+async function collectSourceFiles(repoRoot: string, packageRoot: string, prioritizeStories: boolean): Promise<string[]> {
   const files: string[] = [];
-  await walk(repoRoot, files);
-  return files.slice(0, MAX_SOURCE_FILES);
+  const seenFiles = new Set<string>();
+  const visitedDirectories = new Set<string>();
+  if (!prioritizeStories) {
+    await walk(repoRoot, files, repoRoot, seenFiles, visitedDirectories);
+    return files;
+  }
+  for (const storyFile of await collectPrioritizedStoryFiles(repoRoot, packageRoot)) {
+    if (files.length >= MAX_SOURCE_FILES) break;
+    files.push(storyFile);
+    seenFiles.add(storyFile);
+  }
+  for (const root of [path.join(packageRoot, "src"), packageRoot]) {
+    if (files.length >= MAX_SOURCE_FILES) break;
+    await walk(root, files, repoRoot, seenFiles, visitedDirectories);
+  }
+  return files;
 }
 
-async function walk(dir: string, files: string[], base = dir): Promise<void> {
+async function collectPrioritizedStoryFiles(repoRoot: string, packageRoot: string): Promise<string[]> {
+  const stories = new Set<string>();
+  const visitedDirectories = new Set<string>();
+  const queue = [path.join(packageRoot, "src"), packageRoot];
+  let queueIndex = 0;
+  let inspectedEntries = 0;
+  while (
+    queueIndex < queue.length &&
+    stories.size < MAX_DETECTED_STORY_FILES &&
+    inspectedEntries < MAX_STORY_DISCOVERY_ENTRIES
+  ) {
+    const dir = path.resolve(queue[queueIndex++]!);
+    if (visitedDirectories.has(dir)) continue;
+    visitedDirectories.add(dir);
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    entries.sort((left, right) => compareOrdinal(left.name, right.name));
+    for (const entry of entries) {
+      inspectedEntries += 1;
+      if (inspectedEntries > MAX_STORY_DISCOVERY_ENTRIES) break;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIPPED_DIRS.has(entry.name)) queue.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !isStoryFile(entry.name)) continue;
+      stories.add(normalizeSlashes(path.relative(repoRoot, fullPath)));
+      if (stories.size >= MAX_DETECTED_STORY_FILES) break;
+    }
+  }
+  return [...stories].sort();
+}
+
+async function walk(
+  dir: string,
+  files: string[],
+  base: string,
+  seenFiles: Set<string>,
+  visitedDirectories: Set<string>
+): Promise<void> {
+  const resolvedDir = path.resolve(dir);
+  if (visitedDirectories.has(resolvedDir)) return;
+  visitedDirectories.add(resolvedDir);
   let entries;
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    entries = await readdir(resolvedDir, { withFileTypes: true });
   } catch {
     return;
   }
+  entries.sort((left, right) => compareOrdinal(left.name, right.name));
   for (const entry of entries) {
     if (files.length >= MAX_SOURCE_FILES) return;
-    const fullPath = path.join(dir, entry.name);
+    const fullPath = path.join(resolvedDir, entry.name);
     if (entry.isDirectory()) {
       if (SKIPPED_DIRS.has(entry.name)) continue;
-      await walk(fullPath, files, base);
+      await walk(fullPath, files, base, seenFiles, visitedDirectories);
       continue;
     }
     if (!entry.isFile()) continue;
     if (!SOURCE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
-    files.push(normalizeSlashes(path.relative(base, fullPath)));
+    const relativePath = normalizeSlashes(path.relative(base, fullPath));
+    if (seenFiles.has(relativePath)) continue;
+    seenFiles.add(relativePath);
+    files.push(relativePath);
   }
 }
 
@@ -1611,17 +1687,19 @@ async function collectStories(repoRoot: string, sourceFiles: string[]): Promise<
     } catch {
       continue;
     }
-    const title = sanitizeText(STORY_TITLE_PATTERN.exec(raw)?.[1] ?? storyTitleFromPath(sourceFile));
-    const exports = storyExports(raw);
+    const isMdx = isMdxStoryFile(sourceFile);
+    const detectedTitle = isMdx ? STORY_MDX_TITLE_PATTERN.exec(raw)?.[1] : STORY_TITLE_PATTERN.exec(raw)?.[1];
+    const title = sanitizeText(detectedTitle ?? storyTitleFromPath(sourceFile));
+    const exports = isMdx ? storyMdxNames(raw) : storyExports(raw);
     const firstExport = exports[0] ?? "Default";
     stories.push({
       storyFile: normalizeSlashes(sourceFile),
       title,
       exports,
-      route: storyRoute(title, firstExport)
+      route: storyRoute(title, firstExport, isMdx)
     });
   }
-  return stories.sort((a, b) => a.storyFile.localeCompare(b.storyFile));
+  return stories.sort((a, b) => compareOrdinal(a.storyFile, b.storyFile));
 }
 
 async function collectWorkflowHints(repoRoot: string): Promise<SetupDetectedWorkflow[]> {
@@ -1727,6 +1805,10 @@ function isStoryFile(sourceFile: string): boolean {
   return /\.(stories|story)\.[cm]?[jt]sx?$|\.stories\.mdx$/i.test(sourceFile);
 }
 
+function isMdxStoryFile(sourceFile: string): boolean {
+  return /\.stories\.mdx$/i.test(sourceFile);
+}
+
 function storyExports(raw: string): string[] {
   const exports = new Set<string>();
   STORY_EXPORT_PATTERN.lastIndex = 0;
@@ -1736,6 +1818,16 @@ function storyExports(raw: string): string[] {
     exports.add(name);
   }
   return [...exports].sort();
+}
+
+function storyMdxNames(raw: string): string[] {
+  const names = new Set<string>();
+  STORY_MDX_NAME_PATTERN.lastIndex = 0;
+  for (const match of raw.matchAll(STORY_MDX_NAME_PATTERN)) {
+    const name = sanitizeText(match[1] ?? "").trim();
+    if (name) names.add(name);
+  }
+  return [...names].sort(compareOrdinal);
 }
 
 function storyTitleFromPath(sourceFile: string): string {
@@ -1750,22 +1842,43 @@ function storyTitleFromPath(sourceFile: string): string {
     .join("/");
 }
 
-function storyRoute(title: string, exportName: string): string {
-  const storyId = `${slugForStorybook(title)}--${slugForStorybook(exportName)}`;
+function storyRoute(title: string, exportName: string, displayName = false): string {
+  const storyId = `${slugStorybookTitle(title)}--${displayName ? sanitizeStorybookIdPart(exportName) : slugStorybookExport(exportName)}`;
   return `/iframe.html?id=${encodeURIComponent(storyId)}&viewMode=story`;
 }
 
 function storyContractSlug(story: SetupDetectedStory): string {
   const exportName = story.exports[0] ?? "default";
-  return `${slugForStorybook(story.title)}-${slugForStorybook(exportName)}`.replace(/^-+|-+$/g, "");
+  const storyName = isMdxStoryFile(story.storyFile) ? sanitizeStorybookIdPart(exportName) : slugStorybookExport(exportName);
+  return `${slugStorybookTitle(story.title)}-${storyName}`.replace(/^-+|-+$/g, "");
 }
 
-function slugForStorybook(value: string): string {
+function slugStorybookTitle(value: string): string {
+  return sanitizeStorybookIdPart(value);
+}
+
+function slugStorybookExport(value: string): string {
+  const storyName = value
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\./g, " ")
+    .replace(/([^\n])([A-Z])([a-z])/g, "$1 $2$3")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([a-z])([0-9])/gi, "$1 $2")
+    .replace(/([0-9])([a-z])/gi, "$1 $2");
+  return sanitizeStorybookIdPart(storyName);
+}
+
+function sanitizeStorybookIdPart(value: string): string {
   return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(STORYBOOK_SANITIZE_PATTERN, "-")
+    .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 async function exists(filePath: string): Promise<boolean> {
