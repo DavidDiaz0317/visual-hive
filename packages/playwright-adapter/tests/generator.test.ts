@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, lstat, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import os from "node:os";
@@ -142,6 +142,12 @@ describe("buildSpecContent", () => {
     expect(content).toContain("visualHiveCi === \"false\" ? false");
     expect(content).toContain("if (exclusiveEvidenceWrites || forceExclusive)");
     expect(content).toMatch(/runtimeSidecarPath,[\s\S]*?"utf8",\s*true\s*\);/u);
+    const bindingVerification = content.indexOf("const executionBinding = await verifyExecutionBinding();");
+    const replacementWorkerGuard = content.indexOf("workerInfo.workerIndex !== workerInfo.parallelIndex");
+    const runtimeWrite = content.indexOf("await writeEvidenceFileExclusive(\n        runtimeSidecarPath");
+    expect(bindingVerification).toBeGreaterThan(-1);
+    expect(replacementWorkerGuard).toBeGreaterThan(bindingVerification);
+    expect(runtimeWrite).toBeGreaterThan(replacementWorkerGuard);
     expect(content).toContain("applyWaits");
     expect(content).toContain("runFlowSteps");
     expect(content).toContain("executeFlowStep");
@@ -372,6 +378,91 @@ describe("buildSpecContent", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   }, 60_000);
+
+  it("keeps one bound runtime sidecar after Playwright restarts a failed worker", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-runtime-restart-"));
+    tempDirs.push(rootDir);
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end("<!doctype html><html><body><main>healthy</main></body></html>");
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("runtime restart fixture server did not bind a TCP port");
+    const url = `http://127.0.0.1:${address.port}`;
+    try {
+      const config = VisualHiveConfigSchema.parse({
+        project: { name: "runtime-restart" },
+        targets: { local: { kind: "url", url, prSafe: true } },
+        contracts: [
+          {
+            id: "first",
+            description: "expected failure that restarts the worker",
+            target: "local",
+            selectors: { mustExist: ["#missing-first"] }
+          },
+          {
+            id: "second",
+            description: "must execute in the replacement worker",
+            target: "local",
+            selectors: { mustExist: ["main"] }
+          }
+        ]
+      });
+      const plan = {
+        schemaVersion: 1 as const,
+        project: config.project.name,
+        mode: "pr" as const,
+        generatedAt: "2026-07-20T00:00:00.000Z",
+        changedFiles: [],
+        effectiveChangedFiles: [],
+        ignoredChangedFiles: [],
+        targets: [{ id: "local", kind: "url", url, prSafe: true, cost: "medium" as const }],
+        items: config.contracts.map((contract) => ({
+          contractId: contract.id,
+          targetId: "local",
+          targetUrl: url,
+          severity: "medium" as const,
+          cost: "medium" as const,
+          reasons: ["worker restart regression"],
+          screenshots: []
+        })),
+        excluded: [],
+        mutation: { enabled: false, operators: [], minScore: 0.7, reasons: [] },
+        providerPolicy: []
+      };
+      const runtimeSidecarPath = path.join(rootDir, ".visual-hive", "proof", "pr", "runtime.json");
+
+      const result = await runPlaywrightContracts({
+        config,
+        plan,
+        rootDir,
+        ci: true,
+        runTargetCommands: false,
+        runtimeSidecarPath
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.report.results.map((contract) => contract.contractId).sort()).toEqual(["first", "second"]);
+      expect(Object.fromEntries(result.report.results.map((contract) => [contract.contractId, contract.status]))).toEqual({
+        first: "failed",
+        second: "passed"
+      });
+      const runtimeInfo = await lstat(runtimeSidecarPath);
+      expect(runtimeInfo.isFile()).toBe(true);
+      expect(runtimeInfo.isSymbolicLink()).toBe(false);
+      expect(runtimeInfo.nlink).toBe(1);
+      expect(JSON.parse(await readFile(runtimeSidecarPath, "utf8"))).toMatchObject({
+        schemaVersion: "visual-hive.playwright-runtime.v1",
+        executionBinding: result.report.executionBinding
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 30_000);
 
   it("includes generated spec path in collected artifacts", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-artifacts-"));

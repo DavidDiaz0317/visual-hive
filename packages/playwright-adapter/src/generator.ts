@@ -155,9 +155,9 @@ let exclusiveEvidenceWrites = false;
 
 // ---- Contract execution ----
 test.describe("visual-hive generated deterministic contracts", () => {
-  test.beforeAll(async ({ browser, browserName }) => {
+  test.beforeAll(async ({ browser, browserName }, workerInfo) => {
     const executionBinding = await verifyExecutionBinding();
-    if (!runtimeSidecarPath) return;
+    if (!runtimeSidecarPath || workerInfo.workerIndex !== workerInfo.parallelIndex) return;
     const page = await browser.newPage();
     try {
       const browserRuntime = await page.evaluate(() => {
