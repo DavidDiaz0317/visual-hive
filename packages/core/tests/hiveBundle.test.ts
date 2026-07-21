@@ -911,6 +911,34 @@ describe("Visual Hive atomic bundle", () => {
     expect(verifyVisualHiveBundleDigest(expandedAuthority)).toBe(false);
   });
 
+  it("bundles indexed repository evidence while rejecting an unindexed remediation target", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/repo-map.json", { schemaVersion: 1, project: "repo-evidence" });
+    await writeArtifact(rootDir, ".visual-hive/repo-context.md", { summary: "Repository evidence" });
+    await writeFile(path.join(rootDir, "visual-hive.config.yaml"), "project: repo-evidence\n", "utf8");
+    await prepareBundleEvidence({ rootDir, project: "repo-evidence" });
+
+    const base = {
+      rootDir,
+      project: "repo-evidence",
+      mode: "measured" as const,
+      verdict: "ready" as const,
+      acmmRequest: 3,
+      artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"],
+      source: source(),
+      producerVersion: "0.4.1",
+      producerGitCommit: "abc123"
+    };
+    await expect(writeVisualHiveBundleV3({
+      ...base,
+      bundleId: "unindexed-remediation-target",
+      artifacts: [...base.artifacts, "visual-hive.config.yaml"]
+    })).rejects.toThrow("Compact bundle artifact is missing from the complete content-addressed index: visual-hive.config.yaml");
+
+    const result = await writeVisualHiveBundleV3({ ...base, bundleId: "indexed-repo-evidence" });
+    expect(result.manifest.files.map((file) => file.sourcePath)).toEqual(expect.arrayContaining(base.artifacts));
+  });
+
   it("fails v3 closed for missing, unrequested, or tampered observation evidence", async () => {
     const base = (rootDir: string, bundleId: string, artifacts: string[]) => ({
       rootDir,

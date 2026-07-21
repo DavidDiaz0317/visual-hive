@@ -7538,6 +7538,44 @@ describe("test creation plans", () => {
 });
 
 describe("handoff packets", () => {
+  it("keeps repository remediation targets out of handoff and issue evidence", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-remediation-"));
+    tempDirs.push(rootDir);
+    await writeFile(
+      path.join(rootDir, "package.json"),
+      JSON.stringify({ name: "handoff-remediation", scripts: { test: "playwright test" }, devDependencies: { "@playwright/test": "^1.0.0" } }),
+      "utf8"
+    );
+    await writeRepoMap({ repoRoot: rootDir, now: new Date("2026-06-15T00:00:00.000Z") });
+    const evidence = await writeEvidencePacket({
+      rootDir,
+      project: "handoff-remediation",
+      now: new Date("2026-06-15T00:01:00.000Z")
+    });
+    const handoff = buildHandoffArtifacts({
+      evidencePacket: evidence.packet,
+      evidencePacketPath: ".visual-hive/evidence-packet.json",
+      now: new Date("2026-06-15T00:02:00.000Z")
+    });
+    const selectorWorkItem = handoff.handoff.workItems.find((item) => item.id === "repo-coverage-gap-selector-contracts");
+
+    expect(selectorWorkItem).toMatchObject({
+      artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"]
+    });
+    expect(selectorWorkItem?.suggestedNextSteps.join(" ")).toContain("visual-hive.config.yaml");
+    expect(selectorWorkItem?.artifacts).not.toContain("visual-hive.config.yaml");
+
+    await writeJson(path.join(rootDir, ".visual-hive", "handoff.json"), handoff.handoff);
+    const issues = await buildIssuesReport({ rootDir, project: "handoff-remediation" });
+    const selectorIssue = issues.report.issues.find((issue) => issue.title.includes("Close repo intelligence gap: selector-contracts"));
+    expect(selectorIssue?.sourceArtifacts).toEqual(expect.arrayContaining([
+      ".visual-hive/handoff.json",
+      ".visual-hive/repo-map.json",
+      ".visual-hive/repo-context.md"
+    ]));
+    expect(selectorIssue?.sourceArtifacts).not.toContain("visual-hive.config.yaml");
+  });
+
   it("derives a no-network Hive handoff from a failed Evidence Packet", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-handoff-"));
     tempDirs.push(rootDir);
