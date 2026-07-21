@@ -106,8 +106,10 @@ describe("Visual Hive atomic bundle", () => {
       fingerprint: "visual-hive:test:app-shell",
       publicationRole: "canonical",
       rootCauseKey: "finding/visual_regression/app-shell",
-      blockedByRootKeys: []
+      blockedByRootKeys: [],
+      validationCommand: "visual-hive run --ci"
     });
+    expect(issue("open_candidate").validationCommand).toBe("npm run vh:run:ci");
     expect(JSON.parse(await readFile(path.join(rootDir, result.manifestPath), "utf8"))).toEqual(result.manifest);
     const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.bundle.schema.json"), "utf8"));
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);

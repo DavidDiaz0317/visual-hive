@@ -1599,7 +1599,11 @@ function observationsFromIssues(
       labels: uniqueText(issue.labels),
       sourceArtifacts: uniqueText(issue.sourceArtifacts.map(normalizeRelativeArtifactPath)),
       affectedContracts: uniqueText(issue.affected.map((affected) => affected.contractId).filter((value): value is string => Boolean(value))),
-      validationCommand: issue.validationCommand,
+      // Hive executes repository commands only from its installed argv and
+      // obtains the authoritative Visual Hive result from the managed PR-head
+      // workflow. Keep the issue's granular command in its evidence/body, but
+      // bind lifecycle repair validation to that audited exact-head seam.
+      validationCommand: "visual-hive run --ci",
       observedAt,
       firstSeenAt: observedAt,
       sourceArtifact
