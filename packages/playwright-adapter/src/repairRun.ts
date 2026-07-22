@@ -125,7 +125,35 @@ const PLAYWRIGHT_REPAIR_ISSUE_KINDS = [
   "provider_governance",
   "protected_target_blocked",
   "external_repo_onboarding"
-] as const;
+] as const satisfies readonly VisualHiveBundleObservation["issueKind"][];
+
+const PLAYWRIGHT_REPAIR_OWNER_HINTS = [
+  "visual-hive/setup",
+  "visual-hive/map",
+  "visual-hive/test-creator",
+  "visual-hive/test-maintainer",
+  "visual-hive/mutation",
+  "hive/quality",
+  "hive/ci"
+] as const satisfies readonly VisualHiveBundleObservation["owningAgentHint"][];
+
+const PLAYWRIGHT_REPAIR_OWNER_HINTS_BY_ISSUE_KIND = {
+  setup_needed: ["visual-hive/setup"],
+  map_drift: ["visual-hive/map"],
+  missing_visual_coverage: ["visual-hive/test-creator", "visual-hive/map"],
+  test_adequacy_gap: ["visual-hive/test-creator"],
+  weak_visual_test: ["visual-hive/test-maintainer"],
+  stale_baseline: ["visual-hive/test-maintainer"],
+  baseline_churn: ["visual-hive/test-maintainer"],
+  visual_regression: ["hive/quality"],
+  selector_contract_failure: ["visual-hive/test-maintainer"],
+  screenshot_diff: ["hive/quality", "visual-hive/test-maintainer"],
+  mutation_survivor: ["visual-hive/mutation"],
+  workflow_safety: ["hive/ci"],
+  provider_governance: ["hive/ci"],
+  protected_target_blocked: ["hive/ci"],
+  external_repo_onboarding: ["visual-hive/setup", "hive/quality"]
+} as const satisfies Record<VisualHiveBundleObservation["issueKind"], readonly VisualHiveBundleObservation["owningAgentHint"][]>;
 
 /** Strict JSON-boundary parser used by CLI and broker integrations. */
 export function parsePlaywrightRepairCaptureFinding(value: unknown): PlaywrightRepairCaptureFinding {
@@ -143,15 +171,20 @@ export function parsePlaywrightRepairCaptureFinding(value: unknown): PlaywrightR
   if (!/^[a-f0-9]{64}$/u.test(repositoryFingerprint)) throw new Error("Playwright repair capture finding repositoryFingerprint is invalid.");
   const firstSeenAt = requiredText(value.firstSeenAt, "firstSeenAt", 128);
   if (!/T/u.test(firstSeenAt) || Number.isNaN(Date.parse(firstSeenAt))) throw new Error("Playwright repair capture finding firstSeenAt is invalid.");
+  const issueKind = requiredEnum(value.issueKind, PLAYWRIGHT_REPAIR_ISSUE_KINDS, "issueKind");
+  const owningAgentHint = requiredEnum(value.owningAgentHint, PLAYWRIGHT_REPAIR_OWNER_HINTS, "owningAgentHint");
+  if (!(PLAYWRIGHT_REPAIR_OWNER_HINTS_BY_ISSUE_KIND[issueKind] as readonly string[]).includes(owningAgentHint)) {
+    throw new Error(`Playwright repair capture finding has an unsupported issue kind and owner hint pair: ${issueKind} + ${owningAgentHint}.`);
+  }
   return {
     fingerprint: requiredText(value.fingerprint, "fingerprint", 512),
     repositoryFingerprint,
     publicationRole,
     rootCauseKey,
     blockedByRootKeys: requiredTextArray(value.blockedByRootKeys, "blockedByRootKeys", 512, 512),
-    issueKind: requiredEnum(value.issueKind, PLAYWRIGHT_REPAIR_ISSUE_KINDS, "issueKind"),
+    issueKind,
     severity: requiredEnum(value.severity, ["low", "medium", "high", "critical"] as const, "severity"),
-    owningAgentHint: requiredText(value.owningAgentHint, "owningAgentHint", 128),
+    owningAgentHint,
     title: requiredText(value.title, "title", 512),
     body: requiredText(value.body, "body", 60_000),
     labels: requiredTextArray(value.labels, "labels", 50, 512),
@@ -771,6 +804,7 @@ async function executeCapture(
   await writeJsonExclusive(rootDir, metadataPath, metadata);
 
   const artifactPaths = sortedUnique([
+    ...options.finding.sourceArtifacts,
     reportPath,
     runContextPath,
     runtimeIdentityPath,

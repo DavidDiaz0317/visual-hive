@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { indexArtifacts } from "../src/artifacts/index.js";
+import { VISUAL_HIVE_OWNER_HINTS_BY_ISSUE_KIND, VISUAL_HIVE_PRODUCER_ISSUE_KINDS } from "../src/issues/producerContract.js";
 import {
   VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM,
   VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM,
@@ -46,6 +47,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 const temporaryRoots: string[] = [];
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const DEFAULT_OBSERVATION_ARTIFACTS = [".visual-hive/issues.json", ".visual-hive/report.json"] as const;
 
 afterEach(async () => {
   fsInterception.afterWrite = undefined;
@@ -58,6 +60,7 @@ describe("Visual Hive atomic bundle", () => {
   it("copies evidence, records content digests, and publishes by atomic rename", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeDefaultObservationEvidence(rootDir);
 
     const result = await writeVisualHiveBundle({
       rootDir,
@@ -66,7 +69,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       scan: {
         scope: "full",
@@ -103,8 +106,10 @@ describe("Visual Hive atomic bundle", () => {
       fingerprint: "visual-hive:test:app-shell",
       publicationRole: "canonical",
       rootCauseKey: "finding/visual_regression/app-shell",
-      blockedByRootKeys: []
+      blockedByRootKeys: [],
+      validationCommand: "visual-hive run --ci"
     });
+    expect(issue("open_candidate").validationCommand).toBe("npm run vh:run:ci");
     expect(JSON.parse(await readFile(path.join(rootDir, result.manifestPath), "utf8"))).toEqual(result.manifest);
     const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.bundle.schema.json"), "utf8"));
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
@@ -513,6 +518,7 @@ describe("Visual Hive atomic bundle", () => {
   it("rejects absent lifecycle observations from a non-authoritative scan", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeDefaultObservationEvidence(rootDir);
     await expect(writeVisualHiveBundle({
       rootDir,
       bundleId: "unsafe-resolution",
@@ -520,7 +526,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       scan: { scope: "changed-files", authoritativeForResolution: false },
       issues: [issue("resolved_candidate")],
@@ -532,6 +538,7 @@ describe("Visual Hive atomic bundle", () => {
   it("detects lifecycle metadata tampering", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeDefaultObservationEvidence(rootDir);
     const result = await writeVisualHiveBundle({
       rootDir,
       bundleId: "tamper-proof",
@@ -539,7 +546,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       scan: { scope: "partial" },
       issues: [issue("open_candidate")],
@@ -553,6 +560,7 @@ describe("Visual Hive atomic bundle", () => {
   it("binds publication metadata into the digest while retaining legacy v2 verification", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeDefaultObservationEvidence(rootDir);
     const result = await writeVisualHiveBundle({
       rootDir,
       bundleId: "publication-digest",
@@ -560,7 +568,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       issues: [issue("open_candidate")],
       producerVersion: "0.2.0",
@@ -605,6 +613,10 @@ describe("Visual Hive atomic bundle", () => {
   it("uses length-prefixed array boundaries for publication, evidence, and scan metadata", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeArtifact(rootDir, ".visual-hive/issues.json", { schemaVersion: "visual-hive.issues.v1", issues: [] });
+    for (const artifact of [".visual-hive/a", ".visual-hive/b,c", ".visual-hive/a,b", ".visual-hive/c"]) {
+      await writeArtifact(rootDir, artifact, { artifact });
+    }
     const result = await writeVisualHiveBundle({
       rootDir,
       bundleId: "array-boundaries",
@@ -612,7 +624,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ".visual-hive/issues.json", ".visual-hive/a", ".visual-hive/b,c", ".visual-hive/a,b", ".visual-hive/c"],
       source: source(),
       scan: {
         scope: "partial",
@@ -626,7 +638,7 @@ describe("Visual Hive atomic bundle", () => {
         blockedByRootKeys: ["a", "b,c"],
         issueKind: "external_repo_onboarding",
         labels: ["a", "b,c"],
-        sourceArtifacts: ["a", "b,c"],
+        sourceArtifacts: [".visual-hive/a", ".visual-hive/b,c"],
         affectedContracts: ["a", "b,c"]
       })],
       producerVersion: "0.3.0",
@@ -637,7 +649,7 @@ describe("Visual Hive atomic bundle", () => {
     const collisionMutations: Array<(manifest: typeof result.manifest) => void> = [
       (manifest) => { manifest.observations[0]!.blockedByRootKeys = ["a,b", "c"]; },
       (manifest) => { manifest.observations[0]!.labels = ["a,b", "c"]; },
-      (manifest) => { manifest.observations[0]!.sourceArtifacts = ["a,b", "c"]; },
+      (manifest) => { manifest.observations[0]!.sourceArtifacts = [".visual-hive/a,b", ".visual-hive/c"]; },
       (manifest) => { manifest.observations[0]!.affectedContracts = ["a,b", "c"]; },
       (manifest) => { manifest.scan.evaluatedContracts = ["a,b", "c"]; },
       (manifest) => { manifest.scan.evaluatedFiles = ["a,b", "c"]; }
@@ -654,6 +666,7 @@ describe("Visual Hive atomic bundle", () => {
     const astral = "\u{10000}";
     const privateUse = "\uE000";
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", []);
+    await writeDefaultObservationEvidence(rootDir);
     const result = await writeVisualHiveBundle({
       rootDir,
       bundleId: "unicode-vector",
@@ -661,7 +674,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "full",
       verdict: "ready",
       acmmRequest: 4,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       scan: {
         scope: "full",
@@ -675,7 +688,7 @@ describe("Visual Hive atomic bundle", () => {
         fingerprint: "unicode-observation",
         rootCauseKey: "finding/visual_regression/unicode",
         labels: [astral, privateUse],
-        sourceArtifacts: [`evidence/${astral}.json`, `evidence/${privateUse}.json`],
+        sourceArtifacts: [".visual-hive/report.json"],
         affectedContracts: [astral, privateUse]
       })],
       producerVersion: "0.3.0",
@@ -687,9 +700,9 @@ describe("Visual Hive atomic bundle", () => {
     expect(result.manifest.scan.evaluatedContracts).toEqual([privateUse, astral]);
     expect(result.manifest.scan.evaluatedFiles).toEqual([`src/${privateUse}.ts`, `src/${astral}.ts`]);
     expect(result.manifest.observations[0]?.labels).toEqual([privateUse, astral]);
-    expect(result.manifest.observations[0]?.sourceArtifacts).toEqual([`evidence/${privateUse}.json`, `evidence/${astral}.json`]);
+    expect(result.manifest.observations[0]?.sourceArtifacts).toEqual([".visual-hive/report.json"]);
     expect(result.manifest.observations[0]?.affectedContracts).toEqual([privateUse, astral]);
-    expect(result.manifest.overallDigest).toBe("78434b490e7c50f03550c1d9a5bf2eb1a5042a4bbd56b73d070d2b97b4943f38");
+    expect(result.manifest.overallDigest).toBe("5c79b50aff104b5a5db6d26ee528dbfbe39411ad08adb01c4c3a1d2f75803d2b");
     expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);
   });
 
@@ -745,11 +758,13 @@ describe("Visual Hive atomic bundle", () => {
   it("normalizes unmatched derivative and aggregate references without hiding them", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    await writeDefaultObservationEvidence(rootDir);
     const derivative = observation({
       fingerprint: "visual-hive:derivative:one",
       publicationRole: "derivative",
       rootCauseKey: "mutation/api-500/localPreview/dashboard-shell",
-      issueKind: "missing_visual_coverage"
+      issueKind: "missing_visual_coverage",
+      owningAgentHint: "visual-hive/test-creator"
     });
     const aggregate = observation({
       fingerprint: "visual-hive:aggregate:one",
@@ -765,7 +780,7 @@ describe("Visual Hive atomic bundle", () => {
       mode: "measured",
       verdict: "ready",
       acmmRequest: 3,
-      artifacts: [".visual-hive/hive/beads.json"],
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
       observations: [aggregate, derivative],
       producerVersion: "0.2.0",
@@ -824,6 +839,182 @@ describe("Visual Hive atomic bundle", () => {
         observation({ fingerprint: "canonical-two", publicationRole: "canonical", rootCauseKey: duplicateRoot })
       ]
     })).rejects.toThrow("Duplicate lifecycle observation");
+  });
+
+  it("emits a schema-valid evidence packet for every deterministic producer route", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.bundle.schema.json"), "utf8"));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    const routes = VISUAL_HIVE_PRODUCER_ISSUE_KINDS.flatMap((issueKind) =>
+      VISUAL_HIVE_OWNER_HINTS_BY_ISSUE_KIND[issueKind].map((owningAgentHint) => ({ issueKind, owningAgentHint }))
+    );
+    await writeArtifact(rootDir, ".visual-hive/issues.json", {
+      schemaVersion: "visual-hive.issues.v1",
+      producerRoutes: routes
+    });
+    await writeArtifact(rootDir, ".visual-hive/report.json", {
+      schemaVersion: 2,
+      status: "failed",
+      results: [{ contractId: "app-shell", status: "failed", evidence: "producer route proof" }]
+    });
+    const artifactIndex = await prepareBundleEvidence({ rootDir, project: "producer-routing" });
+    const result = await writeVisualHiveBundleV3({
+      rootDir,
+      bundleId: "producer-routes",
+      project: "producer-routing",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
+      observations: routes.map((route, index) => observation({
+        fingerprint: `visual-hive:producer-route:${index}`,
+        rootCauseKey: `finding/${route.issueKind}/producer-route-${index}`,
+        issueKind: route.issueKind,
+        owningAgentHint: route.owningAgentHint
+      })),
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    });
+
+    expect(validate(result.manifest), JSON.stringify(validate.errors, null, 2)).toBe(true);
+    expect(new Set(result.manifest.observations.map((item) => item.issueKind))).toEqual(new Set(VISUAL_HIVE_PRODUCER_ISSUE_KINDS));
+    for (const route of routes) {
+      const packet = result.manifest.observations.find((item) => item.issueKind === route.issueKind && item.owningAgentHint === route.owningAgentHint);
+      expect(packet).toMatchObject({
+        ...route,
+        sourceArtifact: ".visual-hive/issues.json",
+        sourceArtifacts: [".visual-hive/report.json"],
+        affectedContracts: ["app-shell"],
+        validationCommand: "npm test"
+      });
+    }
+    for (const evidencePath of DEFAULT_OBSERVATION_ARTIFACTS) {
+      const indexed = artifactIndex.artifacts.find((artifact) => artifact.path === evidencePath);
+      const bundled = result.manifest.files.find((file) => file.sourcePath === evidencePath);
+      expect(indexed).toBeTruthy();
+      expect(bundled).toMatchObject({
+        path: `files/${evidencePath}`,
+        sourcePath: evidencePath,
+        sha256: indexed!.sha256,
+        size: indexed!.bytes
+      });
+      expect(await readFile(path.join(rootDir, result.bundleDir, "files", ...evidencePath.split("/"))))
+        .toEqual(await readFile(path.join(rootDir, ...evidencePath.split("/"))));
+    }
+    expect(result.manifest.artifactIndex?.sha256).toBe(
+      result.manifest.files.find((file) => file.sourcePath === ".visual-hive/artifacts-index.json")?.sha256
+    );
+    expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);
+    const expandedAuthority = structuredClone(result.manifest);
+    expandedAuthority.observations.find((item) => item.issueKind === "workflow_safety")!.owningAgentHint = "hive/quality";
+    expect(validate(expandedAuthority)).toBe(false);
+    expect(verifyVisualHiveBundleDigest(expandedAuthority)).toBe(false);
+  });
+
+  it("bundles indexed repository evidence while rejecting an unindexed remediation target", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/repo-map.json", { schemaVersion: 1, project: "repo-evidence" });
+    await writeArtifact(rootDir, ".visual-hive/repo-context.md", { summary: "Repository evidence" });
+    await writeFile(path.join(rootDir, "visual-hive.config.yaml"), "project: repo-evidence\n", "utf8");
+    await prepareBundleEvidence({ rootDir, project: "repo-evidence" });
+
+    const base = {
+      rootDir,
+      project: "repo-evidence",
+      mode: "measured" as const,
+      verdict: "ready" as const,
+      acmmRequest: 3,
+      artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"],
+      source: source(),
+      producerVersion: "0.4.1",
+      producerGitCommit: "abc123"
+    };
+    await expect(writeVisualHiveBundleV3({
+      ...base,
+      bundleId: "unindexed-remediation-target",
+      artifacts: [...base.artifacts, "visual-hive.config.yaml"]
+    })).rejects.toThrow("Compact bundle artifact is missing from the complete content-addressed index: visual-hive.config.yaml");
+
+    const result = await writeVisualHiveBundleV3({ ...base, bundleId: "indexed-repo-evidence" });
+    expect(result.manifest.files.map((file) => file.sourcePath)).toEqual(expect.arrayContaining(base.artifacts));
+  });
+
+  it("fails v3 closed for missing, unrequested, or tampered observation evidence", async () => {
+    const base = (rootDir: string, bundleId: string, artifacts: string[]) => ({
+      rootDir,
+      bundleId,
+      project: "producer-routing",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts,
+      observations: [observation({})],
+      source: source(),
+      producerVersion: "0.3.0",
+      producerGitCommit: "abc123"
+    });
+
+    const missingRoot = await makeRoot();
+    await writeArtifact(missingRoot, ".visual-hive/issues.json", { schemaVersion: "visual-hive.issues.v1", issues: [] });
+    await prepareBundleEvidence({ rootDir: missingRoot, project: "producer-routing" });
+    await expect(writeVisualHiveBundleV3(base(missingRoot, "missing-observation-evidence", [...DEFAULT_OBSERVATION_ARTIFACTS])))
+      .rejects.toThrow("Compact bundle artifact is missing from the complete content-addressed index: .visual-hive/report.json");
+
+    const unrequestedRoot = await makeRoot();
+    await writeDefaultObservationEvidence(unrequestedRoot);
+    await prepareBundleEvidence({ rootDir: unrequestedRoot, project: "producer-routing" });
+    await expect(writeVisualHiveBundleV3(base(unrequestedRoot, "unrequested-observation-evidence", [".visual-hive/issues.json"])))
+      .rejects.toThrow("observation evidence must be explicitly requested: .visual-hive/report.json");
+
+    const tamperedRoot = await makeRoot();
+    await writeDefaultObservationEvidence(tamperedRoot);
+    await prepareBundleEvidence({ rootDir: tamperedRoot, project: "producer-routing" });
+    await writeArtifact(tamperedRoot, ".visual-hive/report.json", { schemaVersion: 2, status: "tampered" });
+    await expect(writeVisualHiveBundleV3(base(tamperedRoot, "tampered-observation-evidence", [...DEFAULT_OBSERVATION_ARTIFACTS])))
+      .rejects.toThrow("Content-addressed artifact index is stale for .visual-hive/report.json");
+  });
+
+  it("rejects owner-hint authority expansion and unknown or unproven kinds", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/hive/beads.json", { schemaVersion: "visual-hive.hive-beads.v1", beads: [] });
+    const base = {
+      rootDir,
+      project: "producer-routing",
+      mode: "measured",
+      verdict: "ready",
+      acmmRequest: 3,
+      artifacts: [".visual-hive/hive/beads.json"],
+      source: source(),
+      producerVersion: "0.2.0",
+      producerGitCommit: "abc123"
+    };
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "mismatched-owner",
+      observations: [observation({ issueKind: "workflow_safety", owningAgentHint: "hive/quality" })]
+    })).rejects.toThrow("Unsupported Visual Hive issue kind and owner hint pair");
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "authority-owner",
+      observations: [observation({ issueKind: "mutation_survivor", owningAgentHint: "hive/architect" })]
+    })).rejects.toThrow("Unsupported Visual Hive issue kind and owner hint pair");
+
+    for (const issueKind of ["ci_failure", "security_finding", "architecture_finding", "unknown_future_kind"]) {
+      await expect(writeVisualHiveBundle({
+        ...base,
+        bundleId: `unproven-${issueKind}`,
+        observations: [observation({ issueKind, owningAgentHint: "hive/ci" })]
+      })).rejects.toThrow("Unknown lifecycle observation issue kind");
+    }
+
+    await expect(writeVisualHiveBundle({
+      ...base,
+      bundleId: "missing-evidence",
+      observations: [observation({ sourceArtifacts: [] })]
+    })).rejects.toThrow("requires at least one evidence artifact");
   });
 
   it("binds requested authority and verdict metadata into the aggregate digest", async () => {
@@ -1045,6 +1236,11 @@ async function writeArtifact(root: string, relative: string, value: unknown): Pr
   const target = path.join(root, relative);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+async function writeDefaultObservationEvidence(root: string): Promise<void> {
+  await writeArtifact(root, ".visual-hive/issues.json", { schemaVersion: "visual-hive.issues.v1", issues: [] });
+  await writeArtifact(root, ".visual-hive/report.json", { schemaVersion: 2, status: "failed", results: [] });
 }
 
 function source() {

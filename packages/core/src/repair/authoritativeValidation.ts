@@ -1,6 +1,7 @@
 import { TextDecoder } from "node:util";
 import { z } from "zod";
 import { verifyVisualHiveBundleDigest, visualHiveObservationRepositoryFingerprint, type VisualHiveBundleManifest } from "../hive/bundle.js";
+import { VISUAL_HIVE_PRODUCER_ISSUE_KINDS, VISUAL_HIVE_PRODUCER_OWNER_HINTS, isVisualHiveProducerRoute } from "../issues/producerContract.js";
 import { inspectVisualImageBytes } from "./assets.js";
 import { buildVisualRepairValidation, parseVisualHiveTaskContext } from "./build.js";
 import { canonicalJson, canonicalSha256, sha256Bytes, stableTextCompare } from "./canonical.js";
@@ -78,23 +79,27 @@ const BundleObservationSchema = z.object({
   rootCauseKey: z.string().trim().min(1).max(2048),
   blockedByRootKeys: z.array(z.string().trim().min(1).max(2048)).max(512),
   state: z.enum(["present", "absent"]),
-  issueKind: z.enum([
-    "setup_needed", "map_drift", "missing_visual_coverage", "test_adequacy_gap", "weak_visual_test", "stale_baseline",
-    "baseline_churn", "visual_regression", "selector_contract_failure", "screenshot_diff", "mutation_survivor",
-    "workflow_safety", "provider_governance", "protected_target_blocked", "external_repo_onboarding"
-  ]),
+  issueKind: z.enum(VISUAL_HIVE_PRODUCER_ISSUE_KINDS),
   severity: z.enum(["low", "medium", "high", "critical"]),
-  owningAgentHint: z.string().trim().min(1).max(512),
+  owningAgentHint: z.enum(VISUAL_HIVE_PRODUCER_OWNER_HINTS),
   title: TextSchema,
   body: TextSchema,
   labels: z.array(z.string().trim().min(1).max(512)).max(128),
-  sourceArtifacts: z.array(RelativeArtifactPathSchema).max(512),
+  sourceArtifacts: z.array(RelativeArtifactPathSchema).min(1).max(512),
   affectedContracts: z.array(BoundedIdSchema).max(512),
   validationCommand: TextSchema,
   observedAt: TimestampSchema,
   firstSeenAt: TimestampSchema,
   sourceArtifact: RelativeArtifactPathSchema
-}).strict();
+}).strict().superRefine((observation, context) => {
+  if (!isVisualHiveProducerRoute(observation.issueKind, observation.owningAgentHint)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["owningAgentHint"],
+      message: `Unsupported Visual Hive issue kind and owner hint pair: ${observation.issueKind} + ${observation.owningAgentHint}`
+    });
+  }
+});
 
 const BundleManifestSchema = z.object({
   schemaVersion: z.literal("visual-hive.bundle.v2"),

@@ -4,7 +4,14 @@ import { lstat, mkdir, open, readdir, realpath, rename, rm, writeFile } from "no
 import path from "node:path";
 import type { ArtifactIndexEntry, ArtifactIndexReport } from "../artifacts/index.js";
 import type { CapabilityParityReport } from "../capabilities/types.js";
-import type { VisualHiveIssueCandidate, VisualHiveIssueKind, VisualHiveIssueSeverity, VisualHivePublicationRole } from "../issues/types.js";
+import { isVisualHiveProducerIssueKind, isVisualHiveProducerRoute } from "../issues/producerContract.js";
+import {
+  type VisualHiveIssueCandidate,
+  type VisualHiveIssueKind,
+  type VisualHiveIssueSeverity,
+  type VisualHiveOwningAgentHint,
+  type VisualHivePublicationRole
+} from "../issues/types.js";
 
 export const VISUAL_HIVE_BUNDLE_DIGEST_ALGORITHM = "visual-hive.bundle.publication-digest.v1" as const;
 export const VISUAL_HIVE_BUNDLE_V3_DIGEST_ALGORITHM = "visual-hive.bundle.content-addressed-digest.v1" as const;
@@ -61,7 +68,7 @@ export interface VisualHiveBundleObservation {
   state: "present" | "absent";
   issueKind: VisualHiveIssueKind;
   severity: VisualHiveIssueSeverity;
-  owningAgentHint: string;
+  owningAgentHint: VisualHiveOwningAgentHint;
   title: string;
   body: string;
   labels: string[];
@@ -276,6 +283,9 @@ export async function writeVisualHiveBundle(options: WriteVisualHiveBundleOption
       options.observations ?? observationsFromIssues(options.issues ?? [], source.repository, generatedAt, options.issuesArtifact),
       source.repository
     );
+    if (bundleEvidence) {
+      validateV3ObservationEvidence(observations, callerSuppliedArtifacts, bundleEvidence.indexedArtifacts, files);
+    }
     if (!scan.authoritativeForResolution && observations.some((observation) => observation.state === "absent")) {
       throw new Error("Absent lifecycle observations require an authoritative Visual Hive scan.");
     }
@@ -432,6 +442,7 @@ function verifyV3BundleDigest(manifest: VisualHiveBundleManifest): boolean {
   if (manifest.replayProtection.key !== v3ReplayKey(manifest.source, manifest.bundleId)) return false;
   if (!validArtifactIndexBinding(manifest.artifactIndex, manifest.files)) return false;
   if (!validCapabilityParityBinding(manifest.capabilityParity, manifest.files)) return false;
+  if (!validV3ObservationEvidenceBindings(manifest.observations, manifest.files)) return false;
   const digest = digestV3BundleContent(
     manifest.files,
     manifest.scan,
@@ -1087,6 +1098,62 @@ function requiredBundleFile(files: VisualHiveBundleFile[], sourcePath: string, d
   return file;
 }
 
+function validateV3ObservationEvidence(
+  observations: VisualHiveBundleObservation[],
+  requestedArtifacts: Set<string>,
+  indexedArtifacts: Map<string, ArtifactIndexEntry>,
+  files: VisualHiveBundleFile[]
+): void {
+  for (const observation of observations) {
+    for (const evidencePath of uniqueSorted([observation.sourceArtifact, ...observation.sourceArtifacts])) {
+      if (!requestedArtifacts.has(evidencePath)) {
+        throw new Error(`Visual Hive bundle v3 observation evidence must be explicitly requested: ${evidencePath}`);
+      }
+      const indexed = indexedArtifacts.get(evidencePath);
+      if (!indexed) {
+        throw new Error(`Visual Hive bundle v3 observation evidence is missing from the complete content-addressed index: ${evidencePath}`);
+      }
+      const matches = files.filter((file) => file.sourcePath === evidencePath);
+      if (matches.length !== 1) {
+        throw new Error(`Visual Hive bundle v3 observation evidence must have exactly one compact file record: ${evidencePath}`);
+      }
+      const bundled = matches[0]!;
+      if (bundled.path !== `files/${evidencePath}` || bundled.sha256 !== indexed.sha256 || bundled.size !== indexed.bytes) {
+        throw new Error(`Visual Hive bundle v3 observation evidence does not match its indexed digest: ${evidencePath}`);
+      }
+    }
+  }
+}
+
+function validV3ObservationEvidenceBindings(
+  observations: VisualHiveBundleObservation[],
+  files: VisualHiveBundleFile[]
+): boolean {
+  const filesBySourcePath = new Map<string, VisualHiveBundleFile[]>();
+  try {
+    for (const file of files) {
+      const sourcePath = normalizeRelativeArtifactPath(file.sourcePath);
+      const existing = filesBySourcePath.get(sourcePath) ?? [];
+      existing.push(file);
+      filesBySourcePath.set(sourcePath, existing);
+    }
+    for (const observation of observations) {
+      for (const evidencePath of uniqueSorted([observation.sourceArtifact, ...observation.sourceArtifacts])) {
+        const matches = filesBySourcePath.get(evidencePath);
+        if (matches?.length !== 1) return false;
+        const file = matches[0]!;
+        if (file.sourcePath !== evidencePath
+          || file.path !== `files/${evidencePath}`
+          || file.size <= 0
+          || !/^[a-f0-9]{64}$/.test(file.sha256)) return false;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 function validArtifactIndexBinding(binding: VisualHiveBundleArtifactIndexBinding, files: VisualHiveBundleFile[]): boolean {
   return binding.schemaVersion === 1
     && binding.contentAddressed === true
@@ -1532,7 +1599,11 @@ function observationsFromIssues(
       labels: uniqueText(issue.labels),
       sourceArtifacts: uniqueText(issue.sourceArtifacts.map(normalizeRelativeArtifactPath)),
       affectedContracts: uniqueText(issue.affected.map((affected) => affected.contractId).filter((value): value is string => Boolean(value))),
-      validationCommand: issue.validationCommand,
+      // Hive executes repository commands only from its installed argv and
+      // obtains the authoritative Visual Hive result from the managed PR-head
+      // workflow. Keep the issue's granular command in its evidence/body, but
+      // bind lifecycle repair validation to that audited exact-head seam.
+      validationCommand: "visual-hive run --ci",
       observedAt,
       firstSeenAt: observedAt,
       sourceArtifact
@@ -1566,6 +1637,11 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
     if (digestFields.some((value) => value.includes("\0"))) throw new Error("Lifecycle observations cannot contain NUL delimiters.");
     if (observation.state !== "present" && observation.state !== "absent") throw new Error(`Invalid lifecycle observation state: ${observation.state}`);
     validatePublicationRoleForIssueKind(observation.issueKind, publication.publicationRole);
+    if (!isVisualHiveProducerRoute(observation.issueKind, observation.owningAgentHint)) {
+      throw new Error(`Unsupported Visual Hive issue kind and owner hint pair: ${String(observation.issueKind)} + ${String(observation.owningAgentHint)}`);
+    }
+    const sourceArtifacts = uniqueText(observation.sourceArtifacts.map(normalizeRelativeArtifactPath));
+    if (sourceArtifacts.length === 0) throw new Error(`Lifecycle observation ${observation.fingerprint} requires at least one evidence artifact.`);
     const expectedRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(
       repository,
       observation.fingerprint.trim(),
@@ -1580,11 +1656,11 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
       ...publication,
       fingerprint: observation.fingerprint.trim().slice(0, 512),
       issueKind: observation.issueKind,
-      owningAgentHint: observation.owningAgentHint.trim().slice(0, 128),
+      owningAgentHint: observation.owningAgentHint,
       title: observation.title.trim().slice(0, 512),
       body: observation.body.trim().slice(0, 60_000),
       labels: uniqueText(observation.labels).slice(0, 50),
-      sourceArtifacts: uniqueText(observation.sourceArtifacts.map(normalizeRelativeArtifactPath)),
+      sourceArtifacts,
       affectedContracts: uniqueText(observation.affectedContracts),
       validationCommand: observation.validationCommand.trim().slice(0, 2048),
       sourceArtifact: normalizeRelativeArtifactPath(observation.sourceArtifact)
@@ -1640,24 +1716,7 @@ function cleanRootCauseKey(value: string, fingerprint: string): string {
 }
 
 function validatePublicationRoleForIssueKind(issueKind: VisualHiveIssueKind, publicationRole: VisualHivePublicationRole): void {
-  const knownIssueKinds: VisualHiveIssueKind[] = [
-    "setup_needed",
-    "map_drift",
-    "missing_visual_coverage",
-    "test_adequacy_gap",
-    "weak_visual_test",
-    "stale_baseline",
-    "baseline_churn",
-    "visual_regression",
-    "selector_contract_failure",
-    "screenshot_diff",
-    "mutation_survivor",
-    "workflow_safety",
-    "provider_governance",
-    "protected_target_blocked",
-    "external_repo_onboarding"
-  ];
-  if (!knownIssueKinds.includes(issueKind)) throw new Error(`Unknown lifecycle observation issue kind: ${String(issueKind)}`);
+  if (!isVisualHiveProducerIssueKind(issueKind)) throw new Error(`Unknown lifecycle observation issue kind: ${String(issueKind)}`);
   if (publicationRole === "derivative" && !["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"].includes(issueKind)) {
     throw new Error(`Issue kind ${issueKind} cannot be a derivative lifecycle observation.`);
   }

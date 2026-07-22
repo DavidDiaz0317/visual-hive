@@ -7,6 +7,7 @@ import { writeVisualGraphArtifacts } from "../graph/build.js";
 import type { RepoMapReport } from "../repo/types.js";
 import { TestCreationPlanV2Schema, type TestCreationRecommendation } from "../testCreation/types.js";
 import { VISUAL_HIVE_STANDALONE_LIFECYCLE } from "./lifecycle.js";
+import { isVisualHiveProducerRoute } from "./producerContract.js";
 import type { VisualHiveIssueCandidate, VisualHiveIssueQueue, VisualHiveIssuesReport, VisualHiveIssueSuppression, VisualHiveLifecyclePolicy, VisualHiveSetupIssue } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
@@ -513,13 +514,14 @@ function issuesFromCoverage(
   });
   for (const finding of maintenance.slice(0, 12)) {
     const root = mutationRootForCoverageRecord(finding, finding, publication);
+    const issueKind = maintenanceKind(readString(finding, "kind"));
     issues.push(
       baseIssue({
-        issueKind: maintenanceKind(readString(finding, "kind")),
+        issueKind,
         severity: severityFromString(readString(finding, "severity"), "medium"),
         title: `[Visual Hive] Maintain visual test: ${readString(finding, "title") ?? readString(finding, "kind") ?? "maintenance finding"}`,
         labels: ["visual-hive/agent-test-maintainer"],
-        owningAgentHint: "visual-hive/test-maintainer",
+        owningAgentHint: issueKind === "missing_visual_coverage" ? "visual-hive/test-creator" : "visual-hive/test-maintainer",
         sourceArtifacts: [sourceArtifacts.coverageRecommendations ?? ".visual-hive/coverage-recommendations.json"],
         affected: [{ contractId: readString(finding, "contractId"), route: readString(finding, "route"), viewport: readString(finding, "viewport") }],
         validationCommand: "visual-hive improve-coverage && visual-hive issues --write",
@@ -1028,6 +1030,9 @@ function baseIssue(input: Omit<VisualHiveIssueCandidate, "status" | "dedupeFinge
   rootCauseKey?: string;
   blockedByRootKeys?: string[];
 }): VisualHiveIssueCandidate {
+  if (!isVisualHiveProducerRoute(input.issueKind, input.owningAgentHint)) {
+    throw new Error(`Unsupported Visual Hive issue kind and owner hint pair: ${input.issueKind} + ${input.owningAgentHint}`);
+  }
   const labels = dedupe([...DEFAULT_LABELS, ...agentLabels(input.owningAgentHint), ...(input.labels ?? []), input.issueKind.replaceAll("_", "-")]);
   const publication = normalizePublicationMetadata({
     publicationRole: input.publicationRole ?? "canonical",

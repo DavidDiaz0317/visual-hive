@@ -73,6 +73,9 @@ export async function runPlaywrightContracts(options: RunPlaywrightOptions): Pro
   const targetLifecycle: TargetLifecycleEvent[] = [];
   const startedAt = Date.now();
   const limits = processLimits(options);
+  if (options.runtimeSidecarPath) {
+    await assertNewRuntimeSidecarPath(options.rootDir, options.runtimeSidecarPath);
+  }
   let spec: Awaited<ReturnType<typeof generatePlaywrightSpec>> | undefined;
   let executionBinding: PreparedExecutionBinding | undefined;
   let playwrightResult: { stdout: string; stderr: string; exitCode: number } | undefined;
@@ -287,6 +290,9 @@ async function prepareBoundExecution(options: RunPlaywrightOptions, executionPla
   } else {
     await removeGeneratedResults(path.join(artifactRoot, "results"));
   }
+  if (runtimePath) {
+    await assertNewRuntimeSidecarPath(rootDir, runtimePath);
+  }
   const spec = await generatePlaywrightSpec({ ...options, plan: executionPlan, outputDir: generatedRoot });
   const generatedSpecSha256 = sha256(Buffer.from(spec.content, "utf8"));
   const generatedConfigSha256 = sha256(Buffer.from(spec.configContent, "utf8"));
@@ -369,6 +375,38 @@ async function createExclusiveContainedDirectory(rootDir: string, candidate: str
   const resolved = await realpath(absolute);
   if (!created.isDirectory() || created.isSymbolicLink() || !samePath(resolved, absolute)) throw new Error(`Playwright ${label} creation was redirected.`);
   containedOutputPath(root, resolved, label);
+}
+
+export async function assertNewRuntimeSidecarPath(rootDir: string, candidate: string): Promise<void> {
+  const root = await realpath(path.resolve(rootDir));
+  const absolute = containedOutputPath(root, candidate, "runtime sidecar");
+  const relativeParent = path.relative(root, path.dirname(absolute));
+  let current = root;
+  for (const segment of relativeParent.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    let entry;
+    try {
+      entry = await lstat(current);
+    } catch (error) {
+      if (isMissingPathError(error)) return;
+      throw error;
+    }
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error("Playwright runtime sidecar parent contains a linked or non-directory entry.");
+    }
+    const resolved = await realpath(current);
+    if (!samePath(resolved, current)) {
+      throw new Error("Playwright runtime sidecar parent was redirected through a junction or link.");
+    }
+    containedOutputPath(root, resolved, "runtime sidecar parent");
+  }
+  try {
+    await lstat(absolute);
+  } catch (error) {
+    if (isMissingPathError(error)) return;
+    throw error;
+  }
+  throw new Error("Playwright runtime sidecar destination already exists; use a new proof transaction path.");
 }
 
 function samePath(left: string, right: string): boolean {
@@ -458,6 +496,10 @@ export async function buildReportFromPlaywrightOutput(input: {
   targetStartupErrors: Map<string, string>;
   mutationBatch?: boolean;
 }): Promise<Report> {
+  const canonicalRootDir = await realpath(path.resolve(input.rootDir));
+  const generatedSpecAbsolute = path.isAbsolute(input.generatedSpecPath)
+    ? path.resolve(input.generatedSpecPath)
+    : path.resolve(canonicalRootDir, input.generatedSpecPath);
   if (!input.mutationBatch && !input.executionError) {
     await waitForStructuredContractResults(
       input.rootDir,
@@ -467,7 +509,7 @@ export async function buildReportFromPlaywrightOutput(input: {
       input.deadlineAtMs
     );
   }
-  const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, input.generatedSpecPath);
+  const artifacts = await collectArtifacts(input.rootDir, input.config.visual.artifactDir, generatedSpecAbsolute);
   const expectedStructuredTargets = new Map(input.plan.items.filter((item) => !input.targetStartupErrors.has(item.targetId)).map((item) => [item.contractId, item.targetId]));
   const structuredResultList = await readStructuredContractResults(
     input.rootDir,
@@ -603,7 +645,7 @@ export async function buildReportFromPlaywrightOutput(input: {
     selectedContracts: input.plan.items.map((item) => item.contractId),
     excludedContracts: input.plan.excluded,
     targetLifecycle: input.targetLifecycle,
-    generatedSpecPath: input.generatedSpecPath,
+    generatedSpecPath: relativeOutputPath(canonicalRootDir, generatedSpecAbsolute),
     executionBinding: input.executionBinding,
     results,
     summary,

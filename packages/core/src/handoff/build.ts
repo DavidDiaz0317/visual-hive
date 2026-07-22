@@ -438,7 +438,7 @@ function workItemForRepoCoverageGap(gap: NonNullable<EvidencePacket["repoIntelli
     title: `Close repo intelligence gap: ${gap.id}`,
     summary: gap.message,
     evidenceKeys: [`repo_coverage_gap.${gap.id}`],
-    artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md", gap.suggestedArtifact],
+    artifacts: [".visual-hive/repo-map.json", ".visual-hive/repo-context.md"],
     suggestedNextSteps: [
       `Review ${gap.suggestedArtifact}.`,
       "Add or normalize deterministic evidence for the affected testing layer.",

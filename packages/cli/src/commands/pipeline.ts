@@ -68,6 +68,7 @@ export interface PipelineCommandOptions {
   githubStepSummary?: boolean;
   skipInstall?: boolean;
   skipBuild?: boolean;
+  runtimeSidecar?: string;
   capabilityCli?: CliCapability[];
 }
 
@@ -223,7 +224,8 @@ export async function runPipelineCommand(options: PipelineCommandOptions = {}): 
       cwd,
       ci: options.ci,
       skipInstall: options.skipInstall || options.bootstrapBaselines,
-      skipBuild: options.skipBuild || options.bootstrapBaselines
+      skipBuild: options.skipBuild || options.bootstrapBaselines,
+      runtimeSidecar: options.runtimeSidecar
     });
     await updateNoContractIntent(context);
     context.deterministicExitCode = Math.max(context.deterministicExitCode, exitCode);

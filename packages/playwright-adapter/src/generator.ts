@@ -155,9 +155,9 @@ let exclusiveEvidenceWrites = false;
 
 // ---- Contract execution ----
 test.describe("visual-hive generated deterministic contracts", () => {
-  test.beforeAll(async ({ browser, browserName }) => {
+  test.beforeAll(async ({ browser, browserName }, workerInfo) => {
     const executionBinding = await verifyExecutionBinding();
-    if (!runtimeSidecarPath) return;
+    if (!runtimeSidecarPath || workerInfo.workerIndex !== workerInfo.parallelIndex) return;
     const page = await browser.newPage();
     try {
       const browserRuntime = await page.evaluate(() => {
@@ -194,7 +194,8 @@ test.describe("visual-hive generated deterministic contracts", () => {
           null,
           2
         ) + "\\n",
-        "utf8"
+        "utf8",
+        true
       );
     } finally {
       await page.close();
@@ -465,6 +466,7 @@ async function compareScreenshot(page, contractId, shot, artifacts, activeMutati
   const actual = await page.screenshot({
     fullPage: shot.fullPage ?? true,
     animations: "disabled",
+    caret: "initial",
     mask
   });
   artifacts.push(artifactReference(actualPath));
@@ -929,7 +931,7 @@ function sameAbsolutePath(left, right) {
   return normalize(left) === normalize(right);
 }
 
-async function writeEvidenceFileExclusive(filePath, data, encoding) {
+async function writeEvidenceFileExclusive(filePath, data, encoding, forceExclusive = false) {
   if (!evidenceRoot) {
     await writeFile(filePath, data, encoding);
     return;
@@ -958,7 +960,7 @@ async function writeEvidenceFileExclusive(filePath, data, encoding) {
   if (relativeCanonicalParent === ".." || relativeCanonicalParent.startsWith(".." + path.sep) || path.isAbsolute(relativeCanonicalParent)) throw new Error("Visual Hive evidence parent resolved outside its bound root.");
   const noFollowFlag = process.platform === "win32" ? 0 : (constants.O_NOFOLLOW || 0);
   let handle;
-  if (exclusiveEvidenceWrites) {
+  if (exclusiveEvidenceWrites || forceExclusive) {
     handle = await open(absolute, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | noFollowFlag, 0o600);
   } else {
     try {

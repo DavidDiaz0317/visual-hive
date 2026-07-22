@@ -89,6 +89,32 @@ describe("root-cause publication metadata", () => {
     expect(secondKeys).toEqual(firstKeys);
   });
 
+  it("routes missing maintenance evidence as coverage creation instead of fabricating a maintainer pair", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/coverage-recommendations.json", {
+      recommendations: [],
+      maintenanceFindings: [{
+        id: "missing-mobile-viewport",
+        kind: "missing_mobile_viewport",
+        severity: "high",
+        title: "Add the missing mobile viewport",
+        contractId: "checkout"
+      }]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "producer-routing" });
+    expect(result.report.issues).toHaveLength(1);
+    expect(result.report.issues[0]).toMatchObject({
+      issueKind: "missing_visual_coverage",
+      owningAgentHint: "visual-hive/test-creator",
+      sourceArtifacts: [".visual-hive/coverage-recommendations.json"]
+    });
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.issues.schema.json"), "utf8"));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    expect(validate(result.report), JSON.stringify(validate.errors, null, 2)).toBe(true);
+  });
+
   it("orders Unicode mutation identity segments by UTF-8 bytes", async () => {
     const rootDir = await makeRoot();
     await writeArtifact(rootDir, ".visual-hive/mutation-report.json", mutationReport([
@@ -152,6 +178,18 @@ describe("root-cause publication metadata", () => {
     expect(canonical[0]?.body).toContain("Add API failure coverage for route /b.");
     expect(canonical[0]?.body).toContain("npm test -- route-a");
     expect(canonical[0]?.body).toContain("npm test -- route-b");
+    await writeArtifact(rootDir, ".visual-hive/evidence/route-a.json", { route: "/a", detected: false });
+    await writeArtifact(rootDir, ".visual-hive/evidence/route-b.json", { route: "/b", detected: false });
+    await writeArtifact(rootDir, ".visual-hive/coverage.json", {
+      schemaVersion: 1,
+      project: "coalesced-mutation",
+      gaps: [{ contractId: "dashboard-shell", mutationOperator: "api-500" }]
+    });
+    await writeArtifact(rootDir, ".visual-hive/issues.json", report.report);
+    const observationArtifacts = [
+      ".visual-hive/issues.json",
+      ...new Set(report.report.issues.flatMap((issue) => issue.sourceArtifacts))
+    ];
     await prepareBundleEvidence(rootDir, "coalesced-mutation");
 
     const bundle = await writeVisualHiveBundle({
@@ -161,7 +199,7 @@ describe("root-cause publication metadata", () => {
       mode: "full",
       verdict: "blocked",
       acmmRequest: 4,
-      artifacts: [".visual-hive/mutation-report.json"],
+      artifacts: observationArtifacts,
       source: {
         repository: "owner/coalesced-mutation",
         ref: "refs/heads/main",
@@ -175,6 +213,7 @@ describe("root-cause publication metadata", () => {
       },
       scan: { scope: "full", authoritativeForResolution: true },
       issues: report.report.issues,
+      issuesArtifact: ".visual-hive/issues.json",
       producerVersion: "0.3.0",
       producerGitCommit: "abc123"
     });
