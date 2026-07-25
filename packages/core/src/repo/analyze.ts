@@ -85,7 +85,11 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
   const testTools = detectTestTools(dependencyNames, scripts, sourceFiles, testFiles, testRunners);
   const targetHints = targetHintsFor({ scripts, frameworks, workflows });
   const riskSignals = await riskSignalsFor({ repoRoot, scripts, selectors, routes, workflows, testTools, testFiles, testRunners, runtimeScopes });
-  const coverageGaps = coverageGapsFor({ selectors, routes, workflows, testTools, testFiles, testRunners, runtimeScopes, riskSignals });
+  const storybookGaps = await storybookDiscoveryGaps(repoRoot, sourceFiles);
+  const coverageGaps = [
+    ...coverageGapsFor({ selectors, routes, workflows, testTools, testFiles, testRunners, runtimeScopes, riskSignals }),
+    ...storybookGaps
+  ];
   const config = await readVisualHiveConfig(repoRoot);
   const previousVisualMap = await readPreviousVisualMap(repoRoot);
   const visualMap = await buildVisualMap({
@@ -2603,6 +2607,155 @@ function coverageGapsFor(input: {
   if (!input.selectors.length) gaps.push(gap("selector-contracts", 6, "high", "No stable selectors were found for user-visible contracts.", "visual-hive.config.yaml"));
   if (!input.routes.length) gaps.push(gap("route-coverage", 6, "medium", "No route hints were found for route-level visual contracts.", "visual-hive.config.yaml"));
   return gaps;
+}
+
+async function storybookDiscoveryGaps(repoRoot: string, sourceFiles: string[]): Promise<RepoCoverageGap[]> {
+  const storyFiles = sourceFiles
+    .map((filePath) => repoRelative(repoRoot, filePath))
+    .filter(isStorybookStoryFile)
+    .sort(utf8Compare);
+  if (storyFiles.length === 0) return [];
+
+  const configFiles = sourceFiles
+    .map((filePath) => repoRelative(repoRoot, filePath))
+    .filter((relativePath) => /(?:^|\/)\.storybook\/main\.[cm]?[jt]sx?$/iu.test(relativePath))
+    .sort(utf8Compare);
+  const staticConfigs: Array<{ path: string; patterns: string[] }> = [];
+  for (const configPath of configFiles) {
+    const patterns = staticStorybookPatterns(await safeRead(path.join(repoRoot, ...configPath.split("/"))));
+    if (!patterns) continue;
+    staticConfigs.push({ path: configPath, patterns: patterns.map((pattern) => normalizeStorybookPattern(configPath, pattern)) });
+  }
+  if (staticConfigs.length === 0) return [];
+
+  const gaps: RepoCoverageGap[] = [];
+  for (const storyFile of storyFiles) {
+    if (staticConfigs.some((config) => matchesOrderedGlobs(storyFile, config.patterns))) continue;
+    const configPaths = staticConfigs.map((config) => config.path);
+    gaps.push(gap(
+      `storybook-discovery:${storyFile}`,
+      3,
+      "medium",
+      `Storybook story "${storyFile}" is outside the statically configured discovery patterns in ${configPaths.join(", ")}.`,
+      configPaths[0]!
+    ));
+  }
+  return gaps;
+}
+
+function isStorybookStoryFile(relativePath: string): boolean {
+  return /(?:^|\/)[^/]+\.(?:stories|story)\.[cm]?[jt]sx?$/iu.test(relativePath);
+}
+
+function normalizeStorybookPattern(configPath: string, rawPattern: string): string {
+  const negated = rawPattern.startsWith("!");
+  const pattern = negated ? rawPattern.slice(1) : rawPattern;
+  const normalized = path.posix.normalize(path.posix.join(path.posix.dirname(configPath), pattern.replaceAll("\\", "/")));
+  return `${negated ? "!" : ""}${normalized}`;
+}
+
+function matchesOrderedGlobs(relativePath: string, patterns: string[]): boolean {
+  let included = false;
+  for (const rawPattern of patterns) {
+    const negated = rawPattern.startsWith("!");
+    const pattern = negated ? rawPattern.slice(1) : rawPattern;
+    if (pattern && minimatch(relativePath, pattern, { dot: true })) included = !negated;
+  }
+  return included;
+}
+
+function staticStorybookPatterns(source: string): string[] | undefined {
+  let cursor = staticStorybookArrayStart(source);
+  if (cursor === undefined) return undefined;
+
+  const patterns: string[] = [];
+  while (cursor < source.length) {
+    cursor = skipJavaScriptSpaceAndComments(source, cursor);
+    if (source[cursor] === "]") return patterns;
+    const quote = source[cursor];
+    if (quote !== "'" && quote !== "\"" && quote !== "`") return undefined;
+    const parsed = readStaticJavaScriptString(source, cursor, quote);
+    if (!parsed || parsed.value.includes("${")) return undefined;
+    patterns.push(parsed.value);
+    cursor = skipJavaScriptSpaceAndComments(source, parsed.end);
+    if (source[cursor] === "]") return patterns;
+    if (source[cursor] !== ",") return undefined;
+    cursor += 1;
+  }
+  return undefined;
+}
+
+function staticStorybookArrayStart(source: string): number | undefined {
+  let cursor = 0;
+  while (cursor < source.length) {
+    const next = skipJavaScriptSpaceAndComments(source, cursor);
+    if (next !== cursor) {
+      cursor = next;
+      continue;
+    }
+    const quote = source[cursor];
+    if (quote === "'" || quote === "\"" || quote === "`") {
+      const parsed = readStaticJavaScriptString(source, cursor, quote);
+      if (!parsed) return undefined;
+      cursor = parsed.end;
+      continue;
+    }
+    if (/[A-Za-z_$]/u.test(source[cursor]!)) {
+      const start = cursor;
+      cursor += 1;
+      while (cursor < source.length && /[A-Za-z0-9_$]/u.test(source[cursor]!)) cursor += 1;
+      if (source.slice(start, cursor) !== "stories") continue;
+      cursor = skipJavaScriptSpaceAndComments(source, cursor);
+      if (source[cursor] !== ":") continue;
+      cursor = skipJavaScriptSpaceAndComments(source, cursor + 1);
+      if (source[cursor] === "[") return cursor + 1;
+      continue;
+    }
+    cursor += 1;
+  }
+  return undefined;
+}
+
+function skipJavaScriptSpaceAndComments(source: string, start: number): number {
+  let cursor = start;
+  while (cursor < source.length) {
+    if (/\s/u.test(source[cursor]!)) {
+      cursor += 1;
+      continue;
+    }
+    if (source.startsWith("//", cursor)) {
+      const newline = source.indexOf("\n", cursor + 2);
+      return newline === -1 ? source.length : skipJavaScriptSpaceAndComments(source, newline + 1);
+    }
+    if (source.startsWith("/*", cursor)) {
+      const end = source.indexOf("*/", cursor + 2);
+      return end === -1 ? source.length : skipJavaScriptSpaceAndComments(source, end + 2);
+    }
+    break;
+  }
+  return cursor;
+}
+
+function readStaticJavaScriptString(
+  source: string,
+  start: number,
+  quote: "'" | "\"" | "`"
+): { value: string; end: number } | undefined {
+  let value = "";
+  for (let cursor = start + 1; cursor < source.length; cursor += 1) {
+    const character = source[cursor]!;
+    if (character === quote) return { value, end: cursor + 1 };
+    if (character === "\n" || character === "\r") return undefined;
+    if (character === "\\") {
+      const next = source[cursor + 1];
+      if (next === undefined || next === "\n" || next === "\r") return undefined;
+      value += next;
+      cursor += 1;
+      continue;
+    }
+    value += character;
+  }
+  return undefined;
 }
 
 function recommendationsFor(input: {

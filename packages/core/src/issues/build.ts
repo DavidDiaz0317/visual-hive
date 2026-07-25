@@ -550,7 +550,12 @@ function issuesFromRepoMap(
     return baseIssue({
       issueKind: readString(gap, "kind")?.includes("map") ? "map_drift" : "missing_visual_coverage",
       severity: severityFromString(readString(gap, "severity"), "medium"),
-      title: `[Visual Hive] Repo map finding: ${readString(gap, "title") ?? readString(gap, "kind") ?? "coverage gap"}`,
+      title: `[Visual Hive] Repo map finding: ${
+        readString(gap, "title")
+        ?? readString(gap, "kind")
+        ?? (readString(gap, "id")?.startsWith("storybook-discovery:") ? readString(gap, "id") : undefined)
+        ?? "coverage gap"
+      }`,
       labels: ["map-drift"],
       owningAgentHint: "visual-hive/map",
       sourceArtifacts: [sourceArtifacts.repoMap ?? ".visual-hive/repo-map.json"],

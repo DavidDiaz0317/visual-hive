@@ -1068,6 +1068,57 @@ describe("schema catalog", () => {
 });
 
 describe("repo intelligence", () => {
+  it("reports statically provable Storybook stories outside configured discovery without guessing dynamic configs", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-storybook-discovery-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".storybook"), { recursive: true });
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "package.json"),
+      JSON.stringify({
+        name: "storybook-discovery-fixture",
+        scripts: { storybook: "storybook dev", "build-storybook": "storybook build" },
+        devDependencies: { "@storybook/react-vite": "^9.0.0", storybook: "^9.0.0" }
+      }),
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, ".storybook", "main.ts"),
+      `export default {
+  // stories: ["../ignored/**/*.stories.tsx"],
+  note: "stories: ['../ignored/**/*.stories.tsx']",
+  stories: [
+    "../src/**/*.stories.@(ts|tsx)",
+    "!../src/Excluded.stories.tsx"
+  ]
+};`,
+      "utf8"
+    );
+    await writeFile(path.join(tempRoot, "src", "Included.stories.tsx"), "export default { title: 'Included' };", "utf8");
+    await writeFile(path.join(tempRoot, "src", "Excluded.stories.tsx"), "export default { title: 'Excluded' };", "utf8");
+    await writeFile(path.join(tempRoot, ".storybook", "Missing.stories.tsx"), "export default { title: 'Missing' };", "utf8");
+
+    const report = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-07-25T00:00:00.000Z") });
+    const storybookGapIds = report.coverageGaps.filter((gap) => gap.id.startsWith("storybook-discovery:")).map((gap) => gap.id);
+    expect(storybookGapIds).toEqual([
+      "storybook-discovery:.storybook/Missing.stories.tsx",
+      "storybook-discovery:src/Excluded.stories.tsx"
+    ]);
+    expect(report.coverageGaps.find((gap) => gap.id === "storybook-discovery:.storybook/Missing.stories.tsx")).toMatchObject({
+      layer: 3,
+      severity: "medium",
+      suggestedArtifact: ".storybook/main.ts"
+    });
+
+    await writeRepoMap({ repoRoot: tempRoot, now: new Date("2026-07-25T00:01:00.000Z") });
+    const issues = await buildIssuesReport({ rootDir: tempRoot, project: "storybook-discovery-fixture" });
+    expect(issues.report.issues.some((issue) => issue.title.includes("storybook-discovery:.storybook/Missing.stories.tsx"))).toBe(true);
+
+    await writeFile(path.join(tempRoot, ".storybook", "main.ts"), "export default { stories: getStories() };", "utf8");
+    const dynamic = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-07-25T00:02:00.000Z") });
+    expect(dynamic.coverageGaps.some((gap) => gap.id.startsWith("storybook-discovery:"))).toBe(false);
+  });
+
   it("maps repo scripts, selectors, routes, workflows, target hints, and coverage gaps", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-map-"));
     tempDirs.push(tempRoot);
