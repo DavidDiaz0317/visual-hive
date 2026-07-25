@@ -60,6 +60,141 @@ describe("root-cause publication metadata", () => {
     expect(validate(result.report), JSON.stringify(validate.errors, null, 2)).toBe(true);
   });
 
+  it("publishes deterministic contracts as roots and defers their handoff, readiness, and provider echoes", async () => {
+    const rootDir = await makeRoot();
+    await writeArtifact(rootDir, ".visual-hive/report.json", {
+      project: "contract-publication",
+      status: "failed",
+      results: [
+        {
+          contractId: "component-lab-storybook",
+          targetId: "componentLibrary",
+          status: "failed",
+          errors: ["Required accessible text is missing."],
+          selectorAssertions: [{ status: "failed", value: "text=API outage" }],
+          screenshotAssertions: [],
+          reproductionCommand: "visual-hive run --contract component-lab-storybook"
+        },
+        {
+          contractId: "guarded-repair-policy",
+          targetId: "localPreview",
+          status: "failed",
+          errors: ["Expected operator review text."],
+          selectorAssertions: [{ status: "failed", value: "text=Human review" }],
+          screenshotAssertions: [],
+          reproductionCommand: "visual-hive run --contract guarded-repair-policy"
+        }
+      ]
+    });
+    await writeArtifact(rootDir, ".visual-hive/triage.json", {
+      findings: [{
+        classification: "provider_failure",
+        severity: "high",
+        title: "Provider Playwright built-in reported failed",
+        evidence: ["Built-in Playwright deterministic run failed."],
+        contractIds: []
+      }]
+    });
+    await writeArtifact(rootDir, ".visual-hive/evidence-packet.json", {
+      providers: [{
+        providerId: "playwright",
+        status: "failed",
+        message: "Built-in Playwright deterministic run failed."
+      }]
+    });
+    await writeArtifact(rootDir, ".visual-hive/repo-map.json", {
+      coverageGaps: [
+        {
+          id: "storybook-discovery:.storybook/QualificationMissing.stories.tsx",
+          severity: "medium",
+          description: "A Storybook story exists outside the configured discovery globs."
+        },
+        {
+          id: "generic-coverage-advisory",
+          severity: "low",
+          description: "A separate advisory remains independently actionable."
+        }
+      ],
+      mapFindings: []
+    });
+    await writeArtifact(rootDir, ".visual-hive/readiness.json", {
+      status: "blocked",
+      blockedReasons: [],
+      warnings: [],
+      gates: [{ id: "deterministic:status", category: "deterministic", status: "blocked" }]
+    });
+    await writeArtifact(rootDir, ".visual-hive/handoff.json", {
+      workItems: [
+        {
+          id: "playwright.contract_result.component-lab-storybook",
+          kind: "repair",
+          priority: "high",
+          title: "Repair component-lab-storybook: contract_result",
+          summary: "The Storybook contract failed.",
+          artifacts: [".visual-hive/report.json"]
+        },
+        {
+          id: "playwright.contract_result.guarded-repair-policy",
+          kind: "repair",
+          priority: "high",
+          title: "Repair guarded-repair-policy: contract_result",
+          summary: "The guarded repair contract failed.",
+          artifacts: [".visual-hive/report.json"]
+        },
+        {
+          id: "playwright.deterministic_run",
+          kind: "repair",
+          priority: "high",
+          title: "Review playwright.deterministic_run",
+          summary: "The deterministic run failed.",
+          artifacts: [".visual-hive/report.json"]
+        },
+        {
+          id: "readiness.readiness_gate",
+          kind: "setup",
+          priority: "high",
+          title: "Review readiness.readiness_gate",
+          summary: "Readiness is blocked.",
+          artifacts: [".visual-hive/readiness.json"]
+        }
+      ]
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "contract-publication" });
+    const contractRoots = [
+      "contract/componentLibrary/component-lab-storybook",
+      "contract/localPreview/guarded-repair-policy"
+    ];
+
+    expect(result.report.issues.filter((issue) => issue.publicationRole === "canonical" && issue.rootCauseKey.startsWith("contract/"))
+      .map((issue) => issue.rootCauseKey).sort()).toEqual(contractRoots);
+    expect(result.report.issues.find((issue) => issue.title.includes("Repair component-lab-storybook"))).toMatchObject({
+      publicationRole: "derivative",
+      rootCauseKey: contractRoots[0],
+      blockedByRootKeys: []
+    });
+    expect(result.report.issues.find((issue) => issue.title.includes("Repair guarded-repair-policy"))).toMatchObject({
+      publicationRole: "derivative",
+      rootCauseKey: contractRoots[1],
+      blockedByRootKeys: []
+    });
+    for (const titleFragment of ["playwright.deterministic_run", "readiness.readiness_gate", "Provider Playwright", "Provider governance"]) {
+      expect(result.report.issues.find((issue) => issue.title.includes(titleFragment))).toMatchObject({
+        publicationRole: "aggregate",
+        blockedByRootKeys: contractRoots
+      });
+    }
+    const discovery = result.report.issues.find((issue) => issue.title.includes("storybook-discovery:"));
+    const unrelated = result.report.issues.find((issue) => issue.body.includes("separate advisory"));
+    expect(discovery).toMatchObject({ publicationRole: "canonical", issueKind: "missing_visual_coverage" });
+    expect(unrelated).toMatchObject({ publicationRole: "canonical", issueKind: "missing_visual_coverage" });
+    expect(discovery?.rootCauseKey).not.toBe(unrelated?.rootCauseKey);
+
+    const schema = JSON.parse(await readFile(path.join(repoRoot, "schemas/visual-hive.issues.schema.json"), "utf8"));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    expect(validate(result.report), JSON.stringify(validate.errors, null, 2)).toBe(true);
+  });
+
   it("keeps operators, targets, and sorted contract sets distinct and order-stable", async () => {
     const firstRoot = await makeRoot();
     const secondRoot = await makeRoot();
