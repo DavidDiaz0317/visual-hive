@@ -6063,7 +6063,7 @@ export const Alert = {};
     expect(recommendation.recommendedContracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       targetId: "componentLibrary",
-      selectors: ["body"]
+      selectors: ["#storybook-root"]
     });
     expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual([
       "storybook-dashboard-banner-alert-visual-stability",
@@ -6072,8 +6072,13 @@ export const Alert = {};
     expect(parsedYaml.contracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       target: "componentLibrary",
-      selectors: { mustExist: ["body"] }
+      selectors: { mustExist: ["#storybook-root"] },
+      waitFor: [{ selector: "#storybook-root", state: "visible" }],
+      steps: [{ action: "assertVisible", selector: "#storybook-root", state: "visible" }]
     });
+    expect(analyzeReadiness(parsedYaml).gates).not.toContainEqual(
+      expect.objectContaining({ id: "setup:body-only-selector", status: "blocked" })
+    );
     expect(parsedYaml.contracts[0]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
       "/iframe.html?id=dashboard-banner--alert&viewMode=story",
       "/iframe.html?id=dashboard-banner--alert&viewMode=story"
@@ -6196,7 +6201,7 @@ export const Icon2XL = {};
     );
     expect(recommendation.recommendedContracts[0]).toMatchObject({
       id: "storybook-ui-accessiblestatus-icon-2-xl-visual-stability",
-      selectors: ["body"],
+      selectors: ["#storybook-root"],
       screenshots: expect.arrayContaining([
         expect.objectContaining({ route: "/iframe.html?id=ui-accessiblestatus--icon-2-xl&viewMode=story" })
       ])
@@ -6208,7 +6213,7 @@ export const Icon2XL = {};
       stories: ["web/src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
       components: ["web/src/components/**"]
     });
-    expect(parsedYaml.contracts[0]?.selectors.mustExist).toEqual(["body"]);
+    expect(parsedYaml.contracts[0]?.selectors.mustExist).toEqual(["#storybook-root"]);
     expect(recommendation.recommendedContracts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
