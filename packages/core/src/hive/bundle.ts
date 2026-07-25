@@ -1720,7 +1720,7 @@ function validatePublicationRoleForIssueKind(issueKind: VisualHiveIssueKind, pub
   if (publicationRole === "derivative" && !["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"].includes(issueKind)) {
     throw new Error(`Issue kind ${issueKind} cannot be a derivative lifecycle observation.`);
   }
-  if (publicationRole === "aggregate" && issueKind !== "external_repo_onboarding") {
+  if (publicationRole === "aggregate" && !["external_repo_onboarding", "provider_governance"].includes(issueKind)) {
     throw new Error(`Issue kind ${issueKind} cannot be an aggregate lifecycle observation.`);
   }
 }

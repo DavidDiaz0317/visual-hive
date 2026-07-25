@@ -773,6 +773,14 @@ describe("Visual Hive atomic bundle", () => {
       blockedByRootKeys: ["test-adequacy/repository/testing-layer:2", "mutation/api-500/localPreview/dashboard-shell", "mutation/api-500/localPreview/dashboard-shell"],
       issueKind: "external_repo_onboarding"
     });
+    const providerAggregate = observation({
+      fingerprint: "visual-hive:aggregate:provider",
+      publicationRole: "aggregate",
+      rootCauseKey: "aggregate/provider/playwright",
+      blockedByRootKeys: ["contract/componentLibrary/component-lab-storybook"],
+      issueKind: "provider_governance",
+      owningAgentHint: "hive/ci"
+    });
     const result = await writeVisualHiveBundle({
       rootDir,
       bundleId: "unmatched-links",
@@ -782,7 +790,7 @@ describe("Visual Hive atomic bundle", () => {
       acmmRequest: 3,
       artifacts: [".visual-hive/hive/beads.json", ...DEFAULT_OBSERVATION_ARTIFACTS],
       source: source(),
-      observations: [aggregate, derivative],
+      observations: [providerAggregate, aggregate, derivative],
       producerVersion: "0.2.0",
       producerGitCommit: "abc123"
     });
@@ -793,6 +801,7 @@ describe("Visual Hive atomic bundle", () => {
     ]);
     expect(result.manifest.observations.map((item) => item.fingerprint).sort()).toEqual([
       "visual-hive:aggregate:one",
+      "visual-hive:aggregate:provider",
       "visual-hive:derivative:one"
     ]);
     expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);

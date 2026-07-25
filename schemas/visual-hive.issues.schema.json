@@ -147,7 +147,7 @@
           "if": { "properties": { "publicationRole": { "const": "aggregate" } }, "required": ["publicationRole"] },
           "then": {
             "properties": {
-              "issueKind": { "const": "external_repo_onboarding" },
+              "issueKind": { "enum": ["external_repo_onboarding", "provider_governance"] },
               "blockedByRootKeys": { "minItems": 1 }
             }
           }
