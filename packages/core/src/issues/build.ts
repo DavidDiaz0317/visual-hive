@@ -120,7 +120,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
   const testCreationAutomation = testCreationAutomationView(testCreationPlan);
   const publication = buildPublicationContext(report, mutationReport, testCreationAutomation, readiness);
   const current = [
-    ...issuesFromReport(report, sourceArtifacts, publication),
+    ...issuesFromReport(report, repoMap, sourceArtifacts, publication),
     ...issuesFromMutation(mutationReport, sourceArtifacts, publication),
     ...issuesFromTriage(triage, sourceArtifacts, publication),
     ...issuesFromCoverage(coverage, coverageRecommendations, sourceArtifacts, publication),
@@ -128,7 +128,7 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
     ...issuesFromWorkflows(workflows, sourceArtifacts),
     ...issuesFromReadiness(readiness, sourceArtifacts),
     ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts, publication),
-    ...issuesFromHandoff(handoff, sourceArtifacts, publication),
+    ...issuesFromHandoff(handoff, repoMap, sourceArtifacts, publication),
     ...issuesFromTestCreation(testCreationAutomation, repoMap, sourceArtifacts, publication)
   ];
 
@@ -328,6 +328,7 @@ export function renderIssuesMarkdown(report: VisualHiveIssuesReport): string {
 
 function issuesFromReport(
   report: Report | undefined,
+  repoMap: JsonObject | undefined,
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
@@ -346,6 +347,7 @@ function issuesFromReport(
       owningAgentHint: hasSelectorFailure ? "visual-hive/test-maintainer" : "hive/quality",
       sourceArtifacts: [sourceArtifacts.report ?? ".visual-hive/report.json"],
       affected: [
+        ...sourceFilesForContract(repoMap, result.contractId).map((sourceFile) => ({ sourceFile })),
         {
           contractId: result.contractId,
           targetId: result.targetId,
@@ -466,7 +468,8 @@ function mutationSurfaceSortKey(surface: VisualHiveIssueCandidate["affected"][nu
     surface.targetId ?? "",
     surface.route ?? "",
     surface.component ?? "",
-    surface.viewport ?? ""
+    surface.viewport ?? "",
+    surface.sourceFile ?? ""
   ]);
 }
 
@@ -585,7 +588,12 @@ function issuesFromRepoMap(
       labels: ["map-drift"],
       owningAgentHint: "visual-hive/map",
       sourceArtifacts: [sourceArtifacts.repoMap ?? ".visual-hive/repo-map.json"],
-      affected: [{ route: readString(gap, "route"), component: readString(gap, "component"), selector: readString(gap, "selector") }],
+      affected: [{
+        route: readString(gap, "route"),
+        component: readString(gap, "component"),
+        selector: readString(gap, "selector"),
+        sourceFile: readString(gap, "suggestedArtifact")
+      }],
       validationCommand: "visual-hive analyze --repo . && visual-hive issues --write",
       bodySummary: readString(gap, "description") ?? JSON.stringify(gap).slice(0, 800),
       ...(testRoot ? derivativePublication(testRoot.rootCauseKey) : {})
@@ -668,6 +676,7 @@ function providerIssueStatus(provider: JsonObject): "failed" | "missing_credenti
 
 function issuesFromHandoff(
   handoff: JsonObject | undefined,
+  repoMap: JsonObject | undefined,
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
@@ -697,7 +706,12 @@ function issuesFromHandoff(
         labels: ["visual-hive/ready"],
         owningAgentHint: readString(item, "kind") === "test_creation" ? "visual-hive/test-creator" : "hive/quality",
         sourceArtifacts: [sourceArtifacts.handoff ?? ".visual-hive/handoff.json", ...readStringArray(item.artifacts)],
-        affected: contractId ? [{ contractId }] : [],
+        affected: contractId
+          ? [
+              ...sourceFilesForContract(repoMap, contractId).map((sourceFile) => ({ sourceFile })),
+              { contractId }
+            ]
+          : [],
         validationCommand: "visual-hive handoff-validate && visual-hive issues --write",
         bodySummary: readString(item, "summary") ?? JSON.stringify(item).slice(0, 800),
         ...publicationMetadata
@@ -1494,6 +1508,26 @@ function readNumber(value: unknown, key: string): number | undefined {
 
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => sanitizeText(entry)) : [];
+}
+
+function sourceFilesForContract(repoMap: JsonObject | undefined, contractId: string): string[] {
+  const visualMap = objectValue(repoMap, "visualMap");
+  return stableUnique(
+    arrayOfObjects(visualMap?.nodes)
+      .filter((node) => readStringArray(node.contractIds).includes(contractId))
+      .flatMap((node) => readStringArray(node.sourceFiles))
+      .filter(isRepositorySourceFile)
+  );
+}
+
+function isRepositorySourceFile(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/");
+  return normalized === value &&
+    !normalized.startsWith("/") &&
+    !normalized.startsWith("./") &&
+    !normalized.startsWith("../") &&
+    !normalized.includes("/../") &&
+    normalized.length > 0;
 }
 
 function dedupe(values: Array<string | undefined>): string[] {

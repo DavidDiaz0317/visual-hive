@@ -36,6 +36,7 @@ export interface VisualHiveIssueAffectedSurface {
   selector?: string;
   viewport?: string;
   targetId?: string;
+  sourceFile?: string;
 }
 
 export interface VisualHiveIssueCandidate {

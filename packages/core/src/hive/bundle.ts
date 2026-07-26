@@ -74,6 +74,7 @@ export interface VisualHiveBundleObservation {
   labels: string[];
   sourceArtifacts: string[];
   affectedContracts: string[];
+  affectedFiles?: string[];
   validationCommand: string;
   observedAt: string;
   firstSeenAt: string;
@@ -867,6 +868,10 @@ function normalizeRelativeArtifactPath(value: string): string {
   return normalized;
 }
 
+function normalizeRepositoryFilePath(value: string): string {
+  return normalizeRelativeArtifactPath(value);
+}
+
 function safeBundleId(value: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value)) throw new Error(`Invalid Visual Hive bundle id: ${value}`);
   return value;
@@ -1257,6 +1262,7 @@ function digestLegacyBundleContent(
       observation.labels.join(","),
       observation.sourceArtifacts.join(","),
       observation.affectedContracts.join(","),
+      (observation.affectedFiles ?? []).join(","),
       observation.validationCommand,
       observation.observedAt,
       observation.firstSeenAt,
@@ -1327,6 +1333,7 @@ function digestPublicationBundleContent(
     array("labels", observation.labels),
     array("sourceArtifacts", observation.sourceArtifacts),
     array("affectedContracts", observation.affectedContracts),
+    array("affectedFiles", observation.affectedFiles ?? []),
     scalar("validationCommand", observation.validationCommand),
     scalar("observedAt", observation.observedAt),
     scalar("firstSeenAt", observation.firstSeenAt),
@@ -1401,6 +1408,7 @@ function digestV3BundleContent(
     array("labels", observation.labels),
     array("sourceArtifacts", observation.sourceArtifacts),
     array("affectedContracts", observation.affectedContracts),
+    array("affectedFiles", observation.affectedFiles ?? []),
     scalar("validationCommand", observation.validationCommand),
     scalar("observedAt", observation.observedAt),
     scalar("firstSeenAt", observation.firstSeenAt),
@@ -1599,6 +1607,7 @@ function observationsFromIssues(
       labels: uniqueText(issue.labels),
       sourceArtifacts: uniqueText(issue.sourceArtifacts.map(normalizeRelativeArtifactPath)),
       affectedContracts: uniqueText(issue.affected.map((affected) => affected.contractId).filter((value): value is string => Boolean(value))),
+      affectedFiles: uniqueText(issue.affected.map((affected) => affected.sourceFile).filter((value): value is string => Boolean(value)).map(normalizeRepositoryFilePath)),
       // Hive executes repository commands only from its installed argv and
       // obtains the authoritative Visual Hive result from the managed PR-head
       // workflow. Keep the issue's granular command in its evidence/body, but
@@ -1632,7 +1641,8 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
       ...publication.blockedByRootKeys,
       ...observation.labels,
       ...observation.sourceArtifacts,
-      ...observation.affectedContracts
+      ...observation.affectedContracts,
+      ...(observation.affectedFiles ?? [])
     ];
     if (digestFields.some((value) => value.includes("\0"))) throw new Error("Lifecycle observations cannot contain NUL delimiters.");
     if (observation.state !== "present" && observation.state !== "absent") throw new Error(`Invalid lifecycle observation state: ${observation.state}`);
@@ -1641,6 +1651,7 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
       throw new Error(`Unsupported Visual Hive issue kind and owner hint pair: ${String(observation.issueKind)} + ${String(observation.owningAgentHint)}`);
     }
     const sourceArtifacts = uniqueText(observation.sourceArtifacts.map(normalizeRelativeArtifactPath));
+    const affectedFiles = uniqueText((observation.affectedFiles ?? []).map(normalizeRepositoryFilePath));
     if (sourceArtifacts.length === 0) throw new Error(`Lifecycle observation ${observation.fingerprint} requires at least one evidence artifact.`);
     const expectedRepositoryFingerprint = visualHiveObservationRepositoryFingerprint(
       repository,
@@ -1662,6 +1673,7 @@ function sanitizeObservations(observations: VisualHiveBundleObservation[], repos
       labels: uniqueText(observation.labels).slice(0, 50),
       sourceArtifacts,
       affectedContracts: uniqueText(observation.affectedContracts),
+      affectedFiles,
       validationCommand: observation.validationCommand.trim().slice(0, 2048),
       sourceArtifact: normalizeRelativeArtifactPath(observation.sourceArtifact)
     };

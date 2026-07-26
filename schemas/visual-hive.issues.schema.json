@@ -118,7 +118,8 @@
               "contractId": { "type": "string" },
               "selector": { "type": "string" },
               "viewport": { "type": "string" },
-              "targetId": { "type": "string" }
+              "targetId": { "type": "string" },
+              "sourceFile": { "type": "string" }
             }
           }
         },

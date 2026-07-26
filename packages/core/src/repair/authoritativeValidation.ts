@@ -87,6 +87,7 @@ const BundleObservationSchema = z.object({
   labels: z.array(z.string().trim().min(1).max(512)).max(128),
   sourceArtifacts: z.array(RelativeArtifactPathSchema).min(1).max(512),
   affectedContracts: z.array(BoundedIdSchema).max(512),
+  affectedFiles: z.array(RelativeArtifactPathSchema).max(512).optional().default([]),
   validationCommand: TextSchema,
   observedAt: TimestampSchema,
   firstSeenAt: TimestampSchema,
