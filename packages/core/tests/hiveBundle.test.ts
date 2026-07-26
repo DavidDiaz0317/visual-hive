@@ -107,6 +107,7 @@ describe("Visual Hive atomic bundle", () => {
       publicationRole: "canonical",
       rootCauseKey: "finding/visual_regression/app-shell",
       blockedByRootKeys: [],
+      affectedFiles: ["src/App.tsx"],
       validationCommand: "visual-hive run --ci"
     });
     expect(issue("open_candidate").validationCommand).toBe("npm run vh:run:ci");
@@ -702,7 +703,7 @@ describe("Visual Hive atomic bundle", () => {
     expect(result.manifest.observations[0]?.labels).toEqual([privateUse, astral]);
     expect(result.manifest.observations[0]?.sourceArtifacts).toEqual([".visual-hive/report.json"]);
     expect(result.manifest.observations[0]?.affectedContracts).toEqual([privateUse, astral]);
-    expect(result.manifest.overallDigest).toBe("5c79b50aff104b5a5db6d26ee528dbfbe39411ad08adb01c4c3a1d2f75803d2b");
+    expect(result.manifest.overallDigest).toBe("4b193d85b22431f60e66d17f476b22bb995258bbc1894969b326a47be834cd69");
     expect(verifyVisualHiveBundleDigest(result.manifest)).toBe(true);
   });
 
@@ -1280,7 +1281,7 @@ function issue(status: "open_candidate" | "resolved_candidate") {
     body: "Evidence-backed regression",
     owningAgentHint: "hive/quality" as const,
     sourceArtifacts: [".visual-hive/report.json"],
-    affected: [{ contractId: "app-shell" }],
+    affected: [{ contractId: "app-shell", sourceFile: "src/App.tsx" }],
     validationCommand: "npm run vh:run:ci",
     guardrails: ["Do not update baselines automatically"]
   };
@@ -1329,6 +1330,7 @@ function legacyDigest(manifest: Record<string, any>): string {
     item.labels.join(","),
     item.sourceArtifacts.join(","),
     item.affectedContracts.join(","),
+    ...(item.affectedFiles ? [item.affectedFiles.join(",")] : []),
     item.validationCommand,
     item.observedAt,
     item.firstSeenAt,
@@ -1361,6 +1363,7 @@ function publicationDigestV2(manifest: Record<string, any>): string {
     testArray("labels", item.labels),
     testArray("sourceArtifacts", item.sourceArtifacts),
     testArray("affectedContracts", item.affectedContracts),
+    testArray("affectedFiles", item.affectedFiles ?? []),
     testScalar("validationCommand", item.validationCommand),
     testScalar("observedAt", item.observedAt),
     testScalar("firstSeenAt", item.firstSeenAt),

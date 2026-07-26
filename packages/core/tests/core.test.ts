@@ -1112,7 +1112,9 @@ describe("repo intelligence", () => {
 
     await writeRepoMap({ repoRoot: tempRoot, now: new Date("2026-07-25T00:01:00.000Z") });
     const issues = await buildIssuesReport({ rootDir: tempRoot, project: "storybook-discovery-fixture" });
-    expect(issues.report.issues.some((issue) => issue.title.includes("storybook-discovery:.storybook/Missing.stories.tsx"))).toBe(true);
+    const missingStoryIssue = issues.report.issues.find((issue) => issue.title.includes("storybook-discovery:.storybook/Missing.stories.tsx"));
+    expect(missingStoryIssue).toBeTruthy();
+    expect(missingStoryIssue?.affected).toContainEqual({ sourceFile: ".storybook/main.ts" });
 
     await writeFile(path.join(tempRoot, ".storybook", "main.ts"), "export default { stories: getStories() };", "utf8");
     const dynamic = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-07-25T00:02:00.000Z") });
@@ -9282,6 +9284,40 @@ function argosEnabledConfig(upload: Partial<VisualHiveConfig["providers"]["argos
 }
 
 describe("issue artifacts", () => {
+  it("binds failed contracts to exact repository files from the visual map", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-source-files-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(
+      path.join(rootDir, ".visual-hive", "report.json"),
+      reportFixture(
+        rootDir,
+        ".visual-hive/artifacts/screenshots/dashboard.png",
+        ".visual-hive/snapshots/dashboard.png"
+      )
+    );
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), {
+      project: "issue-source-files",
+      coverageGaps: [],
+      visualMap: {
+        nodes: [
+          {
+            id: "selector:dashboard",
+            kind: "selector",
+            contractIds: ["dashboard"],
+            sourceFiles: ["src/App.tsx"]
+          }
+        ]
+      }
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "issue-source-files" });
+    const issue = result.report.issues.find((candidate) => candidate.title.includes("dashboard failed deterministic validation"));
+
+    expect(issue?.affected).toContainEqual({ sourceFile: "src/App.tsx" });
+    expect(issue?.body).toContain("sourceFile=src/App.tsx");
+  });
+
   it("sanitizes issue artifact paths to repo-relative or redacted external paths", () => {
     const rootDir = "C:/Users/david/OneDrive/Documents/visual-hive-demo-site";
     expect(sanitizeArtifactPathForIssue(rootDir, "C:\\Users\\david\\OneDrive\\Documents\\visual-hive-demo-site\\.visual-hive\\artifacts\\screenshots\\home.png")).toBe(".visual-hive/artifacts/screenshots/home.png");

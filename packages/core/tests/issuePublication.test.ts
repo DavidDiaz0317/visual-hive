@@ -107,7 +107,8 @@ describe("root-cause publication metadata", () => {
         {
           id: "storybook-discovery:.storybook/QualificationMissing.stories.tsx",
           severity: "medium",
-          description: "A Storybook story exists outside the configured discovery globs."
+          description: "A Storybook story exists outside the configured discovery globs.",
+          suggestedArtifact: ".storybook/main.ts"
         },
         {
           id: "generic-coverage-advisory",
@@ -115,7 +116,13 @@ describe("root-cause publication metadata", () => {
           description: "A separate advisory remains independently actionable."
         }
       ],
-      mapFindings: []
+      mapFindings: [],
+      visualMap: {
+        nodes: [
+          { contractIds: ["component-lab-storybook"], sourceFiles: [".storybook/preview.ts"] },
+          { contractIds: ["guarded-repair-policy"], sourceFiles: ["src/App.tsx"] }
+        ]
+      }
     });
     await writeArtifact(rootDir, ".visual-hive/readiness.json", {
       status: "blocked",
@@ -171,12 +178,14 @@ describe("root-cause publication metadata", () => {
     expect(result.report.issues.find((issue) => issue.title.includes("Repair component-lab-storybook"))).toMatchObject({
       publicationRole: "derivative",
       rootCauseKey: contractRoots[0],
-      blockedByRootKeys: []
+      blockedByRootKeys: [],
+      affected: [{ sourceFile: ".storybook/preview.ts" }, { contractId: "component-lab-storybook" }]
     });
     expect(result.report.issues.find((issue) => issue.title.includes("Repair guarded-repair-policy"))).toMatchObject({
       publicationRole: "derivative",
       rootCauseKey: contractRoots[1],
-      blockedByRootKeys: []
+      blockedByRootKeys: [],
+      affected: [{ sourceFile: "src/App.tsx" }, { contractId: "guarded-repair-policy" }]
     });
     for (const titleFragment of ["playwright.deterministic_run", "readiness.readiness_gate", "Provider Playwright", "Provider governance"]) {
       expect(result.report.issues.find((issue) => issue.title.includes(titleFragment))).toMatchObject({
@@ -186,7 +195,11 @@ describe("root-cause publication metadata", () => {
     }
     const discovery = result.report.issues.find((issue) => issue.title.includes("storybook-discovery:"));
     const unrelated = result.report.issues.find((issue) => issue.body.includes("separate advisory"));
-    expect(discovery).toMatchObject({ publicationRole: "canonical", issueKind: "missing_visual_coverage" });
+    expect(discovery).toMatchObject({
+      publicationRole: "canonical",
+      issueKind: "missing_visual_coverage",
+      affected: [{ sourceFile: ".storybook/main.ts" }]
+    });
     expect(unrelated).toMatchObject({ publicationRole: "canonical", issueKind: "missing_visual_coverage" });
     expect(discovery?.rootCauseKey).not.toBe(unrelated?.rootCauseKey);
 

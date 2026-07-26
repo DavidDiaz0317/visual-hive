@@ -186,6 +186,7 @@ describe("trusted repair CLI operations", () => {
       labels: ["visual-hive"],
       sourceArtifacts: [],
       affectedContracts: ["contract.card"],
+      affectedFiles: ["src/Card.tsx"],
       affectedObligationIds: ["obligation.card"],
       affectedAssertions: [{ contractId: "contract.card", screenshotName: "card", route: "/", state: "default", viewportId: "desktop" }],
       firstSeenAt: "2026-07-14T15:00:00.000Z"
@@ -774,6 +775,7 @@ async function writeValidationRun(input: {
       labels: ["visual-hive"],
       sourceArtifacts: [reportPath, imagePath],
       affectedContracts: ["contract.card"],
+      affectedFiles: ["src/Card.tsx"],
       validationCommand: profile.validationCommandId,
       observedAt: generatedAt,
       firstSeenAt: "2026-07-14T15:00:00.000Z",
