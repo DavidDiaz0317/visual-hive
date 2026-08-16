@@ -18,6 +18,7 @@ import {
   verifyExportDirectory,
 } from "./proof-harness.mjs";
 import {
+  assertFrozenEvidenceDestination,
   copyOrdinaryEvidence,
   readVerifiedSourceEvidence,
   trustedGitCommandArgs,
@@ -490,7 +491,7 @@ test("evidence freezing exports asserted bytes and rejects a post-assertion sour
 
   const frozenOutput = path.join(root, "frozen-output");
   await mkdir(frozenOutput);
-  await copyOrdinaryEvidence(
+  const freeze = copyOrdinaryEvidence(
     {
       source,
       outputRelative: "visual-hive/report.json",
@@ -499,7 +500,12 @@ test("evidence freezing exports asserted bytes and rejects a post-assertion sour
     },
     frozenOutput,
   );
-  assert.deepEqual(await readFile(path.join(frozenOutput, "visual-hive/report.json")), asserted);
+  if (process.platform !== "win32" && process.getuid?.() !== 0) {
+    await assert.rejects(freeze, /requires a root writer/u);
+  } else {
+    await freeze;
+    assert.deepEqual(await readFile(path.join(frozenOutput, "visual-hive/report.json")), asserted);
+  }
 
   const sealedOutput = path.join(root, "sealed-output");
   await mkdir(sealedOutput);
@@ -514,6 +520,19 @@ test("evidence freezing exports asserted bytes and rejects a post-assertion sour
       sealedOutput,
     ),
     /changed after its sealed assertion/u,
+  );
+});
+
+test("frozen evidence metadata requires root ownership and rejects peer writes", () => {
+  assert.doesNotThrow(() => assertFrozenEvidenceDestination({ uid: 0, mode: 0o100644 }, "report.json"));
+  if (process.platform === "win32") return;
+  assert.throws(
+    () => assertFrozenEvidenceDestination({ uid: 1000, mode: 0o100644 }, "report.json"),
+    /not root-owned and non-writable/u,
+  );
+  assert.throws(
+    () => assertFrozenEvidenceDestination({ uid: 0, mode: 0o100664 }, "report.json"),
+    /not root-owned and non-writable/u,
   );
 });
 

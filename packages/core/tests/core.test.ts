@@ -3184,6 +3184,30 @@ jobs:
     expect(audit.findings.map((finding) => finding.kind)).not.toContain("missing_pull_request_trigger");
   });
 
+  it("does not infer pull_request semantics from a parent checkout directory", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: "C:\\checkout\\visual-hive-pr-candidate\\.github\\workflows\\product-proof.yml",
+        content: `name: Product Proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx visual-hive report --github-step-summary
+`
+      }
+    ]);
+
+    expect(audit.workflows[0]?.kind).toBe("scheduled");
+    expect(audit.summary.pullRequestWorkflows).toBe(0);
+    expect(audit.summary.scheduledWorkflows).toBe(1);
+    expect(audit.findings.map((finding) => finding.kind)).not.toContain("missing_pull_request_trigger");
+  });
+
   it("recognizes a safe trusted issue workflow with recursive artifact discovery and redaction", () => {
     const audit = auditWorkflows(sampleConfig(), [
       {

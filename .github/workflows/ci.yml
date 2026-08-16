@@ -22,6 +22,7 @@ jobs:
       - run: npm run smoke:release
       - run: npm run typecheck
       - run: npm test
+      - run: sudo -n env "PATH=$PATH" npm run test:proof-harness:root
       - run: npm run lint
       - run: npm run demo:e2e
       - run: npm run demo:ci
