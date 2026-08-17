@@ -117,6 +117,7 @@
           "labels": { "type": "array", "uniqueItems": true, "maxItems": 50, "items": { "type": "string", "minLength": 1 } },
           "sourceArtifacts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$" } },
           "affectedContracts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "affectedFiles": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
           "validationCommand": { "type": "string", "minLength": 1 },
           "observedAt": { "type": "string", "format": "date-time" },
           "firstSeenAt": { "type": "string", "format": "date-time" },
@@ -132,7 +133,7 @@
             "if": { "properties": { "publicationRole": { "const": "aggregate" } }, "required": ["publicationRole"] },
             "then": {
               "properties": {
-                "issueKind": { "const": "external_repo_onboarding" },
+                "issueKind": { "enum": ["external_repo_onboarding", "provider_governance"] },
                 "blockedByRootKeys": { "minItems": 1 }
               }
             }

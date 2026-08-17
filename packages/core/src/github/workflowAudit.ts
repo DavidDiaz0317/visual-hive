@@ -856,7 +856,8 @@ function classifyWorkflow(path: string, triggers: string[], content: string): Wo
 }
 
 function looksLikePullRequestWorkflowPath(lowerPath: string): boolean {
-  return /(^|[\\/_.-])(pr|pull-request|pull_request|pullrequest)([\\/_.-]|$)/i.test(lowerPath);
+  const workflowFileName = lowerPath.split(/[\\/]/u).at(-1) ?? lowerPath;
+  return /(^|[_.-])(pr|pull-request|pull_request|pullrequest)([_.-]|$)/i.test(workflowFileName);
 }
 
 function hasWritePermission(permissions: Record<string, string>): boolean {

@@ -831,6 +831,7 @@ async function createRepairFixture(options: { baseline: boolean }): Promise<Repa
     labels: ["visual-hive"],
     sourceArtifacts: [],
     affectedContracts: ["contract.card"],
+    affectedFiles: ["src/Card.tsx"],
     affectedObligationIds: ["obligation.card"],
     affectedAssertions: [{ contractId: "contract.card", screenshotName: "home", route: "/", state: "default", viewportId: "desktop" }],
     firstSeenAt: "2026-07-14T12:00:00.000Z"

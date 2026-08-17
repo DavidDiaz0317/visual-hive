@@ -84,14 +84,16 @@ export interface PlaywrightRepairProducerIdentity {
 
 export type PlaywrightRepairCaptureFinding = Omit<
   VisualHiveBundleObservation,
-  "state" | "observedAt" | "sourceArtifact" | "validationCommand"
+  "state" | "observedAt" | "sourceArtifact" | "validationCommand" | "affectedFiles"
 > & {
+  affectedFiles: string[];
   affectedObligationIds: string[];
   affectedAssertions: PlaywrightRepairCaptureAssertionIdentity[];
 };
 
 const PLAYWRIGHT_REPAIR_FINDING_KEYS = [
   "affectedContracts",
+  "affectedFiles",
   "affectedAssertions",
   "affectedObligationIds",
   "blockedByRootKeys",
@@ -190,6 +192,7 @@ export function parsePlaywrightRepairCaptureFinding(value: unknown): PlaywrightR
     labels: requiredTextArray(value.labels, "labels", 50, 512),
     sourceArtifacts: requiredTextArray(value.sourceArtifacts, "sourceArtifacts", 512, 1024).map((item) => RelativeArtifactPathSchema.parse(item)),
     affectedContracts: requiredTextArray(value.affectedContracts, "affectedContracts", 512, 256),
+    affectedFiles: requiredTextArray(value.affectedFiles, "affectedFiles", 512, 1024).map((item) => RelativeArtifactPathSchema.parse(item)),
     affectedObligationIds: requiredTextArray(value.affectedObligationIds, "affectedObligationIds", 256, 256),
     affectedAssertions: requiredAssertionIdentities(value.affectedAssertions),
     firstSeenAt

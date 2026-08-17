@@ -24,7 +24,14 @@ interface TestAdequacyPublicationRoot {
   layerId: number;
 }
 
+interface ContractFailurePublicationRoot {
+  rootCauseKey: string;
+  contractId: string;
+  targetId: string;
+}
+
 interface PublicationContext {
+  contractFailureRoots: ContractFailurePublicationRoot[];
   mutationRoots: MutationPublicationRoot[];
   testAdequacyRoots: TestAdequacyPublicationRoot[];
   readinessBlockedRootKeys?: string[];
@@ -111,17 +118,17 @@ export async function buildIssuesReport(options: BuildIssuesOptions): Promise<{ 
   const project = options.project ?? report?.project ?? readString(evidencePacket, "project") ?? "unknown";
   const generatedAt = (options.now ?? new Date()).toISOString();
   const testCreationAutomation = testCreationAutomationView(testCreationPlan);
-  const publication = buildPublicationContext(mutationReport, testCreationAutomation, readiness);
+  const publication = buildPublicationContext(report, mutationReport, testCreationAutomation, readiness);
   const current = [
-    ...issuesFromReport(report, sourceArtifacts),
+    ...issuesFromReport(report, repoMap, sourceArtifacts, publication),
     ...issuesFromMutation(mutationReport, sourceArtifacts, publication),
-    ...issuesFromTriage(triage, sourceArtifacts),
+    ...issuesFromTriage(triage, sourceArtifacts, publication),
     ...issuesFromCoverage(coverage, coverageRecommendations, sourceArtifacts, publication),
     ...issuesFromRepoMap(repoMap, sourceArtifacts, publication),
     ...issuesFromWorkflows(workflows, sourceArtifacts),
     ...issuesFromReadiness(readiness, sourceArtifacts),
-    ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts),
-    ...issuesFromHandoff(handoff, sourceArtifacts, publication),
+    ...issuesFromProviderEvidence(evidencePacket, sourceArtifacts, publication),
+    ...issuesFromHandoff(handoff, repoMap, sourceArtifacts, publication),
     ...issuesFromTestCreation(testCreationAutomation, repoMap, sourceArtifacts, publication)
   ];
 
@@ -319,13 +326,19 @@ export function renderIssuesMarkdown(report: VisualHiveIssuesReport): string {
   return `${sanitizeText(lines.join("\n"))}\n`;
 }
 
-function issuesFromReport(report: Report | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function issuesFromReport(
+  report: Report | undefined,
+  repoMap: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   if (!report) return [];
   const issues: VisualHiveIssueCandidate[] = [];
   for (const result of report.results ?? []) {
     if (result.status !== "failed") continue;
     const hasSelectorFailure = result.selectorAssertions?.some((assertion) => assertion.status === "failed");
     const hasScreenshotFailure = result.screenshotAssertions?.some((shot) => shot.status === "failed" || shot.status === "missing_baseline");
+    const root = contractFailureRootForResult(result, publication);
     issues.push(baseIssue({
       issueKind: hasSelectorFailure ? "selector_contract_failure" : hasScreenshotFailure ? "screenshot_diff" : "visual_regression",
       severity: reportSeverity(result.errors, "high"),
@@ -334,6 +347,7 @@ function issuesFromReport(report: Report | undefined, sourceArtifacts: VisualHiv
       owningAgentHint: hasSelectorFailure ? "visual-hive/test-maintainer" : "hive/quality",
       sourceArtifacts: [sourceArtifacts.report ?? ".visual-hive/report.json"],
       affected: [
+        ...sourceFilesForContract(repoMap, result.contractId).map((sourceFile) => ({ sourceFile })),
         {
           contractId: result.contractId,
           targetId: result.targetId,
@@ -344,7 +358,8 @@ function issuesFromReport(report: Report | undefined, sourceArtifacts: VisualHiv
       ],
       reproductionCommand: result.reproductionCommand,
       validationCommand: result.reproductionCommand ?? "visual-hive run --ci && visual-hive evidence",
-      bodySummary: `${result.contractId} failed with ${result.errors.length} error(s). ${result.errors.slice(0, 3).join(" ")}`
+      bodySummary: `${result.contractId} failed with ${result.errors.length} error(s). ${result.errors.slice(0, 3).join(" ")}`,
+      ...(root ? canonicalPublication(root.rootCauseKey) : {})
     }));
   }
   for (const result of report.results ?? []) {
@@ -453,7 +468,8 @@ function mutationSurfaceSortKey(surface: VisualHiveIssueCandidate["affected"][nu
     surface.targetId ?? "",
     surface.route ?? "",
     surface.component ?? "",
-    surface.viewport ?? ""
+    surface.viewport ?? "",
+    surface.sourceFile ?? ""
   ]);
 }
 
@@ -468,23 +484,36 @@ function mutationResultSortKey(result: MutationReport["results"][number]): strin
   ]);
 }
 
-function issuesFromTriage(report: TriageReport | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function issuesFromTriage(
+  report: TriageReport | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   if (!report) return [];
   return (report.findings ?? [])
     .filter((finding) => ["coverage_gap", "insufficient_coverage", "provider_failure", "protected_target_missing_secret", "external_upload_blocked"].includes(finding.classification))
-    .map((finding) =>
-      baseIssue({
-        issueKind: finding.classification.includes("coverage") ? "missing_visual_coverage" : finding.classification === "protected_target_missing_secret" ? "protected_target_blocked" : "provider_governance",
+    .map((finding) => {
+      const issueKind = finding.classification.includes("coverage") ? "missing_visual_coverage" : finding.classification === "protected_target_missing_secret" ? "protected_target_blocked" : "provider_governance";
+      const title = `[Visual Hive] ${finding.title}`;
+      const affected = (finding.contractIds ?? []).map((contractId) => ({ contractId }));
+      return baseIssue({
+        issueKind,
         severity: finding.severity,
-        title: `[Visual Hive] ${finding.title}`,
+        title,
         labels: finding.classification.includes("coverage") ? ["missing-coverage"] : ["visual-hive/blocked"],
         owningAgentHint: finding.classification.includes("coverage") ? "visual-hive/test-creator" : "hive/ci",
         sourceArtifacts: [sourceArtifacts.triage ?? ".visual-hive/triage.json"],
-        affected: (finding.contractIds ?? []).map((contractId) => ({ contractId })),
+        affected,
         validationCommand: "visual-hive triage && visual-hive issues --write",
-        bodySummary: finding.evidence.join("\n")
-      })
-    );
+        bodySummary: finding.evidence.join("\n"),
+        ...(issueKind === "provider_governance" && publication.contractFailureRoots.length > 0
+          ? aggregatePublication(
+              aggregateRootCauseKey(issueKind, title, affected),
+              contractFailureRootKeys(publication)
+            )
+          : {})
+      });
+    });
 }
 
 function issuesFromCoverage(
@@ -550,11 +579,21 @@ function issuesFromRepoMap(
     return baseIssue({
       issueKind: readString(gap, "kind")?.includes("map") ? "map_drift" : "missing_visual_coverage",
       severity: severityFromString(readString(gap, "severity"), "medium"),
-      title: `[Visual Hive] Repo map finding: ${readString(gap, "title") ?? readString(gap, "kind") ?? "coverage gap"}`,
+      title: `[Visual Hive] Repo map finding: ${
+        readString(gap, "title")
+        ?? readString(gap, "kind")
+        ?? (readString(gap, "id")?.startsWith("storybook-discovery:") ? readString(gap, "id") : undefined)
+        ?? "coverage gap"
+      }`,
       labels: ["map-drift"],
       owningAgentHint: "visual-hive/map",
       sourceArtifacts: [sourceArtifacts.repoMap ?? ".visual-hive/repo-map.json"],
-      affected: [{ route: readString(gap, "route"), component: readString(gap, "component"), selector: readString(gap, "selector") }],
+      affected: [{
+        route: readString(gap, "route"),
+        component: readString(gap, "component"),
+        selector: readString(gap, "selector"),
+        sourceFile: readString(gap, "suggestedArtifact")
+      }],
       validationCommand: "visual-hive analyze --repo . && visual-hive issues --write",
       bodySummary: readString(gap, "description") ?? JSON.stringify(gap).slice(0, 800),
       ...(testRoot ? derivativePublication(testRoot.rootCauseKey) : {})
@@ -596,24 +635,35 @@ function issuesFromReadiness(readiness: JsonObject | undefined, sourceArtifacts:
   );
 }
 
-function issuesFromProviderEvidence(evidence: JsonObject | undefined, sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"]): VisualHiveIssueCandidate[] {
+function issuesFromProviderEvidence(
+  evidence: JsonObject | undefined,
+  sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
+  publication: PublicationContext
+): VisualHiveIssueCandidate[] {
   const providers = arrayOfObjects(evidence?.providers);
   return providers
     .map((provider) => ({ provider, issueStatus: providerIssueStatus(provider) }))
     .filter((entry): entry is { provider: JsonObject; issueStatus: "failed" | "missing_credentials" | "blocked" } => entry.issueStatus !== undefined)
-    .map(({ provider, issueStatus }) =>
-      baseIssue({
+    .map(({ provider, issueStatus }) => {
+      const title = `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${issueStatus}`;
+      return baseIssue({
         issueKind: "provider_governance",
         severity: issueStatus === "failed" ? "high" : "medium",
-        title: `[Visual Hive] Provider governance: ${readString(provider, "providerId") ?? "provider"} ${issueStatus}`,
+        title,
         labels: ["visual-hive/blocked"],
         owningAgentHint: "hive/ci",
         sourceArtifacts: [sourceArtifacts.evidencePacket ?? ".visual-hive/evidence-packet.json", ".visual-hive/provider-results.json"],
         affected: [],
         validationCommand: "visual-hive providers list && visual-hive issues --write",
-        bodySummary: readString(provider, "message") ?? JSON.stringify(provider).slice(0, 800)
-      })
-    );
+        bodySummary: readString(provider, "message") ?? JSON.stringify(provider).slice(0, 800),
+        ...(publication.contractFailureRoots.length > 0
+          ? aggregatePublication(
+              aggregateRootCauseKey("provider_governance", title, []),
+              contractFailureRootKeys(publication)
+            )
+          : {})
+      });
+    });
 }
 
 function providerIssueStatus(provider: JsonObject): "failed" | "missing_credentials" | "blocked" | undefined {
@@ -626,6 +676,7 @@ function providerIssueStatus(provider: JsonObject): "failed" | "missing_credenti
 
 function issuesFromHandoff(
   handoff: JsonObject | undefined,
+  repoMap: JsonObject | undefined,
   sourceArtifacts: VisualHiveIssuesReport["sourceArtifacts"],
   publication: PublicationContext
 ): VisualHiveIssueCandidate[] {
@@ -637,9 +688,15 @@ function issuesFromHandoff(
       const contractId = workItemContractId(item);
       const workItemId = readString(item, "id");
       const mutationRoot = mutationRootForWorkItem(workItemId, publication);
+      const contractRoot = contractId ? contractFailureRootForContractId(contractId, publication) : undefined;
+      const contractFailureRootKeys = publication.contractFailureRoots.map((root) => root.rootCauseKey);
       const publicationMetadata = mutationRoot
         ? derivativePublication(mutationRoot.rootCauseKey)
-        : workItemId === "readiness.readiness_gate" && publication.readinessBlockedRootKeys?.length
+        : workItemId?.startsWith("playwright.contract_result.") && contractRoot
+          ? derivativePublication(contractRoot.rootCauseKey)
+          : workItemId === "playwright.deterministic_run" && contractFailureRootKeys.length > 0
+            ? aggregatePublication("aggregate/deterministic/playwright", contractFailureRootKeys)
+            : workItemId === "readiness.readiness_gate" && publication.readinessBlockedRootKeys?.length
           ? aggregatePublication("aggregate/readiness/readiness_gate", publication.readinessBlockedRootKeys)
           : {};
       return baseIssue({
@@ -649,7 +706,12 @@ function issuesFromHandoff(
         labels: ["visual-hive/ready"],
         owningAgentHint: readString(item, "kind") === "test_creation" ? "visual-hive/test-creator" : "hive/quality",
         sourceArtifacts: [sourceArtifacts.handoff ?? ".visual-hive/handoff.json", ...readStringArray(item.artifacts)],
-        affected: contractId ? [{ contractId }] : [],
+        affected: contractId
+          ? [
+              ...sourceFilesForContract(repoMap, contractId).map((sourceFile) => ({ sourceFile })),
+              { contractId }
+            ]
+          : [],
         validationCommand: "visual-hive handoff-validate && visual-hive issues --write",
         bodySummary: readString(item, "summary") ?? JSON.stringify(item).slice(0, 800),
         ...publicationMetadata
@@ -817,10 +879,18 @@ function workItemContractId(item: JsonObject): string | undefined {
 }
 
 function buildPublicationContext(
+  report: Report | undefined,
   mutationReport: MutationReport | undefined,
   testCreationAutomation: TestCreationAutomationView,
   readiness: JsonObject | undefined
 ): PublicationContext {
+  const contractFailureRoots = uniqueBy(
+    (report?.results ?? [])
+      .filter((result) => result.status === "failed")
+      .map(contractFailurePublicationRoot)
+      .filter((root): root is ContractFailurePublicationRoot => Boolean(root)),
+    (root) => root.rootCauseKey
+  ).sort((left, right) => stableCompare(left.rootCauseKey, right.rootCauseKey));
   const mutationRoots = uniqueBy(
     (mutationReport?.results ?? [])
       .filter((result) => result.status === "survived")
@@ -837,10 +907,44 @@ function buildPublicationContext(
     (root) => root.rootCauseKey
   );
   return {
+    contractFailureRoots,
     mutationRoots,
     testAdequacyRoots,
-    readinessBlockedRootKeys: readinessBlockedRootKeys(readiness, mutationRoots)
+    readinessBlockedRootKeys: readinessBlockedRootKeys(readiness, contractFailureRoots, mutationRoots)
   };
+}
+
+function contractFailurePublicationRoot(result: Report["results"][number]): ContractFailurePublicationRoot | undefined {
+  const contractId = cleanPublicationIdentity(result.contractId);
+  const targetId = cleanPublicationIdentity(result.targetId);
+  if (!contractId || !targetId) return undefined;
+  const rootCauseKey = `contract/${rootKeySegment(targetId)}/${rootKeySegment(contractId)}`;
+  try {
+    cleanRootCauseKey(rootCauseKey);
+  } catch {
+    return undefined;
+  }
+  return { rootCauseKey, contractId, targetId };
+}
+
+function contractFailureRootForResult(
+  result: Report["results"][number],
+  publication: PublicationContext
+): ContractFailurePublicationRoot | undefined {
+  const expected = contractFailurePublicationRoot(result);
+  return expected ? publication.contractFailureRoots.find((root) => root.rootCauseKey === expected.rootCauseKey) : undefined;
+}
+
+function contractFailureRootForContractId(
+  contractId: string,
+  publication: PublicationContext
+): ContractFailurePublicationRoot | undefined {
+  const matches = publication.contractFailureRoots.filter((root) => root.contractId === contractId);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function contractFailureRootKeys(publication: PublicationContext): string[] {
+  return publication.contractFailureRoots.map((root) => root.rootCauseKey);
 }
 
 function mutationPublicationRoot(result: MutationReport["results"][number]): MutationPublicationRoot | undefined {
@@ -905,6 +1009,7 @@ function uniqueMutationRoot(roots: MutationPublicationRoot[]): MutationPublicati
 
 function readinessBlockedRootKeys(
   readiness: JsonObject | undefined,
+  contractFailureRoots: ContractFailurePublicationRoot[],
   mutationRoots: MutationPublicationRoot[]
 ): string[] | undefined {
   if (!readiness) return undefined;
@@ -912,6 +1017,10 @@ function readinessBlockedRootKeys(
   if (blockedGates.length === 0) return undefined;
   const roots: string[] = [];
   for (const gate of blockedGates) {
+    if (readString(gate, "id") === "deterministic:status" && readString(gate, "category") === "deterministic" && contractFailureRoots.length > 0) {
+      roots.push(...contractFailureRoots.map((root) => root.rootCauseKey));
+      continue;
+    }
     if (readString(gate, "id") === "mutation:score" && readString(gate, "category") === "mutation" && mutationRoots.length > 0) {
       roots.push(...mutationRoots.map((root) => root.rootCauseKey));
       continue;
@@ -944,6 +1053,14 @@ function aggregatePublication(
   blockedByRootKeys: string[]
 ): Pick<VisualHiveIssueCandidate, "publicationRole" | "rootCauseKey" | "blockedByRootKeys"> {
   return { publicationRole: "aggregate", rootCauseKey, blockedByRootKeys: stableUnique(blockedByRootKeys) };
+}
+
+function aggregateRootCauseKey(
+  issueKind: VisualHiveIssueCandidate["issueKind"],
+  title: string,
+  affected: VisualHiveIssueCandidate["affected"]
+): string {
+  return defaultRootCauseKey(issueKind, title, affected).replace(/^finding\//u, "aggregate/");
 }
 
 function ensurePublicationMetadata(issue: VisualHiveIssueCandidate): VisualHiveIssueCandidate {
@@ -990,7 +1107,7 @@ function validatePublicationRoleForKind(issueKind: VisualHiveIssueCandidate["iss
   if (role === "derivative" && !["missing_visual_coverage", "weak_visual_test", "external_repo_onboarding"].includes(issueKind)) {
     throw new Error(`Issue kind ${issueKind} cannot be published as a derivative.`);
   }
-  if (role === "aggregate" && issueKind !== "external_repo_onboarding") {
+  if (role === "aggregate" && !["external_repo_onboarding", "provider_governance"].includes(issueKind)) {
     throw new Error(`Issue kind ${issueKind} cannot be published as an aggregate.`);
   }
 }
@@ -1391,6 +1508,26 @@ function readNumber(value: unknown, key: string): number | undefined {
 
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => sanitizeText(entry)) : [];
+}
+
+function sourceFilesForContract(repoMap: JsonObject | undefined, contractId: string): string[] {
+  const visualMap = objectValue(repoMap, "visualMap");
+  return stableUnique(
+    arrayOfObjects(visualMap?.nodes)
+      .filter((node) => readStringArray(node.contractIds).includes(contractId))
+      .flatMap((node) => readStringArray(node.sourceFiles))
+      .filter(isRepositorySourceFile)
+  );
+}
+
+function isRepositorySourceFile(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/");
+  return normalized === value &&
+    !normalized.startsWith("/") &&
+    !normalized.startsWith("./") &&
+    !normalized.startsWith("../") &&
+    !normalized.includes("/../") &&
+    normalized.length > 0;
 }
 
 function dedupe(values: Array<string | undefined>): string[] {

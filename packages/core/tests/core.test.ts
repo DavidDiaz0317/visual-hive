@@ -1068,6 +1068,59 @@ describe("schema catalog", () => {
 });
 
 describe("repo intelligence", () => {
+  it("reports statically provable Storybook stories outside configured discovery without guessing dynamic configs", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-storybook-discovery-"));
+    tempDirs.push(tempRoot);
+    await mkdir(path.join(tempRoot, ".storybook"), { recursive: true });
+    await mkdir(path.join(tempRoot, "src"), { recursive: true });
+    await writeFile(
+      path.join(tempRoot, "package.json"),
+      JSON.stringify({
+        name: "storybook-discovery-fixture",
+        scripts: { storybook: "storybook dev", "build-storybook": "storybook build" },
+        devDependencies: { "@storybook/react-vite": "^9.0.0", storybook: "^9.0.0" }
+      }),
+      "utf8"
+    );
+    await writeFile(
+      path.join(tempRoot, ".storybook", "main.ts"),
+      `export default {
+  // stories: ["../ignored/**/*.stories.tsx"],
+  note: "stories: ['../ignored/**/*.stories.tsx']",
+  stories: [
+    "../src/**/*.stories.@(ts|tsx)",
+    "!../src/Excluded.stories.tsx"
+  ]
+};`,
+      "utf8"
+    );
+    await writeFile(path.join(tempRoot, "src", "Included.stories.tsx"), "export default { title: 'Included' };", "utf8");
+    await writeFile(path.join(tempRoot, "src", "Excluded.stories.tsx"), "export default { title: 'Excluded' };", "utf8");
+    await writeFile(path.join(tempRoot, ".storybook", "Missing.stories.tsx"), "export default { title: 'Missing' };", "utf8");
+
+    const report = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-07-25T00:00:00.000Z") });
+    const storybookGapIds = report.coverageGaps.filter((gap) => gap.id.startsWith("storybook-discovery:")).map((gap) => gap.id);
+    expect(storybookGapIds).toEqual([
+      "storybook-discovery:.storybook/Missing.stories.tsx",
+      "storybook-discovery:src/Excluded.stories.tsx"
+    ]);
+    expect(report.coverageGaps.find((gap) => gap.id === "storybook-discovery:.storybook/Missing.stories.tsx")).toMatchObject({
+      layer: 3,
+      severity: "medium",
+      suggestedArtifact: ".storybook/main.ts"
+    });
+
+    await writeRepoMap({ repoRoot: tempRoot, now: new Date("2026-07-25T00:01:00.000Z") });
+    const issues = await buildIssuesReport({ rootDir: tempRoot, project: "storybook-discovery-fixture" });
+    const missingStoryIssue = issues.report.issues.find((issue) => issue.title.includes("storybook-discovery:.storybook/Missing.stories.tsx"));
+    expect(missingStoryIssue).toBeTruthy();
+    expect(missingStoryIssue?.affected).toContainEqual({ sourceFile: ".storybook/main.ts" });
+
+    await writeFile(path.join(tempRoot, ".storybook", "main.ts"), "export default { stories: getStories() };", "utf8");
+    const dynamic = await analyzeRepository({ repoRoot: tempRoot, now: new Date("2026-07-25T00:02:00.000Z") });
+    expect(dynamic.coverageGaps.some((gap) => gap.id.startsWith("storybook-discovery:"))).toBe(false);
+  });
+
   it("maps repo scripts, selectors, routes, workflows, target hints, and coverage gaps", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-repo-map-"));
     tempDirs.push(tempRoot);
@@ -3121,6 +3174,30 @@ jobs:
         with:
           path: examples/demo-react-app/.visual-hive
           include-hidden-files: true
+`
+      }
+    ]);
+
+    expect(audit.workflows[0]?.kind).toBe("scheduled");
+    expect(audit.summary.pullRequestWorkflows).toBe(0);
+    expect(audit.summary.scheduledWorkflows).toBe(1);
+    expect(audit.findings.map((finding) => finding.kind)).not.toContain("missing_pull_request_trigger");
+  });
+
+  it("does not infer pull_request semantics from a parent checkout directory", () => {
+    const audit = auditWorkflows(sampleConfig(), [
+      {
+        path: "C:\\checkout\\visual-hive-pr-candidate\\.github\\workflows\\product-proof.yml",
+        content: `name: Product Proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx visual-hive report --github-step-summary
 `
       }
     ]);
@@ -6063,7 +6140,7 @@ export const Alert = {};
     expect(recommendation.recommendedContracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       targetId: "componentLibrary",
-      selectors: ["body"]
+      selectors: ["#storybook-root"]
     });
     expect(parsedYaml.contracts.map((contract) => contract.id)).toEqual([
       "storybook-dashboard-banner-alert-visual-stability",
@@ -6072,8 +6149,13 @@ export const Alert = {};
     expect(parsedYaml.contracts[0]).toMatchObject({
       id: "storybook-dashboard-banner-alert-visual-stability",
       target: "componentLibrary",
-      selectors: { mustExist: ["body"] }
+      selectors: { mustExist: ["#storybook-root"] },
+      waitFor: [{ selector: "#storybook-root", state: "visible" }],
+      steps: [{ action: "assertVisible", selector: "#storybook-root", state: "visible" }]
     });
+    expect(analyzeReadiness(parsedYaml).gates).not.toContainEqual(
+      expect.objectContaining({ id: "setup:body-only-selector", status: "blocked" })
+    );
     expect(parsedYaml.contracts[0]?.screenshots.map((screenshot) => screenshot.route)).toEqual([
       "/iframe.html?id=dashboard-banner--alert&viewMode=story",
       "/iframe.html?id=dashboard-banner--alert&viewMode=story"
@@ -6196,7 +6278,7 @@ export const Icon2XL = {};
     );
     expect(recommendation.recommendedContracts[0]).toMatchObject({
       id: "storybook-ui-accessiblestatus-icon-2-xl-visual-stability",
-      selectors: ["body"],
+      selectors: ["#storybook-root"],
       screenshots: expect.arrayContaining([
         expect.objectContaining({ route: "/iframe.html?id=ui-accessiblestatus--icon-2-xl&viewMode=story" })
       ])
@@ -6208,7 +6290,7 @@ export const Icon2XL = {};
       stories: ["web/src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
       components: ["web/src/components/**"]
     });
-    expect(parsedYaml.contracts[0]?.selectors.mustExist).toEqual(["body"]);
+    expect(parsedYaml.contracts[0]?.selectors.mustExist).toEqual(["#storybook-root"]);
     expect(recommendation.recommendedContracts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -9226,6 +9308,40 @@ function argosEnabledConfig(upload: Partial<VisualHiveConfig["providers"]["argos
 }
 
 describe("issue artifacts", () => {
+  it("binds failed contracts to exact repository files from the visual map", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-issue-source-files-"));
+    tempDirs.push(rootDir);
+    await mkdir(path.join(rootDir, ".visual-hive"), { recursive: true });
+    await writeJson(
+      path.join(rootDir, ".visual-hive", "report.json"),
+      reportFixture(
+        rootDir,
+        ".visual-hive/artifacts/screenshots/dashboard.png",
+        ".visual-hive/snapshots/dashboard.png"
+      )
+    );
+    await writeJson(path.join(rootDir, ".visual-hive", "repo-map.json"), {
+      project: "issue-source-files",
+      coverageGaps: [],
+      visualMap: {
+        nodes: [
+          {
+            id: "selector:dashboard",
+            kind: "selector",
+            contractIds: ["dashboard"],
+            sourceFiles: ["src/App.tsx"]
+          }
+        ]
+      }
+    });
+
+    const result = await buildIssuesReport({ rootDir, project: "issue-source-files" });
+    const issue = result.report.issues.find((candidate) => candidate.title.includes("dashboard failed deterministic validation"));
+
+    expect(issue?.affected).toContainEqual({ sourceFile: "src/App.tsx" });
+    expect(issue?.body).toContain("sourceFile=src/App.tsx");
+  });
+
   it("sanitizes issue artifact paths to repo-relative or redacted external paths", () => {
     const rootDir = "C:/Users/david/OneDrive/Documents/visual-hive-demo-site";
     expect(sanitizeArtifactPathForIssue(rootDir, "C:\\Users\\david\\OneDrive\\Documents\\visual-hive-demo-site\\.visual-hive\\artifacts\\screenshots\\home.png")).toBe(".visual-hive/artifacts/screenshots/home.png");

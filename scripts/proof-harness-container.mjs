@@ -872,19 +872,24 @@ export async function copyOrdinaryEvidence(item, outputRoot) {
   }
   if (outputRelative.endsWith(".png")) assertPngBytes(sourceBytes, outputRelative);
   assertNoSecretMaterial(sourceBytes, outputRelative);
+  if (process.platform !== "win32" && process.getuid?.() !== 0) {
+    throw new Error(`Frozen proof evidence requires a root writer: ${outputRelative}.`);
+  }
   const destination = path.join(outputRoot, outputRelative);
   await mkdir(path.dirname(destination), { recursive: true });
   await writeBytesExclusive(destination, sourceBytes);
   const destinationEntry = await lstat(destination);
-  if (
-    process.platform !== "win32" &&
-    (destinationEntry.uid !== 0 || (destinationEntry.mode & 0o022) !== 0)
-  ) {
-    throw new Error(`Frozen proof evidence is not root-owned and non-writable: ${outputRelative}.`);
-  }
+  assertFrozenEvidenceDestination(destinationEntry, outputRelative);
   const written = await readFile(destination);
   if (!written.equals(sourceBytes)) throw new Error(`Frozen proof evidence write mismatch: ${outputRelative}.`);
   return { path: outputRelative, sha256: digest, bytes: sourceBytes.length };
+}
+
+export function assertFrozenEvidenceDestination(entry, outputRelative) {
+  if (process.platform === "win32") return;
+  if (!entry || entry.uid !== 0 || (entry.mode & 0o022) !== 0) {
+    throw new Error(`Frozen proof evidence is not root-owned and non-writable: ${outputRelative}.`);
+  }
 }
 
 function assertNoSecretMaterial(bytes, label) {

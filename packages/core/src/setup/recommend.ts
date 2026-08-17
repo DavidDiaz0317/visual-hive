@@ -762,10 +762,11 @@ function buildContracts(
   inventory: RepoInventory
 ): Array<{ config: ContractConfig; reasons: string[] }> {
   if (target.kind === "storybook") {
-    // Repository-wide selectors do not prove that a particular isolated story
-    // renders that element. Keep readiness generic; the named route and its
-    // screenshots remain the deterministic, human-reviewable oracle.
-    return buildStorybookContracts("body", targetId, inventory);
+    // Repository-wide application selectors do not prove that a particular
+    // isolated story renders that element. Storybook does, however, own a
+    // stable iframe root whose visibility proves that the selected story
+    // rendered non-empty content without inventing a component selector.
+    return buildStorybookContracts("#storybook-root", targetId, inventory);
   }
   return buildAppContracts(selector, targetId, inventory);
 }
@@ -915,7 +916,9 @@ function buildStorybookContracts(
           : "Storybook was detected, but no story files were found; starter screenshots use the Storybook iframe route and should be refined after adding stories.",
         selector === "body"
           ? "No exact story-owned selector was proven, so the starter Storybook contract uses body rather than borrowing a repository-wide app selector."
-          : `Detected component selector ${selector}.`,
+          : selector === "#storybook-root"
+            ? "The starter contract uses Storybook's framework-owned iframe root so an empty or failed story cannot satisfy a body-only assertion."
+            : `Detected component selector ${selector}.`,
         "Desktop and mobile Storybook screenshots give a PR-safe component visual lane without requiring Chromatic."
       ]
     };
