@@ -494,7 +494,9 @@ describe.sequential("runPlaywrightRepairCapture", () => {
       "  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {",
       "    const full = path.join(root, entry.name);",
       "    if (entry.isDirectory()) visit(full);",
-      "    else if (entry.name === 'visual-hive.generated.spec.ts') {",
+      // The config is written after the complete spec. Mutating an open,
+      // partially written spec can be overwritten by the generator itself.
+      "    else if (entry.name === 'visual-hive.generated.spec.ts' && fs.existsSync(path.join(root, 'visual-hive.generated.config.cjs'))) {",
       "      fs.appendFileSync(full, '\\n// target-controlled mutation\\n');",
       "      fs.writeFileSync('.spec-mutation-hit', full);",
       "      changed = true;",
@@ -517,10 +519,10 @@ describe.sequential("runPlaywrightRepairCapture", () => {
     const request = validationRequest(fixture, fixture.baseSha, "before");
 
     const result = await runPlaywrightRepairCapture(captureOptions(fixture, request, "before"));
+    await expect(access(path.join(fixture.rootDir, ".spec-mutation-hit"), constants.F_OK)).resolves.toBeUndefined();
     expect(result.captureStatus).toBe("blocked");
     expect(result.exitCode).toBe(1);
     expect(result.report.results[0]?.errors.join("\n")).toMatch(/generated Playwright spec or config does not match its execution binding/u);
-    await expect(access(path.join(fixture.rootDir, ".spec-mutation-hit"), constants.F_OK)).resolves.toBeUndefined();
   }, 120_000);
 
   it("creates no evidence outside the repository after lifecycle-time path redirection", async () => {
