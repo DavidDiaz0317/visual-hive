@@ -180,7 +180,7 @@ describe("buildSpecContent", () => {
     expect(content).toContain('sentinel.style.setProperty("display", "none", "important")');
   });
 
-  it("kills api-500 only after a real interception and keeps the hidden sentinel out of screenshots", async () => {
+  describe("api-500 runtime", () => {
     const runFixture = async (options: {
       requestApi: boolean;
       flowRequest?: boolean;
@@ -266,47 +266,61 @@ describe("buildSpecContent", () => {
       }
     };
 
-    const intercepted = await runFixture({ requestApi: true, markerAssertion: true, mutation: true });
-    expect(intercepted.exitCode).toBe(1);
-    expect(intercepted.report.results[0]?.status).toBe("failed");
-    const interceptedAssertions = intercepted.report.results[0]?.selectorAssertions;
-    if (!interceptedAssertions) throw new Error(`missing structured api-500 assertions: ${JSON.stringify(intercepted.report, null, 2)}`);
-    expect(interceptedAssertions).toContainEqual(
-      expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
-    );
+    it("kills the mutation only after a real interception", async () => {
+      const intercepted = await runFixture({ requestApi: true, markerAssertion: true, mutation: true });
+      expect(intercepted.exitCode).toBe(1);
+      expect(intercepted.report.results[0]?.status).toBe("failed");
+      const interceptedAssertions = intercepted.report.results[0]?.selectorAssertions;
+      if (!interceptedAssertions) throw new Error(`missing structured api-500 assertions: ${JSON.stringify(intercepted.report, null, 2)}`);
+      expect(interceptedAssertions).toContainEqual(
+        expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
+      );
 
-    const noRequest = await runFixture({ requestApi: false, markerAssertion: true, mutation: true });
-    expect(noRequest.exitCode).toBe(0);
-    expect(noRequest.report.results[0]?.status).toBe("passed");
+    }, 30_000);
 
-    const noRequestManyScreenshots = await runFixture({
-      requestApi: false,
-      markerAssertion: true,
-      screenshotCount: 6,
-      mutation: true,
-      useDefaultTimeout: true
-    });
-    expect(noRequestManyScreenshots.exitCode).toBe(0);
-    expect(noRequestManyScreenshots.report.results[0]?.status).not.toBe("failed");
+    it("does not kill a mutation when no API request occurs", async () => {
+      const noRequest = await runFixture({ requestApi: false, markerAssertion: true, mutation: true });
+      expect(noRequest.exitCode).toBe(0);
+      expect(noRequest.report.results[0]?.status).toBe("passed");
 
-    const flowTriggered = await runFixture({ requestApi: false, flowRequest: true, markerAssertion: true, mutation: true });
-    expect(flowTriggered.exitCode).toBe(1);
-    expect(flowTriggered.report.results[0]?.selectorAssertions).toContainEqual(
-      expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
-    );
+    }, 30_000);
 
-    const screenshotRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-api-500-screenshot-"));
-    tempDirs.push(screenshotRoot);
-    const baseline = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: false, rootDir: screenshotRoot });
-    expect(baseline.exitCode).toBe(0);
-    expect(baseline.report.results[0]?.screenshotAssertions?.[0]?.status).toBe("created");
-    const repeated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: false, rootDir: screenshotRoot });
-    expect(repeated.exitCode).toBe(0);
-    expect(repeated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
-    const mutated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: true, rootDir: screenshotRoot });
-    expect(mutated.exitCode).toBe(0);
-    expect(mutated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
-  }, 60_000);
+    it("bounds observation across multiple screenshots without an API request", async () => {
+      const noRequestManyScreenshots = await runFixture({
+        requestApi: false,
+        markerAssertion: true,
+        screenshotCount: 6,
+        mutation: true,
+        useDefaultTimeout: true
+      });
+      expect(noRequestManyScreenshots.exitCode).toBe(0);
+      expect(noRequestManyScreenshots.report.results[0]?.status).not.toBe("failed");
+
+    }, 30_000);
+
+    it("observes API requests triggered by flow steps", async () => {
+      const flowTriggered = await runFixture({ requestApi: false, flowRequest: true, markerAssertion: true, mutation: true });
+      expect(flowTriggered.exitCode).toBe(1);
+      expect(flowTriggered.report.results[0]?.selectorAssertions).toContainEqual(
+        expect.objectContaining({ kind: "textMustNotExist", value: API_500_MUTATION_MARKER, status: "failed" })
+      );
+
+    }, 30_000);
+
+    it("keeps the hidden mutation sentinel out of repeated screenshots", async () => {
+      const screenshotRoot = await mkdtemp(path.join(os.tmpdir(), "visual-hive-api-500-screenshot-"));
+      tempDirs.push(screenshotRoot);
+      const baseline = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: false, rootDir: screenshotRoot });
+      expect(baseline.exitCode).toBe(0);
+      expect(baseline.report.results[0]?.screenshotAssertions?.[0]?.status).toBe("created");
+      const repeated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: false, rootDir: screenshotRoot });
+      expect(repeated.exitCode).toBe(0);
+      expect(repeated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
+      const mutated = await runFixture({ requestApi: true, markerAssertion: false, screenshotCount: 1, mutation: true, rootDir: screenshotRoot });
+      expect(mutated.exitCode).toBe(0);
+      expect(mutated.report.results[0]?.screenshotAssertions?.[0]).toMatchObject({ status: "passed", actualDiffPixelRatio: 0 });
+    }, 30_000);
+  });
 
   it("collects later screenshot evidence after an earlier visual assertion fails", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "visual-hive-complete-screenshot-run-"));
