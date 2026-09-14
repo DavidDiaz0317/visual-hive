@@ -92,6 +92,27 @@ describe("parameterized Visual Hive repair MCP tools", () => {
       });
       expect(textOf(taskResult)).toContain(fixture.task.contextDigest);
       expect(textOf(taskResult)).toContain("sessionStorageId");
+      expect(taskEnvelope.result.sourceFiles).toEqual([{ path: "src/Card.tsx", classification: "source" }]);
+      expect(taskEnvelope.result.availableEvidence).toHaveLength(1);
+      expect(taskEnvelope.result.availableEvidence[0]).toMatchObject({
+        phase: "before",
+        captureStatus: "failed",
+        screenshotSets: [{
+          assertion: { contractId: "contract.card", screenshotName: "Card desktop state", route: "/", state: "default", viewportId: "viewport.desktop" },
+          rolesAvailable: ["baseline", "actual", "diff"],
+          likelyChanged: true,
+          retrieval: {
+            tool: "visual_hive_get_screenshot_set",
+            arguments: {
+              runId: fixture.run.runId,
+              runContextDigest: fixture.run.runContextDigest,
+              commitSha: fixture.run.repository.commitSha,
+              contractId: "contract.card",
+              screenshotName: "Card desktop state"
+            }
+          }
+        }]
+      });
 
       const issueResult = await client.callTool({
         name: "visual_hive_get_issue_context",

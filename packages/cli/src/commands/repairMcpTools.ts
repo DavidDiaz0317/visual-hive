@@ -85,7 +85,7 @@ export const VISUAL_REPAIR_MCP_TOOL_DEFINITIONS: readonly VisualRepairMcpToolDef
   {
     name: "visual_hive_get_task_context",
     title: "Get Visual Repair Task Context",
-    description: "Read one exact, digest-bound multimodal task context with bounded section pagination.",
+    description: "Read one exact, digest-bound multimodal task context with bounded section pagination and discover verified captured evidence.",
     inputSchema: GetTaskContextInputSchema
   },
   {
@@ -158,7 +158,7 @@ export async function callVisualRepairMcpTool(
       case "visual_hive_get_task_context": {
         const input = GetTaskContextInputSchema.parse(rawArguments);
         await verifyToolSessionScope(rootDir, toolName, input, session, producer);
-        result = await getTaskContext(rootDir, input, session);
+        result = await getTaskContext(rootDir, input, session, producer);
         break;
       }
       case "visual_hive_get_issue_context": {
@@ -212,7 +212,12 @@ export async function callVisualRepairMcpTool(
   }
 }
 
-async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskContextInputSchema>, session: HiveRepairSession): Promise<CallToolResult> {
+async function getTaskContext(
+  rootDir: string,
+  input: z.infer<typeof GetTaskContextInputSchema>,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<CallToolResult> {
   const { context } = await loadTask(rootDir, input);
   if (context.repository.baseSha !== input.baseSha) throw new Error("Task context base commit does not match the requested commit.");
   const authorizedAssetIds = new Set(session.authorization?.assetIds ?? []);
@@ -255,6 +260,8 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
           obligations: context.obligations.length,
           sourceFiles: context.sourceContext.files.length
         },
+        sourceFiles: context.sourceContext.files.map((file) => ({ path: file.path, classification: file.classification })),
+        availableEvidence: await discoverVerifiedEvidence(rootDir, context, session, producer),
         safety: context.safety
       };
       break;
@@ -284,6 +291,81 @@ async function getTaskContext(rootDir: string, input: z.infer<typeof GetTaskCont
       break;
   }
   return textResult(rootDir, { schemaVersion: "visual-hive.mcp-tool-result.v1", tool: "visual_hive_get_task_context", binding, section: input.section, result });
+}
+
+async function discoverVerifiedEvidence(
+  rootDir: string,
+  context: VisualHiveTaskContext,
+  session: HiveRepairSession,
+  producer: Readonly<VerifiedVisualHiveProducerIdentity>
+): Promise<Array<Record<string, unknown>>> {
+  const requests = session.validationRequests
+    .filter((request) => request.kind === "reproduction" && request.commitRole === "base" && request.state === "completed")
+    .sort((left, right) => stableTextCompare(left.requestId, right.requestId));
+  const discovered: Array<Record<string, unknown>> = [];
+  for (const request of requests) {
+    const runId = `run.${request.requestId}`;
+    const run = await loadRun(rootDir, context, runId, undefined, request.commitSha);
+    const captureReceiptDigest = await assertRunMatchesSession(rootDir, run, session, producer);
+    const commonArguments = {
+      taskId: context.taskId,
+      repository: context.repository.name,
+      taskContextDigest: context.contextDigest,
+      runId: run.runId,
+      runContextDigest: run.runContextDigest,
+      commitSha: run.repository.commitSha
+    };
+    const screenshotGroups = new Map<string, {
+      contractId: string;
+      screenshotName: string;
+      route: string;
+      state: string;
+      viewportId: string;
+      roles: Array<"baseline" | "actual" | "diff">;
+    }>();
+    for (const asset of run.evidenceAssets) {
+      if (asset.role !== "baseline" && asset.role !== "actual" && asset.role !== "diff") continue;
+      const assertion = asset.assertion;
+      const key = [assertion.contractId, assertion.screenshotName, assertion.route, assertion.state, assertion.viewportId].join("\0");
+      const existing = screenshotGroups.get(key) ?? { ...assertion, roles: [] };
+      if (!existing.roles.includes(asset.role)) existing.roles.push(asset.role);
+      screenshotGroups.set(key, existing);
+    }
+    const screenshotSets = [...screenshotGroups.values()]
+      .map((entry) => {
+        const roles = [...entry.roles].sort((left, right) => screenshotRoleOrder(left) - screenshotRoleOrder(right));
+        return {
+          assertion: {
+            contractId: entry.contractId,
+            screenshotName: entry.screenshotName,
+            route: entry.route,
+            state: entry.state,
+            viewportId: entry.viewportId
+          },
+          rolesAvailable: roles,
+          likelyChanged: roles.includes("diff"),
+          retrieval: {
+            tool: "visual_hive_get_screenshot_set",
+            arguments: { ...commonArguments, contractId: entry.contractId, screenshotName: entry.screenshotName, route: entry.route, state: entry.state, viewportId: entry.viewportId, roles }
+          }
+        };
+      })
+      .sort((left, right) => Number(right.likelyChanged) - Number(left.likelyChanged)
+        || stableTextCompare(left.assertion.contractId, right.assertion.contractId)
+        || stableTextCompare(left.assertion.screenshotName, right.assertion.screenshotName));
+    const contractIds = [...new Set(run.execution.cases.flatMap((executionCase) => executionCase.contractIds))].sort(stableTextCompare);
+    discovered.push({
+      phase: run.phase,
+      captureStatus: run.capture.status,
+      binding: runBinding(context, run, captureReceiptDigest),
+      screenshotSets,
+      browserEvidence: contractIds.map((contractId) => ({
+        contractId,
+        retrieval: { tool: "visual_hive_get_browser_evidence", arguments: { ...commonArguments, contractId, includeImages: true, maxImages: 2 } }
+      }))
+    });
+  }
+  return discovered;
 }
 
 async function getIssueContext(rootDir: string, input: z.infer<typeof GetIssueContextInputSchema>, session: HiveRepairSession): Promise<CallToolResult> {

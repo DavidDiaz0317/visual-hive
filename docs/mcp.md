@@ -170,3 +170,9 @@ Trusted workflows may call the CLI directly under explicit policy. MCP clients s
 - Visual Hive owns the final deterministic verdict.
 - LLMs, MCP clients, Hive, agents, and optional providers do not override pass/fail.
 - Default local and PR-safe runs create zero real GitHub issues, branches, PRs, provider uploads, Hive calls, or external network calls.
+
+### Discovering captured repair evidence
+
+The `visual_hive_get_task_context` summary includes `sourceFiles` (paths and classifications) and `availableEvidence` for completed base reproduction requests. Each evidence entry includes a verified run binding, screenshot-set retrieval arguments, available baseline/actual/diff roles, and browser-evidence retrieval arguments. A diff marks a set as likely changed; it does not replace the deterministic verdict.
+
+Discovery validates the exact task, session, producer, authorization and completed capture receipt before returning run metadata. It does not execute a capture, grant additional permissions or publish an issue/PR. The caller must use the returned digest-bound arguments with the repair evidence tools. Hive's production provider must explicitly support a tool before it can use it; discovery does not enable tools in a contained provider.
